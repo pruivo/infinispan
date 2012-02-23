@@ -110,6 +110,13 @@ public class GlobalTransaction implements Cloneable {
       return sb.toString();
    }
 
+   /**
+    * Returns a simplified representation of the transaction.
+    */
+   public final String prettyPrint() {
+      return getAddress() + ":" + getId();
+   }
+
    public void setId(long id) {
       this.id = id;
    }

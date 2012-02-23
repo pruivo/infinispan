@@ -32,6 +32,7 @@ import org.infinispan.remoting.transport.Address;
  * Base class for InvocationContextContainer implementations.
  *
  * @author Mircea Markus
+ * @author Pedro Ruivo
  * @since 5.1
  */
 public abstract class AbstractInvocationContextContainer implements InvocationContextContainer {
@@ -66,5 +67,15 @@ public abstract class AbstractInvocationContextContainer implements InvocationCo
    @Override
    public void clearThreadLocal() {
       ctxHolder.remove();
+   }
+
+   /**
+    * set the context in the Thread Local. It is needed for the total order protocol because it uses a executor
+    * service to validate transactions
+    * @param ctx the invocation context
+    */
+   @Override
+   public void setContext(InvocationContext ctx) {
+      ctxHolder.set(ctx);
    }
 }

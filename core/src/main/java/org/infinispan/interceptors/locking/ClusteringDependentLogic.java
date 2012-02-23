@@ -47,6 +47,7 @@ import org.infinispan.transaction.xa.CacheTransaction;
 import java.util.Collection;
 
 import static org.infinispan.transaction.WriteSkewHelper.performWriteSkewCheckAndReturnNewVersions;
+import static org.infinispan.transaction.WriteSkewHelper.returnNewVersions;
 
 /**
  * Abstractization for logic related to different clustering modes: replicated or distributed. This implements the <a
@@ -54,6 +55,7 @@ import static org.infinispan.transaction.WriteSkewHelper.performWriteSkewCheckAn
  * the <b>Implementor</b> and various LockingInterceptors are the <b>Abstraction</b>.
  *
  * @author Mircea Markus
+ * @author Pedro Ruivo
  * @since 5.1
  */
 @Scope(Scopes.NAMED_CACHE)
@@ -170,7 +172,7 @@ public interface ClusteringDependentLogic {
       private StateTransferManager stateTransferManager;
       private RpcManager rpcManager;
 
-      private static final WriteSkewHelper.KeySpecificLogic keySpecificLogic = new WriteSkewHelper.KeySpecificLogic() {
+      protected static final WriteSkewHelper.KeySpecificLogic keySpecificLogic = new WriteSkewHelper.KeySpecificLogic() {
          @Override
          public boolean performCheckOnKey(Object key) {
             return true;
@@ -276,7 +278,7 @@ public interface ClusteringDependentLogic {
       private RpcManager rpcManager;
       private StateTransferLock stateTransferLock;
 
-      private final WriteSkewHelper.KeySpecificLogic keySpecificLogic = new WriteSkewHelper.KeySpecificLogic() {
+      protected final WriteSkewHelper.KeySpecificLogic keySpecificLogic = new WriteSkewHelper.KeySpecificLogic() {
          @Override
          public boolean performCheckOnKey(Object key) {
             return localNodeIsOwner(key);
@@ -374,6 +376,60 @@ public interface ClusteringDependentLogic {
          }
          cacheTransaction.setUpdatedEntryVersions(uv);
          return (uv.isEmpty()) ? null : uv;
+      }
+   }
+
+   /**
+    * Logic for total order protocol in replicated mode
+    */
+   public static final class TotalOrderReplicationNodesLogic extends ReplicationLogic {
+
+      @Override
+      public EntryVersionsMap createNewVersionsAndCheckForWriteSkews(VersionGenerator versionGenerator,
+                                                                     TxInvocationContext context,
+                                                                     VersionedPrepareCommand prepareCommand) {
+         if (context.isOriginLocal()) {
+            throw new IllegalStateException("This must not be reached");
+         }
+
+         EntryVersionsMap updatedVersionMap;
+
+         if (!prepareCommand.isSkipWriteSkewCheck()) {
+            updatedVersionMap = performWriteSkewCheckAndReturnNewVersions(prepareCommand, dataContainer,
+                                                                          versionGenerator, context, keySpecificLogic);
+         } else {
+            updatedVersionMap = returnNewVersions(prepareCommand, versionGenerator, context, keySpecificLogic);
+         }
+
+         context.getCacheTransaction().setUpdatedEntryVersions(updatedVersionMap);
+         return updatedVersionMap;
+      }
+   }
+
+   /**
+    * Logic for the total order protocol in distribution mode
+    */
+   public static final class TotalOrderDistributionLogic extends DistributionLogic {
+
+      @Override
+      public EntryVersionsMap createNewVersionsAndCheckForWriteSkews(VersionGenerator versionGenerator,
+                                                                     TxInvocationContext context,
+                                                                     VersionedPrepareCommand prepareCommand) {
+         if (context.isOriginLocal()) {
+            throw new IllegalStateException("This must not be reached");
+         }
+
+         EntryVersionsMap updatedVersionMap;
+
+         if (!prepareCommand.isSkipWriteSkewCheck()) {
+            updatedVersionMap = performWriteSkewCheckAndReturnNewVersions(prepareCommand, dataContainer,
+                                                                          versionGenerator, context, keySpecificLogic);
+         } else {
+            updatedVersionMap = returnNewVersions(prepareCommand, versionGenerator, context, keySpecificLogic);
+         }
+
+         context.getCacheTransaction().setUpdatedEntryVersions(updatedVersionMap);
+         return updatedVersionMap;
       }
    }
 }

@@ -23,7 +23,6 @@ import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
-import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.EntryVersionsMap;
@@ -43,7 +42,7 @@ import org.infinispan.util.logging.LogFactory;
  */
 public class VersionedEntryWrappingInterceptor extends EntryWrappingInterceptor {
 
-   private VersionGenerator versionGenerator;
+   protected VersionGenerator versionGenerator;
    private static final Log log = LogFactory.getLog(VersionedEntryWrappingInterceptor.class);
 
    @Override
@@ -58,9 +57,7 @@ public class VersionedEntryWrappingInterceptor extends EntryWrappingInterceptor 
 
    @Override
    public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
-      if (!ctx.isOriginLocal() || command.isReplayEntryWrapping()) {
-         for (WriteCommand c : command.getModifications()) c.acceptVisitor(ctx, entryWrappingVisitor);
-      }
+      wrapEntriesForPrepare(ctx, command);
       EntryVersionsMap newVersionData= null;
       if (ctx.isOriginLocal() && !((LocalTransaction)ctx.getCacheTransaction()).isFromStateTransfer()) newVersionData = cdl.createNewVersionsAndCheckForWriteSkews(versionGenerator, ctx, (VersionedPrepareCommand) command);
 

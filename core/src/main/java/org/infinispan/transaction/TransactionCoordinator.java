@@ -52,6 +52,7 @@ import static javax.transaction.xa.XAResource.XA_RDONLY;
  * through {@link org.infinispan.transaction.synchronization.SynchronizationAdapter}.
  *
  * @author Mircea.Markus@jboss.com
+ * @author Pedro Ruivo
  * @since 5.0
  */
 public class TransactionCoordinator {
@@ -90,8 +91,7 @@ public class TransactionCoordinator {
 
    @Start
    public void start() {
-      if (configuration.locking().writeSkewCheck() && configuration.transaction().lockingMode() == LockingMode.OPTIMISTIC
-            && configuration.versioning().enabled()) {
+      if (Configurations.isVersioningEnabled(configuration)) {
          // We need to create versioned variants of PrepareCommand and CommitCommand
          commandCreator = new CommandCreator() {
             @Override
@@ -126,7 +126,8 @@ public class TransactionCoordinator {
    public final int prepare(LocalTransaction localTransaction, boolean replayEntryWrapping) throws XAException {
       validateNotMarkedForRollback(localTransaction);
 
-      if (Configurations.isOnePhaseCommit(configuration) || is1PcForAutoCommitTransaction(localTransaction)) {
+      if (Configurations.isOnePhaseCommit(configuration) || is1PcForAutoCommitTransaction(localTransaction) ||
+            Configurations.isOnePhaseTotalOrderCommit(configuration)) {
          if (trace) log.tracef("Received prepare for tx: %s. Skipping call as 1PC will be used.", localTransaction);
          return XA_OK;
       }
@@ -166,11 +167,13 @@ public class TransactionCoordinator {
       if (trace) log.tracef("Committing transaction %s", localTransaction.getGlobalTransaction());
       LocalTxInvocationContext ctx = icc.createTxInvocationContext();
       ctx.setLocalTransaction(localTransaction);
-      if (Configurations.isOnePhaseCommit(configuration) || isOnePhase || is1PcForAutoCommitTransaction(localTransaction)) {
+      if (Configurations.isOnePhaseCommit(configuration) || isOnePhase || is1PcForAutoCommitTransaction(localTransaction) ||
+            Configurations.isOnePhaseTotalOrderCommit(configuration)) {
          validateNotMarkedForRollback(localTransaction);
 
          if (trace) log.trace("Doing an 1PC prepare call on the interceptor chain");
-         PrepareCommand command = commandsFactory.buildPrepareCommand(localTransaction.getGlobalTransaction(), localTransaction.getModifications(), true);
+         PrepareCommand command = commandCreator.createPrepareCommand(localTransaction.getGlobalTransaction(), localTransaction.getModifications());
+         command.setOnePhaseCommit(true);
          try {
             invoker.invoke(ctx, command);
          } catch (Throwable e) {

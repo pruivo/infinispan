@@ -33,14 +33,15 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.manager.NamedCacheNotFoundException;
-import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.ResponseGenerator;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
+import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.jgroups.blocks.RequestHandler;
 
 /**
  * Sets the cache interceptor chain on an RPCCommand before calling it to perform
@@ -67,7 +68,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    }
 
    @Override
-   public Response handle(final CacheRpcCommand cmd, Address origin) throws Throwable {
+   public Object handle(final CacheRpcCommand cmd, Address origin) throws Throwable {
       cmd.setOrigin(origin);
 
       String cacheName = cmd.getCacheName();
@@ -87,7 +88,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    }
 
 
-   private Response handleInternal(final CacheRpcCommand cmd, final ComponentRegistry cr) throws Throwable {
+   private Object handleInternal(final CacheRpcCommand cmd, final ComponentRegistry cr) throws Throwable {
       CommandsFactory commandsFactory = cr.getCommandsFactory();
 
       // initialize this command with components specific to the intended cache instance
@@ -98,7 +99,11 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
          if(cmd instanceof CancellableCommand){
             cancelService.register(Thread.currentThread(), ((CancellableCommand)cmd).getUUID());
          }
+         cmd.setResponseGenerator(respGen);
          Object retval = cmd.perform(null);
+         if (retval == RequestHandler.DO_NOT_REPLY) {
+            return retval;
+         }
          Response response = respGen.getResponse(cmd, retval);
          log.tracef("About to send back response %s for command %s", response, cmd);
          return response;
@@ -112,14 +117,20 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       }
    }
 
-   private Response handleWithWaitForBlocks(final CacheRpcCommand cmd, final ComponentRegistry cr) throws Throwable {
+   private Object handleWithWaitForBlocks(final CacheRpcCommand cmd, final ComponentRegistry cr) throws Throwable {
       StateTransferManager stm = cr.getStateTransferManager();
       // We must have completed the join before handling commands
       // (even if we didn't complete the initial state transfer)
       if (!stm.isJoinComplete())
          return null;
 
-      Response resp = handleInternal(cmd, cr);
+      Object retVal = handleInternal(cmd, cr);
+
+      if (retVal == RequestHandler.DO_NOT_REPLY) {
+         return retVal;
+      }
+
+      Response resp = (Response) retVal;
 
       // A null response is valid and OK ...
       if (trace && resp != null && !resp.isValid()) {

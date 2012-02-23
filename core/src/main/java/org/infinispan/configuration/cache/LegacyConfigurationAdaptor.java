@@ -220,7 +220,8 @@ public class LegacyConfigurationAdaptor {
          .transactionSynchronizationRegistryLookup(config.transaction().transactionSynchronizationRegistryLookup())
          .useEagerLocking(config.transaction().useEagerLocking())
          .useSynchronization(config.transaction().useSynchronization())
-         .use1PcForAutoCommitTransactions(config.transaction().use1PcForAutoCommitTransactions());
+         .use1PcForAutoCommitTransactions(config.transaction().use1PcForAutoCommitTransactions())
+         .transactionProtocol(config.transaction().transactionProtocol());
 
       if (config.transaction().recovery().enabled()) {
          legacy.transaction().recovery().recoveryInfoCacheName(config.transaction().recovery().recoveryInfoCacheName());
@@ -460,7 +461,8 @@ public class LegacyConfigurationAdaptor {
          .transactionSynchronizationRegistryLookup(legacy.getTransactionSynchronizationRegistryLookup())
          .useEagerLocking(legacy.isUseEagerLocking())
          .useSynchronization(legacy.isUseSynchronizationForTransactions())
-         .use1PcForAutoCommitTransactions(legacy.isUse1PcForAutoCommitTransactions());
+         .use1PcForAutoCommitTransactions(legacy.isUse1PcForAutoCommitTransactions())
+         .transactionProtocol(legacy.getTransactionProtocol());
 
       TransactionManagerLookup tmLookup = legacy.getTransactionManagerLookup();
       if (tmLookup != null) {

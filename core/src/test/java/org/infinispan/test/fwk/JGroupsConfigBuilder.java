@@ -27,6 +27,8 @@ import org.jgroups.conf.ConfiguratorFactory;
 import org.jgroups.conf.ProtocolConfiguration;
 import org.jgroups.conf.ProtocolStackConfigurator;
 import org.jgroups.conf.XmlConfigurator;
+import org.jgroups.protocols.SEQUENCER;
+import org.jgroups.protocols.tom.TOA;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -317,7 +319,9 @@ public class JGroupsConfigBuilder {
       UFC, MFC, FC,
       FRAG2,
       STREAMING_STATE_TRANSFER,
-      RELAY2;
+      RELAY2,
+      SEQUENCER,
+      TOA;
    }
 
 }

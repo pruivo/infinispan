@@ -23,14 +23,15 @@
 
 package org.infinispan.configuration.global;
 
+import org.infinispan.config.ConfigurationException;
+import org.infinispan.configuration.Builder;
+import org.infinispan.configuration.BuiltBy;
+
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.infinispan.config.ConfigurationException;
-import org.infinispan.configuration.Builder;
-import org.infinispan.configuration.BuiltBy;
 import static java.util.Arrays.asList;
 
 public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuilder {
@@ -46,6 +47,7 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
    private final ShutdownConfigurationBuilder shutdown;
    private final List<Builder<?>> modules = new ArrayList<Builder<?>>();
    private final SiteConfigurationBuilder site;
+   private final ConditionalExecutorServiceConfigurationBuilder conditionalExecutor;
 
    public GlobalConfigurationBuilder() {
       this.cl = Thread.currentThread().getContextClassLoader();
@@ -58,6 +60,8 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
       this.replicationQueueScheduledExecutor = new ScheduledExecutorFactoryConfigurationBuilder(this);
       this.shutdown = new ShutdownConfigurationBuilder(this);
       this.site = new SiteConfigurationBuilder(this);
+      //set a new executor by default, that allows to set the core number of threads and the keep alive time
+      this.conditionalExecutor = new ConditionalExecutorServiceConfigurationBuilder(this);
    }
 
    /**
@@ -67,11 +71,11 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
     * @return a new global configuration
     */
    public GlobalConfigurationBuilder clusteredDefault() {
-      transport().
-         defaultTransport()
-         .clearProperties()
-      .asyncTransportExecutor()
-         .addProperty("threadNamePrefix", "asyncTransportThread");
+      transport()
+            .defaultTransport()
+            .clearProperties()
+            .asyncTransportExecutor()
+            .addProperty("threadNamePrefix", "asyncTransportThread");
       return this;
    }
 
@@ -82,8 +86,8 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
     */
    public GlobalConfigurationBuilder nonClusteredDefault() {
       transport()
-         .transport(null)
-         .clearProperties();
+            .transport(null)
+            .clearProperties();
       return this;
    }
 
@@ -165,11 +169,15 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
       }
    }
 
+   public ConditionalExecutorServiceConfigurationBuilder conditionalExecutor() {
+      return conditionalExecutor;
+   }
+
    @SuppressWarnings("unchecked")
    public void validate() {
       for (AbstractGlobalConfigurationBuilder<?> validatable : asList(asyncListenerExecutor, asyncTransportExecutor,
-            evictionScheduledExecutor, replicationQueueScheduledExecutor, globalJmxStatistics, transport,
-            serialization, shutdown, site)) {
+                                                                      evictionScheduledExecutor, replicationQueueScheduledExecutor, globalJmxStatistics, transport,
+                                                                      serialization, shutdown, site, conditionalExecutor)) {
          validatable.validate();
       }
       for (Builder<?> m : modules) {
@@ -194,8 +202,9 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
             shutdown.create(),
             modulesConfig,
             site.create(),
-            cl
-            );
+            cl,
+            conditionalExecutor.create()
+      );
    }
 
    public GlobalConfigurationBuilder read(GlobalConfiguration template) {
@@ -216,6 +225,7 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
       shutdown.read(template.shutdown());
       transport.read(template.transport());
       site.read(template.sites());
+      conditionalExecutor.read(template.conditionalExecutor());
       return this;
    }
 
@@ -223,9 +233,9 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
       GlobalConfigurationBuilder builder = new GlobalConfigurationBuilder();
       builder
             .transport()
-               .defaultTransport()
+            .defaultTransport()
             .asyncTransportExecutor()
-               .addProperty("threadNamePrefix", "asyncTransportThread");
+            .addProperty("threadNamePrefix", "asyncTransportThread");
 
       return builder;
    }
@@ -243,6 +253,7 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
             ", replicationQueueScheduledExecutor=" + replicationQueueScheduledExecutor +
             ", shutdown=" + shutdown +
             ", site=" + site +
+            ", conditionalExecutor=" + conditionalExecutor +
             '}';
    }
 
@@ -273,7 +284,7 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
       if (transport != null ? !transport.equals(that.transport) : that.transport != null)
          return false;
 
-      return true;
+      return !(conditionalExecutor != null ? !conditionalExecutor.equals(that.conditionalExecutor) : that.conditionalExecutor != null);
    }
 
    @Override
@@ -288,6 +299,7 @@ public class GlobalConfigurationBuilder implements GlobalConfigurationChildBuild
       result = 31 * result + (replicationQueueScheduledExecutor != null ? replicationQueueScheduledExecutor.hashCode() : 0);
       result = 31 * result + (shutdown != null ? shutdown.hashCode() : 0);
       result = 31 * result + (site != null ? site.hashCode() : 0);
+      result = 31 * result + (conditionalExecutor != null ? conditionalExecutor.hashCode() : 0);
       return result;
    }
 

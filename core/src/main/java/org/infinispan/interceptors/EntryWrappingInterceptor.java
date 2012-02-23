@@ -61,6 +61,7 @@ import java.util.Set;
  * Interceptor in charge with wrapping entries and add them in caller's context.
  *
  * @author Mircea Markus
+ * @author Pedro Ruivo
  * @since 5.1
  */
 public class EntryWrappingInterceptor extends CommandInterceptor {
@@ -98,13 +99,9 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
 
    @Override
    public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
-      if (!ctx.isOriginLocal() || command.isReplayEntryWrapping()) {
-         for (WriteCommand c : command.getModifications()) {
-            c.acceptVisitor(ctx, entryWrappingVisitor);
-         }
-      }
+      wrapEntriesForPrepare(ctx, command);
       Object result = invokeNextInterceptor(ctx, command);
-      if (command.isOnePhaseCommit()) {
+      if (shouldCommitEntries(command, ctx)) {
          commitContextEntries(ctx, false, isFromStateTransfer(ctx));
       }
       return result;
@@ -267,6 +264,12 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       }
    }
 
+   protected final void wrapEntriesForPrepare(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
+      if (!ctx.isOriginLocal() || command.isReplayEntryWrapping()) {
+         for (WriteCommand c : command.getModifications()) c.acceptVisitor(ctx, entryWrappingVisitor);
+      }
+   }
+
    protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
       cdl.commitEntry(entry, null, skipOwnershipCheck, ctx);
    }
@@ -332,7 +335,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
          }
          return null;
       }
-
+      
       @Override
       public Object visitApplyDeltaCommand(InvocationContext ctx, ApplyDeltaCommand command) throws Throwable {
          if (cdl.localNodeIsOwner(command.getKey())) {
@@ -385,5 +388,18 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
          return true;
       }
       return false;
+   }
+
+   /**
+    * total order condition: only commits when it is remote context and the prepare has the flag 1PC set
+    *
+    * @param command the prepare command
+    * @param ctx the invocation context
+    * @return true if the modification should be committed, false otherwise
+    */
+   protected boolean shouldCommitEntries(PrepareCommand command, TxInvocationContext ctx) {
+      boolean isTotalOrder = cacheConfiguration.transaction().transactionProtocol().isTotalOrder();
+      return isTotalOrder ? command.isOnePhaseCommit() && (!ctx.isOriginLocal() || !command.hasModifications()) :
+            command.isOnePhaseCommit();
    }
 }

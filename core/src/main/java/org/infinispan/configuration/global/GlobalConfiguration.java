@@ -22,16 +22,15 @@
  */
 package org.infinispan.configuration.global;
 
+import org.infinispan.Version;
+import org.infinispan.factories.annotations.SurvivesRestarts;
+import org.infinispan.factories.scopes.Scope;
+import org.infinispan.factories.scopes.Scopes;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.infinispan.Version;
-
-import org.infinispan.factories.annotations.SurvivesRestarts;
-import org.infinispan.factories.scopes.Scope;
-import org.infinispan.factories.scopes.Scopes;
 
 /**
  * <p>
@@ -43,6 +42,7 @@ import org.infinispan.factories.scopes.Scopes;
  * @author Mircea.Markus@jboss.com
  * @author Galder Zamarreño
  * @author Pete Muir
+ * @author Pedro Ruivo
  * @since 5.1
  *
  * @see <a href="../../../config.html#ce_infinispan_global">Configuration reference</a>
@@ -68,12 +68,13 @@ public class GlobalConfiguration {
    private final Map<Class<?>, ?> modules;
    private final SiteConfiguration site;
    private final ClassLoader cl;
+   private final ConditionalExecutorServiceConfiguration conditionalExecutor;
 
    GlobalConfiguration(ExecutorFactoryConfiguration asyncListenerExecutor,
-         ExecutorFactoryConfiguration asyncTransportExecutor, ScheduledExecutorFactoryConfiguration evictionScheduledExecutor,
-         ScheduledExecutorFactoryConfiguration replicationQueueScheduledExecutor, GlobalJmxStatisticsConfiguration globalJmxStatistics,
-         TransportConfiguration transport, SerializationConfiguration serialization, ShutdownConfiguration shutdown,
-         List<?> modules, SiteConfiguration site,ClassLoader cl) {
+                       ExecutorFactoryConfiguration asyncTransportExecutor, ScheduledExecutorFactoryConfiguration evictionScheduledExecutor,
+                       ScheduledExecutorFactoryConfiguration replicationQueueScheduledExecutor, GlobalJmxStatisticsConfiguration globalJmxStatistics,
+                       TransportConfiguration transport, SerializationConfiguration serialization, ShutdownConfiguration shutdown,
+                       List<?> modules, SiteConfiguration site,ClassLoader cl, ConditionalExecutorServiceConfiguration conditionalExecutor) {
       this.asyncListenerExecutor = asyncListenerExecutor;
       this.asyncTransportExecutor = asyncTransportExecutor;
       this.evictionScheduledExecutor = evictionScheduledExecutor;
@@ -89,6 +90,7 @@ public class GlobalConfiguration {
       this.modules = Collections.unmodifiableMap(moduleMap);
       this.site = site;
       this.cl = cl;
+      this.conditionalExecutor = conditionalExecutor;
    }
 
    public ExecutorFactoryConfiguration asyncListenerExecutor() {
@@ -142,7 +144,7 @@ public class GlobalConfiguration {
    public SiteConfiguration sites() {
       return site;
    }
-   
+
    @Override
    public String toString() {
       return "GlobalConfiguration{" +
@@ -157,6 +159,11 @@ public class GlobalConfiguration {
             ", modules=" + modules +
             ", site=" + site +
             ", cl=" + cl +
+            ", conditionalExecutor=" + conditionalExecutor +
             '}';
+   }
+
+   public ConditionalExecutorServiceConfiguration conditionalExecutor() {
+      return conditionalExecutor;
    }
 }

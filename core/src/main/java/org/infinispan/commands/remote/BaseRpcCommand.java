@@ -22,12 +22,18 @@
  */
 package org.infinispan.commands.remote;
 
+import org.infinispan.remoting.responses.ExceptionResponse;
+import org.infinispan.remoting.responses.Response;
+import org.infinispan.remoting.responses.ResponseGenerator;
 import org.infinispan.remoting.transport.Address;
+import org.jgroups.blocks.MessageRequest;
 
 public abstract class BaseRpcCommand implements CacheRpcCommand {
    protected final String cacheName;
 
    private Address origin;
+   private MessageRequest messageRequest;
+   private ResponseGenerator responseGenerator;
 
    protected BaseRpcCommand(String cacheName) {
       this.cacheName = cacheName;
@@ -44,14 +50,37 @@ public abstract class BaseRpcCommand implements CacheRpcCommand {
             "cacheName='" + cacheName + '\'' +
             '}';
    }
-   
+
    @Override
    public Address getOrigin() {
 	   return origin;
    }
-   
+
    @Override
    public void setOrigin(Address origin) {
 	   this.origin = origin;
+   }
+
+   @Override
+   public void setMessageRequest(MessageRequest messageRequest) {
+      this.messageRequest = messageRequest;
+   }
+
+   @Override
+   public void setResponseGenerator(ResponseGenerator responseGenerator) {
+      this.responseGenerator = responseGenerator;
+   }
+
+   @Override
+   public void sendReply(Object reply, boolean isException) {
+      if (messageRequest == null) {
+         throw new IllegalStateException("Message Request cannot be null. Initialization may have failed");
+      } else if (responseGenerator == null) {
+         throw new IllegalStateException("Response Generate cannot be null. Initialization may have failed");
+      }
+      Response replyValue = isException ? new ExceptionResponse((Exception) reply) :
+            responseGenerator.getResponse(this, reply);
+
+      messageRequest.sendReply(replyValue, false);
    }
 }

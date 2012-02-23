@@ -161,7 +161,13 @@ public class TxInterceptor extends CommandInterceptor {
    public Object visitRollbackCommand(TxInvocationContext ctx, RollbackCommand command) throws Throwable {
       if (this.statisticsEnabled) rollbacks.incrementAndGet();
       if (!ctx.isOriginLocal()) {
-         txTable.remoteTransactionRollback(command.getGlobalTransaction());
+         RemoteTransaction remoteTransaction = (RemoteTransaction) ctx.getCacheTransaction();
+         //its return true if the prepare was received before
+         boolean shouldRemove = !cacheConfiguration.transaction().transactionProtocol().isTotalOrder() ||
+               remoteTransaction.waitUntilPrepared(false);
+         if (shouldRemove || !command.wasPrepareSent()) {
+            txTable.remoteTransactionRollback(command.getGlobalTransaction());
+         }
       }
       try {
          return invokeNextInterceptor(ctx, command);

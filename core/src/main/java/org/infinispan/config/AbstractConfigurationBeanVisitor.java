@@ -248,6 +248,11 @@ public abstract class AbstractConfigurationBeanVisitor implements ConfigurationB
       defaultVisit(config);
    }
 
+   @Override
+   public void visitConditionalExecutorType(GlobalConfiguration.ConditionalExecutorType config) {
+      defaultVisit(config);
+   }
+
    public void defaultVisit(AbstractConfigurationBean c) {
    }
 }

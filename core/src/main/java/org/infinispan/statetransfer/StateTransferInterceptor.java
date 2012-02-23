@@ -58,9 +58,9 @@ public class StateTransferInterceptor extends CommandInterceptor {   //todo [ani
 
    private static final Log log = LogFactory.getLog(StateTransferInterceptor.class);
 
-   private StateTransferLock stateTransferLock;
+   protected StateTransferLock stateTransferLock;
 
-   private StateTransferManager stateTransferManager;
+   protected StateTransferManager stateTransferManager;
 
    private CommandsFactory commandFactory;
 

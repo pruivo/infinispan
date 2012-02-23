@@ -36,11 +36,11 @@ public class LegacyGlobalConfigurationAdaptor {
    }
 
    public static org.infinispan.config.GlobalConfiguration adapt(GlobalConfiguration config) {
-      
+
       // Handle the case that null is passed in
       if (config == null)
          return null;
-      
+
       FluentGlobalConfiguration legacy = new org.infinispan.config.GlobalConfiguration(config.classLoader()).fluent();
 
       legacy.transport()
@@ -52,7 +52,7 @@ public class LegacyGlobalConfigurationAdaptor {
          .distributedSyncTimeout(config.transport().distributedSyncTimeout())
          .nodeName(config.transport().nodeName())
          .withProperties(config.transport().properties());
-      
+
       if (config.transport().transport() != null)
          legacy.transport().transportClass(config.transport().transport().getClass());
 
@@ -70,40 +70,47 @@ public class LegacyGlobalConfigurationAdaptor {
       legacy.serialization()
          .marshallerClass(config.serialization().marshaller().getClass())
          .version(config.serialization().version());
-      
+
       for (Entry<Integer, AdvancedExternalizer<?>> entry : config.serialization().advancedExternalizers().entrySet()) {
          legacy.serialization().addAdvancedExternalizer(entry.getKey(), entry.getValue());
       }
 
       legacy.serialization().classResolver(config.serialization().classResolver());
-      
+
       legacy.asyncTransportExecutor()
          .factory(config.asyncTransportExecutor().factory().getClass())
          .withProperties(config.asyncTransportExecutor().properties());
-      
+
       legacy.asyncListenerExecutor()
          .factory(config.asyncListenerExecutor().factory().getClass())
          .withProperties(config.asyncListenerExecutor().properties());
-      
+
       legacy.evictionScheduledExecutor()
          .factory(config.evictionScheduledExecutor().factory().getClass())
          .withProperties(config.evictionScheduledExecutor().properties());
-      
+
       legacy.replicationQueueScheduledExecutor()
          .factory(config.replicationQueueScheduledExecutor().factory().getClass())
          .withProperties(config.replicationQueueScheduledExecutor().properties());
-      
+
       legacy.shutdown().hookBehavior(org.infinispan.config.GlobalConfiguration.ShutdownHookBehavior.valueOf(config.shutdown().hookBehavior().name()));
-      
+
+      legacy.conditionalExecutor()
+            .corePoolSize(config.conditionalExecutor().corePoolSize())
+            .maxPoolSize(config.conditionalExecutor().maxPoolSize())
+            .keepAliveTime(config.conditionalExecutor().keepAliveTime())
+            .queueSize(config.conditionalExecutor().queueSize())
+            .threadPriority(config.conditionalExecutor().threadPriority());
+
       return legacy.build();
    }
-   
+
    public static org.infinispan.configuration.global.GlobalConfiguration adapt(org.infinispan.config.GlobalConfiguration legacy) {
-      
+
       // Handle the case that null is passed in
       if (legacy == null)
          return null;
-      
+
       GlobalConfigurationBuilder builder = new GlobalConfigurationBuilder();
 
       if (legacy.getTransportClass() != null) {
@@ -134,7 +141,7 @@ public class LegacyGlobalConfigurationAdaptor {
       builder.serialization()
          .marshaller(Util.<Marshaller>getInstance(legacy.getMarshallerClass(), legacy.getClassLoader()))
          .version(legacy.getMarshallVersion());
-      
+
       for (AdvancedExternalizerConfig externalizerConfig : legacy.getExternalizers()) {
          AdvancedExternalizer ext = externalizerConfig.getAdvancedExternalizer();
          if (ext == null)
@@ -149,25 +156,32 @@ public class LegacyGlobalConfigurationAdaptor {
       }
 
       builder.serialization().classResolver(legacy.getClassResolver());
-      
+
       builder.asyncTransportExecutor()
          .factory(Util.<ExecutorFactory>getInstance(legacy.getAsyncTransportExecutorFactoryClass(), legacy.getClassLoader()))
          .withProperties(legacy.getAsyncTransportExecutorProperties());
-      
+
       builder.asyncListenerExecutor()
          .factory(Util.<ExecutorFactory>getInstance(legacy.getAsyncListenerExecutorFactoryClass(), legacy.getClassLoader()))
          .withProperties(legacy.getAsyncListenerExecutorProperties());
-      
+
       builder.evictionScheduledExecutor()
          .factory(Util.<ScheduledExecutorFactory>getInstance(legacy.getEvictionScheduledExecutorFactoryClass(), legacy.getClassLoader()))
          .withProperties(legacy.getEvictionScheduledExecutorProperties());
-      
+
       builder.replicationQueueScheduledExecutor()
          .factory(Util.<ScheduledExecutorFactory>getInstance(legacy.getReplicationQueueScheduledExecutorFactoryClass(), legacy.getClassLoader()))
          .withProperties(legacy.getReplicationQueueScheduledExecutorProperties());
-      
+
       builder.shutdown().hookBehavior(ShutdownHookBehavior.valueOf(legacy.getShutdownHookBehavior().name()));
-      
+
+      builder.conditionalExecutor()
+            .corePoolSize(legacy.getCorePoolSize())
+            .maxPoolSize(legacy.getMaxPoolSize())
+            .keepAliveTime(legacy.getKeepAliveTime())
+            .queueSize(legacy.getQueueSize())
+            .threadPriority(legacy.getThreadPriority());
+
       return builder.build();
    }
 

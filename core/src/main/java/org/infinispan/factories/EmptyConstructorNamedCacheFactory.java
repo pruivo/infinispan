@@ -28,6 +28,7 @@ import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.CommandsFactoryImpl;
 import org.infinispan.config.ConfigurationException;
 import org.infinispan.configuration.cache.CacheMode;
+import org.infinispan.configuration.cache.Configurations;
 import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.context.NonTransactionalInvocationContextContainer;
 import org.infinispan.context.TransactionalInvocationContextContainer;
@@ -48,6 +49,9 @@ import org.infinispan.notifications.cachelistener.CacheNotifierImpl;
 import org.infinispan.statetransfer.StateTransferLock;
 import org.infinispan.statetransfer.StateTransferLockImpl;
 import org.infinispan.transaction.TransactionCoordinator;
+import org.infinispan.transaction.totalorder.ParallelTotalOrderManager;
+import org.infinispan.transaction.totalorder.SequentialTotalOrderManager;
+import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.transaction.xa.TransactionFactory;
 import org.infinispan.transaction.xa.recovery.RecoveryAdminOperations;
 import org.infinispan.util.concurrent.locks.containers.LockContainer;
@@ -64,6 +68,7 @@ import static org.infinispan.util.Util.getInstance;
  * Simple factory that just uses reflection and an empty constructor of the component type.
  *
  * @author Manik Surtani (<a href="mailto:manik@jboss.org">manik@jboss.org</a>)
+ * @author Pedro Ruivo
  * @since 4.0
  */
 @DefaultFactoryFor(classes = {CacheNotifier.class, CommandsFactory.class,
@@ -72,7 +77,7 @@ import static org.infinispan.util.Util.getInstance;
                               BatchContainer.class, EvictionManager.class,
                               TransactionCoordinator.class, RecoveryAdminOperations.class, StateTransferLock.class,
                               ClusteringDependentLogic.class, LockContainer.class,
-                              L1Manager.class, TransactionFactory.class, BackupSender.class})
+                              L1Manager.class, TransactionFactory.class, BackupSender.class, TotalOrderManager.class})
 public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheComponentFactory implements AutoInstantiableFactory {
 
    @Override
@@ -81,14 +86,17 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
       Class<?> componentImpl;
       if (componentType.equals(ClusteringDependentLogic.class)) {
          CacheMode cacheMode = configuration.clustering().cacheMode();
+         boolean totalOrder = configuration.transaction().transactionProtocol().isTotalOrder();
          if (!cacheMode.isClustered()) {
             return componentType.cast(new ClusteringDependentLogic.LocalLogic());
          } else if (cacheMode.isInvalidation()) {
             return componentType.cast(new ClusteringDependentLogic.InvalidationLogic());
          } else if (cacheMode.isReplicated()) {
-            return componentType.cast(new ClusteringDependentLogic.ReplicationLogic());
+            return totalOrder ? componentType.cast(new ClusteringDependentLogic.TotalOrderReplicationNodesLogic()):
+            componentType.cast(new ClusteringDependentLogic.ReplicationLogic());
          } else {
-            return componentType.cast(new ClusteringDependentLogic.DistributionLogic());
+            return totalOrder ? componentType.cast(new ClusteringDependentLogic.TotalOrderDistributionLogic()) :
+            componentType.cast(new ClusteringDependentLogic.DistributionLogic());
          }
       } else {
          boolean isTransactional = configuration.transaction().transactionMode().isTransactional();
@@ -130,6 +138,9 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
             return (T) new TransactionFactory();
          } else if (componentType.equals(BackupSender.class)) {
             return (T) new BackupSenderImpl(globalConfiguration.sites().localSite());
+         } else if (componentType.equals(TotalOrderManager.class)) {
+            return Configurations.isOnePhaseTotalOrderCommit(configuration) ? (T) new SequentialTotalOrderManager() :
+                  (T) new ParallelTotalOrderManager();
          }
       }
 

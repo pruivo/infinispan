@@ -92,7 +92,7 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
    public void setDependencies(EntryFactory entryFactory) {
       this.entryFactory = entryFactory;
    }
-   
+
    @Start
    public void start() {
       if (cacheConfiguration.clustering().cacheMode() == CacheMode.LOCAL &&
@@ -114,7 +114,7 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
          tctx.getCacheTransaction().addReadKey(key);
       }
    }
-   
+
    @Override
    public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
       if (!command.hasModifications() || command.writesToASingleKey()) {
@@ -122,7 +122,7 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
          log.trace("Not using lock reordering as we have a single key.");
          acquireLocksVisitingCommands(ctx, command);
       } else {
-         Object[] orderedKeys = sort(command.getModifications());
+         Object[] orderedKeys = sort(command.getModifications(), cdl);
          boolean hasClear = orderedKeys == null;
          if (hasClear) {
             log.trace("Not using lock reordering as the prepare contains a clear command.");
@@ -144,13 +144,13 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
          throw cleanLocksAndRethrow(ctx, te);
       }
    }
-   
+
    @Override
    public Object visitGetKeyValueCommand(InvocationContext ctx, GetKeyValueCommand command) throws Throwable {
       markKeyAsRead(ctx, command);
       return super.visitGetKeyValueCommand(ctx, command);
    }
-   
+
    @Override
    public Object visitApplyDeltaCommand(InvocationContext ctx, ApplyDeltaCommand command) throws Throwable {
       try {
@@ -277,7 +277,7 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
          return visitSingleKeyCommand(ctx, command);
       }
    }
-   
+
    private class LocalWriteSkewCheckingLockAcquisitionVisitor extends LockAcquisitionVisitor {
       @Override
       protected void performWriteSkewCheck(TxInvocationContext ctx, Object key) {
@@ -292,7 +292,7 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
       }
    }
 
-   private Object[] sort(WriteCommand[] writes) {
+   public static Object[] sort(WriteCommand[] writes, ClusteringDependentLogic cdl) {
       Set<Object> set = new HashSet<Object>();
       for (WriteCommand wc: writes) {
          switch (wc.getCommandId()) {

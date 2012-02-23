@@ -64,11 +64,14 @@ public interface Transport extends Lifecycle {
     * @param usePriorityQueue if true, a priority queue is used to deliver messages.  May not be supported by all
     *                         implementations.
     * @param responseFilter   a response filter with which to filter out failed/unwanted/invalid responses.
+    * @param totalOrder       the command will be send with total order properties
+    * @param distribution     indicates if the command is sent from a cache in distributed mode
     * @return a map of responses from each member contacted.
     * @throws Exception in the event of problems.
     */
    Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout,
-                                         boolean usePriorityQueue, ResponseFilter responseFilter) throws Exception;
+                                 boolean usePriorityQueue, ResponseFilter responseFilter, boolean totalOrder,
+                                 boolean distribution) throws Exception;
 
 
    BackupResponse backupRemotely(Collection<XSiteBackup> backups, ReplicableCommand rpcCommand) throws Exception;
@@ -128,4 +131,11 @@ public interface Transport extends Lifecycle {
    int getViewId();
 
    Log getLog();
+
+   /**
+    * check if the transport has configured with total order deliver properties (has the sequencer in JGroups
+    * protocol stack.
+    * @param distributed
+    */
+   void checkTotalOrderSupported(boolean distributed);
 }

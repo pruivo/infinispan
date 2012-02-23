@@ -25,6 +25,7 @@ import org.infinispan.transaction.LockingMode;
  * Helper configuration methods.
  *
  * @author Galder Zamarreño
+ * @author Pedro Ruivo
  * @since 5.2
  */
 public class Configurations {
@@ -48,6 +49,23 @@ public class Configurations {
    public static boolean isStateTransferEnabled(Configuration cfg) {
       return cfg.clustering().stateTransfer().fetchInMemoryState()
             || (cfg.loaders().fetchPersistentState());
+   }
+
+   public static boolean isOnePhaseTotalOrderCommit(Configuration cfg) {
+      if (!cfg.transaction().transactionProtocol().isTotalOrder()) {
+         return false;
+      }
+      if (cfg.clustering().cacheMode().isReplicated()) {
+         return !isVersioningEnabled(cfg) || cfg.transaction().useSynchronization();
+      } else {
+         return !isVersioningEnabled(cfg);
+      }      
+   }
+
+   public static boolean isVersioningEnabled(Configuration cfg) {
+      return cfg.locking().writeSkewCheck() &&
+            cfg.transaction().lockingMode() == LockingMode.OPTIMISTIC &&
+            cfg.versioning().enabled();
    }
 
 }

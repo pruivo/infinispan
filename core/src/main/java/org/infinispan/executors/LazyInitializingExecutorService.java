@@ -62,7 +62,7 @@ public final class LazyInitializingExecutorService implements ExecutorService {
 
    @Override
    public void shutdown() {
-      if (delegate != null) delegate.shutdown(); 
+      if (delegate != null) delegate.shutdown();
    }
 
    @Override

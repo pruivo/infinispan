@@ -41,6 +41,13 @@ import org.infinispan.interceptors.distribution.VersionedDistributionInterceptor
 import org.infinispan.interceptors.locking.NonTransactionalLockingInterceptor;
 import org.infinispan.interceptors.locking.OptimisticLockingInterceptor;
 import org.infinispan.interceptors.locking.PessimisticLockingInterceptor;
+import org.infinispan.interceptors.totalorder.TotalOrderDistributionInterceptor;
+import org.infinispan.interceptors.totalorder.TotalOrderInterceptor;
+import org.infinispan.interceptors.totalorder.TotalOrderReplicationInterceptor;
+import org.infinispan.interceptors.totalorder.TotalOrderStateTransferInterceptor;
+import org.infinispan.interceptors.totalorder.TotalOrderVersionedDistributionInterceptor;
+import org.infinispan.interceptors.totalorder.TotalOrderVersionedEntryWrappingInterceptor;
+import org.infinispan.interceptors.totalorder.TotalOrderVersionedReplicationInterceptor;
 import org.infinispan.interceptors.xsite.NonTransactionalBackupInterceptor;
 import org.infinispan.interceptors.xsite.OptimisticBackupInterceptor;
 import org.infinispan.interceptors.xsite.PessimisticBackupInterceptor;
@@ -59,6 +66,7 @@ import java.util.List;
  * @author <a href="mailto:manik@jboss.org">Manik Surtani (manik@jboss.org)</a>
  * @author Mircea.Markus@jboss.com
  * @author Marko Luksa
+ * @author Pedro Ruivo
  * @since 4.0
  */
 @DefaultFactoryFor(classes = InterceptorChain.class)
@@ -101,6 +109,7 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
       componentRegistry.registerComponent(interceptorChain, InterceptorChain.class);
 
       boolean invocationBatching = configuration.invocationBatching().enabled();
+      boolean isTotalOrder = configuration.transaction().transactionProtocol().isTotalOrder();
       // load the icInterceptor first
       if (invocationBatching) {
          interceptorChain.setFirstInChain(createInterceptor(new BatchingInterceptor(), BatchingInterceptor.class));
@@ -126,8 +135,20 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
       // the state transfer lock ensures that the cache member list is up-to-date
       // so it's necessary even if state transfer is disabled
       if (configuration.clustering().cacheMode().isDistributed() || configuration.clustering().cacheMode().isReplicated()) {
-         interceptorChain.appendInterceptor(createInterceptor(new StateTransferInterceptor(), StateTransferInterceptor.class), false);
+         if (isTotalOrder) {
+            interceptorChain.appendInterceptor(createInterceptor(new TotalOrderStateTransferInterceptor(),
+                                                                 TotalOrderStateTransferInterceptor.class),
+                                               false);
+         } else {
+            interceptorChain.appendInterceptor(createInterceptor(new StateTransferInterceptor(), StateTransferInterceptor.class), false);
+         }
          interceptorChain.appendInterceptor(createInterceptor(new TransactionSynchronizerInterceptor(), TransactionSynchronizerInterceptor.class), false);
+      }
+
+      //load total order interceptor
+      if (isTotalOrder) {
+         interceptorChain.appendInterceptor(createInterceptor(new TotalOrderInterceptor(), TotalOrderInterceptor.class),
+                                            false);
       }
 
       // load the tx interceptor
@@ -143,15 +164,17 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
          configuration.transaction().lockingMode(LockingMode.PESSIMISTIC);
       }
 
-      if (configuration.transaction().transactionMode().isTransactional()) {
-         if (configuration.transaction().lockingMode() == LockingMode.PESSIMISTIC) {
-            interceptorChain.appendInterceptor(createInterceptor(new PessimisticLockingInterceptor(), PessimisticLockingInterceptor.class), false);
+      //the total order protocol doesn't need locks
+      if (!isTotalOrder) {
+         if (configuration.transaction().transactionMode().isTransactional()) {
+            if (configuration.transaction().lockingMode() == LockingMode.PESSIMISTIC) {
+               interceptorChain.appendInterceptor(createInterceptor(new PessimisticLockingInterceptor(), PessimisticLockingInterceptor.class), false);
+            } else {
+               interceptorChain.appendInterceptor(createInterceptor(new OptimisticLockingInterceptor(), OptimisticLockingInterceptor.class), false);
+            }
          } else {
-            interceptorChain.appendInterceptor(createInterceptor(new OptimisticLockingInterceptor(), OptimisticLockingInterceptor.class), false);
-         }
-      } else {
-         if (configuration.locking().supportsConcurrentUpdates())
-            interceptorChain.appendInterceptor(createInterceptor(new NonTransactionalLockingInterceptor(), NonTransactionalLockingInterceptor.class), false);
+            if (configuration.locking().supportsConcurrentUpdates())
+               interceptorChain.appendInterceptor(createInterceptor(new NonTransactionalLockingInterceptor(), NonTransactionalLockingInterceptor.class), false);         }
       }
 
       if (configuration.sites().hasEnabledBackups() && !configuration.sites().disableBackups()) {
@@ -166,9 +189,14 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
          }
       }
 
-      if (needsVersionAwareComponents && configuration.clustering().cacheMode().isClustered())
-         interceptorChain.appendInterceptor(createInterceptor(new VersionedEntryWrappingInterceptor(), VersionedEntryWrappingInterceptor.class), false);
-      else
+      if (needsVersionAwareComponents && configuration.clustering().cacheMode().isClustered()) {
+         if (isTotalOrder) {
+            interceptorChain.appendInterceptor(createInterceptor(new TotalOrderVersionedEntryWrappingInterceptor(),
+                                                                 TotalOrderVersionedEntryWrappingInterceptor.class), false);
+         } else {
+            interceptorChain.appendInterceptor(createInterceptor(new VersionedEntryWrappingInterceptor(), VersionedEntryWrappingInterceptor.class), false);
+         }
+      } else
          interceptorChain.appendInterceptor(createInterceptor(new EntryWrappingInterceptor(), EntryWrappingInterceptor.class), false);
 
       if (configuration.loaders().usingCacheLoaders()) {
@@ -195,7 +223,7 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
          }
       }
 
-      if (configuration.deadlockDetection().enabled()) {
+      if (configuration.deadlockDetection().enabled() && !isTotalOrder) {
          interceptorChain.appendInterceptor(createInterceptor(new DeadlockDetectingInterceptor(), DeadlockDetectingInterceptor.class), false);
       }
 
@@ -206,11 +234,21 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
       switch (configuration.clustering().cacheMode()) {
          case REPL_SYNC:
             if (needsVersionAwareComponents) {
-               interceptorChain.appendInterceptor(createInterceptor(new VersionedReplicationInterceptor(), VersionedReplicationInterceptor.class), false);
+               //added custom interceptor to replace the original
+               if (isTotalOrder) {
+                  interceptorChain.appendInterceptor(createInterceptor(new TotalOrderVersionedReplicationInterceptor(),
+                                                                       TotalOrderVersionedReplicationInterceptor.class), false);
+               } else {
+                  interceptorChain.appendInterceptor(createInterceptor(new VersionedReplicationInterceptor(), VersionedReplicationInterceptor.class), false);
+               }
                break;
             }
          case REPL_ASYNC:
-            interceptorChain.appendInterceptor(createInterceptor(new ReplicationInterceptor(), ReplicationInterceptor.class), false);
+            if (isTotalOrder) {
+               interceptorChain.appendInterceptor(createInterceptor(new TotalOrderReplicationInterceptor(), TotalOrderReplicationInterceptor.class), false);
+            } else {
+               interceptorChain.appendInterceptor(createInterceptor(new ReplicationInterceptor(), ReplicationInterceptor.class), false);
+            }
             break;
          case INVALIDATION_SYNC:
          case INVALIDATION_ASYNC:
@@ -218,12 +256,21 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
             break;
          case DIST_SYNC:
             if (needsVersionAwareComponents) {
-               interceptorChain.appendInterceptor(createInterceptor(new VersionedDistributionInterceptor(), VersionedDistributionInterceptor.class), false);
+               if (isTotalOrder) {
+                  interceptorChain.appendInterceptor(createInterceptor(new TotalOrderVersionedDistributionInterceptor(),
+                                                                       TotalOrderVersionedDistributionInterceptor.class), false);
+               } else {
+                  interceptorChain.appendInterceptor(createInterceptor(new VersionedDistributionInterceptor(), VersionedDistributionInterceptor.class), false);
+               }
                break;
             }
          case DIST_ASYNC:
             if (configuration.transaction().transactionMode().isTransactional()) {
-               interceptorChain.appendInterceptor(createInterceptor(new TxDistributionInterceptor(), TxDistributionInterceptor.class), false);
+               if (isTotalOrder) {
+                  interceptorChain.appendInterceptor(createInterceptor(new TotalOrderDistributionInterceptor(), TotalOrderDistributionInterceptor.class), false);
+               } else {
+                  interceptorChain.appendInterceptor(createInterceptor(new TxDistributionInterceptor(), TxDistributionInterceptor.class), false);
+               }
             } else {
                if (configuration.locking().supportsConcurrentUpdates()) {
                   interceptorChain.appendInterceptor(createInterceptor(new NonTxConcurrentDistributionInterceptor(), NonTxConcurrentDistributionInterceptor.class), false);

@@ -121,7 +121,7 @@ public abstract class BaseOperationsDuringStateTransferTest extends MultipleCach
       globalConfigurationBuilder.transport().transport(new JGroupsTransport() {
          @Override
          public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout,
-                                                      boolean usePriorityQueue, ResponseFilter responseFilter) throws Exception {
+                                                      boolean usePriorityQueue, ResponseFilter responseFilter, boolean totalOrder, boolean distribution) throws Exception {
             if (rpcCommand instanceof CacheTopologyControlCommand) {
                try {
                   transportGate.await();
@@ -129,7 +129,7 @@ public abstract class BaseOperationsDuringStateTransferTest extends MultipleCach
                   throw new RuntimeException(e);
                }
             }
-            return super.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, responseFilter);
+            return super.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, responseFilter, totalOrder, distribution);
          }
       });
 

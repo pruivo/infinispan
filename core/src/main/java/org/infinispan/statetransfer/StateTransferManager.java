@@ -24,6 +24,7 @@
 package org.infinispan.statetransfer;
 
 import org.infinispan.commands.TopologyAffectedCommand;
+import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.jmx.annotations.DataType;
@@ -32,6 +33,9 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
 
 import java.util.Set;
+
+import java.util.Collection;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * A component that manages the state transfer when the topology of the cluster changes.
@@ -80,4 +84,8 @@ public interface StateTransferManager {
    void forwardCommandIfNeeded(TopologyAffectedCommand command, Set<Object> affectedKeys, Address origin, boolean sync);
 
    void notifyEndOfTopologyUpdate(int topologyId);
+
+   Collection<CountDownLatch> getInboundStateTransferLatches(Object[] affectedKeys);
+
+   boolean hasReceivedInitialState();
 }

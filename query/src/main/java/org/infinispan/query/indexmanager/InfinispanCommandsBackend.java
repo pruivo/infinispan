@@ -1,4 +1,4 @@
-/* 
+/*
  * JBoss, Home of Professional Open Source
  * Copyright 2012 Red Hat Inc. and/or its affiliates and other contributors
  * as indicated by the @author tags. All rights reserved.
@@ -46,14 +46,14 @@ import org.infinispan.util.logging.LogFactory;
 /**
  * An Hibernate Search backend module tailored to delegate index writing to
  * another node in the Infinispan cluster using custom remoting commands.
- * 
+ *
  * The master IndexWriter for each index is elected as a consistent hash
  * on the index name. Index shards in Hibernate Search have different names,
  * so this provides a primitive load balancing.
- * 
+ *
  * TODO Design a policy to deterministically try balance different shards of
  * the same index on different nodes.
- * 
+ *
 * @author Sanne Grinovero
 */
 public class InfinispanCommandsBackend implements BackendQueueProcessor {
@@ -114,7 +114,7 @@ public class InfinispanCommandsBackend implements BackendQueueProcessor {
    private void sendCommand(ReplicableCommand command, List<LuceneWork> workList) {
       Address primaryNodeAddress = getPrimaryNodeAddress();
       Collection<Address> recipients = Collections.singleton(primaryNodeAddress);
-      rpcManager.invokeRemotely(recipients, command, true);
+      rpcManager.invokeRemotely(recipients, command, true, false);
       log.workListRemotedTo(workList, primaryNodeAddress);
    }
 

@@ -52,10 +52,10 @@ import org.infinispan.distexec.mapreduce.Mapper;
 import org.infinispan.distexec.mapreduce.Reducer;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
+import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.StateChunk;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.statetransfer.StateResponseCommand;
-import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.xa.GlobalTransaction;
 
 import javax.transaction.xa.Xid;
@@ -326,20 +326,20 @@ public interface CommandsFactory {
     * Builds a {@link org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand}.
     */
    TxCompletionNotificationCommand buildTxCompletionNotificationCommand(Xid xid, GlobalTransaction globalTransaction);
-   
+
    /**
-    * Builds a DistributedExecuteCommand used for migration and execution of distributed Callables and Runnables. 
-    * 
+    * Builds a DistributedExecuteCommand used for migration and execution of distributed Callables and Runnables.
+    *
     * @param callable the callable task
     * @param sender sender's Address
-    * @param keys keys used in Callable 
+    * @param keys keys used in Callable
     * @return a DistributedExecuteCommand
     */
    <T>DistributedExecuteCommand<T> buildDistributedExecuteCommand(Callable<T> callable, Address sender, Collection keys);
-   
+
    /**
     * Builds a MapCombineCommand used for migration and map phase execution of MapReduce tasks.
-    * 
+    *
     * @param m Mapper for MapReduceTask
     * @param r Combiner for MapReduceTask
     * @param keys keys used in MapReduceTask
@@ -348,10 +348,10 @@ public interface CommandsFactory {
    <KIn, VIn, KOut, VOut> MapCombineCommand<KIn, VIn, KOut, VOut> buildMapCombineCommand(
             String taskId, Mapper<KIn, VIn, KOut, VOut> m, Reducer<KOut, VOut> r,
             Collection<KIn> keys);
-   
+
    /**
     * Builds a ReduceCommand used for migration and reduce phase execution of MapReduce tasks.
-    * 
+    *
     * @param r Reducer for MapReduceTask
     * @param keys keys used in MapReduceTask
     * @return created ReduceCommand
@@ -376,18 +376,18 @@ public interface CommandsFactory {
     * @see org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand
     */
    TxCompletionNotificationCommand buildTxCompletionNotificationCommand(long internalId);
-   
-   
+
+
    /**
-    * Builds a ApplyDeltaCommand used for applying Delta objects to DeltaAware containers stored in cache 
-    * 
+    * Builds a ApplyDeltaCommand used for applying Delta objects to DeltaAware containers stored in cache
+    *
     * @return ApplyDeltaCommand instance
     * @see ApplyDeltaCommand
     */
    ApplyDeltaCommand buildApplyDeltaCommand(Object deltaAwareValueKey, Delta delta, Collection keys);
 
    /**
-    * Same as {@link #buildCreateCacheCommand(String, String, false)}.
+    * Same as {@link #buildCreateCacheCommand(String, String)}.
     */
    CreateCacheCommand buildCreateCacheCommand(String cacheName, String cacheConfigurationName);
 
@@ -401,9 +401,10 @@ public interface CommandsFactory {
 
    /**
     * Builds CancelCommandCommand used to cancel other commands executing on Infinispan cluster
-    * 
+    *
     * @param commandUUID UUID for command to cancel
     * @return created CancelCommandCommand
     */
    CancelCommand buildCancelCommandCommand(UUID commandUUID);
+
 }

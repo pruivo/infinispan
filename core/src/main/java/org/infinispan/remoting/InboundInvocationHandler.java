@@ -46,5 +46,5 @@ public interface InboundInvocationHandler {
     * @return results, if any, from the invocation
     * @throws Throwable in the event of problems executing the command
     */
-   Response handle(CacheRpcCommand command, Address origin) throws Throwable;
+   Object handle(CacheRpcCommand command, Address origin) throws Throwable;
 }

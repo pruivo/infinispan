@@ -47,17 +47,7 @@ import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
 import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
-import org.infinispan.commands.write.ApplyDeltaCommand;
-import org.infinispan.commands.write.ClearCommand;
-import org.infinispan.commands.write.EvictCommand;
-import org.infinispan.commands.write.InvalidateCommand;
-import org.infinispan.commands.write.InvalidateL1Command;
-import org.infinispan.commands.write.PutKeyValueCommand;
-import org.infinispan.commands.write.PutMapCommand;
-import org.infinispan.commands.write.RemoveCommand;
-import org.infinispan.commands.write.ReplaceCommand;
-import org.infinispan.commands.write.VersionedPutKeyValueCommand;
-import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.commands.write.*;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.InternalEntryFactory;
@@ -73,16 +63,17 @@ import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.InterceptorChain;
-import org.infinispan.statetransfer.StateProvider;
-import org.infinispan.statetransfer.StateConsumer;
-import org.infinispan.statetransfer.StateRequestCommand;
-import org.infinispan.statetransfer.StateResponseCommand;
-import org.infinispan.statetransfer.StateChunk;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.statetransfer.StateChunk;
+import org.infinispan.statetransfer.StateConsumer;
+import org.infinispan.statetransfer.StateProvider;
+import org.infinispan.statetransfer.StateRequestCommand;
+import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.TransactionTable;
+import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.transaction.xa.DldGlobalTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.transaction.xa.recovery.RecoveryManager;
@@ -136,6 +127,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
    private StateTransferManager stateTransferManager;
    private BackupSender backupSender;
    private CancellationService cancellationService;
+   private TotalOrderManager totalOrderManager;
 
    private Map<Byte, ModuleCommandInitializer> moduleCommandInitializers;
 
@@ -145,8 +137,9 @@ public class CommandsFactoryImpl implements CommandsFactory {
                                  InvocationContextContainer icc, TransactionTable txTable, Configuration configuration,
                                  @ComponentName(KnownComponentNames.MODULE_COMMAND_INITIALIZERS) Map<Byte, ModuleCommandInitializer> moduleCommandInitializers,
                                  RecoveryManager recoveryManager, StateProvider stateProvider, StateConsumer stateConsumer,
-                                 LockManager lockManager, InternalEntryFactory entryFactory, MapReduceManager mapReduceManager, 
-                                 StateTransferManager stm, BackupSender backupSender, CancellationService cancellationService) {
+                                 LockManager lockManager, InternalEntryFactory entryFactory, MapReduceManager mapReduceManager,
+                                 StateTransferManager stm, BackupSender backupSender, CancellationService cancellationService,
+                                 TotalOrderManager totalOrderManager) {
       this.dataContainer = container;
       this.notifier = notifier;
       this.cache = cache;
@@ -165,6 +158,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
       this.stateTransferManager = stm;
       this.backupSender = backupSender;
       this.cancellationService = cancellationService;
+      this.totalOrderManager = totalOrderManager;
    }
 
    @Start(priority = 1)
@@ -356,7 +350,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
          case PrepareCommand.COMMAND_ID:
          case VersionedPrepareCommand.COMMAND_ID:
             PrepareCommand pc = (PrepareCommand) c;
-            pc.init(interceptorChain, icc, txTable);
+            pc.init(interceptorChain, icc, txTable, configuration);
             pc.initialize(notifier, recoveryManager);
             if (pc.getModifications() != null)
                for (ReplicableCommand nested : pc.getModifications())  {
@@ -371,12 +365,12 @@ public class CommandsFactoryImpl implements CommandsFactory {
          case CommitCommand.COMMAND_ID:
          case VersionedCommitCommand.COMMAND_ID:
             CommitCommand commitCommand = (CommitCommand) c;
-            commitCommand.init(interceptorChain, icc, txTable);
+            commitCommand.init(interceptorChain, icc, txTable, configuration);
             commitCommand.markTransactionAsRemote(isRemote);
             break;
          case RollbackCommand.COMMAND_ID:
             RollbackCommand rollbackCommand = (RollbackCommand) c;
-            rollbackCommand.init(interceptorChain, icc, txTable);
+            rollbackCommand.init(interceptorChain, icc, txTable, configuration);
             rollbackCommand.markTransactionAsRemote(isRemote);
             break;
          case ClearCommand.COMMAND_ID:
@@ -389,7 +383,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
             break;
          case LockControlCommand.COMMAND_ID:
             LockControlCommand lcc = (LockControlCommand) c;
-            lcc.init(interceptorChain, icc, txTable);
+            lcc.init(interceptorChain, icc, txTable, configuration);
             lcc.markTransactionAsRemote(isRemote);
             if (configuration.deadlockDetection().enabled() && isRemote) {
                DldGlobalTransaction gtx = (DldGlobalTransaction) lcc.getGlobalTransaction();
@@ -454,7 +448,6 @@ public class CommandsFactoryImpl implements CommandsFactory {
          case CancelCommand.COMMAND_ID:
             CancelCommand cancelCommand = (CancelCommand)c;
             cancelCommand.init(cancellationService);
-            break;
          default:
             ModuleCommandInitializer mci = moduleCommandInitializers.get(c.getCommandId());
             if (mci != null) {
@@ -557,4 +550,5 @@ public class CommandsFactoryImpl implements CommandsFactory {
    public CancelCommand buildCancelCommandCommand(UUID commandUUID) {
       return new CancelCommand(cacheName, commandUUID);
    }
+
 }

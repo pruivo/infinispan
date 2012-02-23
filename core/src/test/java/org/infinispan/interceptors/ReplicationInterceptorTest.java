@@ -120,7 +120,7 @@ public class ReplicationInterceptorTest {
       replInterceptor.injectConfiguration(configuration);
 
       when(rpcManager.invokeRemotely(any(Collection.class), any(ClusteredGetCommand.class), any(ResponseMode.class),
-            anyLong(), anyBoolean(), any(ResponseFilter.class))).thenAnswer(new Answer<Map<Address, Response>>() {
+            anyLong(), anyBoolean(), any(ResponseFilter.class), anyBoolean())).thenAnswer(new Answer<Map<Address, Response>>() {
          @Override
          public Map<Address, Response> answer(InvocationOnMock invocation) {
             Collection<Address> recipients = (Collection<Address>) invocation.getArguments()[0];

@@ -27,16 +27,20 @@ import org.infinispan.config.GlobalConfiguration.TransportType;
 import org.infinispan.loaders.CacheLoaderConfig;
 import org.infinispan.loaders.CacheStoreConfig;
 import org.infinispan.loaders.decorators.SingletonStoreConfig;
+import org.infinispan.transaction.TransactionMode;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import java.util.Set;
+
+import static org.infinispan.config.GlobalConfiguration.ConditionalExecutorType;
 
 /**
  * ConfigurationValidatingVisitor checks semantic validity of InfinispanConfiguration instance.
  *
  *
  * @author Vladimir Blagojevic
+ * @author Pedro Ruivo
  * @since 4.0
  * @deprecated Belongs to old configuration and so will dissapear in future releases
  */
@@ -165,6 +169,49 @@ public class ConfigurationValidatingVisitor extends AbstractConfigurationBeanVis
             bean.useSynchronization = true;
          }
       }
+
+      if(!bean.transactionProtocol.isTotalOrder()) {
+         //no total order => no validation needed
+         return;
+      }
+
+      //in the future we can allow this in total order??
+      if(bean.transactionMode == TransactionMode.NON_TRANSACTIONAL) {
+         throw new ConfigurationException("Total Order based protocol needs a transactional cache");
+      }
+
+
+      //for now, only supports full replication
+      if(!cfg.getCacheMode().isReplicated() && !cfg.getCacheMode().isDistributed()) {
+         throw new ConfigurationException("Distributed cache mode not supported by Total Order based protocol");
+      }
    }
 
+   @Override
+   public void visitConditionalExecutorType(ConditionalExecutorType config) {
+      if (config.corePoolSize <= 0) {
+         log.error("Core Pool Size should be higher than zero. Setting value to 1");
+         config.corePoolSize = 1;
+      }
+      if (config.maxPoolSize < config.corePoolSize) {
+         log.errorf("Max Pool Size should be higher or equal than Core Pool Siz. Setting value to %s", config.corePoolSize);
+         config.maxPoolSize = config.corePoolSize;
+      }
+      if (config.threadPriority < Thread.MIN_PRIORITY) {
+         log.error("Thread Priority should higher than Thread.MIN_PRIORITY. Setting value to Thread.MIN_PRIORITY");
+         config.threadPriority = Thread.MIN_PRIORITY;
+      }
+      if (config.threadPriority > Thread.MAX_PRIORITY) {
+         log.error("Thread Priority should lower than Thread.MAX_PRIORITY. Setting value to Thread.MAX_PRIORITY");
+         config.threadPriority = Thread.MAX_PRIORITY;
+      }
+      if (config.keepAliveTime <= 0) {
+         log.error("Keep Alive Time should be higher than zero. Setting value to 1000 milliseconds");
+         config.keepAliveTime = 1000;
+      }
+      if (config.queueSize <= 0) {
+         log.error("Queue Size should be higher than zero. Setting value to 10");
+         config.queueSize = 10;
+      }
+   }
 }

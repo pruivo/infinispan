@@ -75,6 +75,7 @@ import static org.infinispan.util.Util.currentMillisFromNanotime;
  *
  * @author Mircea.Markus@jboss.com
  * @author Galder Zamarreño
+ * @author Pedro Ruivo
  * @since 4.0
  */
 @Listener
@@ -271,7 +272,7 @@ public class TransactionTable {
       for (GlobalTransaction gtx : toKill) {
          log.tracef("Killing remote transaction originating on leaver %s", gtx);
          RollbackCommand rc = new RollbackCommand(cacheName, gtx);
-         rc.init(invoker, icc, TransactionTable.this);
+         rc.init(invoker, icc, TransactionTable.this, configuration);
          try {
             rc.perform(null);
             log.tracef("Rollback of transaction %s complete.", gtx);
@@ -294,7 +295,7 @@ public class TransactionTable {
 
    public void remoteTransactionRollback(GlobalTransaction gtx) {
       final RemoteTransaction remove = removeRemoteTransaction(gtx);
-      log.tracef("Removed local transaction %s? %b", gtx, remove);
+      log.tracef("Removed remote transaction %s? %b", gtx, remove);
    }
 
    /**
@@ -376,8 +377,9 @@ public class TransactionTable {
     * Removes the {@link RemoteTransaction} corresponding to the given tx.
     */
    public void remoteTransactionCommitted(GlobalTransaction gtx) {
-      if (Configurations.isSecondPhaseAsync(configuration)) {
+      if (Configurations.isSecondPhaseAsync(configuration) || configuration.transaction().transactionProtocol().isTotalOrder()) {
          removeRemoteTransaction(gtx);
+         log.tracef("Remote transaction removed %s", gtx);
       }
    }
 
@@ -519,6 +521,7 @@ public class TransactionTable {
       if (txsOnGoing) {
          log.unfinishedTransactionsRemain(localTransactions == null ? 0 : localTransactions.size(),
                                           remoteTransactions == null ? 0 : remoteTransactions.size());
+         log.debugf("Local active transactions: %s, Remote active transactions %s", localTransactions, remoteTransactions);
       } else {
          log.debug("All transactions terminated");
       }
@@ -567,5 +570,27 @@ public class TransactionTable {
             log.errorf(e, "Failed to cleanup completed transactions: %s", e.getMessage());
          }
       }
-   }   
+   }
+      
+   /* This method is used when Total Order protocol is enabled. The commit/rollback command can be deliver before the
+    * prepare command. In total order, it allows the processing the commit/rollback without the remote transaction and
+    * this can originate a race condition to create a remote transaction.
+    *
+    * This method creates only one transaction per global transaction, resolving the race condition
+    *
+    * @param globalTransaction the global transaction
+    * @return the remote transaction.
+    */
+   public RemoteTransaction getOrCreateIfAbsentRemoteTransaction(GlobalTransaction globalTransaction) {
+      RemoteTransaction remoteTransaction = remoteTransactions.get(globalTransaction);
+      if (remoteTransaction == null) {
+         remoteTransaction = txFactory.newRemoteTransaction(globalTransaction, currentTopologyId);
+         RemoteTransaction existing = remoteTransactions.putIfAbsent(globalTransaction, remoteTransaction);
+         if (existing != null) {
+            remoteTransaction = existing;
+         }
+      }
+
+      return remoteTransaction;
+   }
 }

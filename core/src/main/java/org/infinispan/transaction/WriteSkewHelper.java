@@ -98,6 +98,30 @@ public class WriteSkewHelper {
       }
       return uv;
    }
+
+   public static EntryVersionsMap returnNewVersions(VersionedPrepareCommand prepareCommand, VersionGenerator versionGenerator,
+                                                    TxInvocationContext context, KeySpecificLogic ksl) {
+      EntryVersionsMap uv = new EntryVersionsMap();
+      for (WriteCommand c : prepareCommand.getModifications()) {
+         for (Object k : c.getAffectedKeys()) {
+            if (ksl.performCheckOnKey(k)) {
+               ClusteredRepeatableReadEntry entry = (ClusteredRepeatableReadEntry) context.lookupEntry(k);
+
+               if (!context.isOriginLocal()) {
+                  // What version did the transaction originator see??
+                  EntryVersion versionSeen = prepareCommand.getVersionsSeen().get(k);
+                  if (versionSeen != null) entry.setVersion(versionSeen);
+               }
+
+               IncrementableEntryVersion newVersion = entry.isCreated() ? 
+                     versionGenerator.generateNew() : 
+                     versionGenerator.increment((IncrementableEntryVersion) entry.getVersion());
+               uv.put(k, newVersion);
+            }
+         }
+      }
+      return uv;
+   }
    
    public static interface KeySpecificLogic {
       boolean performCheckOnKey(Object key);

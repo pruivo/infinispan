@@ -23,6 +23,7 @@
 package org.infinispan.factories;
 
 import org.infinispan.config.ConfigurationException;
+import org.infinispan.executors.ConditionalExecutorService;
 import org.infinispan.executors.ExecutorFactory;
 import org.infinispan.executors.LazyInitializingExecutorService;
 import org.infinispan.executors.LazyInitializingScheduledExecutorService;
@@ -34,6 +35,9 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.infinispan.factories.KnownComponentNames.*;
 
@@ -41,15 +45,18 @@ import static org.infinispan.factories.KnownComponentNames.*;
  * A factory that specifically knows how to create named executors.
  *
  * @author Manik Surtani
+ * @author Pedro Ruivo
  * @since 4.0
  */
-@DefaultFactoryFor(classes = {ExecutorService.class, Executor.class, ScheduledExecutorService.class})
+@DefaultFactoryFor(classes = {ExecutorService.class, Executor.class, ScheduledExecutorService.class,
+                              ConditionalExecutorService.class})
 public class NamedExecutorsFactory extends NamedComponentFactory implements AutoInstantiableFactory {
 
    private ExecutorService notificationExecutor;
    private ExecutorService asyncTransportExecutor;
    private ScheduledExecutorService evictionExecutor;
    private ScheduledExecutorService asyncReplicationExecutor;
+   private ConditionalExecutorService conditionalExecutor;
 
    @Override
    @SuppressWarnings("unchecked")
@@ -96,6 +103,32 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
                }
             }
             return (T) asyncReplicationExecutor;
+         } else if (componentName.equals(CONDITIONAL_EXECUTOR)) {
+            synchronized (this) {
+               if (conditionalExecutor == null) {
+                  conditionalExecutor = new ConditionalExecutorService(
+                        globalConfiguration.conditionalExecutor().corePoolSize(),
+                        globalConfiguration.conditionalExecutor().maxPoolSize(),
+                        globalConfiguration.conditionalExecutor().keepAliveTime(),
+                        TimeUnit.MILLISECONDS,
+                        new ThreadFactory() {
+
+                           private final AtomicInteger counter = new AtomicInteger(0);
+                           private final int threadPriority = globalConfiguration.conditionalExecutor().threadPriority();
+
+                           @Override
+                           public Thread newThread(Runnable runnable) {
+                              Thread thread = new Thread(runnable, "ConditionalExecutor-" + counter.incrementAndGet());
+                              thread.setDaemon(true);
+                              thread.setPriority(threadPriority);
+                              return thread;
+                           }
+                        },
+                        globalConfiguration.conditionalExecutor().queueSize()
+                  );
+               }
+            }
+            return (T) conditionalExecutor;
          } else {
             throw new ConfigurationException("Unknown named executor " + componentName);
          }
@@ -112,6 +145,7 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
       if (asyncTransportExecutor != null) asyncTransportExecutor.shutdownNow();
       if (asyncReplicationExecutor != null) asyncReplicationExecutor.shutdownNow();
       if (evictionExecutor != null) evictionExecutor.shutdownNow();
+      if (conditionalExecutor != null) conditionalExecutor.shutdown();
    }
 
    private ExecutorService buildAndConfigureExecutorService(ExecutorFactory f, Properties p,

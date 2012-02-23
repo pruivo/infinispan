@@ -57,6 +57,7 @@ import org.infinispan.remoting.ReplicationQueue;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.transaction.TransactionMode;
+import org.infinispan.transaction.TransactionProtocol;
 import org.infinispan.transaction.lookup.TransactionManagerLookup;
 import org.infinispan.util.Util;
 import org.infinispan.util.concurrent.IsolationLevel;
@@ -77,8 +78,8 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
    private static final Log log = LogFactory.getLog(Parser52.class);
 
    private static final Namespace NAMESPACES[] = {
-      new Namespace(Namespace.INFINISPAN_NS_BASE_URI, Element.ROOT.getLocalName(), 5, 2),
-      new Namespace("", Element.ROOT.getLocalName(), 0, 0)
+         new Namespace(Namespace.INFINISPAN_NS_BASE_URI, Element.ROOT.getLocalName(), 5, 2),
+         new Namespace("", Element.ROOT.getLocalName(), 0, 0)
    };
 
    public Parser52() {}
@@ -134,7 +135,7 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
       // Reuse the builder if it was made before
       ConfigurationBuilder builder = holder.getNamedConfigurationBuilders().get(name);
       if (builder == null) {
-          builder = holder.newConfigurationBuilder(name);
+         builder = holder.newConfigurationBuilder(name);
       }
       parseCache(reader, holder);
 
@@ -419,6 +420,9 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
             case COMPLETED_TX_TIMEOUT:
                builder.transaction().completedTxTimeout(Long.parseLong(value));
                break;
+            case TRANSACTION_PROTOCOL:
+               builder.transaction().transactionProtocol(TransactionProtocol.valueOf(value));
+               break;
             default:
                throw ParseUtils.unexpectedAttribute(reader, i);
          }
@@ -598,12 +602,12 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
          String value = replaceProperties(reader.getAttributeValue(i));
          Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
          switch (attribute) {
-         case REMOTE_CALL_TIMEOUT:
-            cclb.remoteCallTimeout(Long.parseLong(value));
-            break;
-         default:
-            parseCommonLoaderAttributes(reader, i, cclb);
-            break;
+            case REMOTE_CALL_TIMEOUT:
+               cclb.remoteCallTimeout(Long.parseLong(value));
+               break;
+            default:
+               parseCommonLoaderAttributes(reader, i, cclb);
+               break;
          }
       }
       parseLoaderChildren(reader, cclb);
@@ -617,21 +621,21 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
          String value = replaceProperties(reader.getAttributeValue(i));
          Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
          switch (attribute) {
-         case LOCATION:
-            fcscb.location(value);
-            break;
-         case FSYNC_INTERVAL:
-            fcscb.fsyncInterval(Long.parseLong(value));
-            break;
-         case FSYNC_MODE:
-            fcscb.fsyncMode(FsyncMode.valueOf(value));
-            break;
-         case STREAM_BUFFER_SIZE:
-            fcscb.streamBufferSize(Integer.parseInt(value));
-            break;
-         default:
-            parseLockSupportStoreAttributes(reader, i, fcscb);
-            break;
+            case LOCATION:
+               fcscb.location(value);
+               break;
+            case FSYNC_INTERVAL:
+               fcscb.fsyncInterval(Long.parseLong(value));
+               break;
+            case FSYNC_MODE:
+               fcscb.fsyncMode(FsyncMode.valueOf(value));
+               break;
+            case STREAM_BUFFER_SIZE:
+               fcscb.streamBufferSize(Integer.parseInt(value));
+               break;
+            default:
+               parseLockSupportStoreAttributes(reader, i, fcscb);
+               break;
          }
       }
       parseStoreChildren(reader, fcscb);
@@ -641,22 +645,22 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
     * This method is public static so that it can be reused by custom cache store/loader configuration parsers
     */
    public static void parseLockSupportStoreAttributes(XMLExtendedStreamReader reader, int i,
-         LockSupportStoreConfigurationBuilder<?, ?> builder) throws XMLStreamException {
+                                                      LockSupportStoreConfigurationBuilder<?, ?> builder) throws XMLStreamException {
       ParseUtils.requireNoNamespaceAttribute(reader, i);
       String value = replaceProperties(reader.getAttributeValue(i));
       Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
       switch (attribute) {
-      case LOCK_ACQUISITION_TIMEOUT: {
-         builder.lockAcquistionTimeout(Long.parseLong(value));
-         break;
-      }
-      case CONCURRENCY_LEVEL: {
-         builder.lockConcurrencyLevel(Integer.parseInt(value));
-         break;
-      }
-      default: {
-         parseCommonStoreAttributes(reader, i, builder);
-      }
+         case LOCK_ACQUISITION_TIMEOUT: {
+            builder.lockAcquistionTimeout(Long.parseLong(value));
+            break;
+         }
+         case CONCURRENCY_LEVEL: {
+            builder.lockConcurrencyLevel(Integer.parseInt(value));
+            break;
+         }
+         default: {
+            parseCommonStoreAttributes(reader, i, builder);
+         }
       }
    }
 
@@ -664,7 +668,7 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
     * This method is public static so that it can be reused by custom cache store/loader configuration parsers
     */
    public static void parseCommonLoaderAttributes(XMLExtendedStreamReader reader, int i,
-         CacheLoaderConfigurationBuilder<?, ?> builder) throws XMLStreamException {
+                                                  CacheLoaderConfigurationBuilder<?, ?> builder) throws XMLStreamException {
       throw ParseUtils.unexpectedAttribute(reader, i);
    }
 
@@ -672,33 +676,33 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
     * This method is public static so that it can be reused by custom cache store/loader configuration parsers
     */
    public static void parseCommonStoreAttributes(XMLExtendedStreamReader reader, int i,
-         CacheStoreConfigurationBuilder<?, ?> builder) throws XMLStreamException {
+                                                 CacheStoreConfigurationBuilder<?, ?> builder) throws XMLStreamException {
       ParseUtils.requireNoNamespaceAttribute(reader, i);
       String value = replaceProperties(reader.getAttributeValue(i));
       Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
       switch (attribute) {
-      case FETCH_PERSISTENT_STATE:
-         builder.fetchPersistentState(Boolean.parseBoolean(value));
-         break;
-      case IGNORE_MODIFICATIONS:
-         builder.ignoreModifications(Boolean.parseBoolean(value));
-         break;
-      case PURGE_ON_STARTUP:
-         builder.purgeOnStartup(Boolean.parseBoolean(value));
-         break;
-      case PURGE_SYNCHRONOUSLY:
-         builder.purgeSynchronously(Boolean.parseBoolean(value));
-         break;
-      case PURGER_THREADS:
-         builder.purgerThreads(Integer.parseInt(value));
-         break;
-      default:
-         throw ParseUtils.unexpectedAttribute(reader, i);
+         case FETCH_PERSISTENT_STATE:
+            builder.fetchPersistentState(Boolean.parseBoolean(value));
+            break;
+         case IGNORE_MODIFICATIONS:
+            builder.ignoreModifications(Boolean.parseBoolean(value));
+            break;
+         case PURGE_ON_STARTUP:
+            builder.purgeOnStartup(Boolean.parseBoolean(value));
+            break;
+         case PURGE_SYNCHRONOUSLY:
+            builder.purgeSynchronously(Boolean.parseBoolean(value));
+            break;
+         case PURGER_THREADS:
+            builder.purgerThreads(Integer.parseInt(value));
+            break;
+         default:
+            throw ParseUtils.unexpectedAttribute(reader, i);
       }
    }
 
    private void parseLoader(final XMLExtendedStreamReader reader, final ConfigurationBuilderHolder holder) throws XMLStreamException {
-     ConfigurationBuilder builder = holder.getCurrentConfigurationBuilder();
+      ConfigurationBuilder builder = holder.getCurrentConfigurationBuilder();
       CacheLoader loader = null;
       Boolean fetchPersistentState = null;
       Boolean ignoreModifications = null;
@@ -848,7 +852,7 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
    }
 
    public static void parseCommonLoaderChildren(final XMLExtendedStreamReader reader,
-         final CacheLoaderConfigurationBuilder<?, ?> loaderBuilder) throws XMLStreamException {
+                                                final CacheLoaderConfigurationBuilder<?, ?> loaderBuilder) throws XMLStreamException {
       Element element = Element.forName(reader.getLocalName());
       switch (element) {
          case PROPERTIES:
@@ -866,7 +870,7 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
    }
 
    public static void parseCommonStoreChildren(final XMLExtendedStreamReader reader,
-         final CacheStoreConfigurationBuilder<?, ?> storeBuilder) throws XMLStreamException {
+                                               final CacheStoreConfigurationBuilder<?, ?> storeBuilder) throws XMLStreamException {
       Element element = Element.forName(reader.getLocalName());
       switch (element) {
          case ASYNC:
@@ -1004,7 +1008,7 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
                }
                break;
             case INDEX_LOCAL_ONLY:
-                  builder.indexing().indexLocalOnly(Boolean.parseBoolean(value));
+               builder.indexing().indexLocalOnly(Boolean.parseBoolean(value));
                break;
             default:
                throw ParseUtils.unexpectedAttribute(reader, i);
@@ -1523,6 +1527,9 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
                parseGlobalSites(reader, holder);
                break;
             }
+            case CONDITIONAL_EXECUTOR:
+               parseConditionalExecutor(reader, holder);
+               break;
             default: {
                throw ParseUtils.unexpectedElement(reader);
             }
@@ -1886,6 +1893,39 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
          }
       }
 
+   }
+
+   private void parseConditionalExecutor(final XMLExtendedStreamReader reader, final ConfigurationBuilderHolder holder)
+         throws XMLStreamException {
+
+      GlobalConfigurationBuilder builder = holder.getGlobalConfigurationBuilder();
+      for (int i = 0; i < reader.getAttributeCount(); i++) {
+         ParseUtils.requireNoNamespaceAttribute(reader, i);
+         String value = replaceProperties(reader.getAttributeValue(i));
+         Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
+         switch (attribute) {
+            case CORE_POOL_SIZE:
+               builder.conditionalExecutor().corePoolSize(Integer.parseInt(value));
+               break;
+            case MAX_POOL_SIZE:
+               builder.conditionalExecutor().maxPoolSize(Integer.parseInt(value));
+               break;
+            case THREAD_PRIORITY:
+               builder.conditionalExecutor().threadPriority(Integer.parseInt(value));
+               break;
+            case KEEP_ALIVE_TIME:
+               builder.conditionalExecutor().keepAliveTime(Long.parseLong(value));
+               break;
+            case QUEUE_SIZE:
+               builder.conditionalExecutor().queueSize(Integer.parseInt(value));
+               break;
+            default: {
+               throw ParseUtils.unexpectedAttribute(reader, i);
+            }
+         }
+
+         ParseUtils.requireNoContent(reader);
+      }
    }
 
    public static Properties parseProperties(final XMLExtendedStreamReader reader) throws XMLStreamException {

@@ -124,4 +124,8 @@ public class ExecutorFactoryConfigurationBuilder extends AbstractGlobalConfigura
       return result;
    }
 
+   protected Properties getProperties() {
+      return properties;
+   }
+
 }

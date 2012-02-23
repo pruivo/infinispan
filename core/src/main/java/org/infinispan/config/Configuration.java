@@ -43,6 +43,7 @@ import org.infinispan.remoting.ReplicationQueue;
 import org.infinispan.remoting.ReplicationQueueImpl;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.transaction.TransactionMode;
+import org.infinispan.transaction.TransactionProtocol;
 import org.infinispan.transaction.lookup.GenericTransactionManagerLookup;
 import org.infinispan.transaction.lookup.TransactionManagerLookup;
 import org.infinispan.transaction.lookup.TransactionSynchronizationRegistryLookup;
@@ -81,6 +82,7 @@ import static org.infinispan.config.Configuration.CacheMode.*;
  * @author Vladimir Blagojevic
  * @author Galder Zamarreño
  * @author Mircea.Markus@jboss.com
+ * @author Pedro Ruivo
  * @see <a href="../../../config.html#ce_infinispan_default">Configuration reference</a>
  * @since 4.0
  */
@@ -1486,6 +1488,15 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       return transaction.isUseSynchronization();
    }
 
+   /**
+    * check if the Total Order protocol is enabled or not
+    * @return true if total order protocol is enabled, false otherwise
+    */
+   public boolean isTotalOrder() {
+      return transaction.transactionProtocol.isTotalOrder() &&
+            transaction.transactionMode == TransactionMode.TRANSACTIONAL;
+   }
+
    // ------------------------------------------------------------------------------------------------------------
    //   HELPERS
    // ------------------------------------------------------------------------------------------------------------
@@ -1734,6 +1745,14 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
        return expiration.reaperEnabled;
     }
 
+   /**
+    * get the transaction protocol in use
+    * @return the transaction protocol
+    */
+   public TransactionProtocol getTransactionProtocol() {
+      return transaction.transactionProtocol;
+   }
+
    public boolean isHashActivated() {
       return clustering.hash.activated;
    }
@@ -1807,6 +1826,10 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
 
       @ConfigurationDocRef(bean = Configuration.class, targetElement = "isUse1PcForAutoCommitTransactions")
       private Boolean use1PcForAutoCommitTransactions = Boolean.FALSE;
+
+      //Changes between 2PC and Total Order protocol
+      @XmlAttribute
+      protected TransactionProtocol transactionProtocol = TransactionProtocol.TWO_PHASE_COMMIT;
 
       public TransactionType(String transactionManagerLookupClass) {
          this.transactionManagerLookupClass = transactionManagerLookupClass;
@@ -1910,6 +1933,26 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
          testImmutability("use1PcForAutoCommitTransactions");
          this.use1PcForAutoCommitTransactions = b;
          return this;
+      }
+
+      /**
+       * sets the transaction protocol
+       * @param transactionProtocol the transaction protocol to use
+       * @return the transaction type changed
+       */
+      @Override
+      public TransactionType transactionProtocol(TransactionProtocol transactionProtocol) {
+         setTransactionProtocol(transactionProtocol);
+         return this;
+      }
+
+      /**
+       * set the transaction protocol
+       * @param transactionProtocol the transaction protocol to use
+       */
+      public void setTransactionProtocol(TransactionProtocol transactionProtocol) {
+         testImmutability("transactionProtocol");
+         this.transactionProtocol = transactionProtocol;
       }
 
       @XmlAttribute
@@ -2095,6 +2138,10 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
             return false;
          if (lockingMode != null ? !lockingMode.equals(that.lockingMode) : that.lockingMode != null)
             return false;
+         if (transactionProtocol != null ? !transactionProtocol.equals(that.transactionProtocol) :
+               that.transactionProtocol != null) {
+            return false;
+         }
 
          return true;
       }

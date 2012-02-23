@@ -32,10 +32,13 @@ import org.infinispan.transaction.RemoteTransaction;
  * Command corresponding to a transaction rollback.
  *
  * @author Manik Surtani (<a href="mailto:manik@jboss.org">manik@jboss.org</a>)
+ * @author Pedro Ruivo
  * @since 4.0
  */
 public class RollbackCommand extends AbstractTransactionBoundaryCommand {
    public static final byte COMMAND_ID = 13;
+
+   private boolean prepareSent;
 
    private RollbackCommand() {
       super(null); // For command id uniqueness test
@@ -50,10 +53,21 @@ public class RollbackCommand extends AbstractTransactionBoundaryCommand {
       super(cacheName);
    }
 
+   /**
+    * choose the method to invoke depending if the total order protocol is be used or not
+    *
+    * @param ctx the context
+    * @return the value to be returned to the invoked
+    * @throws Throwable if something goes wrong
+    */
    @Override
    public Object perform(InvocationContext ctx) throws Throwable {
       txTable.markTransactionCompleted(globalTx);
-      return super.perform(ctx);
+      if (configuration.transaction().transactionProtocol().isTotalOrder()) {
+         return super.performIgnoringUnexistingTransaction(ctx);
+      } else {
+         return super.perform(ctx);
+      }
    }
 
    @Override
@@ -74,5 +88,24 @@ public class RollbackCommand extends AbstractTransactionBoundaryCommand {
    @Override
    public String toString() {
       return "RollbackCommand {" + super.toString();
+   }
+
+   public final boolean wasPrepareSent() {
+      return prepareSent;
+   }
+
+   public final void setPrepareSent(boolean prepareSent) {
+      this.prepareSent = prepareSent;
+   }
+
+   @Override
+   public Object[] getParameters() {
+      return new Object[] {globalTx, prepareSent};
+   }
+
+   @Override
+   public void setParameters(int commandId, Object[] args) {
+      globalTx = (GlobalTransaction) args[0];
+      prepareSent = (Boolean) args[1];
    }
 }

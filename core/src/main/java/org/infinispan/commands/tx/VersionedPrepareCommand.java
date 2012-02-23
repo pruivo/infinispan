@@ -36,6 +36,7 @@ import java.util.List;
 public class VersionedPrepareCommand extends PrepareCommand {
    public static final byte COMMAND_ID = 26;
    private EntryVersionsMap versionsSeen = null;
+   private boolean skipWriteSkewCheck = false;
 
    public VersionedPrepareCommand() {
       super("");
@@ -99,11 +100,19 @@ public class VersionedPrepareCommand extends PrepareCommand {
    @Override
    public String toString() {
       return "VersionedPrepareCommand {" +
-            "modifications=" + (modifications == null ? null : Arrays.asList(modifications)) +
+            "modifications=" + getAffectedKeys() +
             ", onePhaseCommit=" + onePhaseCommit +
             ", versionsSeen=" + versionsSeen +
-            ", gtx=" + globalTx +
+            ", gtx=" + globalTx.prettyPrint() +
             ", cacheName='" + cacheName + '\'' +
             '}';
+   }
+
+   public boolean isSkipWriteSkewCheck() {
+      return skipWriteSkewCheck;
+   }
+
+   public void setSkipWriteSkewCheck(boolean skipWriteSkewCheck) {
+      this.skipWriteSkewCheck = skipWriteSkewCheck;
    }
 }

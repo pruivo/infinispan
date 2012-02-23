@@ -42,7 +42,7 @@ import org.infinispan.remoting.transport.Address;
 
 /**
  * Invoke a CusteredQueryCommand on the cluster, including on own node.
- * 
+ *
  * @author Israel Lacerra <israeldl@gmail.com>
  * @author Sanne Grinovero <sanne@infinispan.org> (C) 2011 Red Hat Inc.
  * @since 5.1
@@ -67,7 +67,7 @@ public class ClusteredQueryInvoker {
 
    /**
     * Retrieves the value (using doc index) in a remote query instance
-    * 
+    *
     * @param doc
     *           Doc index of the value on remote query
     * @param address
@@ -94,7 +94,7 @@ public class ClusteredQueryInvoker {
          addresss.add(address);
 
          Map<Address, Response> responses = rpcManager.invokeRemotely(addresss, clusteredQuery,
-                  ResponseMode.SYNCHRONOUS, 10000);
+                  ResponseMode.SYNCHRONOUS, 10000, false);
          List<QueryResponse> objects = cast(responses);
          return objects.get(0).getFetchedValue();
       }
@@ -103,7 +103,7 @@ public class ClusteredQueryInvoker {
    /**
     * Broadcast this ClusteredQueryCommand to all cluster nodes. The command will be also invoked on
     * local node.
-    * 
+    *
     * @param clusteredQuery
     * @return A list with all responses
     */
@@ -111,7 +111,7 @@ public class ClusteredQueryInvoker {
       // invoke on own node
       Future<QueryResponse> localResponse = localInvoke(clusteredQuery);
       Map<Address, Response> responses = rpcManager.invokeRemotely(null, clusteredQuery,
-               ResponseMode.SYNCHRONOUS, 10000);
+               ResponseMode.SYNCHRONOUS, 10000, false);
 
       List<QueryResponse> objects = cast(responses);
       final QueryResponse localReturnValue;
@@ -149,7 +149,7 @@ public class ClusteredQueryInvoker {
 
    /**
     * Created to call a ClusteredQueryCommand on own node.
-    * 
+    *
     * @author Israel Lacerra <israeldl@gmail.com>
     * @since 5.1
     */

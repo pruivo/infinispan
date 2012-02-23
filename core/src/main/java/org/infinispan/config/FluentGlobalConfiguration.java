@@ -41,6 +41,7 @@ import java.util.Properties;
  *
  * @author Galder Zamarreño
  * @author Vladimir Blagojevic
+ * @author Pedro Ruivo
  * @since 5.0
  */
 @Deprecated
@@ -279,6 +280,20 @@ public class FluentGlobalConfiguration extends AbstractConfigurationBeanWithGCR 
       ShutdownConfig hookBehavior(GlobalConfiguration.ShutdownHookBehavior hookBehavior);
    }
 
+   @Deprecated public static interface ConditionalExecutorConfig extends FluentGlobalTypes {
+
+      ConditionalExecutorConfig corePoolSize(int corePoolSize);
+
+      ConditionalExecutorConfig maxPoolSize(int maxPoolSize);
+
+      ConditionalExecutorConfig threadPriority(int threadPriority);
+
+      ConditionalExecutorConfig keepAliveTime(long keepAliveTime);
+
+      ConditionalExecutorConfig queueSize(int queueSize);
+
+   }
+
 }
 
 @Deprecated
@@ -305,6 +320,8 @@ interface FluentGlobalTypes {
    FluentGlobalConfiguration.ExecutorFactoryConfig<ScheduledExecutorFactory> replicationQueueScheduledExecutor();
 
    FluentGlobalConfiguration.ShutdownConfig shutdown();
+
+   FluentGlobalConfiguration.ConditionalExecutorConfig conditionalExecutor();
 
    GlobalConfiguration build();
 }
@@ -388,5 +405,10 @@ abstract class AbstractConfigurationBeanWithGCR extends AbstractConfigurationBea
    @Override
    public GlobalConfiguration build() {
       return globalConfig;
+   }
+
+   @Override
+   public FluentGlobalConfiguration.ConditionalExecutorConfig conditionalExecutor() {
+      return globalConfig.conditionalExecutor;
    }
 }

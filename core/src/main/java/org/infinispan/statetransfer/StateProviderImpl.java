@@ -41,6 +41,7 @@ import org.infinispan.notifications.cachelistener.event.TopologyChangedEvent;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
+import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.util.logging.Log;
@@ -197,8 +198,14 @@ public class StateProviderImpl implements StateProvider {
       List<TransactionInfo> transactions = new ArrayList<TransactionInfo>();
       //we migrate locks only if the cache is transactional and distributed
       if (configuration.transaction().transactionMode().isTransactional()) {
-         collectTransactionsToTransfer(transactions, transactionTable.getRemoteTransactions(), segments, cacheTopology);
-         collectTransactionsToTransfer(transactions, transactionTable.getLocalTransactions(), segments, cacheTopology);
+         if (configuration.transaction().transactionProtocol().isTotalOrder()) {
+            for (RemoteTransaction remoteTransaction : transactionTable.getRemoteTransactions()) {
+               transactions.add(remoteTransaction.createTransactionInfo());
+            }
+         } else {
+            collectTransactionsToTransfer(transactions, transactionTable.getRemoteTransactions(), segments, cacheTopology);
+            collectTransactionsToTransfer(transactions, transactionTable.getLocalTransactions(), segments, cacheTopology);
+         }
          if (trace) {
             log.tracef("Found %d transaction(s) to transfer", transactions.size());
          }
@@ -267,7 +274,7 @@ public class StateProviderImpl implements StateProvider {
             if (!txModifications.isEmpty()) {
                modifications = txModifications.toArray(new WriteCommand[txModifications.size()]);
             }
-            transactionsToTransfer.add(new TransactionInfo(tx.getGlobalTransaction(), tx.getTopologyId(), modifications, filteredLockedKeys));
+            transactionsToTransfer.add(new TransactionInfo(tx.getGlobalTransaction(), tx.getTopologyId(), modifications, filteredLockedKeys, 0, null));
          }
       }
    }

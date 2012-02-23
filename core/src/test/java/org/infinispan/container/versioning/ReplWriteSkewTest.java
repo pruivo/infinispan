@@ -23,10 +23,13 @@ import org.infinispan.Cache;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.context.Flag;
 import org.infinispan.test.fwk.CleanupAfterMethod;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import javax.transaction.RollbackException;
 import javax.transaction.Transaction;
+
+import static org.testng.AssertJUnit.assertEquals;
 
 @Test(testName = "container.versioning.ReplWriteSkewTest", groups = "functional")
 @CleanupAfterMethod
@@ -48,6 +51,8 @@ public class ReplWriteSkewTest extends AbstractClusteredWriteSkewTest {
 
       // Auto-commit is true
       cache0.put("hello", "world 1");
+      assertEquals(cache0.get("hello"), "world 1");
+      assertEventuallyEquals(1, "hello", "world 1");
 
       tm(0).begin();
       assert "world 1".equals(cache0.get("hello"));
@@ -71,6 +76,8 @@ public class ReplWriteSkewTest extends AbstractClusteredWriteSkewTest {
 
       assert "world 3".equals(cache0.get("hello"));
       assert "world 3".equals(cache1.get("hello"));
+
+      assertNoTransactions();
    }
 
    public void testWriteSkewMultiEntries() throws Exception {
@@ -111,26 +118,30 @@ public class ReplWriteSkewTest extends AbstractClusteredWriteSkewTest {
       assert cache0.get("hello2").equals("world 1");
       assert cache1.get("hello").equals("world 3");
       assert cache1.get("hello2").equals("world 1");
+
+      assertNoTransactions();
    }
 
    public void testNullEntries() throws Exception {
-      Cache<Object, Object> cache0 = cache(0);
-      Cache<Object, Object> cache1 = cache(1);
 
       // Auto-commit is true
-      cache0.put("hello", "world");
+      cache(0).put("hello", "world");
+
+      assertEquals(cache(0).get("hello"), "world");
+      assertEventuallyEquals(1, "hello", "world");
+
 
       tm(0).begin();
-      assert "world".equals(cache0.get("hello"));
+      assert "world".equals(cache(0).get("hello"));
       Transaction t = tm(0).suspend();
 
-      cache1.remove("hello");
+      cache(1).remove("hello");
 
-      assert null == cache0.get("hello");
-      assert null == cache1.get("hello");
+      assertEventuallyEquals(0, "hello", null);
+      assertEquals(cache(0).get("hello"), null);
 
       tm(0).resume(t);
-      cache0.put("hello", "world2");
+      cache(0).put("hello", "world2");
 
       try {
          tm(0).commit();
@@ -139,10 +150,17 @@ public class ReplWriteSkewTest extends AbstractClusteredWriteSkewTest {
          // expected
       }
 
-      assert null == cache0.get("hello");
-      assert null == cache1.get("hello");
+      assert null == cache(0).get("hello");
+      assert null == cache(1).get("hello");
+
+      log.tracef("Local tx for cache %s are ", 0, transactionTable(0).getLocalTransactions());
+      log.tracef("Remote tx for cache %s are ", 0, transactionTable(0).getRemoteTransactions());
+      log.tracef("Local tx for cache %s are ", 1, transactionTable(1).getLocalTransactions());
+      log.tracef("Remote tx for cache %s are ", 0, transactionTable(1).getRemoteTransactions());
+
+      assertNoTransactions();
    }
-   
+
    public void testResendPrepare() throws Exception {
       Cache<Object, Object> cache0 = cache(0);
       Cache<Object, Object> cache1 = cache(1);
@@ -159,7 +177,7 @@ public class ReplWriteSkewTest extends AbstractClusteredWriteSkewTest {
       cache(0).put("hello", "world2");
 
       assert "world2".equals(cache0.get("hello"));
-      assert "world2".equals(cache1.get("hello"));
+      assertEventuallyEquals(1, "hello", "world2");
 
       tm(0).resume(t);
       cache0.put("hello", "world3");
@@ -176,12 +194,91 @@ public class ReplWriteSkewTest extends AbstractClusteredWriteSkewTest {
 
       assert "world2".equals(cache0.get("hello"));
       assert "world2".equals(cache1.get("hello"));
+
+      assertNoTransactions();
    }
 
    public void testLocalOnlyPut() {
       localOnlyPut(this.<Integer, String>cache(0), 1, "v1");
       localOnlyPut(this.<Integer, String>cache(1), 2, "v2");
+      assertNoTransactions();
    }
+
+   public void testReplace() {      
+      cache(1).put("key", "value1");
+
+      assert "value1".equals(cache(1).get("key"));
+      assert "value1".equals(cache(0).get("key"));
+
+      Assert.assertEquals(cache(0).replace("key", "value2"), "value1");
+
+      assert "value2".equals(cache(1).get("key"));
+      assert "value2".equals(cache(0).get("key"));
+
+      cache(0).put("key", "value3");
+
+      cache(0).replace("key", "value3");
+
+      assert "value3".equals(cache(1).get("key"));
+      assert "value3".equals(cache(0).get("key"));
+
+      assertNoTransactions();
+   }
+
+   public void testReplaceWithOldVal() {      
+      cache(1).put("key", "value1");
+
+      assert "value1".equals(cache(1).get("key"));
+      assert "value1".equals(cache(0).get("key"));
+
+      cache(0).put("key", "value2");
+
+      assert "value2".equals(cache(1).get("key"));
+      assert "value2".equals(cache(0).get("key"));
+
+      assert !cache(0).replace("key", "value3", "value4");
+
+      assert "value2".equals(cache(1).get("key"));
+      assert "value2".equals(cache(0).get("key"));
+
+      assert cache(0).replace("key", "value2", "value4");
+
+      assert "value4".equals(cache(1).get("key"));
+      assert "value4".equals(cache(0).get("key"));
+
+      assertNoTransactions();
+   }
+
+   public void testRemoveUnexistingEntry() {      
+      cache(0).remove("key");
+
+      assert cache(1).get("key") == null;
+      assert cache(0).get("key") == null;
+
+      assertNoTransactions();
+   }
+
+   public void testRemoveIfPresent() {      
+
+      cache(0).put("key", "value1");
+      cache(1).put("key", "value2");
+
+      assert "value2".equals(cache(1).get("key"));
+      assert "value2".equals(cache(0).get("key"));
+
+      cache(0).remove("key", "value1");
+
+      assert "value2".equals(cache(1).get("key"));
+      assert "value2".equals(cache(0).get("key"));
+
+      cache(0).remove("key", "value2");
+
+      assert cache(1).get("key") == null;
+      assert cache(0).get("key") == null;
+
+      assertNoTransactions();
+   }
+
 
    @Test(enabled = false, description = "See ISPN-2160")
    @Override

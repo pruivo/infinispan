@@ -24,7 +24,16 @@ package org.infinispan.util;
 
 import org.infinispan.CacheConfigurationException;
 import org.infinispan.CacheException;
+import org.infinispan.commands.write.ApplyDeltaCommand;
+import org.infinispan.commands.write.ClearCommand;
+import org.infinispan.commands.write.DataWriteCommand;
+import org.infinispan.commands.write.PutKeyValueCommand;
+import org.infinispan.commands.write.PutMapCommand;
+import org.infinispan.commands.write.RemoveCommand;
+import org.infinispan.commands.write.ReplaceCommand;
+import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.commons.hash.Hash;
+import org.infinispan.container.DataContainer;
 import org.infinispan.marshall.Marshaller;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -45,6 +54,7 @@ import java.nio.ByteBuffer;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -611,5 +621,44 @@ public final class Util {
 
    public static boolean isIBMJavaVendor() {
       return javaVendor.toLowerCase().contains("ibm");
+   }
+
+   /**
+    * it returns a set of keys touched by the modification collection
+    * @param modifications the modification collection
+    * @param dataContainer the data container. Some commands (ClearCommand) touches in all keys present in the data
+    *                      container (can be null)
+    * @return a set of keys touched by the modification collection. It returns null if the data container == null and 
+    *          the modifications has a clear command
+    */
+   public static Set<Object> getAffectedKeys(Collection<WriteCommand> modifications, DataContainer dataContainer) {
+      if (modifications == null) {
+         return Collections.emptySet();
+      }
+      Set<Object> set = new HashSet<Object>(modifications.size());
+      for (WriteCommand wc: modifications) {
+         switch (wc.getCommandId()) {
+            case ClearCommand.COMMAND_ID:
+               if (dataContainer == null) {
+                  return null;
+               }
+               set.addAll(dataContainer.keySet());
+               break;
+            case PutKeyValueCommand.COMMAND_ID:
+            case RemoveCommand.COMMAND_ID:
+            case ReplaceCommand.COMMAND_ID:
+               set.add(((DataWriteCommand) wc).getKey());
+               break;
+            case PutMapCommand.COMMAND_ID:
+               set.addAll(wc.getAffectedKeys());
+               break;
+            case ApplyDeltaCommand.COMMAND_ID:
+               ApplyDeltaCommand command = (ApplyDeltaCommand) wc;
+               Object[] compositeKeys = command.getCompositeKeys();
+               set.addAll(Arrays.asList(compositeKeys));
+               break;
+         }
+      }
+      return set;
    }
 }

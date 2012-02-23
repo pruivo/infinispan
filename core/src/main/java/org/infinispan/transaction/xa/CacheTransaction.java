@@ -121,4 +121,8 @@ public interface CacheTransaction {
    boolean isMarkedForRollback();
 
    void markForRollback(boolean markForRollback);
+   
+   void markPrepareSent();
+   
+   boolean wasPrepareSent();
 }

@@ -23,10 +23,12 @@
 
 package org.infinispan.statetransfer;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.infinispan.Cache;
 import org.infinispan.CacheException;
@@ -48,6 +50,7 @@ import org.infinispan.topology.CacheJoinInfo;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.topology.CacheTopologyHandler;
 import org.infinispan.topology.LocalTopologyManager;
+import org.infinispan.util.InfinispanCollections;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -73,7 +76,8 @@ public class StateTransferManagerImpl implements StateTransferManager {
    private GroupManager groupManager;   // optional
    private LocalTopologyManager localTopologyManager;
 
-   private final CountDownLatch initialStateTransferComplete = new CountDownLatch(1);
+   private CountDownLatch initialStateTransferComplete = new CountDownLatch(1);
+   private final AtomicBoolean receivedFirstTopologyChange = new AtomicBoolean(false);
 
    public StateTransferManagerImpl() {
    }
@@ -112,17 +116,22 @@ public class StateTransferManagerImpl implements StateTransferManager {
             configuration.clustering().hash().hash(),
             configuration.clustering().hash().numSegments(),
             configuration.clustering().hash().numOwners(),
-            configuration.clustering().stateTransfer().timeout()
-      );
+            configuration.clustering().stateTransfer().timeout(),
+            configuration.transaction().transactionProtocol().isTotalOrder(),
+            configuration.clustering().cacheMode().isDistributed());
 
       localTopologyManager.join(cacheName, joinInfo, new CacheTopologyHandler() {
          @Override
          public void updateConsistentHash(CacheTopology cacheTopology) {
+            if (cacheTopology.getMembers().size() == 1 && cacheTopology.getMembers().contains(rpcManager.getAddress())) {
+               receivedFirstTopologyChange.set(true);
+            }
             doTopologyUpdate(cacheTopology, false);
          }
 
          @Override
          public void rebalance(CacheTopology cacheTopology) {
+            receivedFirstTopologyChange.set(true);
             doTopologyUpdate(cacheTopology, true);
          }
       });
@@ -284,7 +293,7 @@ public class StateTransferManagerImpl implements StateTransferManager {
             command.setTopologyId(localTopologyId);
             log.tracef("Forwarding command %s to new targets %s", command, newTargets);
             // TODO find a way to forward the command async if it was received async
-            rpcManager.invokeRemotely(newTargets, command, sync, false);
+            rpcManager.invokeRemotely(newTargets, command, sync, false, false);
          }
       }
    }
@@ -292,5 +301,14 @@ public class StateTransferManagerImpl implements StateTransferManager {
    @Override
    public void notifyEndOfTopologyUpdate(int topologyId) {
       localTopologyManager.confirmRebalance(cacheName, topologyId, null);
+   }
+
+   public Collection<CountDownLatch> getInboundStateTransferLatches(Object[] affectedKeys) {
+      return InfinispanCollections.emptyList();
+   }
+
+   @Override
+   public boolean hasReceivedInitialState() {
+      return receivedFirstTopologyChange.get();
    }
 }

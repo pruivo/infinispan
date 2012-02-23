@@ -53,9 +53,10 @@ public interface RpcManager {
     * @param usePriorityQueue if true, a priority queue is used to deliver messages.  May not be supported by all
     *                         implementations.
     * @param responseFilter   a response filter with which to filter out failed/unwanted/invalid responses.
+    * @param totalOrder
     * @return a map of responses from each member contacted.
     */
-   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean usePriorityQueue, ResponseFilter responseFilter);
+   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean usePriorityQueue, ResponseFilter responseFilter, boolean totalOrder);
 
    /**
     * Invokes an RPC call on other caches in the cluster.
@@ -67,30 +68,34 @@ public interface RpcManager {
     * @param timeout          a timeout after which to throw a replication exception.
     * @param usePriorityQueue if true, a priority queue is used to deliver messages.  May not be supported by all
     *                         implementations.
+    * @param totalOrder
     * @return a map of responses from each member contacted.
     */
-   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean usePriorityQueue);
+   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean usePriorityQueue, boolean totalOrder);
 
    /**
     * Invokes an RPC call on other caches in the cluster.
+    *
     *
     * @param recipients a list of Addresses to invoke the call on.  If this is null, the call is broadcast to the entire
     *                   cluster.
     * @param rpcCommand the cache command to invoke
     * @param mode       the response mode to use
     * @param timeout    a timeout after which to throw a replication exception.
+    * @param totalOrder
     * @return a map of responses from each member contacted.
     */
-   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout);
+   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean totalOrder);
 
    /**
     * Broadcasts an RPC command to the entire cluster.
     *
     * @param rpc  command to execute remotely
     * @param sync if true, the transport will operate in sync mode.  Otherwise, it will operate in async mode.
+    * @param totalOrder
     * @throws org.infinispan.remoting.RpcException in the event of problems
     */
-   void broadcastRpcCommand(ReplicableCommand rpc, boolean sync) throws RpcException;
+   void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean totalOrder) throws RpcException;
 
    /**
     * Broadcasts an RPC command to the entire cluster.
@@ -99,12 +104,13 @@ public interface RpcManager {
     * @param sync             if true, the transport will operate in sync mode.  Otherwise, it will operate in async
     *                         mode.
     * @param usePriorityQueue if true, a priority queue is used
+    * @param totalOrder
     * @throws org.infinispan.remoting.RpcException in the event of problems
     */
-   void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean usePriorityQueue) throws RpcException;
+   void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean usePriorityQueue, boolean totalOrder) throws RpcException;
 
    /**
-    * The same as {@link #broadcastRpcCommand(org.infinispan.commands.ReplicableCommand, boolean)} except that the task
+    * The same as {@link #broadcastRpcCommand(org.infinispan.commands.ReplicableCommand, boolean, boolean)} except that the task
     * is passed to the transport executor and a Future is returned.  The transport always deals with this
     * synchronously.
     *
@@ -114,7 +120,7 @@ public interface RpcManager {
    void broadcastRpcCommandInFuture(ReplicableCommand rpc, NotifyingNotifiableFuture<Object> future);
 
    /**
-    * The same as {@link #broadcastRpcCommand(org.infinispan.commands.ReplicableCommand, boolean, boolean)} except that
+    * The same as {@link #broadcastRpcCommand(org.infinispan.commands.ReplicableCommand, boolean, boolean, boolean)} except that
     * the task is passed to the transport executor and a Future is returned.  The transport always deals with this
     * synchronously.
     *
@@ -127,12 +133,14 @@ public interface RpcManager {
    /**
     * Broadcasts an RPC command to a specified set of recipients
     *
+    *
     * @param recipients recipients to invoke remote command on
     * @param rpc        command to execute remotely
     * @param sync       if true, the transport will operate in sync mode.  Otherwise, it will operate in async mode.
+    * @param totalOrder
     * @throws org.infinispan.remoting.RpcException in the event of problems
     */
-   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync) throws RpcException;
+   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync, boolean totalOrder) throws RpcException;
 
    /**
     * Broadcasts an RPC command to a specified set of recipients
@@ -142,12 +150,13 @@ public interface RpcManager {
     * @param sync             if true, the transport will operate in sync mode.  Otherwise, it will operate in async
     *                         mode.
     * @param usePriorityQueue if true, a priority queue is used
+    * @param totalOrder
     * @throws org.infinispan.remoting.RpcException in the event of problems
     */
-   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync, boolean usePriorityQueue) throws RpcException;
+   Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync, boolean usePriorityQueue, boolean totalOrder) throws RpcException;
 
    /**
-    * The same as {@link #invokeRemotely(java.util.Collection, org.infinispan.commands.ReplicableCommand, boolean)}
+    * The same as {@link #invokeRemotely(java.util.Collection}
     * except that the task is passed to the transport executor and a Future is returned.  The transport always deals
     * with this synchronously.
     *
@@ -158,7 +167,7 @@ public interface RpcManager {
    void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, NotifyingNotifiableFuture<Object> future);
 
    /**
-    * The same as {@link #invokeRemotely(java.util.Collection, org.infinispan.commands.ReplicableCommand, boolean)}
+    * The same as {@link #invokeRemotely(java.util.Collection}
     * except that the task is passed to the transport executor and a Future is returned.  The transport always deals
     * with this synchronously.
     *
@@ -201,12 +210,12 @@ public interface RpcManager {
     * @return a reference to the underlying transport.
     */
    Transport getTransport();
-   
-   
+
+
    /**
     * Returns members of a cluster scoped to the cache owning this RpcManager. Note that this List
     * is always a subset of {@link Transport#getMembers()}
-    * 
+    *
     * @return a list of cache scoped cluster members
     */
    List<Address> getMembers();

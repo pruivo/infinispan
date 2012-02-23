@@ -131,7 +131,7 @@ public class OngoingTransactionsAndJoinTest extends MultipleCacheManagersTest {
             return null;
          }
       }, 10, TimeUnit.MILLISECONDS);
-      
+
       // start a new node!
       addClusterEnabledCacheManager(configuration);
 
@@ -308,7 +308,7 @@ public class OngoingTransactionsAndJoinTest extends MultipleCacheManagersTest {
       }
 
       @Override
-      public Response handle(CacheRpcCommand cmd, Address origin) throws Throwable {
+      public Object handle(CacheRpcCommand cmd, Address origin) throws Throwable {
          boolean notifyRehashStarted = false;
          if (cmd instanceof CacheTopologyControlCommand) {
             CacheTopologyControlCommand rcc = (CacheTopologyControlCommand) cmd;
@@ -325,7 +325,7 @@ public class OngoingTransactionsAndJoinTest extends MultipleCacheManagersTest {
             }
          }
 
-         Response r = delegate.handle(cmd, origin);
+         Object r = delegate.handle(cmd, origin);
          if (notifyRehashStarted) rehashStarted.countDown();
          return r;
       }

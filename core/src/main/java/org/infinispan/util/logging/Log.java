@@ -845,5 +845,9 @@ public interface Log extends BasicLogger {
    @Message(value = "Received exception from %s, see cause for remote stack trace", id = 217)
    RemoteException remoteException(Address sender, @Cause Exception e);
 
+   @LogMessage(level = INFO)
+   @Message(value = "Timeout while waiting for the transaction validation. The command will not be processed. " +
+         "Transaction is %s", id = 218)
+   void timeoutWaitingUntilTransactionPrepared(String globalTx);
 }
 

@@ -87,8 +87,8 @@ public class DelegatingTransport implements Transport {
    }
 
    @Override
-   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean usePriorityQueue, ResponseFilter responseFilter) throws Exception {
-      return actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue,responseFilter);
+   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean usePriorityQueue, ResponseFilter responseFilter, boolean totalOrder, boolean distribution) throws Exception {
+      return actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue,responseFilter, totalOrder, distribution);
    }
 
    @Override
@@ -139,5 +139,10 @@ public class DelegatingTransport implements Transport {
    @Override
    public Log getLog() {
       return actual.getLog();
+   }
+
+   @Override
+   public void checkTotalOrderSupported(boolean distributed) {
+      actual.checkTotalOrderSupported(distributed);
    }
 }

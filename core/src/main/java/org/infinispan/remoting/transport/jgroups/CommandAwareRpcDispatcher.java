@@ -43,10 +43,12 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.BackupReceiverRepository;
 import org.jgroups.Address;
+import org.jgroups.AnycastAddress;
 import org.jgroups.Channel;
 import org.jgroups.Message;
 import org.jgroups.SuspectedException;
 import org.jgroups.UpHandler;
+import org.jgroups.blocks.MessageRequest;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.ResponseMode;
 import org.jgroups.blocks.RpcDispatcher;
@@ -78,6 +80,7 @@ import static org.infinispan.util.Util.*;
  * A JGroups RPC dispatcher that knows how to deal with {@link ReplicableCommand}s.
  *
  * @author Manik Surtani (<a href="mailto:manik@jboss.org">manik@jboss.org</a>)
+ * @author Pedro Ruivo
  * @since 4.0
  */
 public class CommandAwareRpcDispatcher extends RpcDispatcher {
@@ -130,13 +133,13 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
     */
    public RspList<Object> invokeRemoteCommands(final List<Address> recipients, final ReplicableCommand command, final ResponseMode mode, final long timeout,
                                                final boolean anycasting, final boolean oob, final RspFilter filter,
-                                               boolean asyncMarshalling, final boolean ignoreLeavers) throws InterruptedException {
+                                               boolean asyncMarshalling, final boolean ignoreLeavers, final boolean totalOrder, final boolean distribution) throws InterruptedException {
       if (asyncMarshalling) {
          asyncExecutor.submit(new Callable<RspList<Object>>() {
             @Override
             public RspList<Object> call() throws Exception {
                return processCalls(command, recipients == null, timeout, filter, recipients, mode,
-                                   req_marshaller, CommandAwareRpcDispatcher.this, oob, anycasting, ignoreLeavers);
+                                   req_marshaller, CommandAwareRpcDispatcher.this, oob, anycasting, ignoreLeavers, totalOrder, distribution);
             }
          });
          return null; // don't wait for a response!
@@ -144,7 +147,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
          RspList<Object> response;
          try {
             response = processCalls(command, recipients == null, timeout, filter, recipients, mode,
-                                    req_marshaller, this, oob, anycasting, ignoreLeavers);
+                                    req_marshaller, this, oob, anycasting, ignoreLeavers, totalOrder, distribution);
          } catch (InterruptedException e) {
             throw e;
          } catch (SuspectedException e) {
@@ -192,9 +195,9 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
 
    public RspList<Object> broadcastRemoteCommands(ReplicableCommand command, ResponseMode mode, long timeout,
                                                   boolean anycasting, boolean oob, RspFilter filter,
-                                                  boolean asyncMarshalling, boolean ignoreLeavers)
+                                                  boolean asyncMarshalling, boolean ignoreLeavers, boolean totalOrder, boolean distribution)
          throws InterruptedException {
-      return invokeRemoteCommands(null, command, mode, timeout, anycasting, oob, filter, asyncMarshalling, ignoreLeavers);
+      return invokeRemoteCommands(null, command, mode, timeout, anycasting, oob, filter, asyncMarshalling, ignoreLeavers, totalOrder, distribution);
    }
 
    private boolean containsOnlyNulls(RspList<Object> l) {
@@ -208,7 +211,8 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
     * Message contains a Command. Execute it against *this* object and return result.
     */
    @Override
-   public Object handle(Message req) {
+   public Object handle(MessageRequest messageRequest) {
+      Message req = messageRequest.getMessage();
       if (isValid(req)) {
          ReplicableCommand cmd = null;
          try {
@@ -217,7 +221,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
             if (req.getSrc() instanceof SiteAddress) {
                return executeCommandFromRemoteSite(cmd, (SiteAddress)req.getSrc());
             } else {
-               return executeCommandFromLocalCluster(cmd, req);
+               return executeCommandFromLocalCluster(cmd, messageRequest);
             }
          } catch (InterruptedException e) {
             log.warnf("Shutdown while handling command %s", cmd);
@@ -241,9 +245,11 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       return backupReceiverRepository.handleRemoteCommand((SingleRpcCommand) cmd, src);
    }
 
-   private Object executeCommandFromLocalCluster(ReplicableCommand cmd, Message req) throws Throwable {
+   private Object executeCommandFromLocalCluster(ReplicableCommand cmd, MessageRequest messageRequest) throws Throwable {
+      Message req = messageRequest.getMessage();
       if (cmd instanceof CacheRpcCommand) {
          if (trace) log.tracef("Attempting to execute command: %s [sender=%s]", cmd, req.getSrc());
+         ((CacheRpcCommand) cmd).setMessageRequest(messageRequest);
          return inboundInvocationHandler.handle((CacheRpcCommand) cmd, fromJGroupsAddress(req.getSrc()));
       } else {
          if (trace) log.tracef("Attempting to execute non-CacheRpcCommand command: %s [sender=%s]", cmd, req.getSrc());
@@ -259,7 +265,8 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       return getClass().getSimpleName() + "[Outgoing marshaller: " + req_marshaller + "; incoming marshaller: " + rsp_marshaller + "]";
    }
 
-   protected static Message constructMessage(Buffer buf, Address recipient, boolean oob, ResponseMode mode, boolean rsvp) {
+   protected static Message constructMessage(Buffer buf, Address recipient, boolean oob, ResponseMode mode, boolean rsvp,
+                                             boolean totalOrder) {
       Message msg = new Message();
       msg.setBuffer(buf);
       if (oob) msg.setFlag(Message.OOB);
@@ -269,6 +276,16 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
          // msg.setFlag(Message.NO_FC);
       }
       if (rsvp) msg.setFlag(Message.RSVP);
+
+      //In total order protocol, the sequencer is in the protocol stack so we need to bypass the protocol
+      if(!totalOrder) {
+         msg.setFlag(Message.NO_TOTAL_ORDER);
+      } else {
+         //disable flow control -- send immediately to avoid long commit phases
+         msg.setFlag(Message.Flag.NO_FC);
+         msg.setFlag(Message.DONT_BUNDLE);
+         msg.clearFlag(Message.Flag.OOB);
+      }
       if (recipient != null) msg.setDest(recipient);
       return msg;
    }
@@ -298,7 +315,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       Response retval;
       Buffer buf;
       buf = marshallCall(marshaller, command);
-      retval = card.sendMessage(constructMessage(buf, destination, oob, mode, rsvp),
+      retval = card.sendMessage(constructMessage(buf, destination, oob, mode, rsvp, false),
                                 new RequestOptions(mode, timeout));
 
       // we only bother parsing responses if we are not in ASYNC mode.
@@ -319,7 +336,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
    private static RspList<Object> processCalls(ReplicableCommand command, boolean broadcast, long timeout,
                                                RspFilter filter, List<Address> dests, ResponseMode mode,
                                                Marshaller marshaller, CommandAwareRpcDispatcher card,
-                                               boolean oob, boolean anycasting, boolean ignoreLeavers) throws Exception {
+                                               boolean oob, boolean anycasting, boolean ignoreLeavers, boolean totalOrder, boolean distribution) throws Exception {
       if (trace) log.tracef("Replication task sending %s to addresses %s with response mode %s", command, dests, mode);
 
       /// HACK ALERT!  Used for ISPN-1789.  Enable RSVP if the command is a cache topology control command.
@@ -328,12 +345,37 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
 
       RspList<Object> retval = null;
       Buffer buf;
-      if (broadcast || FORCE_MCAST) {
+      if (totalOrder && distribution) {
          buf = marshallCall(marshaller, command);
-         retval = card.castMessage(dests, constructMessage(buf, null, oob, mode, rsvp),
-                                   new RequestOptions(mode, timeout, false, filter));
+         Message message = constructMessage(buf, null, oob, mode, rsvp, totalOrder);
+
+         AnycastAddress address = new AnycastAddress();
+         if (dests == null) {
+            address.addAll(card.members);
+         } else {
+            address.addAll(dests);
+            address.add(card.local_addr);
+         }
+
+         message.setDest(address);
+
+         retval = card.castMessage(dests, message, new RequestOptions(mode, timeout, false, filter));
+      } else if (broadcast || FORCE_MCAST || totalOrder) {
+         buf = marshallCall(marshaller, command);
+         RequestOptions opts = new RequestOptions(mode, timeout, false, filter);
+
+         //Only the commands in total order must be received...
+         //For correctness, ispn doesn't need their own message, so add own address to exclusion list
+         if(!totalOrder) {
+            opts.setExclusionList(card.getChannel().getAddress());
+         }
+
+         retval = card.castMessage(dests, constructMessage(buf, null, oob, mode, rsvp, totalOrder),opts);
       } else {
          RequestOptions opts = new RequestOptions(mode, timeout);
+
+         //Only the commands in total order must be received...
+         opts.setExclusionList(card.getChannel().getAddress());
 
          if (dests.isEmpty()) return new RspList<Object>();
          buf = marshallCall(marshaller, command);
@@ -345,7 +387,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
             // (see FutureCollator) and the first successful response is used.
             FutureCollator futureCollator = new FutureCollator(filter, dests.size(), timeout);
             for (Address a : dests) {
-               NotifyingFuture<Object> f = card.sendMessageWithFuture(constructMessage(buf, a, oob, mode, rsvp), opts);
+               NotifyingFuture<Object> f = card.sendMessageWithFuture(constructMessage(buf, a, oob, mode, rsvp, false), opts);
                futureCollator.watchFuture(f, a);
             }
             retval = futureCollator.getResponseList();
@@ -354,7 +396,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
             Map<Address, Future<Object>> futures = new HashMap<Address, Future<Object>>(dests.size());
 
             for (Address dest : dests)
-               futures.put(dest, card.sendMessageWithFuture(constructMessage(buf, dest, oob, mode, rsvp), opts));
+               futures.put(dest, card.sendMessageWithFuture(constructMessage(buf, dest, oob, mode, rsvp, false), opts));
 
             retval = new RspList<Object>();
 
@@ -376,7 +418,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
             }
          } else if (mode == ResponseMode.GET_NONE) {
             // An ASYNC call.  We don't care about responses.
-            for (Address dest : dests) card.sendMessage(constructMessage(buf, dest, oob, mode, rsvp), opts);
+            for (Address dest : dests) card.sendMessage(constructMessage(buf, dest, oob, mode, rsvp, false), opts);
          }
       }
 

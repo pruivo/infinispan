@@ -24,6 +24,7 @@
 package org.infinispan.statetransfer;
 
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.container.versioning.EntryVersionsMap;
 import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
 import org.infinispan.transaction.xa.GlobalTransaction;
@@ -52,11 +53,19 @@ public class TransactionInfo {
 
    private final int topologyId;
 
-   public TransactionInfo(GlobalTransaction globalTransaction, int topologyId, WriteCommand[] modifications, Set<Object> lockedKeys) {
+   //For total order;
+   private final int state;
+
+   private final EntryVersionsMap versionsMap;
+
+   public TransactionInfo(GlobalTransaction globalTransaction, int topologyId, WriteCommand[] modifications, Set<Object> lockedKeys,
+                          int state, EntryVersionsMap entryVersionsMap) {
       this.globalTransaction = globalTransaction;
       this.topologyId = topologyId;
       this.modifications = modifications;
       this.lockedKeys = lockedKeys;
+      this.state = state;
+      this.versionsMap = entryVersionsMap;
    }
 
    public GlobalTransaction getGlobalTransaction() {
@@ -69,6 +78,14 @@ public class TransactionInfo {
 
    public Set<Object> getLockedKeys() {
       return lockedKeys;
+   }
+
+   public int getState() {
+      return state;
+   }
+
+   public EntryVersionsMap getVersionsMap() {
+      return versionsMap;
    }
 
    public int getTopologyId() {
@@ -103,6 +120,8 @@ public class TransactionInfo {
          output.writeInt(object.topologyId);
          output.writeObject(object.modifications);
          output.writeObject(object.lockedKeys);
+         output.write(object.state);
+         output.writeObject(object.versionsMap);
       }
 
       @Override
@@ -112,7 +131,9 @@ public class TransactionInfo {
          int topologyId = input.readInt();
          WriteCommand[] modifications = (WriteCommand[]) input.readObject();
          Set<Object> lockedKeys = (Set<Object>) input.readObject();
-         return new TransactionInfo(globalTransaction, topologyId, modifications, lockedKeys);
+         int state = input.read();
+         EntryVersionsMap entryVersionsMap = (EntryVersionsMap) input.readObject();
+         return new TransactionInfo(globalTransaction, topologyId, modifications, lockedKeys, state, entryVersionsMap);
       }
    }
 }

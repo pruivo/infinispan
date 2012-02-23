@@ -48,6 +48,7 @@ import java.util.Set;
  *
  * @author Manik Surtani (<a href="mailto:manik@jboss.org">manik@jboss.org</a>)
  * @author Mircea.Markus@jboss.com
+ * @author Pedro Ruivo
  * @since 4.0
  */
 public class PrepareCommand extends AbstractTransactionBoundaryCommand {
@@ -174,7 +175,7 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
    @Override
    public String toString() {
       return "PrepareCommand {" +
-            "modifications=" + (modifications == null ? null : Arrays.asList(modifications)) +
+            "modifications=" + getAffectedKeys() +
             ", onePhaseCommit=" + onePhaseCommit +
             ", " + super.toString();
    }
@@ -217,5 +218,15 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
    @Override
    public boolean isReturnValueExpected() {
       return false;
+   }
+
+   /**
+    * set the prepare command as one phase commit (when the commit or rollback commands
+    * are received before the prepare command in total order protocol)
+    *
+    * @param onePhaseCommit true for one phase commit, false otherwise
+    */
+   public void setOnePhaseCommit(boolean onePhaseCommit) {
+      this.onePhaseCommit = onePhaseCommit;
    }
 }
