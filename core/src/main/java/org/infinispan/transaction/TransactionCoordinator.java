@@ -127,7 +127,7 @@ public class TransactionCoordinator {
       validateNotMarkedForRollback(localTransaction);
 
       if (Configurations.isOnePhaseCommit(configuration) || is1PcForAutoCommitTransaction(localTransaction) ||
-            Configurations.isOnePhaseTotalOrderCommit(configuration)) {
+            Configurations.isOnePhaseTotalOrderCommit(configuration) || Configurations.isOnePhasePassiveReplication(configuration)) {
          if (trace) log.tracef("Received prepare for tx: %s. Skipping call as 1PC will be used.", localTransaction);
          return XA_OK;
       }
@@ -168,7 +168,7 @@ public class TransactionCoordinator {
       LocalTxInvocationContext ctx = icc.createTxInvocationContext();
       ctx.setLocalTransaction(localTransaction);
       if (Configurations.isOnePhaseCommit(configuration) || isOnePhase || is1PcForAutoCommitTransaction(localTransaction) ||
-            Configurations.isOnePhaseTotalOrderCommit(configuration)) {
+            Configurations.isOnePhaseTotalOrderCommit(configuration) || Configurations.isOnePhasePassiveReplication(configuration)) {
          validateNotMarkedForRollback(localTransaction);
 
          if (trace) log.trace("Doing an 1PC prepare call on the interceptor chain");

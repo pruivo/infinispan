@@ -170,20 +170,28 @@ public class ConfigurationValidatingVisitor extends AbstractConfigurationBeanVis
          }
       }
 
-      if(!bean.transactionProtocol.isTotalOrder()) {
-         //no total order => no validation needed
-         return;
+      if (bean.transactionProtocol.isTotalOrder()) {
+
+         //in the future we can allow this in total order??
+         if(bean.transactionMode == TransactionMode.NON_TRANSACTIONAL) {
+            throw new ConfigurationException("Total Order based protocol needs a transactional cache");
+         }
+
+
+         if(!cfg.getCacheMode().isReplicated() && !cfg.getCacheMode().isDistributed()) {
+            throw new ConfigurationException("Distributed or Replicated cache mode are supported by Total Order based protocol");
+         }
       }
 
-      //in the future we can allow this in total order??
-      if(bean.transactionMode == TransactionMode.NON_TRANSACTIONAL) {
-         throw new ConfigurationException("Total Order based protocol needs a transactional cache");
-      }
+      if (bean.transactionProtocol.isPassiveReplication()) {
+         if (bean.transactionMode == TransactionMode.NON_TRANSACTIONAL) {
+            throw new ConfigurationException("Passive Replication based protocol needs a transactional cache");
+         }
 
-
-      //for now, only supports full replication
-      if(!cfg.getCacheMode().isReplicated() && !cfg.getCacheMode().isDistributed()) {
-         throw new ConfigurationException("Distributed cache mode not supported by Total Order based protocol");
+         //for now, only supports full replication
+         if (!cfg.getCacheMode().isReplicated()) {
+            throw new ConfigurationException("Distributed cache mode not supported by Passive Replication based protocol");
+         }
       }
    }
 

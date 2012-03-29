@@ -14,9 +14,18 @@ public enum TransactionProtocol {
    /**
     * uses the total order protocol
     */
-   TOTAL_ORDER;
+   TOTAL_ORDER,
+
+   /**
+    * uses the passive replication protocol (a.k.a primary backup)     
+    */
+   PASSIVE_REPLICATION;
 
    public boolean isTotalOrder() {
       return this == TOTAL_ORDER;
+   }
+   
+   public boolean isPassiveReplication() {
+      return this == PASSIVE_REPLICATION;
    }
 }

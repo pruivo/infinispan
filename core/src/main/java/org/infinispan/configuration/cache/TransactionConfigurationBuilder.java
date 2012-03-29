@@ -257,12 +257,18 @@ public class TransactionConfigurationBuilder extends AbstractConfigurationChildB
       if (reaperWakeUpInterval < 0)
          throw new CacheConfigurationException("reaperWakeUpInterval must be > 0, we got " + reaperWakeUpInterval);
       if (completedTxTimeout < 0)
-         throw new CacheConfigurationException("completedTxTimeout must be > 0, we got " + reaperWakeUpInterval);
-      if(transactionProtocol != TransactionProtocol.TOTAL_ORDER) {
-         //no total order => no validation needed
+         throw new CacheConfigurationException("completedTxTimeout must be > 0, we got " + reaperWakeUpInterval);      
+      if(transactionProtocol.isTotalOrder()) {
+         validateTotalOrder();
          return;
       }
 
+      if (transactionProtocol.isPassiveReplication()) {
+         validatePassiveReplication();
+      }
+   }
+   
+   private void validateTotalOrder() {
       //total order only supports transactional caches
       if(transactionMode == TransactionMode.NON_TRANSACTIONAL) {
          throw new ConfigurationException("Total Order based protocol needs a transactional cache");
@@ -270,11 +276,22 @@ public class TransactionConfigurationBuilder extends AbstractConfigurationChildB
       
       //total order only supports replicated and distributed mode
       if(!clustering().cacheMode().isReplicated() && !clustering().cacheMode().isDistributed()) {
-         throw new ConfigurationException("Distributed cache mode not supported by Total Order based protocol");
+         throw new ConfigurationException("Distributed or Replicated cache mode are supported by Total Order based protocol");
       }
       
       if (recovery.create().enabled()) {
          throw new ConfigurationException("Total Order based protocols not available with recovery");
+      }
+   }
+
+   private void validatePassiveReplication() {
+      //passive replication only supports transactional caches
+      if(transactionMode == TransactionMode.NON_TRANSACTIONAL) {
+         throw new ConfigurationException("Passive Replication based protocol needs a transactional cache");
+      }
+      
+      if(!clustering().cacheMode().isReplicated()) {
+         throw new ConfigurationException("Distributed cache mode not supported by Passive Replication based protocol");         
       }
    }
 
