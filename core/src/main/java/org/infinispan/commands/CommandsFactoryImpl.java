@@ -551,4 +551,9 @@ public class CommandsFactoryImpl implements CommandsFactory {
       return new CancelCommand(cacheName, commandUUID);
    }
 
+
+   @Override
+   public SetClassCommand buildSetClassCommand(String transactionalClass) {
+      return new SetClassCommand(transactionalClass);
+   }
 }

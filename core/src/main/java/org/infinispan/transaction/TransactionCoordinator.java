@@ -170,7 +170,6 @@ public class TransactionCoordinator {
       if (Configurations.isOnePhaseCommit(configuration) || isOnePhase || is1PcForAutoCommitTransaction(localTransaction) ||
             Configurations.isOnePhaseTotalOrderCommit(configuration) || Configurations.isOnePhasePassiveReplication(configuration)) {
          validateNotMarkedForRollback(localTransaction);
-
          if (trace) log.trace("Doing an 1PC prepare call on the interceptor chain");
          PrepareCommand command = commandCreator.createPrepareCommand(localTransaction.getGlobalTransaction(), localTransaction.getModifications());
          command.setOnePhaseCommit(true);

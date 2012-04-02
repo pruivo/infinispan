@@ -98,4 +98,5 @@ public interface Visitor {
 
    <V> Object visitDistributedExecuteCommand(InvocationContext ctx, DistributedExecuteCommand<V> command) throws Throwable;
 
+   Object visitSetClassCommand(InvocationContext ctx, SetClassCommand command) throws Throwable;
 }

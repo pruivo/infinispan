@@ -186,4 +186,9 @@ public abstract class AbstractVisitor implements Visitor {
    public <V> Object visitDistributedExecuteCommand(InvocationContext ctx, DistributedExecuteCommand<V> command) throws Throwable {
       return handleDefault(ctx, command);
    }
+
+    @Override
+    public Object visitSetClassCommand(InvocationContext ctx, SetClassCommand command) throws Throwable {
+      return handleDefault(ctx, command);
+    }
 }
