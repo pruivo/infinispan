@@ -1,3 +1,22 @@
+/*
+ * JBoss, Home of Professional Open Source
+ * Copyright 2013 Red Hat Inc. and/or its affiliates and other contributors
+ * as indicated by the @author tags. All rights reserved.
+ * See the copyright.txt in the distribution for a
+ * full listing of individual contributors.
+ *
+ * This copyrighted material is made available to anyone wishing to use,
+ * modify, copy, or redistribute it subject to the terms and conditions
+ * of the GNU Lesser General Public License, v. 2.1.
+ * This program is distributed in the hope that it will be useful, but WITHOUT A
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
+ * You should have received a copy of the GNU Lesser General Public License,
+ * v.2.1 along with this distribution; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA  02110-1301, USA.
+ */
+
 package org.infinispan.stats;
 
 import org.infinispan.configuration.cache.Configuration;
@@ -32,7 +51,9 @@ public class NodeScopeStatisticCollector {
    private long lastResetTime;
 
    public final synchronized void reset(){
-      log.tracef("Resetting Node Scope Statistics");
+      if (log.isTraceEnabled()) {
+         log.tracef("Resetting Node Scope Statistics");
+      }
       this.localTransactionStatistics = new LocalTransactionStatistics(this.configuration);
       this.remoteTransactionStatistics = new RemoteTransactionStatistics(this.configuration);
 
@@ -50,7 +71,9 @@ public class NodeScopeStatisticCollector {
    }
 
    public final synchronized void merge(TransactionStatistics ts){
-      log.tracef("Merge transaction statistics %s to the node statistics", ts);
+      if (log.isTraceEnabled()) {
+         log.tracef("Merge transaction statistics %s to the node statistics", ts);
+      }
       if(ts instanceof LocalTransactionStatistics){
          ts.flush(this.localTransactionStatistics);
          if(ts.isCommit()){
@@ -97,7 +120,9 @@ public class NodeScopeStatisticCollector {
 
 
    public final synchronized double getPercentile(IspnStats param, int percentile) throws NoIspnStatException{
-      log.tracef("Get percentile %s from %s", percentile, param);
+      if (log.isTraceEnabled()) {
+         log.tracef("Get percentile %s from %s", percentile, param);
+      }
       switch (param) {
          case RO_LOCAL_PERCENTILE:
             return localTransactionRoExecutionTime.getKPercentile(percentile);
@@ -118,7 +143,9 @@ public class NodeScopeStatisticCollector {
 
    @SuppressWarnings("UnnecessaryBoxing")
    public final synchronized Object getAttribute(IspnStats param) throws NoIspnStatException{
-      log.tracef("Get attribute %s", param);
+      if (log.isTraceEnabled()) {
+         log.tracef("Get attribute %s", param);
+      }
       switch (param) {
          case LOCAL_EXEC_NO_CONT:{
             long numLocalTxToPrepare = localTransactionStatistics.getValue(IspnStats.NUM_PREPARES);

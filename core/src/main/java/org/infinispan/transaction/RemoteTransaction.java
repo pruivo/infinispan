@@ -134,6 +134,7 @@ public class RemoteTransaction extends AbstractCacheTransaction implements Clone
          RemoteTransaction dolly = (RemoteTransaction) super.clone();
          dolly.modifications = new ArrayList<WriteCommand>(modifications);
          dolly.lookedUpEntries = new HashMap<Object, CacheEntry>(lookedUpEntries);
+         dolly.transactionState = this.transactionState == null ? null : EnumSet.copyOf(this.transactionState);
          return dolly;
       } catch (CloneNotSupportedException e) {
          throw new IllegalStateException("Impossible!!");
@@ -148,7 +149,7 @@ public class RemoteTransaction extends AbstractCacheTransaction implements Clone
             ", lockedKeys=" + lockedKeys +
             ", backupKeyLocks=" + backupKeyLocks +
             ", missingLookedUpEntries=" + missingLookedUpEntries +
-            ", isMarkedForRollback=" + isMarkedForRollback()+
+            ", isMarkedForRollback=" + isMarkedForRollback() +
             ", tx=" + tx +
             ", state=" + transactionState +
             ", latch=" + txDependencyLatch +
@@ -291,6 +292,20 @@ public class RemoteTransaction extends AbstractCacheTransaction implements Clone
       if (getUpdatedEntryVersions() == null) {
          setUpdatedEntryVersions(transactionInfo.getVersionsMap());
       }
+   }
+
+   /**
+    * mark the transactions as prepared and returns true if the second phase command was already delivered
+    * <p/>
+    * Note: used in {@link org.infinispan.reconfigurableprotocol.ReconfigurableProtocol} to abort and remove
+    * transactions ASAP
+    *
+    * @return true if the 2nd phase commands was already deliver, false otherwise
+    */
+   public final synchronized boolean check2ndPhaseAndPrepare() {
+      checkStateCreated();
+      transactionState.add(State.PREPARED);
+      return transactionState.contains(State.ROLLBACK_ONLY) || transactionState.contains(State.COMMIT_ONLY);
    }
 
    //WARN this should be inside a synchronized block

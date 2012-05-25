@@ -101,7 +101,7 @@ public abstract class CommandInterceptor extends AbstractVisitor {
     *
     * @param next next interceptor in the chain.
     */
-   public final void setNext(CommandInterceptor next) {
+   public void setNext(CommandInterceptor next) {
       this.next = next;
    }
 

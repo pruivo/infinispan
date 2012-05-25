@@ -88,7 +88,8 @@ public abstract class AbstractEnlistmentAdapter {
    }
 
    private void removeTransactionInfoRemotely(LocalTransaction localTransaction, GlobalTransaction gtx) {
-      if (mayHaveRemoteLocks(localTransaction) && !isSecondPhaseAsync) {
+      boolean totalOrder = gtx.getReconfigurableProtocol().useTotalOrder();
+      if (mayHaveRemoteLocks(localTransaction) && isClustered() && !isSecondPhaseAsync && !totalOrder) {
          final TxCompletionNotificationCommand command = commandsFactory.buildTxCompletionNotificationCommand(null, gtx);
          final Collection<Address> owners = clusteringLogic.getInvolvedNodes(localTransaction);
          Collection<Address> commitNodes = localTransaction.getCommitNodes(owners, rpcManager.getTopologyId(), rpcManager.getMembers());

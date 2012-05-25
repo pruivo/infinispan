@@ -3,12 +3,7 @@ package org.infinispan.interceptors.totalorder;
 import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
-import org.infinispan.container.entries.CacheEntry;
-import org.infinispan.container.entries.ClusteredRepeatableReadEntry;
-import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.EntryVersionsMap;
-import org.infinispan.container.versioning.IncrementableEntryVersion;
-import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.VersionedEntryWrappingInterceptor;
@@ -54,7 +49,7 @@ public class TotalOrderVersionedEntryWrappingInterceptor extends VersionedEntryW
                                                                                 (VersionedPrepareCommand) command);
 
       if (command.isOnePhaseCommit()) {
-         commitContextEntries(ctx, false, isFromStateTransfer(ctx));
+         commitContextEntries.commitContextEntries(ctx, false, isFromStateTransfer(ctx));
       } else {
          if (trace)
             log.tracef("Transaction %s will be committed in the 2nd phase", ctx.getGlobalTransaction().prettyPrint());
@@ -68,26 +63,7 @@ public class TotalOrderVersionedEntryWrappingInterceptor extends VersionedEntryW
       try {
          return invokeNextInterceptor(ctx, command);
       } finally {
-         commitContextEntries(ctx ,false, isFromStateTransfer(ctx));
-      }
-   }
-
-   @Override
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
-      if (ctx.isInTxScope()) {
-         ClusteredRepeatableReadEntry clusterMvccEntry = (ClusteredRepeatableReadEntry) entry;
-         EntryVersion existingVersion = clusterMvccEntry.getVersion();
-
-         EntryVersion newVersion;
-         if (existingVersion == null) {
-            newVersion = versionGenerator.generateNew();
-         } else {
-            newVersion = versionGenerator.increment((IncrementableEntryVersion) existingVersion);
-         }
-         cdl.commitEntry(entry, newVersion, skipOwnershipCheck, ctx);
-      } else {
-         // This could be a state transfer call!
-         cdl.commitEntry(entry, entry.getVersion(), skipOwnershipCheck, ctx);
+         commitContextEntries.commitContextEntries(ctx, false, isFromStateTransfer(ctx));
       }
    }
 }

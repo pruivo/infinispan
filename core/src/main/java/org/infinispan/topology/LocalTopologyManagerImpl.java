@@ -30,18 +30,21 @@ import java.util.concurrent.TimeUnit;
 
 import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.commands.remote.ConfigurationStateCommand;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.factories.annotations.Stop;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.rpc.ResponseMode;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
+import org.infinispan.statetransfer.ConfigurationState;
 import org.infinispan.util.concurrent.ConcurrentMapFactory;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -87,7 +90,7 @@ public class LocalTopologyManagerImpl implements LocalTopologyManager {
    }
 
    @Override
-   public CacheTopology join(String cacheName, CacheJoinInfo joinInfo, CacheTopologyHandler stm)
+   public CacheTopology join(String cacheName, CacheJoinInfo joinInfo, CacheTopologyHandler stm, ReconfigurableReplicationManager manager)
          throws Exception {
       log.debugf("Node %s joining cache %s", transport.getAddress(), cacheName);
       LocalCacheStatus cacheStatus = new LocalCacheStatus(joinInfo, stm);
@@ -100,6 +103,10 @@ public class LocalTopologyManagerImpl implements LocalTopologyManager {
       long endTime = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout);
       while (true) {
          try {
+            ConfigurationState state = getConfigurationState(cacheName, timeout);
+            if (state != null) {
+               manager.initialProtocol(state.getProtocolName(), state.getEpoch());
+            }
             List<CacheTopology> cacheTopologyHistory = (List<CacheTopology>) executeOnCoordinator(command, timeout);
             // if the current coordinator is shutting down, it will return a null CacheTopology
             if (cacheTopologyHistory != null && !cacheTopologyHistory.isEmpty()) {
@@ -262,6 +269,21 @@ public class LocalTopologyManagerImpl implements LocalTopologyManager {
       while (transport.getViewId() < viewId) {
          Thread.sleep(100);
       }
+   }
+
+   private ConfigurationState getConfigurationState(String cacheName, long timeout) throws Exception {
+      ConfigurationStateCommand command = new ConfigurationStateCommand(cacheName);
+      Map<Address, Response> responseMap = transport.invokeRemotely(null, command, ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS,
+                                                                    timeout, true, null , false, false);
+      for (Response response : responseMap.values()) {
+         if (response instanceof SuccessfulResponse) {
+            Object responseValue = ((SuccessfulResponse) response).getResponseValue();
+            if (responseValue instanceof ConfigurationState) {
+               return (ConfigurationState) responseValue;
+            }
+         }
+      }
+      return null;
    }
 
    private Object executeOnCoordinator(ReplicableCommand command, long timeout) throws Exception {

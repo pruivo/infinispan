@@ -1,4 +1,4 @@
-/* 
+/*
  * JBoss, Home of Professional Open Source
  * Copyright 2011 Red Hat Inc. and/or its affiliates and other contributors
  * as indicated by the @authors tag. All rights reserved.
@@ -186,5 +186,15 @@ public final class ImmutableContext implements InvocationContext {
    @Override
    public void setAlreadyReadOnThisNode(boolean value) {
       //no-op
+   }
+
+   @Override
+   public void setProtocolId(String protocolId) {
+      throw newUnsupportedMethod();
+   }
+
+   @Override
+   public String getProtocolId() {
+      throw newUnsupportedMethod();
    }
 }

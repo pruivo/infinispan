@@ -53,7 +53,6 @@ public class RpcManagerWrapper implements RpcManager {
    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
                                                 ResponseMode mode, long timeout, boolean usePriorityQueue,
                                                 ResponseFilter responseFilter, boolean totalOrder){
-      log.tracef("RpcManagerWrapper.invokeRemotely");
       long currentTime = System.nanoTime();
       Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, responseFilter, totalOrder);
       updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
@@ -63,7 +62,6 @@ public class RpcManagerWrapper implements RpcManager {
    @Override
    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
                                                 ResponseMode mode, long timeout, boolean usePriorityQueue, boolean totalOrder) {
-      log.tracef("RpcManagerWrapper.invokeRemotely_1");
       long currentTime = System.nanoTime();
       Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, totalOrder);
       updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
@@ -72,7 +70,6 @@ public class RpcManagerWrapper implements RpcManager {
 
    @Override
    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean totalOrder) {
-      log.tracef("RpcManagerWrapper.invokeRemotely _ 2");
       long currentTime = System.nanoTime();
       Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, totalOrder);
       updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
@@ -81,7 +78,6 @@ public class RpcManagerWrapper implements RpcManager {
 
    @Override
    public void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean totalOrder) throws RpcException {
-      log.tracef("RpcManagerWrapper.broadcastRpcCommand");
       long currentTime = System.nanoTime();
       actual.broadcastRpcCommand(rpc, sync, totalOrder);
       updateStats(rpc, sync, currentTime, null);
@@ -89,7 +85,6 @@ public class RpcManagerWrapper implements RpcManager {
 
    @Override
    public void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean usePriorityQueue, boolean totalOrder) throws RpcException {
-      log.tracef("RpcManagerWrapper.broadcastRpcCommand_1");
       long currentTime = System.nanoTime();
       actual.broadcastRpcCommand(rpc, sync, usePriorityQueue, totalOrder);
       updateStats(rpc, sync, currentTime, null);
@@ -97,7 +92,6 @@ public class RpcManagerWrapper implements RpcManager {
 
    @Override
    public void broadcastRpcCommandInFuture(ReplicableCommand rpc, NotifyingNotifiableFuture<Object> future) {
-      log.tracef("RpcManagerWrapper.broadcastRpcCommandInFuture");
       long currentTime = System.nanoTime();
       actual.broadcastRpcCommandInFuture(rpc, future);
       updateStats(rpc, false, currentTime, null);
@@ -106,7 +100,6 @@ public class RpcManagerWrapper implements RpcManager {
    @Override
    public void broadcastRpcCommandInFuture(ReplicableCommand rpc, boolean usePriorityQueue,
                                            NotifyingNotifiableFuture<Object> future) {
-      log.tracef("RpcManagerWrapper.broadcastRpcCommandInFuture_1");
       long currentTime = System.nanoTime();
       actual.broadcastRpcCommandInFuture(rpc, usePriorityQueue, future);
       updateStats(rpc, false, currentTime, null);
@@ -114,7 +107,6 @@ public class RpcManagerWrapper implements RpcManager {
 
    @Override
    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync, boolean totalOrder) throws RpcException {
-      log.tracef("RpcManagerWrapper.invokeRemotely _3");
       long currentTime = System.nanoTime();
       Map<Address, Response> ret = actual.invokeRemotely(recipients, rpc, sync, totalOrder);
       updateStats(rpc, sync, currentTime, recipients);
@@ -124,7 +116,6 @@ public class RpcManagerWrapper implements RpcManager {
    @Override
    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync,
                                                 boolean usePriorityQueue, boolean totalOrder) throws RpcException {
-      log.tracef("RpcManagerWrapper.invokeRemotely_4");
       long currentTime = System.nanoTime();
       Map<Address, Response> ret = actual.invokeRemotely(recipients, rpc, sync, usePriorityQueue, totalOrder);
       updateStats(rpc, sync, currentTime, recipients);
@@ -134,7 +125,6 @@ public class RpcManagerWrapper implements RpcManager {
    @Override
    public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc,
                                       NotifyingNotifiableFuture<Object> future) {
-      log.tracef("RpcManagerWrapper.invokeRemotelyInFuture");
       long currentTime = System.nanoTime();
       actual.invokeRemotelyInFuture(recipients, rpc, future);
       updateStats(rpc, false, currentTime, recipients);
@@ -143,7 +133,6 @@ public class RpcManagerWrapper implements RpcManager {
    @Override
    public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
                                       NotifyingNotifiableFuture<Object> future) {
-      log.tracef("RpcManagerWrapper.invokeRemotelyInFuture_1");
       long currentTime = System.nanoTime();
       actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future);
       updateStats(rpc, false, currentTime, recipients);
@@ -152,7 +141,6 @@ public class RpcManagerWrapper implements RpcManager {
    @Override
    public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
                                       NotifyingNotifiableFuture<Object> future, long timeout) {
-      log.tracef("RpcManagerWrapper.invokeRemotelyInFuture_2");
       long currentTime = System.nanoTime();
       actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future, timeout);
       updateStats(rpc, false, currentTime, recipients);
@@ -161,7 +149,6 @@ public class RpcManagerWrapper implements RpcManager {
    @Override
    public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
                                       NotifyingNotifiableFuture<Object> future, long timeout, boolean ignoreLeavers) {
-      log.tracef("RpcManagerWrapper.invokeRemotelyInFuture_3");
       long currentTime = System.nanoTime();
       actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future, timeout, ignoreLeavers);
       updateStats(rpc, false, currentTime, recipients);
@@ -169,7 +156,6 @@ public class RpcManagerWrapper implements RpcManager {
 
    @Override
    public Transport getTransport() {
-      log.tracef("RpcManagerWrapper.getTransport");
       return actual.getTransport();
    }
 
@@ -180,7 +166,6 @@ public class RpcManagerWrapper implements RpcManager {
 
    @Override
    public Address getAddress() {
-      log.tracef("RpcManagerWrapper.getAddress");
       return actual.getAddress();
    }
 
@@ -192,7 +177,9 @@ public class RpcManagerWrapper implements RpcManager {
    private void updateStats(ReplicableCommand command, boolean sync, long init, Collection<Address> recipients) {
       if (!TransactionsStatisticsRegistry.hasStatisticCollector() &&
             !(command instanceof TxCompletionNotificationCommand)) {
-         log.tracef("Does not update stats for command %s. No statistic collector found", command);
+         if (log.isTraceEnabled()) {
+            log.tracef("Does not update stats for command %s. No statistic collector found", command);
+         }
          return;
       }
       IspnStats durationStat;
@@ -239,8 +226,10 @@ public class RpcManagerWrapper implements RpcManager {
             counterStat = IspnStats.NUM_ASYNC_COMPLETE_NOTIFY;
             recipientSizeStat = IspnStats.NUM_NODES_COMPLETE_NOTIFY;
 
-            log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
-                             "recipient size stat is %s", command, durationStat, counterStat, recipientSizeStat);
+            if (log.isTraceEnabled()) {
+               log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
+                                "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
+            }
 
             TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(durationStat, System.nanoTime() - init, true);
             TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(counterStat, true);
@@ -254,11 +243,15 @@ public class RpcManagerWrapper implements RpcManager {
             commandSizeStat = IspnStats.CLUSTERED_GET_COMMAND_SIZE;
             break;
          default:
-            log.tracef("Does not update stats for command %s. The command is not needed", command);
+            if (log.isTraceEnabled()) {
+               log.tracef("Does not update stats for command %s. The command is not needed", command);
+            }
             return;
       }
-      log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
-                       "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
+      if (log.isTraceEnabled()) {
+         log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
+                          "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
+      }
       TransactionsStatisticsRegistry.addValue(durationStat, System.nanoTime() - init);
       TransactionsStatisticsRegistry.incrementValue(counterStat);
       TransactionsStatisticsRegistry.addValue(recipientSizeStat, recipientListSize(recipients));

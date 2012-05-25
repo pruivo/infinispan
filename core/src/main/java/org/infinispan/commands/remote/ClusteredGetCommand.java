@@ -38,6 +38,7 @@ import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.distribution.DistributionManager;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.lifecycle.ComponentStatus;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.InfinispanCollections;
@@ -75,6 +76,7 @@ public class ClusteredGetCommand extends BaseRpcCommand implements FlagAffectedC
    private TransactionTable txTable;
    private InternalEntryFactory entryFactory;
    private int topologyId;
+   private ReconfigurableReplicationManager manager;
 
    private ClusteredGetCommand() {
       super(null); // For command id uniqueness test
@@ -103,13 +105,16 @@ public class ClusteredGetCommand extends BaseRpcCommand implements FlagAffectedC
    }
 
    public void initialize(InvocationContextContainer icc, CommandsFactory commandsFactory, InternalEntryFactory entryFactory,
-                          InterceptorChain interceptorChain, DistributionManager distributionManager, TransactionTable txTable) {
+                          InterceptorChain interceptorChain, DistributionManager distributionManager, TransactionTable txTable,
+                          ReconfigurableReplicationManager manager) {
       this.distributionManager = distributionManager;
       this.icc = icc;
       this.commandsFactory = commandsFactory;
       this.invoker = interceptorChain;
       this.txTable = txTable;
       this.entryFactory = entryFactory;
+      this.manager = manager;
+      this.manager.initGlobalTransactionIfNeeded(gtx);
    }
 
    /**
@@ -158,7 +163,7 @@ public class ClusteredGetCommand extends BaseRpcCommand implements FlagAffectedC
    private void acquireLocksIfNeeded() throws Throwable {
       if (acquireRemoteLock) {
          LockControlCommand lockControlCommand = commandsFactory.buildLockControlCommand(key, flags, gtx);
-         lockControlCommand.init(invoker, icc, txTable, null);
+         lockControlCommand.init(invoker, icc, txTable, null, manager);
          lockControlCommand.perform(null);
       }
    }

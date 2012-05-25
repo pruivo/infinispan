@@ -28,6 +28,8 @@ import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.context.impl.RemoteTxInvocationContext;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.lifecycle.ComponentStatus;
+import org.infinispan.reconfigurableprotocol.exception.NoSuchReconfigurableProtocolException;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.ResponseGenerator;
@@ -63,16 +65,20 @@ public abstract class AbstractTransactionBoundaryCommand implements TransactionB
    private MessageRequest messageRequest;
    private ResponseGenerator responseGenerator;
 
+   protected ReconfigurableReplicationManager reconfigurableReplicationManager;
+
    public AbstractTransactionBoundaryCommand(String cacheName) {
       this.cacheName = cacheName;
    }
 
    public void init(InterceptorChain chain, InvocationContextContainer icc, TransactionTable txTable,
-                    Configuration configuration) {
+                    Configuration configuration, ReconfigurableReplicationManager reconfigurableReplicationManager) {
       this.invoker = chain;
       this.icc = icc;
       this.txTable = txTable;
       this.configuration = configuration;
+      this.reconfigurableReplicationManager = reconfigurableReplicationManager;
+      reconfigurableReplicationManager.initGlobalTransactionIfNeeded(globalTx);
    }
 
    @Override
@@ -158,8 +164,8 @@ public abstract class AbstractTransactionBoundaryCommand implements TransactionB
       return invoker.invoke(ctxt, this);
    }
 
-   protected void visitRemoteTransaction(RemoteTransaction tx) {
-      // to be overridden
+   protected void visitRemoteTransaction(RemoteTransaction tx) throws InterruptedException, NoSuchReconfigurableProtocolException {
+      reconfigurableReplicationManager.notifyRemoteTransaction(tx.getGlobalTransaction(), null);
    }
 
    @Override
@@ -242,5 +248,9 @@ public abstract class AbstractTransactionBoundaryCommand implements TransactionB
             responseGenerator.getResponse(this, reply);
 
       messageRequest.sendReply(replyValue, false);
+   }
+
+   protected final boolean isTotalOrder() {
+      return globalTx.getReconfigurableProtocol().useTotalOrder();
    }
 }

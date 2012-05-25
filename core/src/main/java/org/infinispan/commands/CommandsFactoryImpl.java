@@ -36,10 +36,12 @@ import org.infinispan.commands.read.ReduceCommand;
 import org.infinispan.commands.read.SizeCommand;
 import org.infinispan.commands.read.ValuesCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
+import org.infinispan.commands.remote.ConfigurationStateCommand;
 import org.infinispan.commands.remote.DataPlacementCommand;
 import org.infinispan.commands.remote.GMUClusteredGetCommand;
 import org.infinispan.commands.remote.GarbageCollectorControlCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
+import org.infinispan.commands.remote.ReconfigurableProtocolCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.remote.recovery.CompleteTransactionCommand;
 import org.infinispan.commands.remote.recovery.GetInDoubtTransactionsCommand;
@@ -72,6 +74,7 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.StateChunk;
 import org.infinispan.statetransfer.StateConsumer;
@@ -140,6 +143,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
    private BackupSender backupSender;
    private CancellationService cancellationService;
    private DataPlacementManager dataPlacementManager;
+   private ReconfigurableReplicationManager reconfigurableReplicationManager;
 
    private Map<Byte, ModuleCommandInitializer> moduleCommandInitializers;
    private CommitLog commitLog;
@@ -155,7 +159,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
                                  LockManager lockManager, InternalEntryFactory entryFactory, MapReduceManager mapReduceManager,
                                  StateTransferManager stm, BackupSender backupSender, CancellationService cancellationService,
                                  DataPlacementManager dataPlacementManager, CommitLog commitLog, VersionGenerator versionGenerator,
-                                 GarbageCollectorManager garbageCollectorManager) {
+                                 GarbageCollectorManager garbageCollectorManager, ReconfigurableReplicationManager reconfigurableReplicationManager) {
       this.dataContainer = container;
       this.notifier = notifier;
       this.cache = cache;
@@ -178,6 +182,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
       this.commitLog = commitLog;
       this.versionGenerator = versionGenerator;
       this.garbageCollectorManager = garbageCollectorManager;
+      this.reconfigurableReplicationManager = reconfigurableReplicationManager;
    }
 
    @Start(priority = 1)
@@ -370,7 +375,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
          case PrepareCommand.COMMAND_ID:
          case VersionedPrepareCommand.COMMAND_ID:
             PrepareCommand pc = (PrepareCommand) c;
-            pc.init(interceptorChain, icc, txTable, configuration);
+            pc.init(interceptorChain, icc, txTable, configuration, reconfigurableReplicationManager);
             pc.initialize(notifier, recoveryManager);
             if (pc.getModifications() != null)
                for (ReplicableCommand nested : pc.getModifications())  {
@@ -386,12 +391,12 @@ public class CommandsFactoryImpl implements CommandsFactory {
          case VersionedCommitCommand.COMMAND_ID:
          case GMUCommitCommand.COMMAND_ID:
             CommitCommand commitCommand = (CommitCommand) c;
-            commitCommand.init(interceptorChain, icc, txTable, configuration);
+            commitCommand.init(interceptorChain, icc, txTable, configuration, reconfigurableReplicationManager);
             commitCommand.markTransactionAsRemote(isRemote);
             break;
          case RollbackCommand.COMMAND_ID:
             RollbackCommand rollbackCommand = (RollbackCommand) c;
-            rollbackCommand.init(interceptorChain, icc, txTable, configuration);
+            rollbackCommand.init(interceptorChain, icc, txTable, configuration, reconfigurableReplicationManager);
             rollbackCommand.markTransactionAsRemote(isRemote);
             break;
          case ClearCommand.COMMAND_ID:
@@ -403,11 +408,12 @@ public class CommandsFactoryImpl implements CommandsFactory {
             gmuClusteredGetCommand.initializeGMUComponents(commitLog, configuration, versionGenerator);
          case ClusteredGetCommand.COMMAND_ID:
             ClusteredGetCommand clusteredGetCommand = (ClusteredGetCommand) c;
-            clusteredGetCommand.initialize(icc, this, entryFactory, interceptorChain, distributionManager, txTable);
+            clusteredGetCommand.initialize(icc, this, entryFactory, interceptorChain, distributionManager, txTable,
+                                           reconfigurableReplicationManager);
             break;
          case LockControlCommand.COMMAND_ID:
             LockControlCommand lcc = (LockControlCommand) c;
-            lcc.init(interceptorChain, icc, txTable, configuration);
+            lcc.init(interceptorChain, icc, txTable, configuration, reconfigurableReplicationManager);
             lcc.markTransactionAsRemote(isRemote);
             if (configuration.deadlockDetection().enabled() && isRemote) {
                DldGlobalTransaction gtx = (DldGlobalTransaction) lcc.getGlobalTransaction();
@@ -472,13 +478,22 @@ public class CommandsFactoryImpl implements CommandsFactory {
          case CancelCommand.COMMAND_ID:
             CancelCommand cancelCommand = (CancelCommand)c;
             cancelCommand.init(cancellationService);
+            break;
          case DataPlacementCommand.COMMAND_ID:
             DataPlacementCommand dataPlacementRequestCommand = (DataPlacementCommand)c;
             dataPlacementRequestCommand.initialize(dataPlacementManager);
             break;
+         case ReconfigurableProtocolCommand.COMMAND_ID:
+            ReconfigurableProtocolCommand rpc = (ReconfigurableProtocolCommand) c;
+            rpc.init(reconfigurableReplicationManager);
+            break;
          case GarbageCollectorControlCommand.COMMAND_ID:
             GarbageCollectorControlCommand gccc = (GarbageCollectorControlCommand) c;
             gccc.init(garbageCollectorManager);
+            break;
+         case ConfigurationStateCommand.COMMAND_ID:
+            ConfigurationStateCommand csc = (ConfigurationStateCommand) c;
+            csc.initialize(reconfigurableReplicationManager);
             break;
          default:
             ModuleCommandInitializer mci = moduleCommandInitializers.get(c.getCommandId());
@@ -616,5 +631,10 @@ public class CommandsFactoryImpl implements CommandsFactory {
    public GarbageCollectorControlCommand buildGarbageCollectorControlCommand(GarbageCollectorControlCommand.Type type,
                                                                              int minimumVisibleViewId) {
       return new GarbageCollectorControlCommand(cacheName, type, minimumVisibleViewId);
+   }
+
+   @Override
+   public ReconfigurableProtocolCommand buildReconfigurableProtocolCommand(ReconfigurableProtocolCommand.Type type, String protocolId) {
+      return new ReconfigurableProtocolCommand(cacheName, type, protocolId);
    }
 }

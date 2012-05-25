@@ -63,7 +63,7 @@ public class RollbackCommand extends AbstractTransactionBoundaryCommand {
    @Override
    public Object perform(InvocationContext ctx) throws Throwable {
       txTable.markTransactionCompleted(globalTx);
-      if (configuration.transaction().transactionProtocol().isTotalOrder()) {
+      if (isTotalOrder()) {
          return super.performIgnoringUnexistingTransaction(ctx);
       } else {
          return super.perform(ctx);

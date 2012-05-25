@@ -41,6 +41,7 @@ import org.infinispan.commands.remote.DataPlacementCommand;
 import org.infinispan.commands.remote.GMUClusteredGetCommand;
 import org.infinispan.commands.remote.GarbageCollectorControlCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
+import org.infinispan.commands.remote.ReconfigurableProtocolCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.remote.recovery.CompleteTransactionCommand;
 import org.infinispan.commands.remote.recovery.GetInDoubtTransactionsCommand;
@@ -376,6 +377,11 @@ public class ControlledCommandFactory implements CommandsFactory {
    @Override
    public GarbageCollectorControlCommand buildGarbageCollectorControlCommand(GarbageCollectorControlCommand.Type type, int minimumVisibleViewId) {
       return actual.buildGarbageCollectorControlCommand(type, minimumVisibleViewId);
+   }
+
+   @Override
+   public ReconfigurableProtocolCommand buildReconfigurableProtocolCommand(ReconfigurableProtocolCommand.Type type, String protocolId) {
+      return actual.buildReconfigurableProtocolCommand(type, protocolId);
    }
 
    @Override

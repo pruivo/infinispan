@@ -170,4 +170,18 @@ public interface InvocationContext extends EntryLookup, Cloneable {
     * @param value   true or false if it has already read from this node
     */
    void setAlreadyReadOnThisNode(boolean value);
+
+   /**
+    * sets the replication protocol to be used by the command
+    *
+    * @param protocolId the protocol ID
+    */
+   void setProtocolId(String protocolId);
+
+   /**
+    * returns the protocol ID to be used by the command
+    *
+    * @return  the protocol ID to be used by the command
+    */
+   String getProtocolId();
 }

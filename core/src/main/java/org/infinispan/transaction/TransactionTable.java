@@ -42,6 +42,7 @@ import org.infinispan.notifications.Listener;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
 import org.infinispan.notifications.cachelistener.annotation.TopologyChanged;
 import org.infinispan.notifications.cachelistener.event.TopologyChangedEvent;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
@@ -106,6 +107,8 @@ public class TransactionTable {
 
    private ScheduledExecutorService executorService;
 
+   private ReconfigurableReplicationManager reconfigurableReplicationManager;
+
    /**
     * minTxTopologyId is the minimum topology ID across all ongoing local and remote transactions.
     */
@@ -121,7 +124,7 @@ public class TransactionTable {
                           TransactionFactory gtf, TransactionCoordinator txCoordinator,
                           TransactionSynchronizationRegistry transactionSynchronizationRegistry,
                           CommandsFactory commandsFactory, ClusteringDependentLogic clusteringDependentLogic, Cache cache,
-                          CommitLog commitLog) {
+                          CommitLog commitLog, ReconfigurableReplicationManager reconfigurableReplicationManager) {
       this.rpcManager = rpcManager;
       this.configuration = configuration;
       this.icc = icc;
@@ -134,6 +137,7 @@ public class TransactionTable {
       this.clusteringLogic = clusteringDependentLogic;
       this.cacheName = cache.getName();
       this.commitLog = commitLog;
+      this.reconfigurableReplicationManager = reconfigurableReplicationManager;
    }
 
    @Start(priority = 9) // Start before cache loader manager
@@ -279,7 +283,7 @@ public class TransactionTable {
       for (GlobalTransaction gtx : toKill) {
          log.tracef("Killing remote transaction originating on leaver %s", gtx);
          RollbackCommand rc = new RollbackCommand(cacheName, gtx);
-         rc.init(invoker, icc, TransactionTable.this, configuration);
+         rc.init(invoker, icc, TransactionTable.this, configuration, reconfigurableReplicationManager);
          try {
             rc.perform(null);
             log.tracef("Rollback of transaction %s complete.", gtx);
@@ -343,6 +347,7 @@ public class TransactionTable {
       if (current == null) {
          Address localAddress = rpcManager != null ? rpcManager.getTransport().getAddress() : null;
          GlobalTransaction tx = txFactory.newGlobalTransaction(localAddress, false);
+         tx.setProtocolId(ctx.getProtocolId());
          current = txFactory.newLocalTransaction(transaction, tx, ctx.isImplicitTransaction(), currentTopologyId);
          log.tracef("Created a new local transaction: %s", current);
          localTransactions.put(transaction, current);
@@ -357,6 +362,9 @@ public class TransactionTable {
     * if such an tx exists.
     */
    public boolean removeLocalTransaction(LocalTransaction localTransaction) {
+      if (localTransaction != null) {
+         reconfigurableReplicationManager.notifyLocalTransactionFinished(localTransaction.getGlobalTransaction());
+      }
       return localTransaction != null && (removeLocalTransactionInternal(localTransaction.getTransaction()) != null);
    }
 
@@ -384,13 +392,15 @@ public class TransactionTable {
     * Removes the {@link RemoteTransaction} corresponding to the given tx.
     */
    public void remoteTransactionCommitted(GlobalTransaction gtx) {
-      if (Configurations.isSecondPhaseAsync(configuration) || configuration.transaction().transactionProtocol().isTotalOrder()) {
+      boolean totalOrder = gtx.getReconfigurableProtocol().useTotalOrder();
+      if (Configurations.isSecondPhaseAsync(configuration) || totalOrder) {
          removeRemoteTransaction(gtx);
          log.tracef("Remote transaction removed %s", gtx);
       }
    }
 
    public final RemoteTransaction removeRemoteTransaction(GlobalTransaction txId) {
+      reconfigurableReplicationManager.notifyRemoteTransactionFinished(txId);
       RemoteTransaction removed = remoteTransactions.remove(txId);
       log.tracef("Removed remote transaction %s ? %s", txId, removed);
       releaseResources(removed);

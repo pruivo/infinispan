@@ -112,6 +112,7 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
       if (hasModifications()) {
          remoteTransaction.setModifications(Arrays.asList(modifications));
       }
+      reconfigurableReplicationManager.notifyRemoteTransaction(getGlobalTransaction(), modifications);
 
       // 2. then set it on the invocation context
       RemoteTxInvocationContext ctx = icc.createRemoteTxInvocationContext(remoteTransaction, getOrigin());

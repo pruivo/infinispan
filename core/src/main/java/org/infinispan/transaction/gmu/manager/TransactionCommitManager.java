@@ -2,6 +2,7 @@ package org.infinispan.transaction.gmu.manager;
 
 import org.infinispan.Cache;
 import org.infinispan.commands.tx.GMUCommitCommand;
+import org.infinispan.container.CommitContextEntries;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.container.versioning.gmu.GMUCacheEntryVersion;
@@ -13,9 +14,6 @@ import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.factories.annotations.Stop;
-import org.infinispan.interceptors.EntryWrappingInterceptor;
-import org.infinispan.interceptors.InterceptorChain;
-import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.RemoteTransaction;
@@ -40,18 +38,16 @@ import static org.infinispan.transaction.gmu.manager.SortedTransactionQueue.Tran
 public class TransactionCommitManager {
 
    private final static Log log = LogFactory.getLog(TransactionCommitManager.class);
-
+   private final SortedTransactionQueue sortedTransactionQueue;
    private long lastPreparedVersion = 0;
    private CommitThread commitThread;
-   private final SortedTransactionQueue sortedTransactionQueue;
-   private CommitInstance commitInvocationInstance;
-   private InterceptorChain ic;
    private InvocationContextContainer icc;
    private GMUVersionGenerator versionGenerator;
    private CommitLog commitLog;
    private Transport transport;
    private Cache cache;
    private GarbageCollectorManager garbageCollectorManager;
+   private CommitContextEntries commitContextEntries;
 
    public TransactionCommitManager() {
       sortedTransactionQueue = new SortedTransactionQueue();
@@ -59,13 +55,15 @@ public class TransactionCommitManager {
 
    @Inject
    public void inject(InvocationContextContainer icc, VersionGenerator versionGenerator, CommitLog commitLog,
-                      Transport transport, Cache cache, GarbageCollectorManager garbageCollectorManager) {
+                      Transport transport, Cache cache, GarbageCollectorManager garbageCollectorManager,
+                      CommitContextEntries commitContextEntries) {
       this.icc = icc;
       this.versionGenerator = toGMUVersionGenerator(versionGenerator);
       this.commitLog = commitLog;
       this.transport = transport;
       this.cache = cache;
       this.garbageCollectorManager = garbageCollectorManager;
+      this.commitContextEntries = commitContextEntries;
    }
 
    //AFTER THE VersionGenerator
@@ -73,26 +71,6 @@ public class TransactionCommitManager {
    public void start() {
       commitThread = new CommitThread(transport.getAddress() + "-" + cache.getName() + "-GMU-Commit");
       commitThread.start();
-
-      if(commitInvocationInstance == null) {
-         List<CommandInterceptor> all = ic.getInterceptorsWhichExtend(EntryWrappingInterceptor.class);
-         if(log.isDebugEnabled()) {
-            log.debugf("Starting Commit Queue Component. Searching interceptors with interface CommitInstance. " +
-                             "Found: %s", all);
-         }
-         for(CommandInterceptor ci : all) {
-            if(ci instanceof CommitInstance) {
-               if(log.isDebugEnabled()) {
-                  log.debugf("Interceptor implementing CommitInstance found! It is %s", ci);
-               }
-               commitInvocationInstance = (CommitInstance) ci;
-               break;
-            }
-         }
-      }
-      if(commitInvocationInstance == null) {
-         throw new NullPointerException("Commit Invocation Instance must not be null in serializable mode.");
-      }
    }
 
    @Stop
@@ -102,8 +80,8 @@ public class TransactionCommitManager {
    }
 
    /**
-    * add a transaction to the queue. A temporary commit vector clock is associated
-    * and with it, it order the transactions
+    * add a transaction to the queue. A temporary commit vector clock is associated and with it, it order the
+    * transactions
     *
     * @param cacheTransaction the transaction to be prepared
     */
@@ -143,10 +121,6 @@ public class TransactionCommitManager {
       transactionEntry.awaitUntilCommitted(commitCommand);
    }
 
-   public static interface CommitInstance {
-      void commitTransaction(TxInvocationContext ctx);
-   }
-
    //DEBUG ONLY!
    public final TransactionEntry getTransactionEntry(GlobalTransaction globalTransaction) {
       return sortedTransactionQueue.getTransactionEntry(globalTransaction);
@@ -184,9 +158,7 @@ public class TransactionCommitManager {
                      CacheTransaction cacheTransaction = transactionEntry.getCacheTransactionForCommit();
 
                      CommittedTransaction committedTransaction = new CommittedTransaction(cacheTransaction, subVersion);
-                     commitInvocationInstance.commitTransaction(createInvocationContext(cacheTransaction, subVersion));
-                     committedTransactions.add(committedTransaction);
-
+                     commitContextEntries.commitContextEntries(createInvocationContext(cacheTransaction, subVersion), false, false);
                      committedTransactions.add(committedTransaction);
 
                      if (log.isTraceEnabled()) {

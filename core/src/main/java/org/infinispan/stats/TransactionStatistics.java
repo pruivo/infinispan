@@ -29,6 +29,7 @@ import org.infinispan.util.logging.LogFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
@@ -45,7 +46,7 @@ public abstract class TransactionStatistics implements InfinispanStat {
    private boolean isReadOnly;
    private boolean isCommit;
    private String transactionalClass;
-   private Map<Object, Long> takenLocks = new HashMap<Object, Long>();
+   private Map<Object, Long> takenLocks = new ConcurrentHashMap<Object, Long>();
    private long lastOpTimestamp;
 
    private final StatisticsContainer statisticsContainer;

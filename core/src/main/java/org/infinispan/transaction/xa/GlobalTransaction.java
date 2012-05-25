@@ -24,6 +24,7 @@ package org.infinispan.transaction.xa;
 
 import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
+import org.infinispan.reconfigurableprotocol.ReconfigurableProtocol;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.Util;
 
@@ -54,6 +55,10 @@ public class GlobalTransaction implements Cloneable {
    protected Address addr = null;
    private int hash_code = -1;  // in the worst case, hashCode() returns 0, then increases, so we're safe here
    private boolean remote = false;
+
+   private String protocolId;
+   private long epochId;
+   private transient ReconfigurableProtocol reconfigurableProtocol;
 
    /**
     * empty ctor used by externalization.
@@ -139,6 +144,8 @@ public class GlobalTransaction implements Cloneable {
       public void writeObject(ObjectOutput output, T gtx) throws IOException {
          output.writeLong(gtx.id);
          output.writeObject(gtx.addr);
+         output.writeLong(gtx.epochId);
+         output.writeUTF(gtx.protocolId);
       }
 
       /**
@@ -152,6 +159,8 @@ public class GlobalTransaction implements Cloneable {
          T gtx = createGlobalTransaction();
          gtx.id = input.readLong();
          gtx.addr = (Address) input.readObject();
+         gtx.epochId = input.readLong();
+         gtx.protocolId = input.readUTF();
          return gtx;
       }
    }
@@ -172,5 +181,29 @@ public class GlobalTransaction implements Cloneable {
       protected GlobalTransaction createGlobalTransaction() {
          return TransactionFactory.TxFactoryEnum.NODLD_NORECOVERY_XA.newGlobalTransaction();
       }
+   }
+
+   public String getProtocolId() {
+      return protocolId;
+   }
+
+   public void setProtocolId(String protocolId) {
+      this.protocolId = protocolId;
+   }
+
+   public long getEpochId() {
+      return epochId;
+   }
+
+   public void setEpochId(long epochId) {
+      this.epochId = epochId;
+   }
+
+   public ReconfigurableProtocol getReconfigurableProtocol() {
+      return reconfigurableProtocol;
+   }
+
+   public void setReconfigurableProtocol(ReconfigurableProtocol reconfigurableProtocol) {
+      this.reconfigurableProtocol = reconfigurableProtocol;
    }
 }

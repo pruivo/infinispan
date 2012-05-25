@@ -27,6 +27,7 @@ public class DistTotalOrderL1WriteSkewTest extends DistL1WriteSkewTest {
             .recovery().disable();
       builder.locking().isolationLevel(IsolationLevel.REPEATABLE_READ).writeSkewCheck(true)
             .versioning().enable().scheme(VersioningScheme.SIMPLE);
+      builder.clustering().l1().enable();
    }
 
    public void transactionCleanupWithWriteSkew() throws Exception {

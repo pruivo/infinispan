@@ -23,6 +23,7 @@ import java.util.Map;
 
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 
 /**
  * Runs on every node and handles the communication with the {@link ClusterTopologyManager}.
@@ -36,7 +37,7 @@ public interface LocalTopologyManager {
     * Forwards the join request to the coordinator.
     * @return The current consistent hash.
     */
-   CacheTopology join(String cacheName, CacheJoinInfo joinInfo, CacheTopologyHandler stm) throws Exception;
+   CacheTopology join(String cacheName, CacheJoinInfo joinInfo, CacheTopologyHandler stm, ReconfigurableReplicationManager manager) throws Exception;
 
    /**
     * Forwards the leave request to the coordinator.

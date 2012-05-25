@@ -1,3 +1,22 @@
+/*
+ * JBoss, Home of Professional Open Source
+ * Copyright 2013 Red Hat Inc. and/or its affiliates and other contributors
+ * as indicated by the @author tags. All rights reserved.
+ * See the copyright.txt in the distribution for a
+ * full listing of individual contributors.
+ *
+ * This copyrighted material is made available to anyone wishing to use,
+ * modify, copy, or redistribute it subject to the terms and conditions
+ * of the GNU Lesser General Public License, v. 2.1.
+ * This program is distributed in the hope that it will be useful, but WITHOUT A
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
+ * You should have received a copy of the GNU Lesser General Public License,
+ * v.2.1 along with this distribution; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA  02110-1301, USA.
+ */
+
 package org.infinispan.stats;
 
 import org.infinispan.configuration.cache.Configuration;
@@ -40,7 +59,7 @@ public final class TransactionsStatisticsRegistry {
    private static ThreadLocal<TransactionTS> lastTransactionTS = new ThreadLocal<TransactionTS>();
 
    public static void init(Configuration configuration){
-      log.tracef("Initializing transactionalClassesMap");
+      log.info("Initializing transactionalClassesMap");
       TransactionsStatisticsRegistry.configuration = configuration;
       transactionalClassesStatsMap.put(DEFAULT_ISPN_CLASS, new NodeScopeStatisticCollector(configuration));
    }
@@ -70,8 +89,10 @@ public final class TransactionsStatisticsRegistry {
    public static void addValue(IspnStats param, double value) {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-         log.debug("Trying to add value " + value + " to parameter " + param +
-                         " but no transaction is associated to the thread");
+         if (log.isDebugEnabled()) {
+            log.debugf("Trying to add value %s to parameter %s but no transaction is associated to the thread",
+                       value, param);
+         }
          return;
       }
       txs.addValue(param, value);
@@ -80,7 +101,9 @@ public final class TransactionsStatisticsRegistry {
    public static void incrementValue(IspnStats param) {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-         log.debug("Trying to increment to parameter " + param + " but no transaction is associated to the thread");
+         if (log.isDebugEnabled()) {
+            log.debugf("Trying to increment to parameter %s but no transaction is associated to the thread", param);
+         }
          return;
       }
       txs.addValue(param, 1D);
@@ -109,7 +132,9 @@ public final class TransactionsStatisticsRegistry {
       //here, just overriding the handlePrepareCommand
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-         log.debug("Trying to invoke onPrepareCommand() but no transaction is associated to the thread");
+         if (log.isDebugEnabled()) {
+            log.debug("Trying to invoke onPrepareCommand() but no transaction is associated to the thread");
+         }
          return;
       }
       txs.onPrepareCommand();
@@ -118,8 +143,10 @@ public final class TransactionsStatisticsRegistry {
    public static void setTransactionOutcome(boolean commit) {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-         log.debug("Trying to set outcome to " + (commit ? "Commit" : "Rollback") +
-                         " but no transaction is associated to the thread");
+         if (log.isDebugEnabled()) {
+            log.debugf("Trying to set outcome to %s but no transaction is associated to the thread",
+                       commit ? "Commit" : "Rollback");
+         }
          return;
       }
       txs.setCommit(commit);
@@ -128,7 +155,9 @@ public final class TransactionsStatisticsRegistry {
    public static void terminateTransaction() {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-         log.debug("Trying to invoke terminate() but no transaction is associated to the thread");
+         if (log.isDebugEnabled()) {
+            log.debug("Trying to invoke terminate() but no transaction is associated to the thread");
+         }
          return;
       }
       txs.terminateTransaction();
@@ -189,7 +218,9 @@ public final class TransactionsStatisticsRegistry {
    public static void addTakenLock(Object lock) {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-         log.debug("Trying to add lock [" + lock + "] but no transaction is associated to the thread");
+         if (log.isDebugEnabled()) {
+            log.debugf("Trying to add lock [%s] but no transaction is associated to the thread", lock);
+         }
          return;
       }
       txs.addTakenLock(lock);
@@ -199,7 +230,9 @@ public final class TransactionsStatisticsRegistry {
    public static void setUpdateTransaction() {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-         log.debug("Trying to invoke setUpdateTransaction() but no transaction is associated to the thread");
+         if (log.isDebugEnabled()) {
+            log.debug("Trying to invoke setUpdateTransaction() but no transaction is associated to the thread");
+         }
          return;
       }
       txs.setUpdateTransaction();
@@ -217,14 +250,20 @@ public final class TransactionsStatisticsRegistry {
    public static void attachRemoteTransactionStatistic(GlobalTransaction globalTransaction, boolean createIfAbsent) {
       RemoteTransactionStatistics rts = remoteTransactionStatistics.get(globalTransaction);
       if (rts == null && createIfAbsent && configuration != null) {
-         log.tracef("Create a new remote transaction statistic for transaction %s", globalTransaction);
+         if (log.isTraceEnabled()) {
+            log.tracef("Create a new remote transaction statistic for transaction %s", globalTransaction.prettyPrint());
+         }
          rts = new RemoteTransactionStatistics(configuration);
          remoteTransactionStatistics.put(globalTransaction, rts);
       } else if (configuration == null) {
-         log.debugf("Trying to create a remote transaction statistics in a not initialized Transaction Statistics Registry");
+         if (log.isDebugEnabled()) {
+            log.debugf("Trying to create a remote transaction statistics in a not initialized Transaction Statistics Registry");
+         }
          return;
       } else {
-         log.tracef("Using the remote transaction statistic %s for transaction %s", rts, globalTransaction);
+         if (log.isTraceEnabled()) {
+            log.tracef("Using the remote transaction statistic %s for transaction %s", rts, globalTransaction.prettyPrint());
+         }
       }
       thread.set(rts);
    }
@@ -234,17 +273,20 @@ public final class TransactionsStatisticsRegistry {
          return;
       }
       if (finished) {
-         log.tracef("Detach remote transaction statistic and finish transaction %s", globalTransaction);
+         if (log.isTraceEnabled()) {
+            log.tracef("Detach remote transaction statistic and finish transaction %s", globalTransaction.prettyPrint());
+         }
          terminateTransaction();
          remoteTransactionStatistics.remove(globalTransaction);
       } else {
-         log.tracef("Detach remote transaction statistic for transaction %s", globalTransaction);
+         if (log.isTraceEnabled()) {
+            log.tracef("Detach remote transaction statistic for transaction %s", globalTransaction.prettyPrint());
+         }
          thread.remove();
       }
    }
 
    public static void reset(){
-      log.tracef("Reset statistics");
       for (NodeScopeStatisticCollector nsc : transactionalClassesStatsMap.values()) {
          nsc.reset();
       }
@@ -274,7 +316,9 @@ public final class TransactionsStatisticsRegistry {
       //Not overriding the InitialValue method leads me to have "null" at the first invocation of get()
       TransactionStatistics lts = thread.get();
       if (lts == null && configuration != null) {
-         log.tracef("Init a new local transaction statistics");
+         if (log.isTraceEnabled()) {
+            log.tracef("Init a new local transaction statistics");
+         }
          thread.set(new LocalTransactionStatistics(configuration));
          //Here only when transaction starts
          TransactionTS lastTS = lastTransactionTS.get();
@@ -286,9 +330,13 @@ public final class TransactionsStatisticsRegistry {
             incrementValue(IspnStats.NTBC_COUNT);
          }
       } else if (configuration == null ) {
-         log.debugf("Trying to create a local transaction statistics in a not initialized Transaction Statistics Registry");
+         if (log.isDebugEnabled()) {
+            log.debugf("Trying to create a local transaction statistics in a not initialized Transaction Statistics Registry");
+         }
       } else {
-         log.tracef("Local transaction statistic is already initialized: %s", lts);
+         if (log.isTraceEnabled()) {
+            log.tracef("Local transaction statistic is already initialized: %s", lts);
+         }
       }
    }
 

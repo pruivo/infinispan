@@ -47,6 +47,7 @@ import org.infinispan.factories.annotations.Start;
 import org.infinispan.factories.annotations.Stop;
 import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheJoinInfo;
@@ -79,6 +80,7 @@ public class StateTransferManagerImpl implements StateTransferManager {
    private GroupManager groupManager;   // optional
    private LocalTopologyManager localTopologyManager;
    private VersionGenerator versionGenerator;
+   private ReconfigurableReplicationManager reconfigurableReplicationManager;
 
    private CountDownLatch initialStateTransferComplete = new CountDownLatch(1);
    private final AtomicBoolean receivedFirstTopologyChange = new AtomicBoolean(false);
@@ -96,7 +98,8 @@ public class StateTransferManagerImpl implements StateTransferManager {
                     RpcManager rpcManager,
                     GroupManager groupManager,
                     LocalTopologyManager localTopologyManager,
-                    VersionGenerator versionGenerator) {
+                    VersionGenerator versionGenerator,
+                    ReconfigurableReplicationManager reconfigurableReplicationManager) {
       this.stateConsumer = stateConsumer;
       this.stateProvider = stateProvider;
       this.cacheName = cache.getName();
@@ -107,6 +110,7 @@ public class StateTransferManagerImpl implements StateTransferManager {
       this.groupManager = groupManager;
       this.localTopologyManager = localTopologyManager;
       this.versionGenerator = versionGenerator;
+      this.reconfigurableReplicationManager = reconfigurableReplicationManager;
    }
 
    // needs to be AFTER the DistributionManager and *after* the cache loader manager (if any) inits and preloads
@@ -153,7 +157,7 @@ public class StateTransferManagerImpl implements StateTransferManager {
                versionGenerator.updateCacheTopology(cacheTopologyHistory);
             }
          }
-      });
+      }, reconfigurableReplicationManager);
    }
 
    /**

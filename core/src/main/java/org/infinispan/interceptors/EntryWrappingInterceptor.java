@@ -35,13 +35,12 @@ import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.container.CommitContextEntries;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.EntryFactory;
-import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
-import org.infinispan.context.SingleKeyNonTxInvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
@@ -53,9 +52,7 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Interceptor in charge with wrapping entries and add them in caller's context.
@@ -73,6 +70,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    private CommandsFactory commandFactory;
    private boolean isUsingLockDelegation;
    private StateConsumer stateConsumer;       // optional
+   protected CommitContextEntries commitContextEntries;
 
    private static final Log log = LogFactory.getLog(EntryWrappingInterceptor.class);
    private static final boolean trace = log.isTraceEnabled();
@@ -83,12 +81,14 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    @Inject
-   public void init(EntryFactory entryFactory, DataContainer dataContainer, ClusteringDependentLogic cdl, CommandsFactory commandFactory, StateConsumer stateConsumer) {
+   public void init(EntryFactory entryFactory, DataContainer dataContainer, ClusteringDependentLogic cdl, CommandsFactory commandFactory, StateConsumer stateConsumer,
+                    CommitContextEntries commitContextEntries) {
       this.entryFactory = entryFactory;
       this.dataContainer = dataContainer;
       this.cdl = cdl;
       this.commandFactory = commandFactory;
       this.stateConsumer = stateConsumer;
+      this.commitContextEntries = commitContextEntries;
    }
 
    @Start
@@ -102,7 +102,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       wrapEntriesForPrepare(ctx, command);
       Object result = invokeNextInterceptor(ctx, command);
       if (shouldCommitEntries(command, ctx)) {
-         commitContextEntries(ctx, false, isFromStateTransfer(ctx));
+         commitContextEntries.commitContextEntries(ctx, false, isFromStateTransfer(ctx));
       }
       return result;
    }
@@ -112,7 +112,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       try {
          return invokeNextInterceptor(ctx, command);
       } finally {
-         commitContextEntries(ctx, false, isFromStateTransfer(ctx));
+         commitContextEntries.commitContextEntries(ctx, false, isFromStateTransfer(ctx));
       }
    }
 
@@ -124,7 +124,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       } finally {
          //needed because entries might be added in L1
          if (!ctx.isInTxScope())
-            commitContextEntries(ctx, command.hasFlag(Flag.SKIP_OWNERSHIP_CHECK), false);
+            commitContextEntries.commitContextEntries(ctx, command.hasFlag(Flag.SKIP_OWNERSHIP_CHECK), isFromStateTransfer(command));
       }
    }
 
@@ -233,51 +233,16 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       return command.hasFlag(Flag.PUT_FOR_STATE_TRANSFER);
    }
 
-   protected final void commitContextEntries(InvocationContext ctx, boolean skipOwnershipCheck, boolean isPutForStateTransfer) {
-      if (!isPutForStateTransfer && stateConsumer != null
-            && ctx instanceof TxInvocationContext
-            && ((TxInvocationContext) ctx).getCacheTransaction().hasModification(ClearCommand.class)) {
-         // If we are committing a ClearCommand now then no keys should be written by state transfer from
-         // now on until current rebalance ends.
-         stateConsumer.stopApplyingState();
-      }
-
-      if (ctx instanceof SingleKeyNonTxInvocationContext) {
-         SingleKeyNonTxInvocationContext singleKeyCtx = (SingleKeyNonTxInvocationContext) ctx;
-         commitEntryIfNeeded(ctx, skipOwnershipCheck, singleKeyCtx.getKey(), singleKeyCtx.getCacheEntry(), isPutForStateTransfer);
-      } else {
-         Set<Map.Entry<Object, CacheEntry>> entries = ctx.getLookedUpEntries().entrySet();
-         Iterator<Map.Entry<Object, CacheEntry>> it = entries.iterator();
-         final Log log = getLog();
-         while (it.hasNext()) {
-            Map.Entry<Object, CacheEntry> e = it.next();
-            CacheEntry entry = e.getValue();
-            if (!commitEntryIfNeeded(ctx, skipOwnershipCheck, e.getKey(), entry, isPutForStateTransfer)) {
-               if (trace) {
-                  if (entry == null)
-                     log.tracef("Entry for key %s is null : not calling commitUpdate", e.getKey());
-                  else
-                     log.tracef("Entry for key %s is not changed(%s): not calling commitUpdate", e.getKey(), entry);
-               }
-            }
-         }
-      }
-   }
-
    protected final void wrapEntriesForPrepare(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
       if (!ctx.isOriginLocal() || command.isReplayEntryWrapping()) {
          for (WriteCommand c : command.getModifications()) c.acceptVisitor(ctx, entryWrappingVisitor);
       }
    }
 
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
-      cdl.commitEntry(entry, null, skipOwnershipCheck, ctx);
-   }
-
    private Object invokeNextAndApplyChanges(InvocationContext ctx, FlagAffectedCommand command) throws Throwable {
       final Object result = invokeNextInterceptor(ctx, command);
       if (!ctx.isInTxScope())
-         commitContextEntries(ctx, command.hasFlag(Flag.SKIP_OWNERSHIP_CHECK), isFromStateTransfer(command));
+         commitContextEntries.commitContextEntries(ctx, command.hasFlag(Flag.SKIP_OWNERSHIP_CHECK), isFromStateTransfer(command));
       log.tracef("The return value is %s", result);
       return result;
    }
@@ -361,35 +326,6 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       }
    }
 
-   private boolean commitEntryIfNeeded(InvocationContext ctx, boolean skipOwnershipCheck, Object key, CacheEntry entry, boolean isPutForStateTransfer) {
-      if (entry == null) {
-         if (key != null && !isPutForStateTransfer && stateConsumer != null) {
-            // this key is not yet stored locally
-            stateConsumer.addUpdatedKey(key);
-         }
-         return false;
-      }
-
-      if (isPutForStateTransfer && stateConsumer.isKeyUpdated(key)) {
-         // This is a state transfer put command on a key that was already modified by other user commands. We need to back off.
-         log.tracef("State transfer will not write key/value %s/%s because it was already updated by somebody else", key, entry.getValue());
-         entry.rollback();
-         return false;
-      }
-
-      if (entry.isChanged() || entry.isLoaded()) {
-         log.tracef("About to commit entry %s", entry);
-         commitContextEntry(entry, ctx, skipOwnershipCheck);
-
-         if (!isPutForStateTransfer && stateConsumer != null) {
-            stateConsumer.addUpdatedKey(key);
-         }
-
-         return true;
-      }
-      return false;
-   }
-
    /**
     * total order condition: only commits when it is remote context and the prepare has the flag 1PC set
     *
@@ -398,7 +334,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
     * @return true if the modification should be committed, false otherwise
     */
    protected boolean shouldCommitEntries(PrepareCommand command, TxInvocationContext ctx) {
-      boolean isTotalOrder = cacheConfiguration.transaction().transactionProtocol().isTotalOrder();
+      boolean isTotalOrder = command.getGlobalTransaction().getReconfigurableProtocol().useTotalOrder();
       return isTotalOrder ? command.isOnePhaseCommit() && (!ctx.isOriginLocal() || !command.hasModifications()) :
             command.isOnePhaseCommit();
    }

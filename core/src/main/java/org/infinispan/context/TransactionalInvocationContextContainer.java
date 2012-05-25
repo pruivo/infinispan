@@ -28,6 +28,7 @@ import org.infinispan.context.impl.NonTxInvocationContext;
 import org.infinispan.context.impl.RemoteTxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
+import org.infinispan.reconfigurableprotocol.ProtocolTable;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.RemoteTransaction;
@@ -50,13 +51,15 @@ public class TransactionalInvocationContextContainer extends AbstractInvocationC
    private TransactionTable transactionTable;
    private Configuration config;
    private boolean isThreadLocalRequired;
+   private ProtocolTable protocolTable;
 
    @Inject
    public void init(TransactionManager tm,
-         TransactionTable transactionTable, Configuration config) {
+         TransactionTable transactionTable, Configuration config, ProtocolTable protocolTable) {
       this.tm = tm;
       this.transactionTable = transactionTable;
       this.config = config;
+      this.protocolTable = protocolTable;
    }
 
    @Start
@@ -114,6 +117,8 @@ public class TransactionalInvocationContextContainer extends AbstractInvocationC
       LocalTransaction localTransaction = transactionTable.getLocalTransaction(tx);
       localContext.setLocalTransaction(localTransaction);
       localContext.setTransaction(tx);
+      localContext.setProtocolId(protocolTable.getProtocolId(tx));
+      protocolTable.setThreadProtocolId(localContext.getProtocolId());
       ctxHolder.set(localContext);
       return localContext;
    }
@@ -131,6 +136,7 @@ public class TransactionalInvocationContextContainer extends AbstractInvocationC
       RemoteTxInvocationContext ctx = new RemoteTxInvocationContext();
       ctx.setOrigin(origin);
       ctx.setRemoteTransaction(tx);
+      protocolTable.setThreadProtocolId(tx.getGlobalTransaction().getProtocolId());
       ctxHolder.set(ctx);
       return ctx;
    }

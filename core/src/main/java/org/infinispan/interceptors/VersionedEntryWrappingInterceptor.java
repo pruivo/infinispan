@@ -23,11 +23,8 @@ import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
-import org.infinispan.container.entries.CacheEntry;
-import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.EntryVersionsMap;
 import org.infinispan.container.versioning.VersionGenerator;
-import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.transaction.LocalTransaction;
@@ -67,7 +64,7 @@ public class VersionedEntryWrappingInterceptor extends EntryWrappingInterceptor 
       if (command.isOnePhaseCommit()) ctx.getCacheTransaction().setUpdatedEntryVersions(((VersionedPrepareCommand) command).getVersionsSeen());
 
       if (newVersionData != null) retval = newVersionData;
-      if (command.isOnePhaseCommit()) commitContextEntries(ctx, false, isFromStateTransfer(ctx));
+      if (command.isOnePhaseCommit()) commitContextEntries.commitContextEntries(ctx, false, isFromStateTransfer(ctx));
       return retval;
    }
 
@@ -81,18 +78,7 @@ public class VersionedEntryWrappingInterceptor extends EntryWrappingInterceptor 
       } finally {
          if (!ctx.isOriginLocal())
             ctx.getCacheTransaction().setUpdatedEntryVersions(((VersionedCommitCommand) command).getUpdatedVersions());
-         commitContextEntries(ctx, false, isFromStateTransfer(ctx));
-      }
-   }
-
-   @Override
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
-      if (ctx.isInTxScope() && !isFromStateTransfer(ctx)) {
-         EntryVersion version = ((TxInvocationContext) ctx).getCacheTransaction().getUpdatedEntryVersions().get(entry.getKey());
-         cdl.commitEntry(entry, version, skipOwnershipCheck, ctx);
-      } else {
-         // This could be a state transfer call!
-         cdl.commitEntry(entry, entry.getVersion(), skipOwnershipCheck, ctx);
+         commitContextEntries.commitContextEntries(ctx, false, isFromStateTransfer(ctx));
       }
    }
 }

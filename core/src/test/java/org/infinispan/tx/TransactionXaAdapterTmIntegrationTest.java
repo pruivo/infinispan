@@ -26,6 +26,8 @@ import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
+import org.infinispan.reconfigurableprotocol.ProtocolTable;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.transaction.TransactionCoordinator;
 import org.infinispan.transaction.tm.DummyTransaction;
 import org.infinispan.transaction.tm.DummyXid;
@@ -55,6 +57,8 @@ public class TransactionXaAdapterTmIntegrationTest {
    private DummyXid xid;
    private UUID uuid = UUID.randomUUID();
    private TransactionCoordinator txCoordinator;
+   private ReconfigurableReplicationManager manager;
+   private ProtocolTable protocolTable;
 
    @BeforeMethod
    public void setUp() {
@@ -66,10 +70,12 @@ public class TransactionXaAdapterTmIntegrationTest {
       xid = new DummyXid(uuid);
       localTx.setXid(xid);
       txTable.addLocalTransactionMapping(localTx);      
+      manager = new ReconfigurableReplicationManager();
+      protocolTable = new ProtocolTable();
 
       configuration = new ConfigurationBuilder().build();
       txCoordinator = new TransactionCoordinator();
-      txCoordinator.init(null, null, null, null, configuration);
+      txCoordinator.init(null, null, null, null, configuration, manager, protocolTable);
       xaAdapter = new TransactionXaAdapter(localTx, txTable, null, txCoordinator, null, null,
                                            new ClusteringDependentLogic.InvalidationLogic(), configuration, "");
    }
@@ -116,13 +122,13 @@ public class TransactionXaAdapterTmIntegrationTest {
 
    public void testOnePhaseCommitConfigured() throws XAException {
       Configuration configuration = new ConfigurationBuilder().clustering().cacheMode(CacheMode.INVALIDATION_ASYNC).build();
-      txCoordinator.init(null, null, null, null, configuration);
+      txCoordinator.init(null, null, null, null, configuration, manager, protocolTable);
       assert XAResource.XA_OK == xaAdapter.prepare(xid);
    }
 
    public void test1PcAndNonExistentXid() {
       Configuration configuration = new ConfigurationBuilder().clustering().cacheMode(CacheMode.INVALIDATION_ASYNC).build();
-      txCoordinator.init(null, null, null, null, configuration);
+      txCoordinator.init(null, null, null, null, configuration, manager, protocolTable);
       try {
          DummyXid doesNotExists = new DummyXid(uuid);
          xaAdapter.commit(doesNotExists, false);
@@ -134,7 +140,7 @@ public class TransactionXaAdapterTmIntegrationTest {
 
    public void test1PcAndNonExistentXid2() {
       Configuration configuration = new ConfigurationBuilder().clustering().cacheMode(CacheMode.DIST_SYNC).build();
-      txCoordinator.init(null, null, null, null, configuration);
+      txCoordinator.init(null, null, null, null, configuration, manager, protocolTable);
       try {
          DummyXid doesNotExists = new DummyXid(uuid);
          xaAdapter.commit(doesNotExists, true);

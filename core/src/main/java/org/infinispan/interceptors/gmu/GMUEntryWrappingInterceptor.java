@@ -14,7 +14,6 @@ import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.container.DataContainer;
-import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.gmu.InternalGMUCacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.VersionGenerator;
@@ -39,7 +38,7 @@ import static org.infinispan.transaction.gmu.GMUHelper.*;
  * @author Pedro Ruivo
  * @since 5.2
  */
-public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor implements TransactionCommitManager.CommitInstance {
+public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
 
    private static final Log log = LogFactory.getLog(GMUEntryWrappingInterceptor.class);
    protected GMUVersionGenerator versionGenerator;
@@ -77,7 +76,7 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor implem
       }
 
       if (command.isOnePhaseCommit()) {
-         commitContextEntries(ctx, false, false);
+         commitContextEntries.commitContextEntries(ctx, false, false);
       }
 
       return retVal;
@@ -153,20 +152,6 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor implem
       return retVal;
    }
 
-   @Override
-   public void commitTransaction(TxInvocationContext ctx) {
-      commitContextEntries(ctx, false, false);
-   }
-
-   @Override
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
-      if (ctx.isInTxScope()) {
-         cdl.commitEntry(entry, ((TxInvocationContext)ctx).getTransactionVersion(), skipOwnershipCheck, ctx);
-      } else {
-         cdl.commitEntry(entry, entry.getVersion(), skipOwnershipCheck, ctx);
-      }
-   }
-
    /**
     * validates the read set and returns the prepare version from the commit queue
     *
@@ -226,7 +211,8 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor implem
       entryVersionList.add(txInvocationContext.getTransactionVersion());
 
       if (log.isTraceEnabled()) {
-         log.tracef("Keys read in this command: %s", txInvocationContext.getKeysReadInCommand());
+         log.tracef("[%s] Keys read in this command: %s", txInvocationContext.getGlobalTransaction().prettyPrint(),
+                    txInvocationContext.getKeysReadInCommand());
       }
 
       for (InternalGMUCacheEntry internalGMUCacheEntry : txInvocationContext.getKeysReadInCommand().values()) {

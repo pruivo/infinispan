@@ -71,6 +71,8 @@ public abstract class AbstractInvocationContext implements InvocationContext {
       }
    }
 
+   private String protocolId;
+
    /**
     * Tests whether a context flag is set.
     *
@@ -205,5 +207,15 @@ public abstract class AbstractInvocationContext implements InvocationContext {
    @Override
    public void setAlreadyReadOnThisNode(boolean value) {
       alreadyReadOnThisNode = value;
+   }
+
+   @Override
+   public void setProtocolId(String protocolId) {
+      this.protocolId = protocolId;
+   }
+
+   @Override
+   public String getProtocolId() {
+      return protocolId;
    }
 }
