@@ -263,8 +263,8 @@ public class OriginatorBecomesOwnerLockTest extends MultipleCacheManagersTest {
          TestingUtil.waitForRehashToComplete(originatorCache, otherCache);
       }
       log.tracef("Checking key: %s", key);
-      InternalCacheEntry d0 = advancedCache(ORIGINATOR_INDEX).getDataContainer().get(key);
-      InternalCacheEntry d1 = advancedCache(OTHER_INDEX).getDataContainer().get(key);
+      InternalCacheEntry d0 = advancedCache(ORIGINATOR_INDEX).getDataContainer().get(key, null);
+      InternalCacheEntry d1 = advancedCache(OTHER_INDEX).getDataContainer().get(key, null);
       assertEquals(d0.getValue(), value);
       assertEquals(d1.getValue(), value);
    }

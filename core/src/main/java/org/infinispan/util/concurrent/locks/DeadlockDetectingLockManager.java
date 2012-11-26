@@ -74,7 +74,7 @@ public class DeadlockDetectingLockManager extends LockManagerImpl {
    }
 
    @Override
-   public boolean lockAndRecord(Object key, InvocationContext ctx, long lockTimeout) throws InterruptedException {
+   protected boolean internalLockAndRecord(Object key, InvocationContext ctx, long lockTimeout, boolean share) throws InterruptedException {
       if (trace) log.tracef("Attempting to lock %s with acquisition timeout of %s millis", key, lockTimeout);
 
       if (ctx.isInTxScope()) {
@@ -85,7 +85,7 @@ public class DeadlockDetectingLockManager extends LockManagerImpl {
          if (trace) log.tracef("Setting lock intention to %s for %s (%s)", key, thisTx, System.identityHashCode(thisTx));
 
          while (System.nanoTime() < timeoutNanoTime) {
-            if (lockContainer.acquireLock(ctx.getLockOwner(), key, spinDuration, MILLISECONDS) != null) {
+            if (tryAcquire(key, ctx.getLockOwner(), spinDuration, share)) {
                thisTx.setLockIntention(null); //clear lock intention
                if (trace) log.tracef("Successfully acquired lock on %s on behalf of %s.", key, ctx.getLockOwner());
                return true;
@@ -108,7 +108,7 @@ public class DeadlockDetectingLockManager extends LockManagerImpl {
             }
          }
       } else {
-         return super.lockAndRecord(key, ctx, lockTimeout);
+         return super.internalLockAndRecord(key, ctx, lockTimeout, share);
       }
       // couldn't acquire lock!
       return false;

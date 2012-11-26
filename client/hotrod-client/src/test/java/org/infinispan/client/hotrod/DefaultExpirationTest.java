@@ -92,7 +92,7 @@ public class DefaultExpirationTest extends SingleCacheManagerTest {
    }
 
    private InternalCacheEntry getInternalCacheEntry(Cache<ByteArrayKey, CacheValue> cache, String key, String value) throws Exception {
-      InternalCacheEntry entry = cache.getAdvancedCache().getDataContainer().get(toBinaryKey(key));
+      InternalCacheEntry entry = cache.getAdvancedCache().getDataContainer().get(toBinaryKey(key), null);
       if (value != null) {
          CacheValue v = (CacheValue) entry.getValue();
          AssertJUnit.assertEquals(toBinaryValue(value), v.data());

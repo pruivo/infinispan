@@ -206,12 +206,43 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
             case DATA_PLACEMENT:
                parseDataPlacement(reader, holder);
                break;
+            case GARBAGE_COLLECTOR:
+               parseGarbageCollector(reader, holder);
+               break;
             default:
                throw ParseUtils.unexpectedElement(reader);
          }
       }
    }
 
+   private void parseGarbageCollector(XMLExtendedStreamReader reader, ConfigurationBuilderHolder holder) throws XMLStreamException {
+      ConfigurationBuilder builder = holder.getCurrentConfigurationBuilder();
+      for (int i = 0; i < reader.getAttributeCount(); i++) {
+         ParseUtils.requireNoNamespaceAttribute(reader, i);
+         String value = replaceProperties(reader.getAttributeValue(i));
+         Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
+         switch (attribute) {
+            case ENABLED:
+               builder.garbageCollector().enabled(Boolean.valueOf(value));
+               break;
+            case TRANSACTION_THRESHOLD:
+               builder.garbageCollector().transactionThreshold(Integer.parseInt(value));
+               break;
+            case VERSION_GC_MAX_IDLE:
+               builder.garbageCollector().versionGCMaxIdle(Integer.parseInt(value));
+               break;
+            case L1_GC_INTERVAL:
+               builder.garbageCollector().l1GCInterval(Integer.parseInt(value));
+               break;
+            case VIEW_GC_BACK_OFF:
+               builder.garbageCollector().viewGCBackOff(Integer.parseInt(value));
+               break;
+            default:
+               throw ParseUtils.unexpectedAttribute(reader, i);
+         }
+      }
+   }
+   
    private void parseModules(XMLExtendedStreamReader reader, ConfigurationBuilderHolder holder)
          throws XMLStreamException {
       while (reader.hasNext() && (reader.nextTag() != XMLStreamConstants.END_ELEMENT)) {

@@ -20,6 +20,7 @@
 package org.infinispan.configuration.cache;
 
 import org.infinispan.transaction.LockingMode;
+import org.infinispan.util.concurrent.IsolationLevel;
 
 /**
  * Helper configuration methods.
@@ -63,9 +64,9 @@ public class Configurations {
    }
 
    public static boolean isVersioningEnabled(Configuration cfg) {
-      return cfg.locking().writeSkewCheck() &&
+      return (cfg.locking().writeSkewCheck() &&
             cfg.transaction().lockingMode() == LockingMode.OPTIMISTIC &&
-            cfg.versioning().enabled();
+            cfg.versioning().enabled()) || cfg.locking().isolationLevel() == IsolationLevel.SERIALIZABLE;
    }
 
    public static boolean isOnePhasePassiveReplication(Configuration cfg) {

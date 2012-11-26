@@ -86,7 +86,7 @@ public abstract class ClusteringInterceptor extends BaseRpcInterceptor {
       if (entry == null || entry.isNull() || entry.isLockPlaceholder()) {
          Object key = command.getKey();
          ConsistentHash ch = stateTransferManager.getCacheTopology().getReadConsistentHash();
-         shouldFetchFromRemote = ctx.isOriginLocal() && !ch.isKeyLocalToNode(rpcManager.getAddress(), key) && !dataContainer.containsKey(key);
+         shouldFetchFromRemote = ctx.isOriginLocal() && !ch.isKeyLocalToNode(rpcManager.getAddress(), key) && !dataContainer.containsKey(key, null);
          if (!shouldFetchFromRemote && getLog().isTraceEnabled()) {
             getLog().tracef("Not doing a remote get for key %s since entry is mapped to current node (%s) or is in L1. Owners are %s", key, rpcManager.getAddress(), ch.locateOwners(key));
          }

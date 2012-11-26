@@ -157,7 +157,11 @@ public enum Attribute {
    QUEUE_SIZE("queueSize"),
    OBJECT_LOOKUP_FACTORY("objectLookupFactory"),
    COOL_DOWN_TIME("coolDownTime"),
-   MAX_KEYS_TO_REQUEST("maxNumberOfKeysToRequest")
+   MAX_KEYS_TO_REQUEST("maxNumberOfKeysToRequest"),
+   TRANSACTION_THRESHOLD("transactionThreshold"),
+   VERSION_GC_MAX_IDLE("versionGCMaxIdle"),
+   L1_GC_INTERVAL("l1GCInterval"),
+   VIEW_GC_BACK_OFF("viewGCBackOff")
    ;
 
     private final String name;

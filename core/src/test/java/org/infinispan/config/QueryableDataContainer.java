@@ -33,6 +33,12 @@ import java.util.Set;
 
 import static java.util.Collections.synchronizedCollection;
 
+/**
+ * Original author are missing...
+ * 
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
+ */
 public class QueryableDataContainer implements DataContainer {
 	
 	private static DataContainer delegate;
@@ -58,15 +64,15 @@ public class QueryableDataContainer implements DataContainer {
 	}
 
 	@Override
-	public InternalCacheEntry get(Object k) {
+	public InternalCacheEntry get(Object k, EntryVersion version) {
 		loggedOperations.add("get(" + k + ")" );
-		return delegate.get(k);
+		return delegate.get(k, null);
 	}
 
 	@Override
-	public InternalCacheEntry peek(Object k) {
+	public InternalCacheEntry peek(Object k, EntryVersion version) {
 		loggedOperations.add("peek(" + k + ")" );
-		return delegate.peek(k);
+		return delegate.peek(k, null);
 	}
 
 	@Override
@@ -76,21 +82,21 @@ public class QueryableDataContainer implements DataContainer {
 	}
 
 	@Override
-	public boolean containsKey(Object k) {
+	public boolean containsKey(Object k, EntryVersion version) {
 		loggedOperations.add("containsKey(" + k + ")" );
-		return delegate.containsKey(k);
+		return delegate.containsKey(k, null);
 	}
 
 	@Override
-	public InternalCacheEntry remove(Object k) {
+	public InternalCacheEntry remove(Object k, EntryVersion version) {
 		loggedOperations.add("remove(" + k + ")" );
-		return delegate.remove(k);
+		return delegate.remove(k, null);
 	}
 
 	@Override
-	public int size() {
+	public int size(EntryVersion version) {
 		loggedOperations.add("size()" );
-		return delegate.size();
+		return delegate.size(null);
 	}
 
 	@Override
@@ -100,21 +106,21 @@ public class QueryableDataContainer implements DataContainer {
 	}
 
 	@Override
-	public Set<Object> keySet() {
+	public Set<Object> keySet(EntryVersion version) {
 		loggedOperations.add("keySet()" );
-		return delegate.keySet();
+		return delegate.keySet(null);
 	}
 
 	@Override
-	public Collection<Object> values() {
+	public Collection<Object> values(EntryVersion version) {
 		loggedOperations.add("values()" );
-		return delegate.values();
+		return delegate.values(null);
 	}
 
 	@Override
-	public Set<InternalCacheEntry> entrySet() {
+	public Set<InternalCacheEntry> entrySet(EntryVersion version) {
 		loggedOperations.add("entrySet()" );
-		return delegate.entrySet();
+		return delegate.entrySet(null);
 	}
 
 	@Override
@@ -122,9 +128,25 @@ public class QueryableDataContainer implements DataContainer {
 		loggedOperations.add("purgeExpired()" );
 		delegate.purgeExpired();
 	}
+
+   @Override
+   public void clear(EntryVersion version) {
+      loggedOperations.add("clear(" + version + ")");
+      delegate.clear(version);
+   }
 	
-	public Collection<String> getLoggedOperations() {
-	   return loggedOperations;
+   @Override
+   public boolean dumpTo(String filePath) {
+      loggedOperations.add("dumpTo(" + filePath + ")");
+      return delegate.dumpTo(filePath);
    }
 
+   @Override
+   public void gc(EntryVersion minimumVersion) {
+      delegate.gc(minimumVersion);
+   }
+
+   public Collection<String> getLoggedOperations() {
+	   return loggedOperations;
+   }
 }

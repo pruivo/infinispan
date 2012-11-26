@@ -47,7 +47,7 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
    LockManager lockManager;
    DataContainer dataContainer;
    EntryFactory entryFactory;
-   ClusteringDependentLogic cdl;
+   protected ClusteringDependentLogic cdl;
 
    @Inject
    public void setDependencies(LockManager lockManager, DataContainer dataContainer, EntryFactory entryFactory, ClusteringDependentLogic cll) {
@@ -111,7 +111,7 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
    }
 
    protected final void lockKey(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException {
-      lockManager.acquireLockNoCheck(ctx, key, timeoutMillis, skipLocking);
+      lockManager.acquireLockNoCheck(ctx, key, timeoutMillis, skipLocking, false);
    }
 
 }

@@ -175,8 +175,8 @@ public abstract class BaseReplStateTransferConsistencyTest extends MultipleCache
          cache(0).clear();
          log.info("Finished clearing cache");
 
-         assertEquals(0, dc0.size());
-         assertEquals(0, dc1.size());
+         assertEquals(0, dc0.size(null));
+         assertEquals(0, dc1.size(null));
       } else if (op == Operation.REMOVE) {
          log.info("Removing all keys one by one ..");
          for (int i = 0; i < numKeys; i++) {
@@ -184,8 +184,8 @@ public abstract class BaseReplStateTransferConsistencyTest extends MultipleCache
          }
          log.info("Finished removing keys");
 
-         assertEquals(0, dc0.size());
-         assertEquals(0, dc1.size());
+         assertEquals(0, dc0.size(null));
+         assertEquals(0, dc1.size(null));
       } else if (op == Operation.PUT || op == Operation.PUT_MAP || op == Operation.REPLACE || op == Operation.PUT_IF_ABSENT) {
          log.info("Updating all keys ..");
          if (op == Operation.PUT) {
@@ -221,16 +221,16 @@ public abstract class BaseReplStateTransferConsistencyTest extends MultipleCache
       TestingUtil.waitForRehashToComplete(cache(0), cache(1), cache(2));
 
       // at this point state transfer is fully done
-      log.infof("Data container of NodeA has %d keys: %s", dc0.size(), dc0.entrySet());
-      log.infof("Data container of NodeB has %d keys: %s", dc1.size(), dc1.entrySet());
-      log.infof("Data container of NodeC has %d keys: %s", dc2.size(), dc2.entrySet());
+      log.infof("Data container of NodeA has %d keys: %s", dc0.size(null), dc0.entrySet(null));
+      log.infof("Data container of NodeB has %d keys: %s", dc1.size(null), dc1.entrySet(null));
+      log.infof("Data container of NodeC has %d keys: %s", dc2.size(null), dc2.entrySet(null));
 
       if (op == Operation.CLEAR || op == Operation.REMOVE) {
          // caches should be empty. check that no keys were revived by an inconsistent state transfer
          for (int i = 0; i < numKeys; i++) {
-            assertNull(dc0.get(i));
-            assertNull(dc1.get(i));
-            assertNull(dc2.get(i));
+            assertNull(dc0.get(i, null));
+            assertNull(dc1.get(i, null));
+            assertNull(dc2.get(i, null));
          }
       } else if (op == Operation.PUT || op == Operation.PUT_MAP || op == Operation.REPLACE) {
          // check that all values are the ones expected after state transfer and were not overwritten with old values carried by state transfer
@@ -252,7 +252,7 @@ public abstract class BaseReplStateTransferConsistencyTest extends MultipleCache
    }
 
    private void assertValue(int cacheIndex, int key, String expectedValue) {
-      InternalCacheEntry ice = cache(cacheIndex).getAdvancedCache().getDataContainer().get(key);
+      InternalCacheEntry ice = cache(cacheIndex).getAdvancedCache().getDataContainer().get(key, null);
       assertNotNull("Found null on cache " + cacheIndex,  ice);
       assertEquals("Did not find the expected value on cache " + cacheIndex, expectedValue, ice.getValue());
       assertEquals("Did not find the expected value on cache " + cacheIndex, expectedValue, cache(cacheIndex).get(key));

@@ -183,9 +183,6 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
          case READ_UNCOMMITTED:
             locking.isolationLevel = IsolationLevel.READ_COMMITTED;
             break;
-         case SERIALIZABLE:
-            locking.isolationLevel = IsolationLevel.REPEATABLE_READ;
-            break;
       }
    }
 

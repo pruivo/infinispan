@@ -171,7 +171,7 @@ public abstract class BaseDistFunctionalTest extends MultipleCacheManagersTest {
    protected void assertOwnershipAndNonOwnership(Object key, boolean allowL1) {
       for (Cache<Object, String> c : caches) {
          DataContainer dc = c.getAdvancedCache().getDataContainer();
-         InternalCacheEntry ice = dc.get(key);
+         InternalCacheEntry ice = dc.get(key, null);
          if (isOwner(c, key)) {
             assert ice != null : "Fail on owner cache " + addressOf(c) + ": dc.get(" + key + ") returned null!";
             assert ice instanceof ImmortalCacheEntry : "Fail on owner cache " + addressOf(c) + ": dc.get(" + key + ") returned " + safeType(ice);

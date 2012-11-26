@@ -78,7 +78,7 @@ public class DataContainerStressTest {
             while (use_time && run.get() || runs < actual_num_loops) {
                if (runs % 100000 == 0) log.info("GET run # " + runs);
 //               TestingUtil.sleepThread(10);
-               dc.get(key + R.nextInt(NUM_KEYS));
+               dc.get(key + R.nextInt(NUM_KEYS), null);
                runs++;
             }
             perf.put("GET", opsPerMS(System.nanoTime() - start, runs));
@@ -108,7 +108,7 @@ public class DataContainerStressTest {
             while (use_time && run.get() || runs < actual_num_loops) {
                if (runs % 100000 == 0) log.info("REM run # " + runs);
 //               TestingUtil.sleepThread(10);
-               dc.remove(key + R.nextInt(NUM_KEYS));
+               dc.remove(key + R.nextInt(NUM_KEYS), null);
                runs++;
             }
             perf.put("REM", opsPerMS(System.nanoTime() - start, runs));

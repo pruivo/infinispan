@@ -60,6 +60,7 @@ import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.container.gmu.L1GMUContainer;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.dataplacement.DataPlacementRebalancePolicy;
@@ -703,9 +704,13 @@ public class TestingUtil {
          str = "a cache manager at address " + a;
       log.debugf("Cleaning data for cache '%s' on %s", cache.getName(), str);
       DataContainer dataContainer = TestingUtil.extractComponent(cache, DataContainer.class);
-      if (log.isDebugEnabled()) log.debugf("removeInMemoryData(): dataContainerBefore == %s", dataContainer.entrySet());
+      if (log.isDebugEnabled()) log.debugf("removeInMemoryData(): dataContainerBefore == %s", dataContainer.entrySet(null));
       dataContainer.clear();
-      if (log.isDebugEnabled()) log.debugf("removeInMemoryData(): dataContainerAfter == %s", dataContainer.entrySet());
+      if (log.isDebugEnabled()) log.debugf("removeInMemoryData(): dataContainerAfter == %s", dataContainer.entrySet(null));
+      L1GMUContainer l1GMUContainer = TestingUtil.extractComponent(cache, L1GMUContainer.class);
+      if (log.isDebugEnabled()) log.debugf("removeInMemoryData(): l1GMUContainerBefore == %s", l1GMUContainer.chainToString());
+      l1GMUContainer.clear();
+      if (log.isDebugEnabled()) log.debugf("removeInMemoryData(): l1GMUContainerAfter == %s", l1GMUContainer.chainToString());
    }
 
    /**

@@ -163,7 +163,7 @@ public class TopologyAwareStateTransferTest extends MultipleCacheManagersTest {
 
       int count = 0;
       for (Cache c : caches()) {
-         if (c.getAdvancedCache().getDataContainer().containsKey(key)) {
+         if (c.getAdvancedCache().getDataContainer().containsKey(key, null)) {
             log.debug("It is here = " + address(c));
             count++;
          }
@@ -173,9 +173,9 @@ public class TopologyAwareStateTransferTest extends MultipleCacheManagersTest {
 
       for (Cache c : caches()) {
          if (addresses.contains(address(c))) {
-            assert c.getAdvancedCache().getDataContainer().containsKey(key);
+            assert c.getAdvancedCache().getDataContainer().containsKey(key, null);
          } else {
-            assert !c.getAdvancedCache().getDataContainer().containsKey(key);
+            assert !c.getAdvancedCache().getDataContainer().containsKey(key, null);
          }
       }
    }

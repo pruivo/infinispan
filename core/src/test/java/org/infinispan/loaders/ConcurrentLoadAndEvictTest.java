@@ -117,7 +117,7 @@ public class ConcurrentLoadAndEvictTest extends SingleCacheManagerTest {
       sdi.enabled = false;
 
       // and check that the key actually has been evicted
-      assert !TestingUtil.extractComponent(cache, DataContainer.class).containsKey("a");
+      assert !TestingUtil.extractComponent(cache, DataContainer.class).containsKey("a", null);
 
       e.shutdownNow();
    }

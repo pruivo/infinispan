@@ -29,6 +29,8 @@ import org.infinispan.commands.CommandsFactoryImpl;
 import org.infinispan.config.ConfigurationException;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configurations;
+import org.infinispan.container.gmu.GMUL1Manager;
+import org.infinispan.container.gmu.L1GMUContainer;
 import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.context.NonTransactionalInvocationContextContainer;
 import org.infinispan.context.TransactionalInvocationContextContainer;
@@ -50,16 +52,22 @@ import org.infinispan.notifications.cachelistener.CacheNotifierImpl;
 import org.infinispan.statetransfer.StateTransferLock;
 import org.infinispan.statetransfer.StateTransferLockImpl;
 import org.infinispan.transaction.TransactionCoordinator;
+import org.infinispan.transaction.gmu.CommitLog;
+import org.infinispan.transaction.gmu.manager.GarbageCollectorManager;
+import org.infinispan.transaction.gmu.manager.TransactionCommitManager;
 import org.infinispan.transaction.totalorder.ParallelTotalOrderManager;
 import org.infinispan.transaction.totalorder.SequentialTotalOrderManager;
 import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.transaction.xa.TransactionFactory;
 import org.infinispan.transaction.xa.recovery.RecoveryAdminOperations;
+import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.concurrent.locks.containers.LockContainer;
 import org.infinispan.util.concurrent.locks.containers.OwnableReentrantPerEntryLockContainer;
 import org.infinispan.util.concurrent.locks.containers.OwnableReentrantStripedLockContainer;
 import org.infinispan.util.concurrent.locks.containers.ReentrantPerEntryLockContainer;
 import org.infinispan.util.concurrent.locks.containers.ReentrantStripedLockContainer;
+import org.infinispan.util.concurrent.locks.containers.readwrite.OwnableReentrantPerEntryReadWriteLockContainer;
+import org.infinispan.util.concurrent.locks.containers.readwrite.OwnableReentrantStripedReadWriteLockContainer;
 import org.infinispan.xsite.BackupSender;
 import org.infinispan.xsite.BackupSenderImpl;
 
@@ -79,7 +87,8 @@ import static org.infinispan.util.Util.getInstance;
                               TransactionCoordinator.class, RecoveryAdminOperations.class, StateTransferLock.class,
                               ClusteringDependentLogic.class, LockContainer.class,
                               L1Manager.class, TransactionFactory.class, BackupSender.class, TotalOrderManager.class,
-                              DataPlacementManager.class})
+                              DataPlacementManager.class, L1GMUContainer.class, L1Manager.class, CommitLog.class,
+                              TransactionCommitManager.class, GarbageCollectorManager.class})
 public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheComponentFactory implements AutoInstantiableFactory {
 
    @Override
@@ -128,6 +137,11 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
             return (T) new EvictionManagerImpl();
          } else if (componentType.equals(LockContainer.class)) {
             boolean  notTransactional = !isTransactional;
+            if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
+               return (T) (configuration.locking().useLockStriping() ?
+                                 new OwnableReentrantStripedReadWriteLockContainer(configuration.locking().concurrencyLevel()) :
+                                 new OwnableReentrantPerEntryReadWriteLockContainer(configuration.locking().concurrencyLevel()));
+            }
             LockContainer<?> lockContainer = configuration.locking().useLockStriping() ?
                   notTransactional ? new ReentrantStripedLockContainer(configuration.locking().concurrencyLevel())
                         : new OwnableReentrantStripedLockContainer(configuration.locking().concurrencyLevel()) :
@@ -145,6 +159,19 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
                   (T) new ParallelTotalOrderManager();
          } else if (componentType.equals(DataPlacementManager.class)){
             return (T) new DataPlacementManager();
+         }
+         else if (componentType.equals(L1GMUContainer.class)) {
+            return (T) new L1GMUContainer();
+         } else if (componentType.equals(CommitLog.class)) {
+            return (T) new CommitLog();
+         } else if (componentType.equals(TransactionCommitManager.class)) {
+            return (T) new TransactionCommitManager();
+         } else if (componentType.equals(L1Manager.class)) {
+            return configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE ?
+                  (T) new GMUL1Manager() :
+                  (T) new L1ManagerImpl();
+         } else if (componentType.equals(GarbageCollectorManager.class)) {
+            return (T) new GarbageCollectorManager();
          }
       }
 

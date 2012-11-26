@@ -19,7 +19,9 @@
 
 package org.infinispan.configuration.cache;
 
+import org.infinispan.config.ConfigurationException;
 import org.infinispan.configuration.Builder;
+import org.infinispan.util.concurrent.IsolationLevel;
 
 public class VersioningConfigurationBuilder extends AbstractConfigurationChildBuilder implements Builder<VersioningConfiguration> {
 
@@ -52,6 +54,10 @@ public class VersioningConfigurationBuilder extends AbstractConfigurationChildBu
 
    @Override
    public void validate() {
+      if (locking().create().isolationLevel() == IsolationLevel.SERIALIZABLE && 
+            (!enabled || scheme != VersioningScheme.GMU)) {
+         throw new ConfigurationException("Expected GMU versioning scheme when SERIALIZABLE is used");
+      }
    }
 
    @Override

@@ -133,8 +133,8 @@ public class ConcurrentOperationsTest extends MultipleCacheManagersTest {
                   List<Address> owners = advancedCache(0).getDistributionManager().locate("k");
                   assert owners.size() == 2;
 
-                  InternalCacheEntry entry0 = advancedCache(owners.get(0)).getDataContainer().get("k");
-                  InternalCacheEntry entry1 = advancedCache(owners.get(1)).getDataContainer().get("k");
+                  InternalCacheEntry entry0 = advancedCache(owners.get(0)).getDataContainer().get("k", null);
+                  InternalCacheEntry entry1 = advancedCache(owners.get(1)).getDataContainer().get("k", null);
                   Object mainOwnerValue = entry0 == null ? null : entry0.getValue();
                   Object otherOwnerValue = entry1 == null ? null : entry1.getValue();
                   log.tracef("Main owner value is %, other Owner Value is %s", mainOwnerValue, otherOwnerValue);

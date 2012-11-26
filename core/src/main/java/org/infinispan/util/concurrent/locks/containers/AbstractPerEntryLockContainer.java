@@ -62,7 +62,26 @@ public abstract class AbstractPerEntryLockContainer<L extends RefCountingLock> e
    }
 
    @Override
-   public L acquireLock(final Object lockOwner, final Object key, final long timeout, final TimeUnit unit) throws InterruptedException {
+   public L acquireShareLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
+      return acquireLock(lockOwner, key, timeout, unit, true);
+   }
+
+   @Override
+   public void releaseShareLock(Object lockOwner, Object key) {
+      releaseLock(lockOwner, key, true);      
+   }
+
+   @Override
+   public L acquireExclusiveLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
+      return acquireLock(lockOwner, key, timeout, unit, false);
+   }
+
+   @Override
+   public void releaseExclusiveLock(Object lockOwner, Object key) {
+      releaseLock(lockOwner, key, false);
+   }
+
+   private L acquireLock(final Object lockOwner, final Object key, final long timeout, final TimeUnit unit, final boolean shared) throws InterruptedException {
       final ByRef<Boolean> lockAcquired = ByRef.create(Boolean.FALSE);
       L lock = locks.compute(key, new ConcurrentHashMapV8.BiFun<Object, L, L>() {
          @Override
@@ -72,7 +91,11 @@ public abstract class AbstractPerEntryLockContainer<L extends RefCountingLock> e
                getLog().tracef("Creating and acquiring new lock instance for key %s", key);
                lock = newLock();
                // Since this is a new lock, it is certainly uncontended.
-               lock(lock, lockOwner);
+               if (shared) {
+                  shareLock(lock, lockOwner);
+               } else {
+                  exclusiveLock(lock, lockOwner);
+               }
                lockAcquired.set(Boolean.TRUE);
                return lock;
             }
@@ -88,7 +111,7 @@ public abstract class AbstractPerEntryLockContainer<L extends RefCountingLock> e
 
       if (!lockAcquired.get()) {
          // We retrieved a lock that was already present,
-         lockAcquired.set(tryLock(lock, timeout, unit, lockOwner));
+         lockAcquired.set(shared ? tryShareLock(lock, timeout, unit, lockOwner) : tryExclusiveLock(lock, timeout, unit, lockOwner));
       }
 
       if (lockAcquired.get())
@@ -113,15 +136,18 @@ public abstract class AbstractPerEntryLockContainer<L extends RefCountingLock> e
       }
    }
 
-   @Override
-   public void releaseLock(final Object lockOwner, Object key) {
+   private void releaseLock(final Object lockOwner, Object key, final boolean shared) {
       locks.computeIfPresent(key, new ConcurrentHashMapV8.BiFun<Object, L, L>() {
          @Override
          public L apply(Object key, L lock) {
             // This will happen atomically in the CHM
             // We have a reference, so value can't be null
             getLog().tracef("Unlocking lock instance for key %s", key);
-            unlock(lock, lockOwner);
+            if (shared) {
+               safeShareRelease(lock, lockOwner);
+            } else {
+               safeExclusiveRelease(lock, lockOwner);
+            }
 
             int refCount = lock.getReferenceCounter().decrementAndGet();
             boolean remove = refCount == 0;

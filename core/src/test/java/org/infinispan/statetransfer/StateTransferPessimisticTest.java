@@ -85,9 +85,9 @@ public class StateTransferPessimisticTest extends MultipleCacheManagersTest {
       for (Object key : keys) {
          log.tracef("Checking key: %s", key);
          // check them directly in data container
-         InternalCacheEntry d0 = advancedCache(0).getDataContainer().get(key);
-         InternalCacheEntry d1 = advancedCache(1).getDataContainer().get(key);
-         InternalCacheEntry d2 = advancedCache(2).getDataContainer().get(key);
+         InternalCacheEntry d0 = advancedCache(0).getDataContainer().get(key, null);
+         InternalCacheEntry d1 = advancedCache(1).getDataContainer().get(key, null);
+         InternalCacheEntry d2 = advancedCache(2).getDataContainer().get(key, null);
          int c = 0;
          if (d0 != null && !d0.isExpired()) {
             assertEquals(key, d0.getValue());

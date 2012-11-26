@@ -28,6 +28,8 @@ package org.infinispan.marshall;
  * defined, externalizers.
  *
  * @author Galder Zamarreño
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 public interface Ids {
@@ -126,4 +128,14 @@ public interface Ids {
    
    int DATA_PLACEMENT_CONSISTENT_HASH_FACTORY = 96;
    int DATA_PLACEMENT_CONSISTENT_HASH = 97;
+
+   int INTERNAL_MVCC_ENTRY = 98;
+   //GMU
+   int INTERNAL_GMU_NULL_ENTRY = 99;
+   int INTERNAL_GMU_NULL_VALUE = 100;
+   int INTERNAL_GMU_ENTRY = 101;
+   int INTERNAL_GMU_VALUE = 102;
+   int GMU_REPLICATED_VERSION = 103;
+   int GMU_DISTRIBUTED_VERSION = 104;
+   int GMU_CACHE_VERSION = 105;
 }

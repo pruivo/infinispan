@@ -90,7 +90,8 @@ public enum Element {
     BACKUP_FOR("backupFor"),
     TAKE_OFFLINE("takeOffline"),
     CONDITIONAL_EXECUTOR("conditionalExecutor"),
-     DATA_PLACEMENT("dataPlacement")
+    DATA_PLACEMENT("dataPlacement"),
+    GARBAGE_COLLECTOR("garbageCollector")
     ;
 
     private final String name;

@@ -86,7 +86,7 @@ public class WriteSkewCacheLoaderFunctionalTest extends AbstractInfinispanTest {
    }
 
    private void assertInCacheAndStore(Cache cache, CacheStore store, Object key, Object value, long lifespanMillis) throws CacheLoaderException {
-      InternalCacheEntry se = cache.getAdvancedCache().getDataContainer().get(key);
+      InternalCacheEntry se = cache.getAdvancedCache().getDataContainer().get(key, null);
       testStoredEntry(se, value, lifespanMillis, "Cache", key);
       se = store.load(key);
       testStoredEntry(se, value, lifespanMillis, "Store", key);
@@ -100,7 +100,7 @@ public class WriteSkewCacheLoaderFunctionalTest extends AbstractInfinispanTest {
 
    private void assertNotInCacheAndStore(Cache cache, CacheStore store, Object... keys) throws CacheLoaderException {
       for (Object key : keys) {
-         assert !cache.getAdvancedCache().getDataContainer().containsKey(key) : "Cache should not contain key " + key;
+         assert !cache.getAdvancedCache().getDataContainer().containsKey(key, null) : "Cache should not contain key " + key;
          assert !store.containsKey(key) : "Store should not contain key " + key;
       }
    }
@@ -115,7 +115,7 @@ public class WriteSkewCacheLoaderFunctionalTest extends AbstractInfinispanTest {
 
    private void assertInStoreNotInCache(Cache cache, CacheStore store, Object... keys) throws CacheLoaderException {
       for (Object key : keys) {
-         assert !cache.getAdvancedCache().getDataContainer().containsKey(key) : "Cache should not contain key " + key;
+         assert !cache.getAdvancedCache().getDataContainer().containsKey(key, null) : "Cache should not contain key " + key;
          assert store.containsKey(key) : "Store should contain key " + key;
       }
    }
@@ -126,7 +126,7 @@ public class WriteSkewCacheLoaderFunctionalTest extends AbstractInfinispanTest {
 
    private void assertInCacheAndNotInStore(Cache cache, CacheStore store, Object... keys) throws CacheLoaderException {
       for (Object key : keys) {
-         assert cache.getAdvancedCache().getDataContainer().containsKey(key) : "Cache should not contain key " + key;
+         assert cache.getAdvancedCache().getDataContainer().containsKey(key, null) : "Cache should not contain key " + key;
          assert !store.containsKey(key) : "Store should contain key " + key;
       }
    }
@@ -158,15 +158,15 @@ public class WriteSkewCacheLoaderFunctionalTest extends AbstractInfinispanTest {
 
       DataContainer c = preloadingCache.getAdvancedCache().getDataContainer();
 
-      assert c.size() == 4;
+      assert c.size(null) == 4;
       preloadingCache.stop();
-      assert c.size() == 0;
+      assert c.size(null) == 0;
 
       preloadingCache.start();
       assert preloadingCache.getConfiguration().getCacheLoaderManagerConfig().isPreload();
 
       c = preloadingCache.getAdvancedCache().getDataContainer();
-      assert c.size() == 4;
+      assert c.size(null) == 4;
 
       for (int i = 1; i < 5; i++) {
          if (i % 2 == 1)

@@ -216,7 +216,7 @@ public class CSAIntegrationTest extends HitsAwareCacheManagersTest {
       CacheContainer cacheContainer = hrServ2CacheManager.get(serverAddress);
       Cache<Object, Object> cache = cacheContainer.getCache();
       DataContainer dataContainer = cache.getAdvancedCache().getDataContainer();
-      assert dataContainer.keySet().contains(new ByteArrayKey(keyBytes));
+      assert dataContainer.keySet(null).contains(new ByteArrayKey(keyBytes));
    }
 
    private byte[] generateKey(int i) {

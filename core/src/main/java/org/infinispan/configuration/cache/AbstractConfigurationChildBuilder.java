@@ -110,6 +110,11 @@ abstract class AbstractConfigurationChildBuilder implements ConfigurationChildBu
       return builder.dataPlacement();
    }
 
+   @Override
+   public GarbageCollectorConfigurationBuilder garbageCollector() {
+      return builder.garbageCollector();
+   }
+
    protected ConfigurationBuilder getBuilder() {
       return builder;
    }

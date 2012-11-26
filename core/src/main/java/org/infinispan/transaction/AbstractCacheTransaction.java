@@ -36,12 +36,17 @@ import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.EntryVersionsMap;
+import org.infinispan.container.versioning.VersionGenerator;
+import org.infinispan.container.versioning.gmu.GMUVersionGenerator;
 import org.infinispan.context.Flag;
+import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.InfinispanCollections;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+
+import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 
 /**
  * Base class for local and remote transaction. Impl note: The aggregated modification list and lookedUpEntries are not
@@ -50,6 +55,8 @@ import org.infinispan.util.logging.LogFactory;
  *
  * @author Mircea.Markus@jboss.com
  * @author Galder Zamarreño
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.2
  */
 public abstract class AbstractCacheTransaction implements CacheTransaction {
@@ -88,6 +95,8 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
     * one to complete.
     */
    private final Object lockReleaseNotifier = new Object();
+
+   private EntryVersion transactionVersion;
 
    public final boolean isMarkedForRollback() {
       return isMarkedForRollback;
@@ -317,5 +326,52 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
    @Override
    public boolean wasPrepareSent() {
       return false;  // no-op
+   }
+
+   @Override
+   public EntryVersion calculateVersionToRead(VersionGenerator versionGenerator) {
+      GMUVersionGenerator gmuVersionGenerator = toGMUVersionGenerator(versionGenerator);
+      return gmuVersionGenerator.calculateMaxVersionToRead(transactionVersion, getReadFrom());
+   }
+
+   @Override
+   public Collection<Object> getReadKeys() {
+      return Collections.emptyList();
+   }
+
+   @Override
+   public void addReadFrom(Address address) {
+      //no-op
+   }
+
+   @Override
+   public Set<Address> getReadFrom() {
+      return Collections.emptySet();
+   }
+
+   @Override
+   public void setTransactionVersion(EntryVersion version) {
+      if (log.isDebugEnabled()) {
+         log.debugf("[%s] new transaction version: %s", tx.prettyPrint(), version);
+      }
+      transactionVersion = version;
+   }
+
+   @Override
+   public EntryVersion getTransactionVersion() {
+      if (log.isDebugEnabled()) {
+         log.debugf("[%s] get transaction version: %s", tx.prettyPrint(), transactionVersion);
+      }
+      return transactionVersion;
+   }
+
+   @Override
+   public boolean hasAlreadyReadOnThisNode() {
+      return false;
+   }
+
+   @Override
+   public void setAlreadyReadOnThisNode(boolean value) {
+      //no-op
    }
 }

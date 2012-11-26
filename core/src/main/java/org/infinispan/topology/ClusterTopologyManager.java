@@ -23,6 +23,8 @@ import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.remoting.transport.Address;
 
+import java.util.List;
+
 /**
  * Maintains the list of members and performs rebalance operations.
  * The {@link RebalancePolicy} actually decides when to perform the rebalance or how to update the
@@ -43,7 +45,7 @@ public interface ClusterTopologyManager {
     * Updates the members list and notifies the {@link RebalancePolicy}.
     * @return The current consistent hash.
     */
-   CacheTopology handleJoin(String cacheName, Address joiner, CacheJoinInfo joinInfo, int viewId) throws Exception;
+   List<CacheTopology> handleJoin(String cacheName, Address joiner, CacheJoinInfo joinInfo, int viewId) throws Exception;
 
    /**
     * Updates the members list and notifies the {@link RebalancePolicy}
@@ -54,4 +56,8 @@ public interface ClusterTopologyManager {
     * Marks the rebalance as complete on the sender.
     */
    void handleRebalanceCompleted(String cacheName, Address node, int topologyId, Throwable throwable, int viewId) throws Exception;
+   
+   void gcUnreachableCacheTopology(String cacheName, int minTopologyId);
+   
+   int getCacheHistorySize(String cacheName);
 }

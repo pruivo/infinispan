@@ -50,6 +50,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
    private final List<Builder<?>> modules = new ArrayList<Builder<?>>();
    private final SitesConfigurationBuilder sites;
    private final DataPlacementConfigurationBuilder dataPlacement;
+   private final GarbageCollectorConfigurationBuilder garbageCollector;
 
    public ConfigurationBuilder() {
       this.clustering = new ClusteringConfigurationBuilder(this);
@@ -69,6 +70,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
       this.unsafe = new UnsafeConfigurationBuilder(this);
       this.sites = new SitesConfigurationBuilder(this);
       this.dataPlacement = new DataPlacementConfigurationBuilder(this);
+      this.garbageCollector = new GarbageCollectorConfigurationBuilder(this);
    }
 
    public ConfigurationBuilder classLoader(ClassLoader cl) {
@@ -185,12 +187,17 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
       return dataPlacement;
    }
 
+   @Override
+   public GarbageCollectorConfigurationBuilder garbageCollector() {
+      return garbageCollector;
+   }
+
    @SuppressWarnings("unchecked")
    public void validate() {
       for (Builder<?> validatable:
             asList(clustering, dataContainer, deadlockDetection, eviction, expiration, indexing,
                    invocationBatching, jmxStatistics, loaders, locking, storeAsBinary, transaction,
-                   versioning, unsafe, sites, dataPlacement)) {
+                   versioning, unsafe, sites, dataPlacement, garbageCollector)) {
          validatable.validate();
       }
       for (Builder<?> m : modules) {
@@ -217,7 +224,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
                expiration.create(), indexing.create(), invocationBatching.create(),
                jmxStatistics.create(), loaders.create(), locking.create(), storeAsBinary.create(),
                transaction.create(), unsafe.create(), versioning.create(), modulesConfig,sites.create() , classLoader,
-               dataPlacement.create());
+               dataPlacement.create(), garbageCollector.create());
    }
 
    public ConfigurationBuilder read(Configuration template) {
@@ -239,6 +246,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
       this.sites.read(template.sites());
       this.versioning.read(template.versioning());
       this.dataPlacement.read(template.dataPlacement());
+      this.garbageCollector.read(template.garbageCollector());
 
       for (Object c : template.modules().values()) {
          Builder<Object> builder = this.addModule(ConfigurationUtils.builderFor(c));
@@ -270,6 +278,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
             ", unsafe=" + unsafe +
             ", sites=" + sites +
             ", dataPlacement=" + dataPlacement +
+            ", garbageCollector=" + garbageCollector +
             '}';
    }
 

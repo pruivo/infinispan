@@ -35,6 +35,8 @@ import org.infinispan.commands.read.SizeCommand;
 import org.infinispan.commands.read.ValuesCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
 import org.infinispan.commands.remote.DataPlacementCommand;
+import org.infinispan.commands.remote.GMUClusteredGetCommand;
+import org.infinispan.commands.remote.GarbageCollectorControlCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.remote.recovery.CompleteTransactionCommand;
@@ -42,12 +44,15 @@ import org.infinispan.commands.remote.recovery.GetInDoubtTransactionsCommand;
 import org.infinispan.commands.remote.recovery.GetInDoubtTxInfoCommand;
 import org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand;
 import org.infinispan.commands.tx.CommitCommand;
+import org.infinispan.commands.tx.GMUCommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
+import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.commands.write.*;
 import org.infinispan.container.versioning.EntryVersion;
+import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.context.Flag;
 import org.infinispan.distexec.mapreduce.Mapper;
 import org.infinispan.distexec.mapreduce.Reducer;
@@ -60,6 +65,7 @@ import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.transaction.xa.GlobalTransaction;
 
 import javax.transaction.xa.Xid;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +81,8 @@ import java.util.concurrent.Callable;
  * @author Manik Surtani
  * @author Mircea.Markus@jboss.com
  * @author Galder Zamarreño
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 @Scope(Scopes.NAMED_CACHE)
@@ -421,4 +429,40 @@ public interface CommandsFactory {
     * @return        the data placement command instance
     */
    DataPlacementCommand buildDataPlacementCommand(DataPlacementCommand.Type type, long roundId);
+
+   /**
+    * 
+    * @param gtx
+    * @param modifications
+    * @param onePhaseCommit
+    * @return
+    */
+   GMUPrepareCommand buildSerializablePrepareCommand(GlobalTransaction gtx, List<WriteCommand> modifications,                                      
+                                      boolean onePhaseCommit);
+
+   /**
+    * 
+    * @param gtx
+    * @return
+    */
+   GMUCommitCommand buildSerializableCommitCommand(GlobalTransaction gtx);
+
+   /**
+    * Builds a ClusteredGetCommand, which is a remote lookup command
+    * @param key key to look up
+    * @return a ClusteredGetCommand
+    */
+   GMUClusteredGetCommand buildGMUClusteredGetCommand(Object key, Set<Flag> flags, boolean acquireRemoteLock,
+                                                      GlobalTransaction gtx, GMUVersion txVersion,
+                                                      BitSet alreadyReadFromMask);
+   /**
+    * builds a garbage collector control command
+    *
+    * @param type                   the control type
+    * @param minimumVisibleViewId   the minimum visible view id, used when the {@param type} is
+    *                               {@code GarbageCollectorControlCommand.Type.SET_VIEW_ID}
+    * @return                       the garbage collector control command
+    */
+   GarbageCollectorControlCommand buildGarbageCollectorControlCommand(GarbageCollectorControlCommand.Type type,
+                                                                      int minimumVisibleViewId);
 }

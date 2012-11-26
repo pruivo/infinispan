@@ -44,9 +44,9 @@ public class MagicKey implements Serializable {
     * The serialVersionUID
     */
    private static final long serialVersionUID = -835275755945753954L;
-   String name = null;
-   int hashcode;
-   String address;
+   protected String name = null;
+   protected int hashcode;
+   protected String address;
 
    public MagicKey(Cache<?, ?> primaryOwner) {
       address = addressOf(primaryOwner).toString();
@@ -93,6 +93,8 @@ public class MagicKey implements Serializable {
       this(primaryOwner, backupOwners);
       this.name = name;
    }
+   
+   protected MagicKey() {}
 
    @Override
    public int hashCode () {

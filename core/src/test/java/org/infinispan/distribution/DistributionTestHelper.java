@@ -47,21 +47,21 @@ public class DistributionTestHelper {
 
    public static void assertIsInL1(Cache<?, ?> cache, Object key) {
       DataContainer dc = cache.getAdvancedCache().getDataContainer();
-      InternalCacheEntry ice = dc.get(key);
+      InternalCacheEntry ice = dc.get(key, null);
       assert ice != null : "Entry for key [" + key + "] should be in L1 on cache at [" + addressOf(cache) + "]!";
       assert !(ice instanceof ImmortalCacheEntry) : "Entry for key [" + key + "] should have a lifespan on cache at [" + addressOf(cache) + "]!";
    }
 
    public static void assertIsNotInL1(Cache<?, ?> cache, Object key) {
       DataContainer dc = cache.getAdvancedCache().getDataContainer();
-      InternalCacheEntry ice = dc.get(key);
+      InternalCacheEntry ice = dc.get(key, null);
       assert ice == null : "Entry for key [" + key + "] should not be in data container at all on cache at [" + addressOf(cache) + "]!";
    }
 
    public static void assertIsInContainerImmortal(Cache<?, ?> cache, Object key) {
       Log log = LogFactory.getLog(BaseDistFunctionalTest.class);
       DataContainer dc = cache.getAdvancedCache().getDataContainer();
-      InternalCacheEntry ice = dc.get(key);
+      InternalCacheEntry ice = dc.get(key, null);
       if (ice == null) {
          String msg = "Entry for key [" + key + "] should be in data container on cache at [" + addressOf(cache) + "]!";
          log.fatal(msg);
@@ -78,7 +78,7 @@ public class DistributionTestHelper {
    public static void assertIsInL1OrNull(Cache<?, ?> cache, Object key) {
       Log log = LogFactory.getLog(BaseDistFunctionalTest.class);
       DataContainer dc = cache.getAdvancedCache().getDataContainer();
-      InternalCacheEntry ice = dc.get(key);
+      InternalCacheEntry ice = dc.get(key, null);
       if (ice instanceof ImmortalCacheEntry) {
          String msg = "Entry for key [" + key + "] on cache at [" + addressOf(cache) + "] should be mortal or null but was [" + ice + "]!";
          log.fatal(msg);
@@ -107,6 +107,23 @@ public class DistributionTestHelper {
       for (int i = 0; i < backupOwners.length; i++) {
          if (!addressOf(backupOwners[i]).equals(ownerAddresses.get(i+1)))
             return false;
+      }
+      return true;
+   }
+
+   public static boolean hasOwnersIgnoringOrder(Object key, Cache<?, ?>... owners) {
+      if (owners == null || owners.length == 0) {
+         throw new IllegalArgumentException("Owners cannot be empty");
+      }
+      DistributionManager dm = owners[0].getAdvancedCache().getDistributionManager();
+      List<Address> ownerAddresses = dm.locate(key);
+      if (ownerAddresses.size() != owners.length) {
+         return false;
+      }
+      for (Cache owner : owners) {
+         if (!ownerAddresses.contains(addressOf(owner))) {
+            return false;
+         }
       }
       return true;
    }

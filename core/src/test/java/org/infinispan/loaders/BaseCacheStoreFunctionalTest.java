@@ -224,7 +224,7 @@ public abstract class BaseCacheStoreFunctionalTest extends AbstractInfinispanTes
 
    private void assertCacheEntry(Cache cache, String key, String value, long lifespanMillis, long maxIdleMillis) {
       DataContainer dc = cache.getAdvancedCache().getDataContainer();
-      InternalCacheEntry ice = dc.get(key);
+      InternalCacheEntry ice = dc.get(key, null);
       assert ice != null : "No such entry for key " + key;
       assert Util.safeEquals(ice.getValue(), value) : ice.getValue() + " is not the same as " + value;
       assert ice.getLifespan() == lifespanMillis : "Lifespan " + ice.getLifespan() + " not the same as " + lifespanMillis;

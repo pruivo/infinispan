@@ -223,7 +223,7 @@ public class ReplicationInterceptor extends ClusteringInterceptor {
    }
 
    private Object localGet(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
-      InternalCacheEntry ice = dataContainer.get(key);
+      InternalCacheEntry ice = dataContainer.get(key, null);
       if (ice != null) {
          if (!ctx.replaceValue(key, ice.getValue())) {
             if (isWrite)
@@ -240,7 +240,7 @@ public class ReplicationInterceptor extends ClusteringInterceptor {
       if (isPessimisticCache && rpcManager.getAddress().equals(getPrimaryOwner())) {
          boolean skipLocking = hasSkipLocking(command);
          long lockTimeout = getLockAcquisitionTimeout(command, skipLocking);
-         lockManager.acquireLock(ctx, key, lockTimeout, skipLocking);
+         lockManager.acquireLock(ctx, key, lockTimeout, skipLocking, false);
       }
       entryFactory.wrapEntryForPut(ctx, key, ice, false, command);
    }

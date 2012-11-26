@@ -117,7 +117,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    @Override
-   public final Object visitGetKeyValueCommand(InvocationContext ctx, GetKeyValueCommand command) throws Throwable {
+   public Object visitGetKeyValueCommand(InvocationContext ctx, GetKeyValueCommand command) throws Throwable {
       try {
          entryFactory.wrapEntryForReading(ctx, command.getKey());
          return invokeNextInterceptor(ctx, command);
@@ -129,7 +129,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    @Override
-   public final Object visitInvalidateCommand(InvocationContext ctx, InvalidateCommand command) throws Throwable {
+   public Object visitInvalidateCommand(InvocationContext ctx, InvalidateCommand command) throws Throwable {
       if (command.getKeys() != null) {
          for (Object key : command.getKeys()) {
             entryFactory.wrapEntryForRemove(ctx, key);
@@ -139,8 +139,8 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    @Override
-   public final Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
-      for (InternalCacheEntry entry : dataContainer.entrySet())
+   public Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
+      for (InternalCacheEntry entry : dataContainer.entrySet(null))
          entryFactory.wrapEntryForClear(ctx, entry.getKey());
       return invokeNextAndApplyChanges(ctx, command);
    }
@@ -156,7 +156,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    @Override
-   public final Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
+   public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
       if (shouldWrap(command.getKey(), ctx, command)) {
          entryFactory.wrapEntryForPut(ctx, command.getKey(), null, !command.isPutIfAbsent(), command);
       }
@@ -189,7 +189,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    @Override
-   public final Object visitRemoveCommand(InvocationContext ctx, RemoveCommand command) throws Throwable {
+   public Object visitRemoveCommand(InvocationContext ctx, RemoveCommand command) throws Throwable {
       if (shouldWrap(command.getKey(), ctx, command)) {
          entryFactory.wrapEntryForRemove(ctx, command.getKey());
       }
@@ -197,7 +197,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    @Override
-   public final Object visitReplaceCommand(InvocationContext ctx, ReplaceCommand command) throws Throwable {
+   public Object visitReplaceCommand(InvocationContext ctx, ReplaceCommand command) throws Throwable {
       if (shouldWrap(command.getKey(), ctx, command)) {
          entryFactory.wrapEntryForReplace(ctx, command.getKey());
       }
@@ -287,7 +287,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       @Override
       public Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
          boolean wrapped = false;
-         for (Object key : dataContainer.keySet()) {
+         for (Object key : dataContainer.keySet(null)) {
             entryFactory.wrapEntryForClear(ctx, key);
             wrapped = true;
          }

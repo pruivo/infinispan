@@ -267,7 +267,7 @@ public class CacheMgmtInterceptor extends JmxStatsCommandInterceptor {
          displayType = DisplayType.SUMMARY
    )
    public int getNumberOfEntries() {
-      return dataContainer.size();
+      return dataContainer.size(null);
    }
 
    @ManagedAttribute(

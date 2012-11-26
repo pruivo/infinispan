@@ -48,6 +48,7 @@ import java.util.Set;
  *
  * @author Mircea.Markus@jboss.com
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.0
  */
 public abstract class LocalTransaction extends AbstractCacheTransaction {
@@ -68,6 +69,8 @@ public abstract class LocalTransaction extends AbstractCacheTransaction {
 
    private boolean prepareSent;
    private boolean commitOrRollbackSent;
+   private boolean alreadyReadOnThisNode;
+   private Set<Address> readFrom;
 
    public LocalTransaction(Transaction transaction, GlobalTransaction tx, boolean implicitTransaction, int topologyId) {
       super(tx, topologyId);
@@ -246,6 +249,49 @@ public abstract class LocalTransaction extends AbstractCacheTransaction {
 
    public final boolean isCommitOrRollbackSent() {
       return commitOrRollbackSent;
+   }
+
+   @Override
+   public void setAlreadyReadOnThisNode(boolean value) {
+      if (log.isDebugEnabled()) {
+         log.debugf("[%s] set already read on this node to %s", tx.prettyPrint(), value);
+      }
+      alreadyReadOnThisNode = value;
+   }
+
+   @Override
+   public boolean hasAlreadyReadOnThisNode() {
+      if (log.isDebugEnabled()) {
+         log.debugf("[%s] has already read on this node? %s", tx.prettyPrint(), alreadyReadOnThisNode);
+      }
+      return alreadyReadOnThisNode;
+   }
+
+   @Override
+   public Set<Address> getReadFrom() {
+      if (log.isDebugEnabled()) {
+         log.debugf("[%s] get read from %s", tx.prettyPrint(), readFrom);
+      }
+      return readFrom;
+   }
+
+   @Override
+   public void addReadFrom(Address address) {
+      if (readFrom == null) {
+         readFrom = new HashSet<Address>(16);
+      }
+      if (log.isDebugEnabled()) {
+         log.debugf("[%s] add read from %s to %s", tx.prettyPrint(), address, readFrom);
+      }
+      readFrom.add(address);
+   }
+
+   @Override
+   public Collection<Object> getReadKeys() {
+      if (log.isDebugEnabled()) {
+         log.debugf("[%s] get read keys %s", tx.prettyPrint(), readKeys);
+      }
+      return readKeys;
    }
 
 }

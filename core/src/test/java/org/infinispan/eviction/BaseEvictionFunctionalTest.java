@@ -94,12 +94,12 @@ public abstract class BaseEvictionFunctionalTest extends SingleCacheManagerTest 
 
       // wait for the cache size to drop to CACHE_SIZE, up to a specified amount of time.
       long giveUpTime = System.currentTimeMillis() + (1000 * 10); // 10 sec
-      while (cache.getAdvancedCache().getDataContainer().size() > 1 && System.currentTimeMillis() < giveUpTime) {
+      while (cache.getAdvancedCache().getDataContainer().size(null) > 1 && System.currentTimeMillis() < giveUpTime) {
          //System.out.println("Cache size is " + cache.size() + " and time diff is " + (giveUpTime - System.currentTimeMillis()));
          Thread.sleep(100);
       }
 
-      assert cache.getAdvancedCache().getDataContainer().size() <= CACHE_SIZE : "Expected 1, was " + cache.size(); // this is what we expect the cache to be pruned to      
+      assert cache.getAdvancedCache().getDataContainer().size(null) <= CACHE_SIZE : "Expected 1, was " + cache.size(); // this is what we expect the cache to be pruned to      
    }
 
    private class Writer extends Thread {

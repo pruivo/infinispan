@@ -86,7 +86,7 @@ public class EntryActivatingTest extends AbstractInfinispanTest {
       cache.evict("IT");
       assert store.containsKey("IT");
 
-      InternalCacheEntry internalCacheEntry = cache.getAdvancedCache().getDataContainer().get("IT");
+      InternalCacheEntry internalCacheEntry = cache.getAdvancedCache().getDataContainer().get("IT", null);
       assert internalCacheEntry==null;
 
       verifyFullTextHasMatches(1);

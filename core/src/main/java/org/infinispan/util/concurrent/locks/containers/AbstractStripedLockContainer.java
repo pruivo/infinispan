@@ -39,7 +39,7 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
    private int lockSegmentShift;
 
 
-   final int calculateNumberOfSegments(int concurrencyLevel) {
+   protected final int calculateNumberOfSegments(int concurrencyLevel) {
       int tempLockSegShift = 0;
       int numLocks = 1;
       while (numLocks < concurrencyLevel) {
@@ -51,7 +51,7 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
       return numLocks;
    }
 
-   final int hashToIndex(Object object) {
+   protected final int hashToIndex(Object object) {
       return (hash(object) >>> lockSegmentShift) & lockSegmentMask;
    }
 
@@ -75,26 +75,49 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
    protected abstract void initLocks(int numLocks);
 
    @Override
-   public L acquireLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
-      L lock = getLock(key);
-      boolean locked;
-      try {
-         locked = tryLock(lock, timeout, unit, lockOwner);
-      } catch (InterruptedException ie) {
-         safeRelease(lock, lockOwner);
-         throw ie;
-      } catch (Throwable th) {
-         safeRelease(lock, lockOwner);
-         locked = false;
-      }
-      return locked ? lock : null;
+   public L acquireExclusiveLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
+      return acquire(lockOwner, key, timeout, unit, false);
    }
 
    @Override
-   public void releaseLock(Object lockOwner, Object key) {
-      final L lock = getLock(key);
-      safeRelease(lock, lockOwner);
+   public L acquireShareLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
+      return acquire(lockOwner, key, timeout, unit, true);
    }
+
+   @Override
+   public void releaseExclusiveLock(Object lockOwner, Object key) {
+      final L lock = getLock(key);
+      safeExclusiveRelease(lock, lockOwner);
+   }
+
+   @Override
+   public void releaseShareLock(Object lockOwner, Object key) {
+      final L lock = getLock(key);
+      safeExclusiveRelease(lock, lockOwner);
+   }
+
+   private L acquire(Object lockOwner, Object key, long timeout, TimeUnit unit, boolean share) throws InterruptedException {
+      L lock = getLock(key);
+      boolean locked;
+      try {
+         locked = share ? tryShareLock(lock, timeout, unit, lockOwner) : tryExclusiveLock(lock, timeout, unit, lockOwner);
+      } catch (InterruptedException ie) {
+         if (share) {
+            safeShareRelease(lock, lockOwner);
+         } else {
+            safeExclusiveRelease(lock, lockOwner);
+         }
+         throw ie;
+      } catch (Throwable th) {
+         if (share) {
+            safeShareRelease(lock, lockOwner);
+         } else {
+            safeExclusiveRelease(lock, lockOwner);
+         }
+         locked = false;
+      }
+      return locked ? lock : null;
+   }     
 
    @Override
    public int getLockId(Object key) {

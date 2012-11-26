@@ -121,14 +121,14 @@ public class InitialStateTransferCompletionTest extends MultipleCacheManagersTes
 
       // check number of keys directly in data container
       DataContainer dc2 = cache(2).getAdvancedCache().getDataContainer();
-      assertEquals(numKeys, dc2.size());
+      assertEquals(numKeys, dc2.size(null));
 
       // check the expected values of these keys
       for (int i = 0; i < numKeys; i++) {
          String key = "k" + i;
          String expectedValue = "v" + i;
          assertTrue(readCh.isKeyLocalToNode(address(2), key));
-         InternalCacheEntry entry = dc2.get(key);
+         InternalCacheEntry entry = dc2.get(key, null);
          assertNotNull(entry);
          assertEquals(expectedValue, entry.getValue());
       }

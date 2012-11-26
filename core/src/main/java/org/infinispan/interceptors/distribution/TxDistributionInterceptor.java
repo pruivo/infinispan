@@ -68,7 +68,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
    private boolean useClusteredWriteSkewCheck;
 
    private L1Manager l1Manager;
-   private boolean isL1CacheEnabled;
+   protected boolean isL1CacheEnabled;
 
    private static final RecipientGenerator CLEAR_COMMAND_GENERATOR = new RecipientGenerator() {
       @Override
@@ -181,7 +181,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
       if (!cacheConfiguration.transaction().transactionProtocol().isTotalOrder()) {
          boolean skipLocking = hasSkipLocking(command);
          long lockTimeout = getLockAcquisitionTimeout(command, skipLocking);
-         lockManager.acquireLock(ctx, key, lockTimeout, skipLocking);
+         lockManager.acquireLock(ctx, key, lockTimeout, skipLocking, false);
       }
       entryFactory.wrapEntryForPut(ctx, key, ice, false, command);
    }
@@ -278,7 +278,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
    private boolean shouldFetchRemoteValuesForWriteSkewCheck(InvocationContext ctx, WriteCommand cmd) {
       if (useClusteredWriteSkewCheck && ctx.isInTxScope() && dm.isRehashInProgress()) {
          for (Object key : cmd.getAffectedKeys()) {
-            if (dm.isAffectedByRehash(key) && !dataContainer.containsKey(key)) return true;
+            if (dm.isAffectedByRehash(key) && !dataContainer.containsKey(key, null)) return true;
          }
       }
       return false;
@@ -298,7 +298,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
    }
 
    private Object localGet(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
-      InternalCacheEntry ice = dataContainer.get(key);
+      InternalCacheEntry ice = dataContainer.get(key, null);
       if (ice != null) {
          if (isWrite && isPessimisticCache && ctx.isInTxScope()) {
             ((TxInvocationContext) ctx).addAffectedKey(key);
@@ -329,14 +329,28 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
    }
 
    private boolean isNotInL1(Object key) {
-      return !isL1CacheEnabled || !dataContainer.containsKey(key);
+      return !isL1CacheEnabled || !dataContainer.containsKey(key, null);
+   }
+
+   protected void storeInL1(Object key, InternalCacheEntry ice, InvocationContext ctx, boolean isWrite, FlagAffectedCommand command) throws Throwable {
+      try {
+         long l1Lifespan = cacheConfiguration.clustering().l1().lifespan();
+         long lifespan = ice.getLifespan() < 0 ? l1Lifespan : Math.min(ice.getLifespan(), l1Lifespan);
+         PutKeyValueCommand put = cf.buildPutKeyValueCommand(ice.getKey(), ice.getValue(), lifespan, -1, command.getFlags());
+         lockAndWrap(ctx, key, ice, command);
+         invokeNextInterceptor(ctx, put);
+      } catch (Exception e) {
+         // Couldn't store in L1 for some reason.  But don't fail the transaction!
+         log.infof("Unable to store entry %s in L1 cache", key);
+         log.debug("Inability to store in L1 caused by", e);
+      }
    }
 
    private Object remoteGetAndStoreInL1(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
       // todo [anistor] fix locality checks in StateTransferManager (ISPN-2401) and use them here
       DataLocality locality = dm.getReadConsistentHash().isKeyLocalToNode(rpcManager.getAddress(), key) ? DataLocality.LOCAL : DataLocality.NOT_LOCAL;
 
-      if (ctx.isOriginLocal() && !locality.isLocal() && isNotInL1(key) || dm.isAffectedByRehash(key) && !dataContainer.containsKey(key)) {
+      if (ctx.isOriginLocal() && !locality.isLocal() && isNotInL1(key) || dm.isAffectedByRehash(key) && !dataContainer.containsKey(key, null)) {
          if (trace) log.tracef("Doing a remote get for key %s", key);
 
          boolean acquireRemoteLock = false;
@@ -372,17 +386,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
 
                if (trace) log.tracef("Caching remotely retrieved entry for key %s in L1", key);
                // This should be fail-safe
-               try {
-                  long l1Lifespan = cacheConfiguration.clustering().l1().lifespan();
-                  long lifespan = ice.getLifespan() < 0 ? l1Lifespan : Math.min(ice.getLifespan(), l1Lifespan);
-                  PutKeyValueCommand put = cf.buildPutKeyValueCommand(ice.getKey(), ice.getValue(), lifespan, -1, command.getFlags());
-                  lockAndWrap(ctx, key, ice, command);
-                  invokeNextInterceptor(ctx, put);
-               } catch (Exception e) {
-                  // Couldn't store in L1 for some reason.  But don't fail the transaction!
-                  log.infof("Unable to store entry %s in L1 cache", key);
-                  log.debug("Inability to store in L1 caused by", e);
-               }
+               storeInL1(key, ice, ctx, isWrite, command);
             } else {
                if (!ctx.replaceValue(key, ice.getValue())) {
                   if (isWrite)

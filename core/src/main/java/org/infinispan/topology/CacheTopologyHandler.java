@@ -21,6 +21,8 @@ package org.infinispan.topology;
 
 import org.infinispan.statetransfer.StateTransferManager;
 
+import java.util.List;
+
 /**
  * The link between {@link LocalTopologyManager} and {@link StateTransferManager}.
  *
@@ -42,4 +44,6 @@ public interface CacheTopologyHandler {
     * will have to call {@link LocalTopologyManager#confirmRebalance(String, int, Throwable)}
     */
    void rebalance(CacheTopology cacheTopology);
+   
+   void addInitialCacheTopologyHistory(List<CacheTopology> cacheTopologyHistory);
 }

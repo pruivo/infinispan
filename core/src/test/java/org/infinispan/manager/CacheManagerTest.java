@@ -337,14 +337,14 @@ public class CacheManagerTest extends AbstractInfinispanTest {
          DummyInMemoryCacheStore store = getDummyStore(cache);
          DataContainer data = getDataContainer(cache);
          assert !store.isEmpty();
-         assert 0 != data.size();
+         assert 0 != data.size(null);
          manager.removeCache("cache");
          assert store.isEmpty();
-         assert 0 == data.size();
+         assert 0 == data.size(null);
          // Try removing the cache again, it should be a no-op
          manager.removeCache("cache");
          assert store.isEmpty();
-         assert 0 == data.size();
+         assert 0 == data.size(null);
       } finally {
          manager.stop();
       }
@@ -400,18 +400,18 @@ public class CacheManagerTest extends AbstractInfinispanTest {
             DummyInMemoryCacheStore store2 = getDummyStore(cache2);
             DataContainer data2 = getDataContainer(cache2);
             assert !store1.isEmpty();
-            assert 5 == data1.size();
+            assert 5 == data1.size(null);
             assert !store2.isEmpty();
-            assert 5 == data2.size();
+            assert 5 == data2.size(null);
             manager1.removeCache("cache");
             assert !manager1.cacheExists("cache");
             assert !manager2.cacheExists("cache");
             assert null == manager1.getCache("cache", false);
             assert null == manager2.getCache("cache", false);
             assert store1.isEmpty();
-            assert 0 == data1.size();
+            assert 0 == data1.size(null);
             assert store2.isEmpty();
-            assert 0 == data2.size();
+            assert 0 == data2.size(null);
          }
       });
    }

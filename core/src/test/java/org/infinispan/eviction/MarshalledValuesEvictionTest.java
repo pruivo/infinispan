@@ -74,11 +74,11 @@ public class MarshalledValuesEvictionTest extends SingleCacheManagerTest {
 
       // wait for the cache size to drop to CACHE_SIZE, up to a specified amount of time.
       long giveupTime = System.currentTimeMillis() + (1000 * 10); // 10 sec
-      while (cache.getAdvancedCache().getDataContainer().size() > CACHE_SIZE && System.currentTimeMillis() < giveupTime) {
+      while (cache.getAdvancedCache().getDataContainer().size(null) > CACHE_SIZE && System.currentTimeMillis() < giveupTime) {
          TestingUtil.sleepThread(100);
       }
       
-      assert cache.getAdvancedCache().getDataContainer().size() <= CACHE_SIZE : "Expected 1, was " + cache.size(); 
+      assert cache.getAdvancedCache().getDataContainer().size(null) <= CACHE_SIZE : "Expected 1, was " + cache.size(); 
 
       //let eviction manager kick in
       Util.sleep(3000);
@@ -97,11 +97,11 @@ public class MarshalledValuesEvictionTest extends SingleCacheManagerTest {
 
       // wait for the cache size to drop to CACHE_SIZE, up to a specified amount of time.
       long giveupTime = System.currentTimeMillis() + (1000 * 10); // 10 sec
-      while (cache.getAdvancedCache().getDataContainer().size() > CACHE_SIZE && System.currentTimeMillis() < giveupTime) {
+      while (cache.getAdvancedCache().getDataContainer().size(null) > CACHE_SIZE && System.currentTimeMillis() < giveupTime) {
          TestingUtil.sleepThread(100);
       }
       
-      assert cache.getAdvancedCache().getDataContainer().size() <= CACHE_SIZE : "Expected 1, was " + cache.size(); 
+      assert cache.getAdvancedCache().getDataContainer().size(null) <= CACHE_SIZE : "Expected 1, was " + cache.size(); 
       //let eviction manager kick in
       Util.sleep(3000);      
       MockMarshalledValueInterceptor interceptor = (MockMarshalledValueInterceptor) TestingUtil.findInterceptor(cache, MarshalledValueInterceptor.class);

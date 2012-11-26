@@ -61,14 +61,14 @@ public class InvalidationNoReplicationTest extends MultipleCacheManagersTest {
       assert advancedCache(1).getDistributionManager().locate(k0).equals(Collections.singletonList(address(0)));
 
       advancedCache(1).put(k0, "k1");
-      assert advancedCache(1).getDataContainer().containsKey(k0);
-      assert advancedCache(0).getDataContainer().containsKey(k0);
+      assert advancedCache(1).getDataContainer().containsKey(k0, null);
+      assert advancedCache(0).getDataContainer().containsKey(k0, null);
 
       tm(0).begin();
       cache(0).put(k0, "v2");
       tm(0).commit();
 
-      assert !advancedCache(1).getDataContainer().containsKey(k0);
+      assert !advancedCache(1).getDataContainer().containsKey(k0, null);
    }
 
 }

@@ -128,7 +128,7 @@ public class NonStringKeyPreloadTest extends AbstractInfinispanTest {
             int found = 0;
             for (int i = 0; i < 10; i++) {
                Person p = new Person("name" + i, "surname" + i, 30);
-               if (cache.getDataContainer().containsKey(p)) {
+               if (cache.getDataContainer().containsKey(p, null)) {
                   found++;
                }
             }

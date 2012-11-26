@@ -98,7 +98,7 @@ public class LocalModePassivationTest extends SingleCacheManagerTest {
          cache().put(i, i);
       }
 
-      int keysInDataContainer = cache().getAdvancedCache().getDataContainer().keySet().size();
+      int keysInDataContainer = cache().getAdvancedCache().getDataContainer().keySet(null).size();
 
       assertTrue(keysInDataContainer != numKeys); // some keys got evicted
 

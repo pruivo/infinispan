@@ -194,7 +194,7 @@ public class L1NonTxInterceptor extends BaseRpcInterceptor {
    private void lockAndWrap(InvocationContext ctx, Object key, InternalCacheEntry ice, FlagAffectedCommand command) throws InterruptedException {
       boolean skipLocking = hasSkipLocking(command);
       long lockTimeout = getLockAcquisitionTimeout(command, skipLocking);
-      if (useLockForwarding) lockManager.acquireLock(ctx, key, lockTimeout, skipLocking);
+      if (useLockForwarding) lockManager.acquireLock(ctx, key, lockTimeout, skipLocking, false);
       entryFactory.wrapEntryForPut(ctx, key, ice, false, command);
    }
 }

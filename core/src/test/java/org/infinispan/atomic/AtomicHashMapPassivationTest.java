@@ -87,7 +87,7 @@ public class AtomicHashMapPassivationTest extends SingleCacheManagerTest {
    }
 
    private void assertInCacheNotInStore(Object key) throws CacheLoaderException {
-      InternalCacheEntry se = cache.getAdvancedCache().getDataContainer().get(key);
+      InternalCacheEntry se = cache.getAdvancedCache().getDataContainer().get(key, null);
       testStoredEntry(se, key, "Cache");
       assert !store.containsKey(key) : "Key " + key + " should not be in store!";
    }
@@ -99,7 +99,7 @@ public class AtomicHashMapPassivationTest extends SingleCacheManagerTest {
    private void assertInStoreNotInCache(Object key) throws CacheLoaderException {
       InternalCacheEntry se = store.load(key);
       testStoredEntry(se, key, "Store");
-      assert !cache.getAdvancedCache().getDataContainer().containsKey(key) : "Key " + key + " should not be in cache!";
+      assert !cache.getAdvancedCache().getDataContainer().containsKey(key, null) : "Key " + key + " should not be in cache!";
    }
 
    

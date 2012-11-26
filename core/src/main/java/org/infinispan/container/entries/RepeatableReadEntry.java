@@ -57,7 +57,7 @@ public class RepeatableReadEntry extends ReadCommittedEntry {
 
    public void performLocalWriteSkewCheck(DataContainer container, boolean alreadyCopied) {
       // check for write skew.
-      InternalCacheEntry ice = container.get(key);
+      InternalCacheEntry ice = container.get(key, null);
 
       Object actualValue = ice == null ? null : ice.getValue();
       Object valueToCompare = alreadyCopied ? oldValue : value;

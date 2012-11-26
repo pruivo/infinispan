@@ -133,7 +133,7 @@ public class VersionedDistStateTransferTest extends MultipleCacheManagersTest {
       Address address = c.getCacheManager().getAddress();
       ConsistentHash readConsistentHash = c.getAdvancedCache().getDistributionManager().getReadConsistentHash();
       if (readConsistentHash.isKeyLocalToNode(address, hello)) {
-         InternalCacheEntry ice = c.getAdvancedCache().getDataContainer().get(hello);
+         InternalCacheEntry ice = c.getAdvancedCache().getDataContainer().get(hello, null);
          assert ice != null;
          assert ice.getVersion() != null;
       }

@@ -80,7 +80,7 @@ public class DataPlacementTest extends MultipleCacheManagersTest {
       Assert.assertTrue(consistentHash.locateOwners(key).contains(manager(cache).getAddress()), "Cache " + cache +
             " does not contains key " + key + " in consistent hash");
       DataContainer dataContainer = cache(cache).getAdvancedCache().getDataContainer();
-      Assert.assertTrue(dataContainer.containsKey(key), "Cache " + cache + " does not contains " + key +
+      Assert.assertTrue(dataContainer.containsKey(key, null), "Cache " + cache + " does not contains " + key +
             " in data container");
    }
 

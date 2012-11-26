@@ -54,5 +54,7 @@ public interface ConfigurationChildBuilder {
 
    DataPlacementConfigurationBuilder dataPlacement();
    
+   GarbageCollectorConfigurationBuilder garbageCollector();
+   
    Configuration build();
 }

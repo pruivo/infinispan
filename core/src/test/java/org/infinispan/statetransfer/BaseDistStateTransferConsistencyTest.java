@@ -192,8 +192,8 @@ public abstract class BaseDistStateTransferConsistencyTest extends MultipleCache
          cache(0).clear();
          log.info("Finished clearing cache");
 
-         assertEquals(0, dc0.size());
-         assertEquals(0, dc2.size());
+         assertEquals(0, dc0.size(null));
+         assertEquals(0, dc2.size(null));
       } else if (op == Operation.REMOVE) {
          log.info("Removing all keys one by one ..");
          for (int i = 0; i < numKeys; i++) {
@@ -201,8 +201,8 @@ public abstract class BaseDistStateTransferConsistencyTest extends MultipleCache
          }
          log.info("Finished removing keys");
 
-         assertEquals(0, dc0.size());
-         assertEquals(0, dc2.size());
+         assertEquals(0, dc0.size(null));
+         assertEquals(0, dc2.size(null));
       } else if (op == Operation.PUT || op == Operation.PUT_MAP || op == Operation.REPLACE || op == Operation.PUT_IF_ABSENT) {
          log.info("Updating all keys ..");
          if (op == Operation.PUT) {
@@ -238,14 +238,14 @@ public abstract class BaseDistStateTransferConsistencyTest extends MultipleCache
       TestingUtil.waitForRehashToComplete(cache(0), cache(2));
 
       // at this point state transfer is fully done
-      log.infof("Data container of NodeA has %d keys: %s", dc0.size(), dc0.entrySet());
-      log.infof("Data container of NodeC has %d keys: %s", dc2.size(), dc2.entrySet());
+      log.infof("Data container of NodeA has %d keys: %s", dc0.size(null), dc0.entrySet(null));
+      log.infof("Data container of NodeC has %d keys: %s", dc2.size(null), dc2.entrySet(null));
 
       if (op == Operation.CLEAR || op == Operation.REMOVE) {
          // caches should be empty. check that no keys were revived by an inconsistent state transfer
          for (int i = 0; i < numKeys; i++) {
-            assertNull(dc0.get(i));
-            assertNull(dc2.get(i));
+            assertNull(dc0.get(i, null));
+            assertNull(dc2.get(i, null));
          }
       } else if (op == Operation.PUT || op == Operation.PUT_MAP || op == Operation.REPLACE) {
          ConsistentHash ch = advancedCache(0).getComponentRegistry().getStateTransferManager().getCacheTopology().getReadConsistentHash();
@@ -253,10 +253,10 @@ public abstract class BaseDistStateTransferConsistencyTest extends MultipleCache
          for (int i = 0; i < numKeys; i++) {
             // check number of owners
             int owners = 0;
-            if (dc0.get(i) != null) {
+            if (dc0.get(i, null) != null) {
                owners++;
             }
-            if (dc2.get(i) != null) {
+            if (dc2.get(i, null) != null) {
                owners++;
             }
             assertEquals("Wrong number of owners", ch.locateOwners(i).size(), owners);
@@ -271,10 +271,10 @@ public abstract class BaseDistStateTransferConsistencyTest extends MultipleCache
          for (int i = 0; i < numKeys; i++) {
             // check number of owners
             int owners = 0;
-            if (dc0.get(i) != null) {
+            if (dc0.get(i, null) != null) {
                owners++;
             }
-            if (dc2.get(i) != null) {
+            if (dc2.get(i, null) != null) {
                owners++;
             }
             assertEquals("Wrong number of owners", ch.locateOwners(i).size(), owners);

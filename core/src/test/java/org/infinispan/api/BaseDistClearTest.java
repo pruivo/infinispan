@@ -98,16 +98,16 @@ public abstract class BaseDistClearTest extends MultipleCacheManagersTest {
       DataContainer dc1 = c1.getDataContainer();
       DataContainer dc2 = c2.getDataContainer();
 
-      assertTrue(dc0.size() > 0);
-      assertTrue(dc1.size() > 0);
-      assertTrue(dc2.size() > 0);
+      assertTrue(dc0.size(null) > 0);
+      assertTrue(dc1.size(null) > 0);
+      assertTrue(dc2.size(null) > 0);
 
       log.info("Clearing cache ..");
       c0.clear();
       log.info("Finished clearing cache");
 
-      assertEquals(0, dc0.size());
-      assertEquals(0, dc1.size());
-      assertEquals(0, dc2.size());
+      assertEquals(0, dc0.size(null));
+      assertEquals(0, dc1.size(null));
+      assertEquals(0, dc2.size(null));
    }
 }

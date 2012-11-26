@@ -24,7 +24,6 @@ package org.infinispan.util.concurrent.locks.containers;
 
 import net.jcip.annotations.ThreadSafe;
 import org.infinispan.util.concurrent.locks.VisibleOwnerReentrantLock;
-import org.infinispan.util.concurrent.locks.VisibleOwnerRefCountingReentrantLock;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -88,15 +87,25 @@ public class ReentrantStripedLockContainer extends AbstractStripedLockContainer<
    }
 
    @Override
-   public final boolean ownsLock(Object object, Object ignored) {
+   public final boolean ownsExclusiveLock(Object object, Object ignored) {
       ReentrantLock lock = getLock(object);
       return lock.isHeldByCurrentThread();
    }
 
    @Override
-   public final boolean isLocked(Object object) {
+   public boolean ownsShareLock(Object key, Object owner) {
+      return false;
+   }
+
+   @Override
+   public final boolean isExclusiveLocked(Object object) {
       ReentrantLock lock = getLock(object);
       return lock.isLocked();
+   }
+
+   @Override
+   public boolean isSharedLocked(Object key) {
+      return false;
    }
 
    public String toString() {
@@ -106,17 +115,34 @@ public class ReentrantStripedLockContainer extends AbstractStripedLockContainer<
    }
 
    @Override
-   protected void unlock(VisibleOwnerReentrantLock l, Object unused) {
+   protected void unlockExclusive(VisibleOwnerReentrantLock l, Object unused) {
       l.unlock();
    }
 
    @Override
-   protected boolean tryLock(VisibleOwnerReentrantLock lock, long timeout, TimeUnit unit, Object unused) throws InterruptedException {
+   protected void unlockShare(VisibleOwnerReentrantLock toRelease, Object owner) {
+      //no-op
+   }
+
+   @Override
+   protected boolean tryExclusiveLock(VisibleOwnerReentrantLock lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException {
       return lock.tryLock(timeout, unit);
    }
 
    @Override
-   protected void lock(VisibleOwnerReentrantLock lock, Object lockOwner) {
+   protected boolean tryShareLock(VisibleOwnerReentrantLock lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException {
+      return false;
+   }
+
+   @Override
+   protected void exclusiveLock(VisibleOwnerReentrantLock lock, Object lockOwner) {
       lock.lock();
    }
+
+   @Override
+   protected void shareLock(VisibleOwnerReentrantLock lock, Object lockOwner) {
+      //no-op
+   }
+
+
 }

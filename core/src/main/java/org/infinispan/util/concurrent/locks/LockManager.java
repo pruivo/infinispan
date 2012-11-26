@@ -33,6 +33,7 @@ import java.util.Collection;
  *
  * @author Manik Surtani (<a href="mailto:manik@jboss.org">manik@jboss.org</a>)
  * @author Mircea.Markus@jboss.com
+ * @author Pedro Ruivo
  * @since 4.0
  */
 public interface LockManager {
@@ -50,6 +51,8 @@ public interface LockManager {
     * @throws InterruptedException if interrupted
     */
    boolean lockAndRecord(Object key, InvocationContext ctx, long timeoutMillis) throws InterruptedException;
+
+   boolean shareLockAndRecord(Object key, InvocationContext ctx, long timeoutMillis) throws InterruptedException;
 
    /**
     * Releases the lock passed in.
@@ -141,13 +144,13 @@ public interface LockManager {
     * @throws org.infinispan.util.concurrent.TimeoutException
     *                              if we are unable to acquire the lock after a specified timeout.
     */
-   boolean acquireLock(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException, TimeoutException;
+   boolean acquireLock(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking, boolean share) throws InterruptedException, TimeoutException;
 
    /**
-    * Same as {@link #acquireLock(org.infinispan.context.InvocationContext, Object, long, boolean)}, but doesn't check whether the
+    * Same as {@link #acquireLock(org.infinispan.context.InvocationContext, Object, long, boolean, boolean)}, but doesn't check whether the
     * lock is already acquired by the caller. Useful in the case of transactions that use {@link OwnableReentrantLock}s
     * ,as these locks already perform this check internally.
     */
-   boolean acquireLockNoCheck(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException, TimeoutException;
+   boolean acquireLockNoCheck(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking, boolean share) throws InterruptedException, TimeoutException;
 
 }

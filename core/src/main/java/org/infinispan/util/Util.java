@@ -24,6 +24,7 @@ package org.infinispan.util;
 
 import org.infinispan.CacheConfigurationException;
 import org.infinispan.CacheException;
+import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.write.ApplyDeltaCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.DataWriteCommand;
@@ -39,7 +40,10 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import javax.naming.Context;
+import java.io.BufferedWriter;
 import java.io.Closeable;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.ObjectOutput;
 import java.io.OutputStream;
 import java.lang.management.LockInfo;
@@ -642,7 +646,7 @@ public final class Util {
                if (dataContainer == null) {
                   return null;
                }
-               set.addAll(dataContainer.keySet());
+               set.addAll(dataContainer.keySet(null));
                break;
             case PutKeyValueCommand.COMMAND_ID:
             case RemoveCommand.COMMAND_ID:
@@ -660,5 +664,21 @@ public final class Util {
          }
       }
       return set;
+   }
+
+   public static Set<Object> getAffectedKeys(PrepareCommand command, DataContainer dataContainer) {
+      return getAffectedKeys(Arrays.asList(command.getModifications()), dataContainer);
+   }
+
+   public static BufferedWriter getBufferedWriter(String filePath) {
+      try {
+         return new BufferedWriter(new FileWriter(filePath));
+      } catch (IOException e) {
+         return null;
+      }
+   }
+
+   public static void safeWrite(BufferedWriter writer, Object object) throws IOException {
+      writer.write(object == null ? "null" : object.toString());
    }
 }

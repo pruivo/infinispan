@@ -44,6 +44,7 @@ public class Configuration {
    private final Map<Class<?>, ?> moduleConfiguration;
    private final SitesConfiguration sites;
    private final DataPlacementConfiguration dataPlacementConfiguration;
+   private final GarbageCollectorConfiguration garbageCollectorConfiguration;
 
    Configuration(ClusteringConfiguration clusteringConfiguration,
                  CustomInterceptorsConfiguration customInterceptorsConfiguration,
@@ -55,7 +56,7 @@ public class Configuration {
                  LockingConfiguration lockingConfiguration, StoreAsBinaryConfiguration storeAsBinaryConfiguration,
                  TransactionConfiguration transactionConfiguration, UnsafeConfiguration unsafeConfiguration,
                  VersioningConfiguration versioningConfiguration, List<?> modules, SitesConfiguration sites, ClassLoader cl,
-                 DataPlacementConfiguration dataPlacementConfiguration) {
+                 DataPlacementConfiguration dataPlacementConfiguration, GarbageCollectorConfiguration garbageCollectorConfiguration) {
       this.clusteringConfiguration = clusteringConfiguration;
       this.customInterceptorsConfiguration = customInterceptorsConfiguration;
       this.dataContainerConfiguration = dataContainerConfiguration;
@@ -79,6 +80,7 @@ public class Configuration {
       this.sites = sites;
       this.classLoader = cl;
       this.dataPlacementConfiguration = dataPlacementConfiguration;
+      this.garbageCollectorConfiguration = garbageCollectorConfiguration;
    }
 
    /**
@@ -166,6 +168,11 @@ public class Configuration {
       return dataPlacementConfiguration;
    }
 
+   public GarbageCollectorConfiguration garbageCollector() {
+      return garbageCollectorConfiguration;
+   }
+
+
    @Override
    public String toString() {
       return "Configuration{" +
@@ -188,6 +195,7 @@ public class Configuration {
             ", unsafe=" + unsafeConfiguration +
             ", sites=" + sites +
             ", dataPlacement=" + dataPlacementConfiguration +
+            ", garbageCollector=" + garbageCollectorConfiguration +
             '}';
    }
 
@@ -237,6 +245,9 @@ public class Configuration {
       if (dataPlacementConfiguration != null ? !dataPlacementConfiguration.equals(that.dataPlacementConfiguration) :
             that.dataContainerConfiguration != null)
          return false;
+      if (garbageCollectorConfiguration != null ? !garbageCollectorConfiguration.equals(that.garbageCollectorConfiguration) :
+      that.garbageCollectorConfiguration != null)
+         return false;
 
       return true;
    }
@@ -262,6 +273,7 @@ public class Configuration {
       result = 31 * result + (unsafeConfiguration != null ? unsafeConfiguration.hashCode() : 0);
       result = 31 * result + (sites != null ? sites.hashCode() : 0);
       result = 31 * result + (dataPlacementConfiguration != null ? dataPlacementConfiguration.hashCode() : 0);
+      result = 31 * result + (garbageCollectorConfiguration != null ? garbageCollectorConfiguration.hashCode() : 0);
       return result;
    }
 }

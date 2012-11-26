@@ -296,18 +296,18 @@ public class QueryInterceptor extends CommandInterceptor {
       for (int i=0; i<writeCommands.length; i++) {
          final WriteCommand writeCommand = writeCommands[i];
          if (writeCommand instanceof PutKeyValueCommand) {
-            InternalCacheEntry internalCacheEntry = dataContainer.get(((PutKeyValueCommand) writeCommand).getKey());
+            InternalCacheEntry internalCacheEntry = dataContainer.get(((PutKeyValueCommand) writeCommand).getKey(), null);
             stateBeforePrepare[i] = internalCacheEntry != null ? internalCacheEntry.getValue() : null;
          }
          else if (writeCommand instanceof PutMapCommand) {
             //think about this: ISPN-2478
          }
          else if (writeCommand instanceof RemoveCommand) {
-            InternalCacheEntry internalCacheEntry = dataContainer.get(((RemoveCommand) writeCommand).getKey());
+            InternalCacheEntry internalCacheEntry = dataContainer.get(((RemoveCommand) writeCommand).getKey(), null);
             stateBeforePrepare[i] = internalCacheEntry != null ? internalCacheEntry.getValue() : null;
          }
          else if (writeCommand instanceof ReplaceCommand) {
-            InternalCacheEntry internalCacheEntry = dataContainer.get(((ReplaceCommand) writeCommand).getKey());
+            InternalCacheEntry internalCacheEntry = dataContainer.get(((ReplaceCommand) writeCommand).getKey(), null);
             stateBeforePrepare[i] = internalCacheEntry != null ? internalCacheEntry.getValue() : null;
          }
       }

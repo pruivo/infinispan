@@ -173,7 +173,7 @@ public class MarshalledValueTest extends MultipleCacheManagersTest {
 
       DataContainer dc1 = TestingUtil.extractComponent(cache1, DataContainer.class);
 
-      InternalCacheEntry ice = dc1.get("key");
+      InternalCacheEntry ice = dc1.get("key", null);
       Object o = ice.getValue();
       assert o instanceof MarshalledValue;
       MarshalledValue mv = (MarshalledValue) o;
@@ -188,7 +188,7 @@ public class MarshalledValueTest extends MultipleCacheManagersTest {
 
       // now on cache 2
       DataContainer dc2 = TestingUtil.extractComponent(cache2, DataContainer.class);
-      ice = dc2.get("key");
+      ice = dc2.get("key", null);
       o = ice.getValue();
       assert o instanceof MarshalledValue;
       mv = (MarshalledValue) o;
@@ -213,7 +213,7 @@ public class MarshalledValueTest extends MultipleCacheManagersTest {
 
       DataContainer dc1 = TestingUtil.extractComponent(cache1, DataContainer.class);
 
-      Object o = dc1.keySet().iterator().next();
+      Object o = dc1.keySet(null).iterator().next();
       assert o instanceof MarshalledValue;
       MarshalledValue mv = (MarshalledValue) o;
       assertDeserialized(mv);
@@ -230,7 +230,7 @@ public class MarshalledValueTest extends MultipleCacheManagersTest {
 
       // now on cache 2
       DataContainer dc2 = TestingUtil.extractComponent(cache2, DataContainer.class);
-      o = dc2.keySet().iterator().next();
+      o = dc2.keySet(null).iterator().next();
       assert o instanceof MarshalledValue;
       mv = (MarshalledValue) o;
       assertSerialized(mv);
