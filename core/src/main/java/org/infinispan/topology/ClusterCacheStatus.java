@@ -21,6 +21,7 @@ package org.infinispan.topology;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import org.infinispan.distribution.ch.ConsistentHash;
@@ -52,7 +53,10 @@ public class ClusterCacheStatus {
 
    private volatile RebalanceConfirmationCollector rebalanceStatus;
 
+   private final List<CacheTopology> cacheTopologyHistory;
+
    public ClusterCacheStatus(String cacheName, CacheJoinInfo joinInfo) {
+      this.cacheTopologyHistory = new ArrayList<CacheTopology>(5);
       this.cacheName = cacheName;
       this.joinInfo = joinInfo;
 
@@ -180,6 +184,23 @@ public class ClusterCacheStatus {
          }
          if (trace) log.tracef("Cache %s topology updated: members = %s, joiners = %s, topology = %s",
                cacheName, members, joiners, cacheTopology);
+         
+         if (!cacheTopologyHistory.contains(newTopology)) {
+            cacheTopologyHistory.add(newTopology);
+         }
+      }
+   }
+
+   public final synchronized List<CacheTopology> getCacheTopologyHistory() {
+      return Collections.unmodifiableList(cacheTopologyHistory);
+   }
+   
+   public final synchronized void gcUnreachableCacheTopology(int minTopologyId) {
+      Iterator<CacheTopology> iterator = cacheTopologyHistory.iterator();
+      while (iterator.hasNext()) {
+         if (iterator.next().getTopologyId() < minTopologyId) {
+            iterator.remove();
+         }
       }
    }
 

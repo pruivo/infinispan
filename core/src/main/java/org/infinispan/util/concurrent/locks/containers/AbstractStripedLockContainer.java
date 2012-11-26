@@ -39,7 +39,7 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
    private int lockSegmentShift;
 
 
-   final int calculateNumberOfSegments(int concurrencyLevel) {
+   protected final int calculateNumberOfSegments(int concurrencyLevel) {
       int tempLockSegShift = 0;
       int numLocks = 1;
       while (numLocks < concurrencyLevel) {
@@ -51,7 +51,7 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
       return numLocks;
    }
 
-   final int hashToIndex(Object object) {
+   protected final int hashToIndex(Object object) {
       return (hash(object) >>> lockSegmentShift) & lockSegmentMask;
    }
 
@@ -75,11 +75,20 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
    protected abstract void initLocks(int numLocks);
 
    @Override
-   public L acquireLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
+   public L acquireExclusiveLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
+      return acquire(lockOwner, key, timeout, unit, false);
+   }
+
+   @Override
+   public L acquireShareLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
+      return acquire(lockOwner, key, timeout, unit, true);
+   }
+
+   private L acquire(Object lockOwner, Object key, long timeout, TimeUnit unit, boolean share) throws InterruptedException {
       L lock = getLock(key);
       boolean locked;
       try {
-         locked = tryLock(lock, timeout, unit, lockOwner);
+         locked = share ? tryShareLock(lock, timeout, unit, lockOwner) : tryExclusiveLock(lock, timeout, unit, lockOwner);
       } catch (InterruptedException ie) {
          safeRelease(lock, lockOwner);
          throw ie;

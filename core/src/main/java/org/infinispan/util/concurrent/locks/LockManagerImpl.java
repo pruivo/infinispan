@@ -60,6 +60,7 @@ public class LockManagerImpl implements LockManager {
    private static final Log log = LogFactory.getLog(LockManagerImpl.class);
    protected static final boolean trace = log.isTraceEnabled();
    private static final String ANOTHER_THREAD = "(another thread)";
+   private static final String SHARED_LOCK = "(shared lock)";
 
    @Inject
    public void injectDependencies(Configuration configuration, LockContainer<?> lockContainer) {
@@ -69,27 +70,12 @@ public class LockManagerImpl implements LockManager {
 
    @Override
    public boolean lockAndRecord(Object key, InvocationContext ctx, long timeoutMillis) throws InterruptedException {
-      if (trace) log.tracef("Attempting to lock %s with acquisition timeout of %s millis", toStr(key), timeoutMillis);
-      if (lockContainer.acquireLock(ctx.getLockOwner(), key, timeoutMillis, MILLISECONDS) != null) {
-         if (trace) log.tracef("Successfully acquired lock %s!", toStr(key));
-         return true;
-      }
+      return internalLockAndRecord(key, ctx, timeoutMillis, false);
+   }
 
-      // couldn't acquire lock!
-      if (log.isDebugEnabled()) {
-         log.debugf("Failed to acquire lock %s, owner is %s", toStr(key), getOwner(key));
-         Object owner = ctx.getLockOwner();
-         Set<Map.Entry<Object, CacheEntry>> entries = ctx.getLookedUpEntries().entrySet();
-         List<Object> lockedKeys = new ArrayList<Object>(entries.size());
-         for (Map.Entry<Object, CacheEntry> e : entries) {
-            Object lockedKey = e.getKey();
-            if (ownsLock(lockedKey, owner)) {
-               lockedKeys.add(lockedKey);
-            }
-         }
-         log.debugf("This transaction (%s) already owned locks %s", owner, lockedKeys);
-      }
-      return false;
+   @Override
+   public final boolean shareLockAndRecord(Object key, InvocationContext ctx, long timeoutMillis) throws InterruptedException {
+      return internalLockAndRecord(key, ctx, timeoutMillis, true);
    }
 
    @Override
@@ -110,17 +96,17 @@ public class LockManagerImpl implements LockManager {
 
    @Override
    public boolean ownsLock(Object key, Object owner) {
-      return lockContainer.ownsLock(key, owner);
+      return lockContainer.ownsExclusiveLock(key, owner);
    }
 
    @Override
    public boolean isLocked(Object key) {
-      return lockContainer.isLocked(key);
+      return lockContainer.isExclusiveLocked(key);
    }
 
    @Override
    public Object getOwner(Object key) {
-      if (lockContainer.isLocked(key)) {
+      if (lockContainer.isExclusiveLocked(key)) {
          Lock l = lockContainer.getLock(key);
 
          if (l instanceof OwnableReentrantLock) {
@@ -134,6 +120,8 @@ public class LockManagerImpl implements LockManager {
          }
 
          return ANOTHER_THREAD;
+      } else if (lockContainer.isSharedLocked(key)) {
+         return SHARED_LOCK;
       } else {
          // not locked
          return null;
@@ -177,14 +165,14 @@ public class LockManagerImpl implements LockManager {
 //   }
 
    @Override
-   public boolean acquireLock(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException, TimeoutException {
+   public boolean acquireLock(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking, boolean shared) throws InterruptedException, TimeoutException {
       // don't EVER use lockManager.isLocked() since with lock striping it may be the case that we hold the relevant
       // lock which may be shared with another key that we have a lock for already.
       // nothing wrong, just means that we fail to record the lock.  And that is a problem.
       // Better to check our records and lock again if necessary.
       if (!ctx.hasLockedKey(key) && !skipLocking) {
 //         return lock(ctx, key, timeoutMillis < 0 ? getLockAcquisitionTimeout(ctx) : timeoutMillis);
-         return lock(ctx, key, timeoutMillis);
+         return lock(ctx, key, timeoutMillis, shared);
       } else {
          logLockNotAcquired(skipLocking);
       }
@@ -192,17 +180,17 @@ public class LockManagerImpl implements LockManager {
    }
 
    @Override
-   public final boolean acquireLockNoCheck(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException, TimeoutException {
+   public final boolean acquireLockNoCheck(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking, boolean shared) throws InterruptedException, TimeoutException {
       if (!skipLocking) {
-         return lock(ctx, key, timeoutMillis);
+         return lock(ctx, key, timeoutMillis, shared);
       } else {
          logLockNotAcquired(skipLocking);
       }
       return false;
    }
 
-   private boolean lock(InvocationContext ctx, Object key, long timeoutMillis) throws InterruptedException {
-      if (lockAndRecord(key, ctx, timeoutMillis)) {
+   private boolean lock(InvocationContext ctx, Object key, long timeoutMillis, boolean share) throws InterruptedException {
+      if (share ? shareLockAndRecord(key, ctx, timeoutMillis) : lockAndRecord(key, ctx, timeoutMillis)) {
          ctx.addLockedKey(key);
          return true;
       } else {
@@ -223,5 +211,34 @@ public class LockManagerImpl implements LockManager {
          else
             log.trace("Already own lock for entry");
       }
+   }
+
+   protected boolean internalLockAndRecord(Object key, InvocationContext ctx, long timeoutMillis, boolean share) throws InterruptedException {
+      if (trace) log.tracef("Attempting to lock %s with acquisition timeout of %s millis", toStr(key), timeoutMillis);
+      if (tryAcquire(ctx.getLockOwner(), key, timeoutMillis, share)) {
+         if (trace) log.tracef("Successfully acquired lock %s!", toStr(key));
+         return true;
+      }
+
+      // couldn't acquire lock!
+      if (log.isDebugEnabled()) {
+         log.debugf("Failed to acquire lock %s, owner is %s", toStr(key), getOwner(key));
+         Object owner = ctx.getLockOwner();
+         Set<Map.Entry<Object, CacheEntry>> entries = ctx.getLookedUpEntries().entrySet();
+         List<Object> lockedKeys = new ArrayList<Object>(entries.size());
+         for (Map.Entry<Object, CacheEntry> e : entries) {
+            Object lockedKey = e.getKey();
+            if (ownsLock(lockedKey, owner)) {
+               lockedKeys.add(lockedKey);
+            }
+         }
+         log.debugf("This transaction (%s) already owned locks %s", owner, lockedKeys);
+      }
+      return false;
+   }
+
+   protected final boolean tryAcquire(Object key, Object owner, long timeoutMillis, boolean share) throws InterruptedException {
+      return (share ? lockContainer.acquireShareLock(owner, key, timeoutMillis, MILLISECONDS) :
+                    lockContainer.acquireExclusiveLock(owner, key, timeoutMillis, MILLISECONDS)) != null;
    }
 }

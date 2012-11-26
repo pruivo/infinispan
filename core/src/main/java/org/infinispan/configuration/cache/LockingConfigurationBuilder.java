@@ -136,9 +136,6 @@ public class LockingConfigurationBuilder extends AbstractConfigurationChildBuild
 
       if (isolationLevel == IsolationLevel.READ_UNCOMMITTED)
          isolationLevel = IsolationLevel.READ_COMMITTED;
-
-      if (isolationLevel == IsolationLevel.SERIALIZABLE)
-         isolationLevel = IsolationLevel.REPEATABLE_READ;
    }
 
    @Override

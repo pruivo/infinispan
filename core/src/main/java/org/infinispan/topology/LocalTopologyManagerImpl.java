@@ -21,6 +21,7 @@ package org.infinispan.topology;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentMap;
@@ -102,11 +103,18 @@ public class LocalTopologyManagerImpl implements LocalTopologyManager {
       long endTime = timeService.expectedEndTime(timeout, TimeUnit.MILLISECONDS);
       while (true) {
          try {
-            CacheTopology initialTopology = (CacheTopology) executeOnCoordinator(command, timeout);
+            List<CacheTopology> cacheTopologyHistory = (List<CacheTopology>) executeOnCoordinator(command, timeout);
             // if the current coordinator is shutting down, it will return a null CacheTopology
-            if (initialTopology != null) {
-               handleConsistentHashUpdate(cacheName, initialTopology, viewId);
-               return initialTopology;
+            if (cacheTopologyHistory != null && !cacheTopologyHistory.isEmpty()) {
+               CacheTopology initialCacheTopology = null;
+               for (CacheTopology cacheTopology : cacheTopologyHistory) {
+                  if (initialCacheTopology == null || initialCacheTopology.getTopologyId() < cacheTopology.getTopologyId()) {
+                     initialCacheTopology = cacheTopology;
+                  }
+               }
+               stm.addInitialCacheTopologyHistory(cacheTopologyHistory);
+               handleConsistentHashUpdate(cacheName, initialCacheTopology, viewId);
+               return initialCacheTopology;
             }
          } catch (Exception e) {
             log.debugf(e, "Error sending join request for cache %s to coordinator", cacheName);

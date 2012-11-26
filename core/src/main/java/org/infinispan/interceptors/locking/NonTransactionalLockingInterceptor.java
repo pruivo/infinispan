@@ -65,7 +65,7 @@ public class NonTransactionalLockingInterceptor extends AbstractLockingIntercept
       assertNonTransactional(ctx);
       boolean skipLocking = hasSkipLocking(command);
       long lockTimeout = getLockAcquisitionTimeout(command, skipLocking);
-      for (Object key: dataContainer.keySet()) {
+      for (Object key: dataContainer.keySet(null)) {
          if (shouldLock(key, command)) {
             lockKey(ctx, key, lockTimeout, skipLocking);
          }

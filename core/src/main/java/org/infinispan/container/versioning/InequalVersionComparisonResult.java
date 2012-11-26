@@ -44,5 +44,13 @@ public enum InequalVersionComparisonResult {
     * Denotes a version that was created at the same time as another version, but is not equal.  This is only really
     * useful when using a partition-aware versioning scheme, such as vector or Lamport clocks.
     */
-   CONFLICTING
+   CONFLICTING,
+   /**
+    * Denotes a version that was created temporally <i>before</i> or <i>equal</i> than another version
+    */
+   BEFORE_OR_EQUAL,
+   /**
+    * Denotes a version that was created temporally <i>after</i> or <i>equal</i> than another version
+    */
+   AFTER_OR_EQUAL
 }

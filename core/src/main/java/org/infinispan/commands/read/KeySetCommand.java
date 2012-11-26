@@ -57,7 +57,7 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
 
    @Override
    public Set<Object> perform(InvocationContext ctx) throws Throwable {
-      Set<Object> objects = container.keySet();
+      Set<Object> objects = container.keySet(null);
       if (noTxModifications(ctx)) {
          return new ExpiredFilteredKeySet(objects, container);
       }
@@ -68,7 +68,7 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
    @Override
    public String toString() {
       return "KeySetCommand{" +
-            "set=" + container.size() + " elements" +
+            "set=" + container.size(null) + " elements" +
             '}';
    }
 
@@ -89,7 +89,7 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
          // First, removed any expired keys
          for (Object k : keySet) {
             // Given the key set, a key won't be contained if it's expired
-            if (!container.containsKey(k))
+            if (!container.containsKey(k, null))
                size--;
          }
          // Update according to keys added or removed in tx
@@ -276,7 +276,7 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
          int s = keySet.size();
          for (Object k : keySet) {
             // Given the key set, a key won't be contained if it's expired
-            if (!container.containsKey(k))
+            if (!container.containsKey(k, null))
                s--;
          }
          return s;
@@ -294,7 +294,7 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
          private void fetchNext() {
             while (it.hasNext()) {
                Object k = it.next();
-               if (container.containsKey(k)) {
+               if (container.containsKey(k, null)) {
                   next = k;
                   break;
                }

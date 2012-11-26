@@ -59,4 +59,6 @@ public interface TotalOrderPrepareCommand extends TransactionBoundaryCommand {
     * @return returns the {@link TotalOrderRemoteTransactionState} associated with this transaction.
     */
    TotalOrderRemoteTransactionState getOrCreateState();
+
+   Object[] getKeysToLock();
 }

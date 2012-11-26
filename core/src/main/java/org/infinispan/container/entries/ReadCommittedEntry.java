@@ -175,7 +175,7 @@ public class ReadCommittedEntry implements MVCCEntry {
          }
 
          if (isRemoved()) {
-            container.remove(key);
+            container.remove(key, providedMetadata == null ? metadata : providedMetadata);
          } else if (value != null) {
             // Can't just rely on the entry's metadata because it could have
             // been modified by the interceptor chain (i.e. new version
@@ -301,4 +301,5 @@ public class ReadCommittedEntry implements MVCCEntry {
       }
       return false;
    }
+
 }

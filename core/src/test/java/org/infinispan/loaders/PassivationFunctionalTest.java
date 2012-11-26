@@ -85,7 +85,7 @@ public class PassivationFunctionalTest extends AbstractInfinispanTest {
    }
 
    private void assertInCacheNotInStore(Object key, Object value, long lifespanMillis) throws CacheLoaderException {
-      InternalCacheEntry se = cache.getAdvancedCache().getDataContainer().get(key);
+      InternalCacheEntry se = cache.getAdvancedCache().getDataContainer().get(key, null);
       testStoredEntry(se, value, lifespanMillis, "Cache", key);
       assert !store.containsKey(key) : "Key " + key + " should not be in store!";
    }
@@ -97,7 +97,7 @@ public class PassivationFunctionalTest extends AbstractInfinispanTest {
    private void assertInStoreNotInCache(Object key, Object value, long lifespanMillis) throws CacheLoaderException {
       InternalCacheEntry se = store.load(key);
       testStoredEntry(se, value, lifespanMillis, "Store", key);
-      assert !cache.getAdvancedCache().getDataContainer().containsKey(key) : "Key " + key + " should not be in cache!";
+      assert !cache.getAdvancedCache().getDataContainer().containsKey(key, null) : "Key " + key + " should not be in cache!";
    }
 
 
@@ -109,7 +109,7 @@ public class PassivationFunctionalTest extends AbstractInfinispanTest {
 
    private void assertNotInCacheAndStore(Object... keys) throws CacheLoaderException {
       for (Object key : keys) {
-         assert !cache.getAdvancedCache().getDataContainer().containsKey(key) : "Cache should not contain key " + key;
+         assert !cache.getAdvancedCache().getDataContainer().containsKey(key, null) : "Cache should not contain key " + key;
          assert !store.containsKey(key) : "Store should not contain key " + key;
       }
    }

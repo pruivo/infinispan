@@ -66,7 +66,7 @@ public class ClusteredGetCommand extends BaseRpcCommand implements FlagAffectedC
    private Object key;
 
    private InvocationContextContainer icc;
-   private CommandsFactory commandsFactory;
+   protected CommandsFactory commandsFactory;
    private InterceptorChain invoker;
    private boolean acquireRemoteLock;
    private GlobalTransaction gtx;
@@ -117,16 +117,19 @@ public class ClusteredGetCommand extends BaseRpcCommand implements FlagAffectedC
     * @return returns an <code>CacheEntry</code> or null, if no entry is found.
     */
    @Override
-   public InternalCacheValue perform(InvocationContext context) throws Throwable {
+   public Object perform(InvocationContext context) throws Throwable {
       acquireLocksIfNeeded();
       if (distributionManager != null && distributionManager.isAffectedByRehash(key)) return null;
       // make sure the get command doesn't perform a remote call
       // as our caller is already calling the ClusteredGetCommand on all the relevant nodes
       Set<Flag> commandFlags = EnumSet.of(Flag.SKIP_REMOTE_LOOKUP, Flag.CACHE_MODE_LOCAL);
       if (this.flags != null) commandFlags.addAll(this.flags);
-      GetKeyValueCommand command = commandsFactory.buildGetKeyValueCommand(key, commandFlags, true);
-      InvocationContext invocationContext = icc.createRemoteInvocationContextForCommand(command, getOrigin());
-      CacheEntry cacheEntry = (CacheEntry) invoker.invoke(invocationContext, command);
+      GetKeyValueCommand command = constructCommand(commandFlags);
+      return invoke(command, createInvocationContext(command));
+   }
+
+   protected InternalCacheValue invoke(GetKeyValueCommand command, InvocationContext context) {
+      CacheEntry cacheEntry = (CacheEntry) invoker.invoke(context, command);
       if (cacheEntry == null) {
          if (trace) log.trace("Did not find anything, returning null");
          return null;
@@ -140,6 +143,14 @@ public class ClusteredGetCommand extends BaseRpcCommand implements FlagAffectedC
          InternalCacheEntry internalCacheEntry = (InternalCacheEntry) cacheEntry;
          return internalCacheEntry.toInternalCacheValue();
       }
+   }
+
+   protected GetKeyValueCommand constructCommand(Set<Flag> flags) {
+      return commandsFactory.buildGetKeyValueCommand(key, flags, true);
+   }
+
+   protected InvocationContext createInvocationContext(GetKeyValueCommand command) {
+      return icc.createRemoteInvocationContextForCommand(command, getOrigin());
    }
 
    private void acquireLocksIfNeeded() throws Throwable {

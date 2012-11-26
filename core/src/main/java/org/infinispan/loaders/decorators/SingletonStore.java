@@ -213,9 +213,9 @@ public class SingletonStore extends AbstractDelegatingStore {
     */
    protected void pushState(final Cache<Object, Object> cache) throws Exception {
       DataContainer dc = cache.getAdvancedCache().getDataContainer();
-      Set<Object> keys = dc.keySet();
+      Set<Object> keys = dc.keySet(null);
       InternalCacheEntry entry;
-      for (Object k : keys) if ((entry = dc.get(k)) != null) store(entry);
+      for (Object k : keys) if ((entry = dc.get(k, null)) != null) store(entry);
    }
 
 

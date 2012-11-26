@@ -32,6 +32,8 @@ import org.infinispan.commands.read.MapCombineCommand;
 import org.infinispan.commands.read.ReduceCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
+import org.infinispan.commands.remote.GMUClusteredGetCommand;
+import org.infinispan.commands.remote.GarbageCollectorControlCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.remote.recovery.CompleteTransactionCommand;
@@ -39,11 +41,15 @@ import org.infinispan.commands.remote.recovery.GetInDoubtTransactionsCommand;
 import org.infinispan.commands.remote.recovery.GetInDoubtTxInfoCommand;
 import org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand;
 import org.infinispan.commands.tx.CommitCommand;
+import org.infinispan.commands.tx.GMUCommitCommand;
+import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
 import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderCommitCommand;
+import org.infinispan.commands.tx.totalorder.TotalOrderGMUCommitCommand;
+import org.infinispan.commands.tx.totalorder.TotalOrderGMUPrepareCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderNonVersionedPrepareCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderRollbackCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderVersionedCommitCommand;
@@ -75,6 +81,8 @@ import java.util.Map;
  * @see CommandsFactory#initializeReplicableCommand(ReplicableCommand,boolean)
  * @author Manik Surtani
  * @author Mircea.Markus@jboss.com
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 @Scope(Scopes.GLOBAL)
@@ -246,6 +254,24 @@ public class RemoteCommandsFactory {
                break;
             case CancelCommand.COMMAND_ID:
                command = new CancelCommand(cacheName);
+               break;
+            case GMUPrepareCommand.COMMAND_ID:
+               command = new GMUPrepareCommand(cacheName);
+               break;
+            case GMUCommitCommand.COMMAND_ID:
+               command = new GMUCommitCommand(cacheName);
+               break;
+            case GMUClusteredGetCommand.COMMAND_ID:
+               command = new GMUClusteredGetCommand(cacheName);
+               break;
+            case GarbageCollectorControlCommand.COMMAND_ID:
+               command = new GarbageCollectorControlCommand(cacheName);
+               break;
+            case TotalOrderGMUPrepareCommand.COMMAND_ID:
+               command = new TotalOrderGMUPrepareCommand(cacheName);
+               break;
+            case TotalOrderGMUCommitCommand.COMMAND_ID:
+               command = new TotalOrderGMUCommitCommand(cacheName);
                break;
             default:
                throw new CacheException("Unknown command id " + id + "!");

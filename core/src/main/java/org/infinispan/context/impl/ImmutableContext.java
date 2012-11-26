@@ -22,6 +22,8 @@ package org.infinispan.context.impl;
 import org.infinispan.CacheException;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.container.versioning.EntryVersion;
+import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.InfinispanCollections;
@@ -34,6 +36,8 @@ import java.util.Set;
  * to the method invocation which caused them.
  * 
  * @author Sanne Grinovero <sanne@infinispan.org> (C) 2011 Red Hat Inc.
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  */
 public final class ImmutableContext implements InvocationContext {
    
@@ -152,5 +156,40 @@ public final class ImmutableContext implements InvocationContext {
    @Override
    public boolean isEntryRemovedInContext(Object key) {
       return false;
+   }
+
+   @Override
+   public void addKeyReadInCommand(Object key, InternalCacheEntry entry) {
+      //no-op
+   }
+
+   @Override
+   public void clearKeyReadInCommand() {
+      //no-op
+   }
+
+   @Override
+   public Map<Object, InternalCacheEntry> getKeysReadInCommand() {
+      return InfinispanCollections.emptyMap();
+   }
+
+   @Override
+   public EntryVersion calculateVersionToRead(VersionGenerator versionGenerator) {
+      return null;
+   }
+
+   @Override
+   public void setVersionToRead(EntryVersion entryVersion) {
+      //no-op
+   }
+
+   @Override
+   public boolean hasAlreadyReadOnThisNode() {
+      return false;
+   }
+
+   @Override
+   public void setAlreadyReadOnThisNode(boolean value) {
+      //no-op
    }
 }

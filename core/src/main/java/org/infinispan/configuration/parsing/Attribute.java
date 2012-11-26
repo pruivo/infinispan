@@ -153,7 +153,12 @@ public enum Attribute {
     TRANSACTION_PROTOCOL("transactionProtocol"),
     KEY_EQUIVALENCE("keyEquivalence"),
     VALUE_EQUIVALENCE("valueEquivalence"),
-    TYPE_CONVERTER("typeConverter");
+    TYPE_CONVERTER("typeConverter"),
+    TRANSACTION_THRESHOLD("transactionThreshold"),
+    VERSION_GC_MAX_IDLE("versionGCMaxIdle"),
+    L1_GC_INTERVAL("l1GCInterval"),
+    VIEW_GC_BACK_OFF("viewGCBackOff"),
+    ;
 
     private final String name;
 

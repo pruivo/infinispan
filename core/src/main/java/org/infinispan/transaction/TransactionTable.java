@@ -45,6 +45,7 @@ import org.infinispan.notifications.cachelistener.event.TopologyChangedEvent;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
+import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.transaction.synchronization.SyncLocalTransaction;
 import org.infinispan.transaction.synchronization.SynchronizationAdapter;
 import org.infinispan.transaction.xa.CacheTransaction;
@@ -74,6 +75,8 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author Mircea.Markus@jboss.com
  * @author Galder Zamarreño
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 @Listener
@@ -110,13 +113,15 @@ public class TransactionTable {
    private String cacheName;
    private TimeService timeService;
 
+   protected CommitLog commitLog;
+
    @Inject
    public void initialize(RpcManager rpcManager, Configuration configuration,
                           InvocationContextContainer icc, InterceptorChain invoker, CacheNotifier notifier,
                           TransactionFactory gtf, TransactionCoordinator txCoordinator,
                           TransactionSynchronizationRegistry transactionSynchronizationRegistry,
                           CommandsFactory commandsFactory, ClusteringDependentLogic clusteringDependentLogic, Cache cache,
-                          TimeService timeService) {
+                          TimeService timeService, CommitLog commitLog) {
       this.rpcManager = rpcManager;
       this.configuration = configuration;
       this.icc = icc;
@@ -129,6 +134,7 @@ public class TransactionTable {
       this.clusteringLogic = clusteringDependentLogic;
       this.cacheName = cache.getName();
       this.timeService = timeService;
+      this.commitLog = commitLog;
    }
 
    @Start(priority = 9) // Start before cache loader manager
@@ -219,6 +225,7 @@ public class TransactionTable {
                throw new CacheException(e);
             }
          }
+         commitLog.initLocalTransaction(localTransaction);
          ((SyncLocalTransaction) localTransaction).setEnlisted(true);
       }
    }

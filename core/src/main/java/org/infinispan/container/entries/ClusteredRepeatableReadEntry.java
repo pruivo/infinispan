@@ -44,7 +44,7 @@ public class ClusteredRepeatableReadEntry extends RepeatableReadEntry implements
 
    public boolean performWriteSkewCheck(DataContainer container, TxInvocationContext ctx, boolean previousRead) {
       EntryVersion prevVersion;
-      InternalCacheEntry ice = container.get(key);
+      InternalCacheEntry ice = container.get(key, null);
       EntryVersion version = metadata.version();
       if (ice == null) {
          log.tracef("No entry for key %s found in data container" , key);

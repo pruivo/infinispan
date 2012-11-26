@@ -356,7 +356,7 @@ public class JCache<K, V> implements Cache<K, V> {
       // methods to acquire the exclusive lock. This latter requirement is
       // specifically tested by the TCK comparing duration of paralell
       // executions.
-      boolean locked = processorLocks.isLocked(key);
+      boolean locked = processorLocks.isExclusiveLocked(key);
       if (log.isTraceEnabled())
          log.tracef("Lock required for key=%s? %s", key, locked);
 
@@ -364,7 +364,7 @@ public class JCache<K, V> implements Cache<K, V> {
    }
 
    private void acquiredProcessorLock(K key) throws InterruptedException {
-      processorLocks.acquireLock(
+      processorLocks.acquireExclusiveLock(
             Thread.currentThread(), key, lockTimeout, TimeUnit.MILLISECONDS);
    }
 

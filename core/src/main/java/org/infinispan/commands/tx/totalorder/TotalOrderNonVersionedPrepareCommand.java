@@ -77,4 +77,8 @@ public class TotalOrderNonVersionedPrepareCommand extends PrepareCommand impleme
       return getRemoteTransaction().getTransactionState();
    }
 
+   @Override
+   public Object[] getKeysToLock() {
+      return getAffectedKeysToLock(false);
+   }
 }

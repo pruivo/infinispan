@@ -26,5 +26,5 @@ package org.infinispan.configuration.cache;
  * @since 5.1
  */
 public enum VersioningScheme {
-   SIMPLE, NONE
+   SIMPLE, GMU, NONE
 }

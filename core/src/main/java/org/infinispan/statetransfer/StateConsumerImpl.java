@@ -444,7 +444,7 @@ public class StateConsumerImpl implements StateConsumer {
       }
 
       if (trace) {
-         log.tracef("Before applying the received state the data container of cache %s has %d keys", cacheName, dataContainer.size());
+         log.tracef("Before applying the received state the data container of cache %s has %d keys", cacheName, dataContainer.size(null));
       }
 
       for (StateChunk stateChunk : stateChunks) {
@@ -472,7 +472,7 @@ public class StateConsumerImpl implements StateConsumer {
       }
 
       if (trace) {
-         log.tracef("After applying the received state the data container of cache %s has %d keys", cacheName, dataContainer.size());
+         log.tracef("After applying the received state the data container of cache %s has %d keys", cacheName, dataContainer.size(null));
          synchronized (this) {
             log.tracef("Segments not received yet for cache %s: %s", cacheName, transfersBySource);
          }
@@ -868,7 +868,7 @@ public class StateConsumerImpl implements StateConsumer {
             InvocationContext ctx = icc.createNonTxInvocationContext();
             interceptorChain.invoke(ctx, invalidateCmd);
 
-            log.debugf("Invalidated %d keys, data container now has %d keys", keysToL1.size(), dataContainer.size());
+            log.debugf("Invalidated %d keys, data container now has %d keys", keysToL1.size(), dataContainer.size(null));
             if (trace) log.tracef("Invalidated keys: %s", keysToL1);
          } catch (CacheException e) {
             log.failedToInvalidateKeys(e);
@@ -882,7 +882,7 @@ public class StateConsumerImpl implements StateConsumer {
             InvocationContext ctx = icc.createNonTxInvocationContext();
             interceptorChain.invoke(ctx, invalidateCmd);
 
-            log.debugf("Invalidated %d keys, data container of cache %s now has %d keys", keysToRemove.size(), cacheName, dataContainer.size());
+            log.debugf("Invalidated %d keys, data container of cache %s now has %d keys", keysToRemove.size(), cacheName, dataContainer.size(null));
             if (trace) log.tracef("Invalidated keys: %s", keysToRemove);
          } catch (CacheException e) {
             log.failedToInvalidateKeys(e);

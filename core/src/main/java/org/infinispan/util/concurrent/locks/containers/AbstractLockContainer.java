@@ -44,9 +44,13 @@ public abstract class AbstractLockContainer<L extends Lock> implements LockConta
 
    protected abstract void unlock(L toRelease, Object ctx);
 
-   protected abstract boolean tryLock(L lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException;
+   protected abstract boolean tryExclusiveLock(L lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException;      
 
-   protected abstract void lock(L lock, Object lockOwner);
+   protected abstract boolean tryShareLock(L lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException;
 
+   protected abstract void exclusiveLock(L lock, Object lockOwner);
+   
+   protected abstract void shareLock(L lock, Object lockOwner);
+   
    protected abstract Log getLog();
 }

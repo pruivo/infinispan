@@ -22,14 +22,15 @@
  */
 package org.infinispan.container;
 
-import java.util.Collection;
-import java.util.Set;
-
-import org.infinispan.metadata.Metadata;
 import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.factories.annotations.Stop;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
+import org.infinispan.metadata.Metadata;
+
+import java.util.Collection;
+import java.util.Set;
 
 /**
  * The main internal data structure which stores entries
@@ -37,97 +38,139 @@ import org.infinispan.factories.scopes.Scopes;
  * @author Manik Surtani (<a href="mailto:manik@jboss.org">manik@jboss.org</a>)
  * @author Galder Zamarreño
  * @author Vladimir Blagojevic
+ * @author Pedro Ruivo
  * @since 4.0
  */
 @Scope(Scopes.NAMED_CACHE)
 public interface DataContainer extends Iterable<InternalCacheEntry> {
 
    /**
-    * Retrieves a cached entry
-    * @param k key under which entry is stored
+    * Retrieves a cached entry version that is less or equals than {@param version}.
+    *
+    * @param k        key under which entry is stored
+    * @param metadata decides which value to read. If the data container does not support multi-versioning, the metadata
+    *                 is ignored. If {@code null} is passed, the most recent value is returned.
     * @return entry, if it exists and has not expired, or null if not
     */
-   InternalCacheEntry get(Object k);
-   
-   /**
-    * Retrieves a cache entry in the same way as {@link #get(Object)}}
-    * except that it does not update or reorder any of the internal constructs. 
-    * I.e., expiration does not happen, and in the case of the LRU container, 
-    * the entry is not moved to the end of the chain.
-    * 
-    * This method should be used instead of {@link #get(Object)}} when called
-    * while iterating through the data container using methods like {@link #keySet()} 
-    * to avoid changing the underlying collection's order.
-    * 
-    * @param k key under which entry is stored
-    * @return entry, if it exists, or null if not
-    */
-   InternalCacheEntry peek(Object k);
+   InternalCacheEntry get(Object k, Metadata metadata);
 
    /**
-    * Puts an entry in the cache along with metadata adding information such
-    * lifespan of entry, max idle time, version information...etc.
+    * Retrieves a cache entry in the same way as {@link #get(Object, org.infinispan.metadata.Metadata)}} except that it
+    * does not update or reorder any of the internal constructs. I.e., expiration does not happen, and in the case of
+    * the LRU container, the entry is not moved to the end of the chain.
+    * <p/>
+    * This method should be used instead of {@link #get(Object, org.infinispan.metadata.Metadata)}} when called while
+    * iterating through the data container using methods like {@link #keySet(org.infinispan.metadata.Metadata)} to avoid
+    * changing the underlying collection's order.
     *
-    * @param k key under which to store entry
-    * @param v value to store
+    * @param k        key under which entry is stored
+    * @param metadata decides which value to read. If the data container does not support multi-versioning, the metadata
+    *                 is ignored. If {@code null} is passed, the most recent value is returned.
+    * @return entry, if it exists, or null if not
+    */
+   InternalCacheEntry peek(Object k, Metadata metadata);
+
+   /**
+    * Puts an entry in the cache along with metadata adding information such lifespan of entry, max idle time, version
+    * information...etc.
+    *
+    * @param k        key under which to store entry
+    * @param v        value to store
     * @param metadata metadata of the entry
     */
    void put(Object k, Object v, Metadata metadata);
 
    /**
-    * Tests whether an entry exists in the container
-    * @param k key to test
+    * Tests whether an entry exists in the container with a snapshot version less than the {@param version}
+    *
+    * @param k        key to test
+    * @param metadata decides which value is visible. If the data container does not support multi-versioning, the
+    *                 metadata is ignored. If {@code null} is passed, it tests the most recent value.
     * @return true if entry exists and has not expired; false otherwise
     */
-   boolean containsKey(Object k);
+   boolean containsKey(Object k, Metadata metadata);
 
    /**
     * Removes an entry from the cache
-    * @param k key to remove
+    *
+    * @param k        key to remove
+    * @param metadata metadata of the entry
     * @return entry removed, or null if it didn't exist or had expired
     */
-   InternalCacheEntry remove(Object k);
+   InternalCacheEntry remove(Object k, Metadata metadata);
 
    /**
-    *
-    * @return count of the number of entries in the container
+    * @param metadata decides which snapshot to count. If the data container does not support multi-versioning, the
+    *                 metadata is ignored. If {@code null} is passed, the most recent snapshot is counted.
+    * @return count of the number of entries in the container with a snapshot version less than the {@param version}
     */
-   int size();
+   int size(Metadata metadata);
 
    /**
-    * Removes all entries in the container
+    * Removes all entries in the container, including all the versions if the data container support multi-versioning.
     */
    @Stop(priority = 999)
    void clear();
 
    /**
-    * Returns a set of keys in the container. When iterating through the container using this method,
-    * clients should never call {@link #get()} method but instead {@link #peek()}, in order to avoid
-    * changing the order of the underlying collection as a side of effect of iterating through it.
-    * 
+    * Instead of removing everything, it inserts a null entry. If the data container does not support multi-versioning,
+    * it does exactly what {@link #clear()} does.
+    *
+    * @param metadata metadata of the entry
+    */
+   void clear(Metadata metadata);
+
+   /**
+    * Returns a set of keys in the container. When iterating through the container using this method, clients should
+    * never call {@link #get(Object, org.infinispan.metadata.Metadata)} method but instead {@link #peek(Object,
+    * org.infinispan.metadata.Metadata)}, in order to avoid changing the order of the underlying collection as a side of
+    * effect of iterating through it.
+    *
+    * @param metadata decides which snapshot to return. If the data container does not support multi-versioning, the
+    *                 metadata is ignored. If {@code null} is passed, the most recent snapshot is returned.
     * @return a set of keys
     */
-   Set<Object> keySet();
+   Set<Object> keySet(Metadata metadata);
 
    /**
+    * @param metadata decides which snapshot to return. If the data container does not support multi-versioning, the
+    *                 metadata is ignored. If {@code null} is passed, the most recent snapshot is returned.
     * @return a set of values contained in the container
     */
-   Collection<Object> values();
+   Collection<Object> values(Metadata metadata);
 
    /**
-    * Returns a mutable set of immutable cache entries exposed as immutable Map.Entry instances. Clients 
-    * of this method such as Cache.entrySet() operation implementors are free to convert the set into an 
-    * immutable set if needed, which is the most common use case. 
-    * 
-    * If a client needs to iterate through a mutable set of mutable cache entries, it should iterate the 
-    * container itself rather than iterating through the return of entrySet().
-    * 
+    * Returns a mutable set of immutable cache entries exposed as immutable Map.Entry instances. Clients of this method
+    * such as Cache.entrySet() operation implementors are free to convert the set into an immutable set if needed, which
+    * is the most common use case.
+    * <p/>
+    * If a client needs to iterate through a mutable set of mutable cache entries, it should iterate the container
+    * itself rather than iterating through the return of entrySet().
+    *
+    * @param metadata decides which snapshot to return. If the data container does not support multi-versioning, the
+    *                 metadata is ignored. If {@code null} is passed, the most recent snapshot is returned.
     * @return a set of immutable cache entries
     */
-   Set<InternalCacheEntry> entrySet();
+   Set<InternalCacheEntry> entrySet(Metadata metadata);
 
    /**
     * Purges entries that have passed their expiry time
     */
    void purgeExpired();
+
+   /**
+    * Dumps all the entries information to a file.
+    *
+    * @param filePath
+    * @return {@code true} if the data container was written, {@code false} is something wrong.
+    */
+   boolean dumpTo(String filePath);
+
+   /**
+    * Removes the old version that are not visible anymore. If the data container does not support multi-versioning,
+    * this methods does nothing.
+    *
+    * @param minimumVersion
+    */
+   void purgeOldValues(EntryVersion minimumVersion);
 }

@@ -27,6 +27,8 @@ import org.infinispan.commands.CancellableCommand;
 import org.infinispan.commands.CancellationService;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.remote.CacheRpcCommand;
+import org.infinispan.commands.remote.GMUClusteredGetCommand;
+import org.infinispan.commands.tx.GMUCommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderCommitCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderPrepareCommand;
@@ -74,11 +76,13 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    private CancellationService cancelService;
    private ExecutorService remoteCommandsExecutor;
    private BlockingTaskAwareExecutorService totalOrderExecutorService;
+   private BlockingTaskAwareExecutorService gmuExecutorService;
 
    @Inject
    public void inject(GlobalComponentRegistry gcr, Transport transport,
                       @ComponentName(KnownComponentNames.REMOTE_COMMAND_EXECUTOR) ExecutorService remoteCommandsExecutor,
                       @ComponentName(KnownComponentNames.TOTAL_ORDER_EXECUTOR) BlockingTaskAwareExecutorService totalOrderExecutorService,
+                      @ComponentName(KnownComponentNames.GMU_EXECUTOR) BlockingTaskAwareExecutorService gmuExecutorService,
                       GlobalConfiguration globalConfiguration, CancellationService cancelService) {
       this.gcr = gcr;
       this.transport = transport;
@@ -86,6 +90,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       this.cancelService = cancelService;
       this.remoteCommandsExecutor = remoteCommandsExecutor;
       this.totalOrderExecutorService = totalOrderExecutorService;
+      this.gmuExecutorService = gmuExecutorService;
    }
 
    @Override
@@ -152,7 +157,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       if (cmd instanceof TotalOrderPrepareCommand) {
          final TotalOrderRemoteTransactionState state = ((TotalOrderPrepareCommand) cmd).getOrCreateState();
          final TotalOrderManager totalOrderManager = cr.getTotalOrderManager();
-         totalOrderManager.ensureOrder(state, ((PrepareCommand) cmd).getAffectedKeysToLock(false));
+         totalOrderManager.ensureOrder(state, ((TotalOrderPrepareCommand) cmd).getKeysToLock());
          totalOrderExecutorService.execute(new BlockingRunnable() {
             @Override
             public boolean isReady() {
@@ -198,6 +203,52 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
                }
                reply(response, resp);
                afterResponseSent(cmd, resp);
+            }
+         });
+         return;
+      } else if (cmd instanceof GMUClusteredGetCommand) {
+         final GMUClusteredGetCommand gmuClusteredGetCommand = (GMUClusteredGetCommand) cmd;
+         gmuClusteredGetCommand.init();
+         gmuExecutorService.execute(new BlockingRunnable() {
+            @Override
+            public boolean isReady() {
+               return gmuClusteredGetCommand.isReady();
+            }
+
+            @Override
+            public void run() {
+               Response resp;
+               try {
+                  resp = handleInternal(cmd, cr);
+               } catch (Throwable throwable) {
+                  log.exceptionHandlingCommand(cmd, throwable);
+                  resp = new ExceptionResponse(new CacheException("Problems invoking command.", throwable));
+               }
+               //the ResponseGenerated is null in this case because the return value is a Response
+               reply(response, resp);
+            }
+         });
+         return;
+      } else if (cmd instanceof GMUCommitCommand) {
+         final GMUCommitCommand gmuCommitCommand = (GMUCommitCommand) cmd;
+         gmuCommitCommand.init();
+         gmuExecutorService.execute(new BlockingRunnable() {
+            @Override
+            public boolean isReady() {
+               return gmuCommitCommand.isReady();
+            }
+
+            @Override
+            public void run() {
+               Response resp;
+               try {
+                  resp = handleInternal(cmd, cr);
+               } catch (Throwable throwable) {
+                  log.exceptionHandlingCommand(cmd, throwable);
+                  resp = new ExceptionResponse(new CacheException("Problems invoking command.", throwable));
+               }
+               //the ResponseGenerated is null in this case because the return value is a Response
+               reply(response, resp);
             }
          });
          return;

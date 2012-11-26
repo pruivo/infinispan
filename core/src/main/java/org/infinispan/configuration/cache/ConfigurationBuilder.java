@@ -51,6 +51,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
    private final List<Builder<?>> modules = new ArrayList<Builder<?>>();
    private final SitesConfigurationBuilder sites;
    private final CompatibilityModeConfigurationBuilder compatibility;
+   private final GarbageCollectorConfigurationBuilder garbageCollector;
 
    public ConfigurationBuilder() {
       this.clustering = new ClusteringConfigurationBuilder(this);
@@ -70,6 +71,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
       this.unsafe = new UnsafeConfigurationBuilder(this);
       this.sites = new SitesConfigurationBuilder(this);
       this.compatibility = new CompatibilityModeConfigurationBuilder(this);
+      this.garbageCollector = new GarbageCollectorConfigurationBuilder(this);
    }
 
    public ConfigurationBuilder classLoader(ClassLoader cl) {
@@ -186,12 +188,17 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
       }
    }
 
+   @Override
+   public GarbageCollectorConfigurationBuilder garbageCollector() {
+      return garbageCollector;
+   }
+
    @SuppressWarnings("unchecked")
    public void validate() {
       for (Builder<?> validatable:
             asList(clustering, customInterceptors, dataContainer, deadlockDetection, eviction, expiration, indexing,
                    invocationBatching, jmxStatistics, loaders, locking, storeAsBinary, transaction,
-                   versioning, unsafe, sites, compatibility)) {
+                   versioning, unsafe, sites, compatibility, garbageCollector)) {
          validatable.validate();
       }
       for (Builder<?> m : modules) {
@@ -218,7 +225,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
                expiration.create(), indexing.create(), invocationBatching.create(),
                jmxStatistics.create(), loaders.create(), locking.create(), storeAsBinary.create(),
                transaction.create(), unsafe.create(), versioning.create(), sites.create(),
-               compatibility.create(),
+               compatibility.create(), garbageCollector.create(),
                modulesConfig, classLoader == null ? null : classLoader.get());
    }
 
@@ -241,6 +248,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
       this.sites.read(template.sites());
       this.versioning.read(template.versioning());
       this.compatibility.read(template.compatibility());
+      this.garbageCollector.read(template.garbageCollector());
 
       for (Object c : template.modules().values()) {
          Builder<Object> builder = this.addModule(ConfigurationUtils.builderFor(c));
@@ -272,6 +280,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
             ", unsafe=" + unsafe +
             ", sites=" + sites +
             ", compatibility=" + compatibility +
+            ", garbageCollector=" + garbageCollector +
             '}';
    }
 

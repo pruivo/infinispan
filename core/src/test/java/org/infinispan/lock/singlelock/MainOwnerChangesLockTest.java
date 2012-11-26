@@ -131,9 +131,9 @@ public class MainOwnerChangesLockTest extends MultipleCacheManagersTest {
 
    private Object getValue(Object key) {
       log.tracef("Checking key: %s", key);
-      InternalCacheEntry d0 = advancedCache(0).getDataContainer().get(key);
-      InternalCacheEntry d1 = advancedCache(1).getDataContainer().get(key);
-      InternalCacheEntry d2 = advancedCache(2).getDataContainer().get(key);
+      InternalCacheEntry d0 = advancedCache(0).getDataContainer().get(key, null);
+      InternalCacheEntry d1 = advancedCache(1).getDataContainer().get(key, null);
+      InternalCacheEntry d2 = advancedCache(2).getDataContainer().get(key, null);
       if (d0 == null) {
          assert sameValue(d1, d2);
          return d1.getValue();

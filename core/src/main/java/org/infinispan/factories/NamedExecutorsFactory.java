@@ -56,6 +56,7 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
    private ScheduledExecutorService evictionExecutor;
    private ScheduledExecutorService asyncReplicationExecutor;
    private BlockingTaskAwareExecutorService totalOrderExecutor;
+   private BlockingTaskAwareExecutorService gmuExecutor;
 
    @Override
    @SuppressWarnings("unchecked")
@@ -120,6 +121,15 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
                }
             }
             return (T) totalOrderExecutor;
+         } else if (componentName.equals(GMU_EXECUTOR)) {
+            synchronized (this) {
+               if (gmuExecutor == null) {
+                  gmuExecutor = buildAndConfigureBlockingTaskAwareExecutorService(
+                        globalConfiguration.gmuExecutor().factory(),
+                        globalConfiguration.gmuExecutor().properties(), componentName, nodeName);
+               }
+            }
+            return (T) gmuExecutor;
          } else {
             throw new ConfigurationException("Unknown named executor " + componentName);
          }
@@ -138,6 +148,7 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
       if (asyncReplicationExecutor != null) asyncReplicationExecutor.shutdownNow();
       if (evictionExecutor != null) evictionExecutor.shutdownNow();
       if (totalOrderExecutor != null) totalOrderExecutor.shutdownNow();
+      if (gmuExecutor != null) gmuExecutor.shutdownNow();
    }
 
    private ExecutorService buildAndConfigureExecutorService(ExecutorFactory f, Properties p,

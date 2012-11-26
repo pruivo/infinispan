@@ -46,34 +46,34 @@ public class ReadOnlyDataContainerBackedKeySet implements Set<Object> {
 
    @Override
    public int size() {
-      return container.size();
+      return container.size(null);
    }
 
    @Override
    public boolean isEmpty() {
-      return container.size() == 0;
+      return container.size(null) == 0;
    }
 
    @Override
    public boolean contains(Object o) {
-      return container.containsKey(o);
+      return container.containsKey(o, null);
    }
 
    @Override
    public Iterator<Object> iterator() {
-      if (keySet == null) keySet = container.keySet();
+      if (keySet == null) keySet = container.keySet(null);
       return keySet.iterator();
    }
 
    @Override
    public Object[] toArray() {
-      if (keySet == null) keySet = container.keySet();
+      if (keySet == null) keySet = container.keySet(null);
       return keySet.toArray();
    }
 
    @Override
    public <T> T[] toArray(T[] a) {
-      if (keySet == null) keySet = container.keySet();
+      if (keySet == null) keySet = container.keySet(null);
       return keySet.toArray(a);
    }
 

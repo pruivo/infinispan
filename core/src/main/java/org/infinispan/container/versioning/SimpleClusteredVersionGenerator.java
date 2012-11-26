@@ -25,6 +25,9 @@ import org.infinispan.factories.annotations.Start;
 import org.infinispan.notifications.Listener;
 import org.infinispan.notifications.cachelistener.annotation.TopologyChanged;
 import org.infinispan.notifications.cachelistener.event.TopologyChangedEvent;
+import org.infinispan.topology.CacheTopology;
+
+import java.util.List;
 
 /**
  * A version generator implementation for SimpleClusteredVersions
@@ -76,5 +79,25 @@ public class SimpleClusteredVersionGenerator implements VersionGenerator {
       public void onTopologyChange(TopologyChangedEvent<?, ?> tce) {
          topologyId = tce.getNewTopologyId();
       }
+   }
+
+   @Override
+   public void updateCacheTopology(List<CacheTopology> cacheTopologyList) {
+      //no-op
+   }
+
+   @Override
+   public void addCacheTopology(CacheTopology cacheTopology) {
+      //no-op
+   }
+
+   @Override
+   public void gcTopologyIds(int minTopologyId) {
+      //no-op
+   }
+
+   @Override
+   public int getViewHistorySize() {
+      return 0; //no history saved
    }
 }

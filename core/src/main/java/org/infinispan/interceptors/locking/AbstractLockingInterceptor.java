@@ -146,7 +146,7 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
    }
 
    protected final void lockKey(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException {
-      lockManager.acquireLockNoCheck(ctx, key, timeoutMillis, skipLocking);
+      lockManager.acquireLockNoCheck(ctx, key, timeoutMillis, skipLocking, false);
    }
 
 }

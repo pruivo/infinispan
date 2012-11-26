@@ -45,6 +45,7 @@ public class Configuration {
    private final Map<Class<?>, ?> moduleConfiguration;
    private final SitesConfiguration sitesConfiguration;
    private final CompatibilityModeConfiguration compatibilityConfiguration;
+   private final GarbageCollectorConfiguration garbageCollectorConfiguration;
 
    Configuration(ClusteringConfiguration clusteringConfiguration,
                  CustomInterceptorsConfiguration customInterceptorsConfiguration,
@@ -56,7 +57,7 @@ public class Configuration {
                  LockingConfiguration lockingConfiguration, StoreAsBinaryConfiguration storeAsBinaryConfiguration,
                  TransactionConfiguration transactionConfiguration, UnsafeConfiguration unsafeConfiguration,
                  VersioningConfiguration versioningConfiguration, SitesConfiguration sitesConfiguration,
-                 CompatibilityModeConfiguration compatibilityConfiguration,
+                 CompatibilityModeConfiguration compatibilityConfiguration, GarbageCollectorConfiguration garbageCollectorConfiguration,
                  List<?> modules, ClassLoader cl) {
       this.clusteringConfiguration = clusteringConfiguration;
       this.customInterceptorsConfiguration = customInterceptorsConfiguration;
@@ -81,6 +82,7 @@ public class Configuration {
       }
       this.moduleConfiguration = Collections.unmodifiableMap(modulesMap);
       this.classLoader = new WeakReference<ClassLoader>(cl);
+      this.garbageCollectorConfiguration = garbageCollectorConfiguration;
    }
 
    /**
@@ -168,6 +170,11 @@ public class Configuration {
       return compatibilityConfiguration;
    }
 
+   public GarbageCollectorConfiguration garbageCollector() {
+      return garbageCollectorConfiguration;
+   }
+
+
    @Override
    public String toString() {
       return "Configuration{" +
@@ -190,6 +197,7 @@ public class Configuration {
             ", unsafe=" + unsafeConfiguration +
             ", sites=" + sitesConfiguration +
             ", compatibility=" + compatibilityConfiguration +
+            ", garbageCollector=" + garbageCollectorConfiguration +
             '}';
    }
 
@@ -238,6 +246,9 @@ public class Configuration {
          return false;
       if (compatibilityConfiguration != null ? !compatibilityConfiguration.equals(that.compatibilityConfiguration) : that.compatibilityConfiguration != null)
          return false;
+      if (garbageCollectorConfiguration != null ? !garbageCollectorConfiguration.equals(that.garbageCollectorConfiguration) :
+      that.garbageCollectorConfiguration != null)
+         return false;
 
       return true;
    }
@@ -263,6 +274,7 @@ public class Configuration {
       result = 31 * result + (unsafeConfiguration != null ? unsafeConfiguration.hashCode() : 0);
       result = 31 * result + (sitesConfiguration != null ? sitesConfiguration.hashCode() : 0);
       result = 31 * result + (compatibilityConfiguration != null ? compatibilityConfiguration.hashCode() : 0);
+      result = 31 * result + (garbageCollectorConfiguration != null ? garbageCollectorConfiguration.hashCode() : 0);
       return result;
    }
 }

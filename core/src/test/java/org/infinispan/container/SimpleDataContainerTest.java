@@ -68,52 +68,52 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
       dc.put("k", "v", new EmbeddedMetadata.Builder().maxIdle(100, TimeUnit.MINUTES).build());
       Thread.sleep(100);
 
-      InternalCacheEntry entry = dc.get("k");
+      InternalCacheEntry entry = dc.get("k", null);
       assert entry.getClass().equals(transienttype());
       assert entry.getLastUsed() <= System.currentTimeMillis();
       long entryLastUsed = entry.getLastUsed();
       Thread.sleep(100);
-      entry = dc.get("k");
+      entry = dc.get("k", null);
       assert entry.getLastUsed() > entryLastUsed;
       dc.put("k", "v", new EmbeddedMetadata.Builder().maxIdle(0, TimeUnit.MINUTES).build());
       dc.purgeExpired();
 
       dc.put("k", "v", new EmbeddedMetadata.Builder().lifespan(100, TimeUnit.MINUTES).build());
       Thread.sleep(100);
-      assert dc.size() == 1;
+      assert dc.size(null) == 1;
 
-      entry = dc.get("k");
+      entry = dc.get("k", null);
       assert entry != null : "Entry should not be null!";
       assert entry.getClass().equals(mortaltype()) : "Expected "+mortaltype()+", was " + entry.getClass().getSimpleName();
       assert entry.getCreated() <= System.currentTimeMillis();
 
       dc.put("k", "v", new EmbeddedMetadata.Builder().lifespan(0, TimeUnit.MINUTES).build());
       Thread.sleep(10);
-      assert dc.get("k") == null;
-      assert dc.size() == 0;
+      assert dc.get("k", null) == null;
+      assert dc.size(null) == 0;
 
       dc.put("k", "v", new EmbeddedMetadata.Builder().lifespan(0, TimeUnit.MINUTES).build());
       Thread.sleep(100);
-      assert dc.size() == 1;
+      assert dc.size(null) == 1;
       dc.purgeExpired();
-      assert dc.size() == 0;
+      assert dc.size(null) == 0;
    }
    
    public void testResetOfCreationTime() throws Exception {
       long now = System.currentTimeMillis();
       dc.put("k", "v", new EmbeddedMetadata.Builder().lifespan(1000, TimeUnit.SECONDS).build());
-      long created1 = dc.get("k").getCreated();
+      long created1 = dc.get("k", null).getCreated();
       assert created1 >= now;
       Thread.sleep(100);
       dc.put("k", "v", new EmbeddedMetadata.Builder().lifespan(1000, TimeUnit.SECONDS).build());
-      long created2 = dc.get("k").getCreated();
+      long created2 = dc.get("k", null).getCreated();
       assert created2 > created1 : "Expected " + created2 + " to be greater than " + created1;
    }
 
    public void testUpdatingLastUsed() throws Exception {
       long idle = 600000;
       dc.put("k", "v", new EmbeddedMetadata.Builder().build());
-      InternalCacheEntry ice = dc.get("k");
+      InternalCacheEntry ice = dc.get("k", null);
       assert ice.getClass().equals(immortaltype());
       assert ice.getExpiryTime() == -1;
       assert ice.getMaxIdle() == -1;
@@ -121,7 +121,7 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
       dc.put("k", "v", new EmbeddedMetadata.Builder().maxIdle(idle, TimeUnit.MILLISECONDS).build());
       long oldTime = System.currentTimeMillis();
       Thread.sleep(100); // for time calc granularity
-      ice = dc.get("k");
+      ice = dc.get("k", null);
       assert ice.getClass().equals(transienttype());
       assert ice.getExpiryTime() > -1;
       assert ice.getLastUsed() > oldTime;
@@ -132,7 +132,7 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
 
       oldTime = System.currentTimeMillis();
       Thread.sleep(100); // for time calc granularity
-      assert dc.get("k") != null;
+      assert dc.get("k", null) != null;
 
       // check that the last used stamp has been updated on a get
       assert ice.getLastUsed() > oldTime;
@@ -187,8 +187,8 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
 
    private void assertContainerEntry(Class<? extends InternalCacheEntry> type,
                                      String expectedValue) {
-      assert dc.containsKey("k");
-      InternalCacheEntry entry = dc.get("k");
+      assert dc.containsKey("k", null);
+      InternalCacheEntry entry = dc.get("k", null);
       assertEquals(type, entry.getClass());
       assertEquals(expectedValue, entry.getValue());
    }
@@ -206,7 +206,7 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
       expected.add("k3");
       expected.add("k4");
 
-      for (Object o : dc.keySet()) assert expected.remove(o);
+      for (Object o : dc.keySet(null)) assert expected.remove(o);
 
       assert expected.isEmpty() : "Did not see keys " + expected + " in iterator!";
    }
@@ -244,7 +244,7 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
       expected.add("k3");
       expected.add("k4");
 
-      for (Object o : dc.keySet()) assert expected.remove(o);
+      for (Object o : dc.keySet(null)) assert expected.remove(o);
 
       assert expected.isEmpty() : "Did not see keys " + expected + " in iterator!";
    }
@@ -262,7 +262,7 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
       expected.add("v3");
       expected.add("v4");
 
-      for (Object o : dc.values()) assert expected.remove(o);
+      for (Object o : dc.values(null)) assert expected.remove(o);
 
       assert expected.isEmpty() : "Did not see keys " + expected + " in iterator!";
    }
@@ -275,13 +275,13 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
             .maxIdle(100, TimeUnit.MINUTES).lifespan(100, TimeUnit.MINUTES).build());
 
       Set expected = new HashSet();
-      expected.add(Immutables.immutableInternalCacheEntry(dc.get("k1")));
-      expected.add(Immutables.immutableInternalCacheEntry(dc.get("k2")));
-      expected.add(Immutables.immutableInternalCacheEntry(dc.get("k3")));
-      expected.add(Immutables.immutableInternalCacheEntry(dc.get("k4")));
+      expected.add(Immutables.immutableInternalCacheEntry(dc.get("k1", null)));
+      expected.add(Immutables.immutableInternalCacheEntry(dc.get("k2", null)));
+      expected.add(Immutables.immutableInternalCacheEntry(dc.get("k3", null)));
+      expected.add(Immutables.immutableInternalCacheEntry(dc.get("k4", null)));
 
       Set actual = new HashSet();
-      for (Map.Entry o : dc.entrySet()) actual.add(o);
+      for (Map.Entry o : dc.entrySet(null)) actual.add(o);
 
       assert actual.equals(expected) : "Expected to see keys " + expected + " but only saw " + actual;
    }
@@ -290,8 +290,8 @@ public class SimpleDataContainerTest extends AbstractInfinispanTest {
       for (int i = 0; i < 10; i++) dc.put(i, "value", new EmbeddedMetadata.Builder().build());
 
       int i = 0;
-      for (Object key : dc.keySet()) {
-         dc.peek(key); // calling get in this situations will result on corruption the iteration.
+      for (Object key : dc.keySet(null)) {
+         dc.peek(key, null); // calling get in this situations will result on corruption the iteration.
          i++;
       }
 

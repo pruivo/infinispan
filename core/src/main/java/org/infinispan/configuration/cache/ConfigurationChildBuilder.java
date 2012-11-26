@@ -54,5 +54,7 @@ public interface ConfigurationChildBuilder {
 
    CompatibilityModeConfigurationBuilder compatibility();
 
+   GarbageCollectorConfigurationBuilder garbageCollector();
+   
    Configuration build();
 }

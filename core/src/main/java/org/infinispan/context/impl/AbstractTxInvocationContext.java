@@ -24,6 +24,9 @@ package org.infinispan.context.impl;
 
 import javax.transaction.Transaction;
 
+import org.infinispan.container.versioning.EntryVersion;
+import org.infinispan.container.versioning.VersionGenerator;
+import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.AbstractCacheTransaction;
 
 import java.util.Collection;
@@ -97,4 +100,48 @@ public abstract class AbstractTxInvocationContext extends AbstractInvocationCont
    @Override
    public abstract AbstractCacheTransaction getCacheTransaction();
 
+   @Override
+   public EntryVersion calculateVersionToRead(VersionGenerator versionGenerator) {
+      return getCacheTransaction().calculateVersionToRead(versionGenerator);
+   }
+
+   @Override
+   public void setVersionToRead(EntryVersion entryVersion) {
+      //no-op
+   }
+
+   @Override
+   public Collection<Object> getReadSet() {
+      return getCacheTransaction().getReadKeys();
+   }
+
+   @Override
+   public void addReadFrom(Address address) {
+      getCacheTransaction().addReadFrom(address);
+   }
+
+   @Override
+   public Set<Address> getAlreadyReadFrom() {
+      return getCacheTransaction().getReadFrom();
+   }
+
+   @Override
+   public void setTransactionVersion(EntryVersion version) {
+      getCacheTransaction().setTransactionVersion(version);
+   }
+
+   @Override
+   public EntryVersion getTransactionVersion() {
+      return getCacheTransaction().getTransactionVersion();
+   }
+
+   @Override
+   public boolean hasAlreadyReadOnThisNode() {
+      return getCacheTransaction().hasAlreadyReadOnThisNode();
+   }
+
+   @Override
+   public void setAlreadyReadOnThisNode(boolean value) {
+      getCacheTransaction().setAlreadyReadOnThisNode(value);
+   }
 }

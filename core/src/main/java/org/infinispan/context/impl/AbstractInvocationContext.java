@@ -24,16 +24,23 @@ package org.infinispan.context.impl;
 
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.container.versioning.EntryVersion;
+import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.util.InfinispanCollections;
 
 import java.lang.ref.WeakReference;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Common features of transaction and invocation contexts
  *
  * @author Manik Surtani
  * @author Mircea.Markus@jboss.com
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 public abstract class AbstractInvocationContext implements InvocationContext {
@@ -44,6 +51,12 @@ public abstract class AbstractInvocationContext implements InvocationContext {
    private Address origin;
    // Class loader associated with this invocation which supports AdvancedCache.with() functionality
    private WeakReference<ClassLoader> classLoader;
+
+   private Map<Object, InternalCacheEntry> keysRead = null;
+
+   private EntryVersion versionToRead;
+   
+   private boolean alreadyReadOnThisNode;
 
    // if this or any context subclass ever needs to store a boolean, always use a context flag instead.  This is far
    // more space-efficient.  Note that this value will be stored in a byte, which means up to 8 flags can be stored in
@@ -162,5 +175,43 @@ public abstract class AbstractInvocationContext implements InvocationContext {
    public boolean isEntryRemovedInContext(Object key) {
       CacheEntry ce = lookupEntry(key);
       return ce != null && ce.isRemoved() && ce.isChanged();
+   }
+
+   @Override
+   public void addKeyReadInCommand(Object key, InternalCacheEntry entry) {
+      if (keysRead == null) {
+         keysRead = new HashMap<Object, InternalCacheEntry>();
+      }
+      keysRead.put(key, entry);
+   }
+
+   @Override
+   public void clearKeyReadInCommand() {
+      keysRead = null;
+   }
+
+   @Override
+   public Map<Object, InternalCacheEntry> getKeysReadInCommand() {
+      return keysRead == null ? InfinispanCollections.<Object, InternalCacheEntry>emptyMap() : keysRead;
+   }
+
+   @Override
+   public EntryVersion calculateVersionToRead(VersionGenerator versionGenerator) {
+      return versionToRead;
+   }
+
+   @Override
+   public void setVersionToRead(EntryVersion entryVersion) {
+      versionToRead = entryVersion;
+   }
+
+   @Override
+   public boolean hasAlreadyReadOnThisNode() {
+      return alreadyReadOnThisNode;
+   }
+
+   @Override
+   public void setAlreadyReadOnThisNode(boolean value) {
+      alreadyReadOnThisNode = value;
    }
 }

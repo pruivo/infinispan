@@ -62,7 +62,7 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
    @Override
    public Collection<Object> perform(InvocationContext ctx) throws Throwable {
       if (noTxModifications(ctx)) {
-         return new ExpiredFilteredValues(container.entrySet(), timeService);
+         return new ExpiredFilteredValues(container.entrySet(null), timeService);
       }
 
       return new FilteredValues(container, ctx.getLookedUpEntries(), timeService);
@@ -71,7 +71,7 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
    @Override
    public String toString() {
       return "ValuesCommand{" +
-            "values=" + container.size() + " elements" +
+            "values=" + container.size(null) + " elements" +
             '}';
    }
 
@@ -82,8 +82,8 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
       final TimeService timeService;
 
       FilteredValues(DataContainer container, Map<Object, CacheEntry> lookedUpEntries, TimeService timeService) {
-         values = container.values();
-         entrySet = container.entrySet();
+         values = container.values(null);
+         entrySet = container.entrySet(null);
          this.lookedUpEntries = lookedUpEntries;
          this.timeService = timeService;
       }

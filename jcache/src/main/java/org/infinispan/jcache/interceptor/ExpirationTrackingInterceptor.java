@@ -69,7 +69,7 @@ public class ExpirationTrackingInterceptor extends CommandInterceptor {
    public Object visitGetKeyValueCommand
          (InvocationContext ctx, GetKeyValueCommand command) throws Throwable {
       Object key = command.getKey();
-      InternalCacheEntry entry = container.peek(key);
+      InternalCacheEntry entry = container.peek(key, null);
       if (entry != null && entry.canExpire() && entry.isExpired(timeService.wallClockTime()))
          notifier.notifyEntryExpired(cache, key, entry.getValue());
 

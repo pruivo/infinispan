@@ -48,6 +48,8 @@ import org.infinispan.xsite.BackupReceiverRepositoryImpl;
  *
  * @author Manik Surtani
  * @author <a href="mailto:galder.zamarreno@jboss.com">Galder Zamarreno</a>
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 

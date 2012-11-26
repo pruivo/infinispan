@@ -67,7 +67,7 @@ public class SyncCacheListenerTest extends MultipleCacheManagersTest {
    protected void createCacheManagers() throws Throwable {
       ConfigurationBuilder builder =
             getDefaultClusteredCacheConfig(CacheMode.REPL_SYNC, true);
-      builder.locking().isolationLevel(IsolationLevel.SERIALIZABLE)
+      builder.locking().isolationLevel(IsolationLevel.REPEATABLE_READ)
             .lockAcquisitionTimeout(5000)
             // TODO: Another case of default values changed (see ISPN-2651)
             .transaction().useSynchronization(false);

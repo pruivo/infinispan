@@ -334,7 +334,7 @@ object HotRodTestingUtil extends Log {
    private def assertHotRodEquals(cm: EmbeddedCacheManager,
            cache: Cache[Array[Byte], Array[Byte]],
            key: Array[Byte], expectedValue: Array[Byte]): InternalCacheEntry = {
-      val entry = cache.getAdvancedCache.getDataContainer.get(key)
+      val entry = cache.getAdvancedCache.getDataContainer.get(key, null)
       // Assert based on passed parameters
       if (expectedValue == null) {
          assertNull(entry)

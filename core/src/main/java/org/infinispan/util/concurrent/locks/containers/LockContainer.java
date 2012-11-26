@@ -34,22 +34,36 @@ import java.util.concurrent.locks.Lock;
  */
 public interface LockContainer<L extends Lock> {
    /**
-    * Tests if a give owner owns a lock on a specified object.
+    * Tests if a give owner owns a exclusive lock on a specified object.
     *
     * @param key   object to check
     * @param owner owner to test
     * @return true if owner owns lock, false otherwise
     */
-   boolean ownsLock(Object key, Object owner);
+   boolean ownsExclusiveLock(Object key, Object owner);
 
    /**
-    * @param key object
-    * @return true if an object is locked, false otherwise
+    * Tests if a give owner owns a share lock on a specified object.
+    *
+    * @param key     object to check
+    * @param owner   owner to test
+    * @return        true if owner owns lock, false otherwise
     */
-   boolean isLocked(Object key);
+   boolean ownsShareLock(Object key, Object owner);
 
    /**
     * @param key object
+    * @return true if an object is exclusive locked, false otherwise
+    */
+   boolean isExclusiveLocked(Object key);
+
+   /**
+    * @param key  object
+    * @return     true if an object is share locked, false otherwise
+    */
+   boolean isSharedLocked(Object key);
+
+   /**
     * @return the lock for a specific object.  May be null if the object is not locked, but may also be an unlocked lock.
     */
    L getLock(Object key);
@@ -65,20 +79,35 @@ public interface LockContainer<L extends Lock> {
    int size();
 
    /**
-    * Attempts to acquire a lock for the given object within certain time boundaries defined by the timeout and
+    * Attempts to acquire the exclusive lock for the given object within certain time boundaries defined by the timeout and
     * time unit parameters.
     *
+    * @param lockOwner
     * @param key Object to acquire lock on
     * @param timeout Time after which the lock acquisition will fail
     * @param unit Time unit of the given timeout
     * @return If lock was acquired it returns the corresponding Lock object. If lock was not acquired, it returns null
     * @throws InterruptedException If the lock acquisition was interrupted
     */
-   L acquireLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException;
+   L acquireExclusiveLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException;
 
    /**
-    * Release lock on the given key.
+    * Attempts to acquire a share lock for the given object within certain time boundaries defined by the timeout and
+    * time unit parameters.
     *
+    * @param lockOwner
+    * @param key     Object to acquire lock on
+    * @param timeout Time after which the lock acquisition will fail
+    * @param unit    Time unit of the given timeout
+    * @return        If lock was acquired it returns the corresponding Lock object. If lock was not acquired, it returns null
+    * @throws InterruptedException If the lock acquisition was interrupted
+    */
+   L acquireShareLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException;
+
+   /**
+    * Release the exclusive lock on the given key.
+    *
+    * @param lockOwner
     * @param key Object on which lock is to be removed
     */
    void releaseLock(Object lockOwner, Object key);

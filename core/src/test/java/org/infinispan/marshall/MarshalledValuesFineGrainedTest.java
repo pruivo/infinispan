@@ -107,7 +107,7 @@ public class MarshalledValuesFineGrainedTest extends AbstractInfinispanTest {
 
       DataContainer dc = ecm.getCache().getAdvancedCache().getDataContainer();
 
-      assert value.equals(dc.get(key).getValue());
+      assert value.equals(dc.get(key, null).getValue());
    }
 
 }

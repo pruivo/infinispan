@@ -117,7 +117,7 @@ public class LockCleanupStateTransferTest extends MultipleCacheManagersTest {
          //at this stage everything should be committed locally
          DataContainer dc = advancedCache(1).getDataContainer();
          for (Object k : keys) {
-            assertEquals(k, dc.get(k).getValue());
+            assertEquals(k, dc.get(k, null).getValue());
          }
       }
 
@@ -180,9 +180,9 @@ public class LockCleanupStateTransferTest extends MultipleCacheManagersTest {
       }
 
       for (Object k : migratedKeys) {
-         assertFalse(advancedCache(0).getDataContainer().containsKey(k));
-         assertFalse(advancedCache(1).getDataContainer().containsKey(k));
-         assertTrue(advancedCache(2).getDataContainer().containsKey(k));
+         assertFalse(advancedCache(0).getDataContainer().containsKey(k, null));
+         assertFalse(advancedCache(1).getDataContainer().containsKey(k, null));
+         assertTrue(advancedCache(2).getDataContainer().containsKey(k, null));
       }
    }
 

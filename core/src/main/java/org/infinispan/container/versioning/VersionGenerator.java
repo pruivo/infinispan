@@ -19,6 +19,10 @@
 
 package org.infinispan.container.versioning;
 
+import org.infinispan.topology.CacheTopology;
+
+import java.util.List;
+
 /**
  * Generates versions
  *
@@ -33,4 +37,12 @@ public interface VersionGenerator {
    IncrementableEntryVersion generateNew();
 
    IncrementableEntryVersion increment(IncrementableEntryVersion initialVersion);
+
+   void updateCacheTopology(List<CacheTopology> cacheTopologyList);
+
+   void addCacheTopology(CacheTopology cacheTopology);
+
+   void gcTopologyIds(int minTopologyId);
+
+   int getViewHistorySize();
 }

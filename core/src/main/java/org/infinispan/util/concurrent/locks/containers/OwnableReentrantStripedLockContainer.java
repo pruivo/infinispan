@@ -73,13 +73,13 @@ public class OwnableReentrantStripedLockContainer extends AbstractStripedLockCon
    }
 
    @Override
-   public final boolean ownsLock(Object object, Object owner) {
+   public final boolean ownsExclusiveLock(Object object, Object owner) {
       OwnableReentrantLock lock = getLock(object);
       return owner.equals(lock.getOwner());
    }
 
    @Override
-   public final boolean isLocked(Object object) {
+   public final boolean isExclusiveLocked(Object object) {
       OwnableReentrantLock lock = getLock(object);
       return lock.isLocked();
    }
@@ -103,17 +103,37 @@ public class OwnableReentrantStripedLockContainer extends AbstractStripedLockCon
    }
 
    @Override
-   protected boolean tryLock(OwnableReentrantLock lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException {
+   protected boolean tryExclusiveLock(OwnableReentrantLock lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException {
       return lock.tryLock(lockOwner, timeout, unit);
    }
 
    @Override
-   protected void lock(OwnableReentrantLock lock, Object lockOwner) {
+   protected void exclusiveLock(OwnableReentrantLock lock, Object lockOwner) {
       lock.lock(lockOwner);
    }
 
    @Override
    protected void unlock(OwnableReentrantLock l, Object owner) {
       l.unlock(owner);
+   }
+
+   @Override
+   protected boolean tryShareLock(OwnableReentrantLock lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException {
+      return false;
+   }
+
+   @Override
+   protected void shareLock(OwnableReentrantLock lock, Object lockOwner) {
+      //no-op
+   }
+
+   @Override
+   public boolean ownsShareLock(Object key, Object owner) {
+      return false;
+   }
+
+   @Override
+   public boolean isSharedLocked(Object key) {
+      return false;
    }
 }

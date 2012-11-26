@@ -51,15 +51,17 @@ import org.infinispan.util.logging.LogFactory;
  * {@link EntryFactory} implementation to be used for optimistic locking scheme.
  *
  * @author Mircea Markus
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.1
  */
 public class EntryFactoryImpl implements EntryFactory {
 
    private static final Log log = LogFactory.getLog(EntryFactoryImpl.class);
    private final boolean trace = log.isTraceEnabled();
-   
+
    protected boolean useRepeatableRead;
-   private DataContainer container;
+   protected DataContainer container;
    protected boolean localModeWriteSkewCheck;
    private Configuration configuration;
    private CacheNotifier notifier;
@@ -81,7 +83,7 @@ public class EntryFactoryImpl implements EntryFactory {
    public final CacheEntry wrapEntryForReading(InvocationContext ctx, Object key) throws InterruptedException {
       CacheEntry cacheEntry = getFromContext(ctx, key);
       if (cacheEntry == null) {
-         cacheEntry = getFromContainer(key);
+         cacheEntry = getFromContainer(key, ctx);
 
          // do not bother wrapping though if this is not in a tx.  repeatable read etc are all meaningless unless there is a tx.
          if (useRepeatableRead) {
@@ -132,7 +134,7 @@ public class EntryFactoryImpl implements EntryFactory {
             mvccEntry = wrapMvccEntryForRemove(ctx, key, cacheEntry);
          }
       } else {
-         InternalCacheEntry ice = getFromContainer(key);
+         InternalCacheEntry ice = getFromContainer(key, ctx);
          if (ice != null) {
             mvccEntry = wrapInternalCacheEntryForPut(ctx, key, ice, null);
             mvccEntry.setRemoved(true);
@@ -158,7 +160,7 @@ public class EntryFactoryImpl implements EntryFactory {
          mvccEntry = wrapMvccEntryForPut(ctx, key, cacheEntry, providedMetadata);
          mvccEntry.undelete(undeleteIfNeeded);
       } else {
-         InternalCacheEntry ice = (icEntry == null ? getFromContainer(key) : icEntry);
+         InternalCacheEntry ice = (icEntry == null ? getFromContainer(key, ctx) : icEntry);
          // A putForExternalRead is putIfAbsent, so if key present, do nothing
          if (ice != null && cmd.hasFlag(Flag.PUT_FOR_EXTERNAL_READ)) {
             // make sure we record this! Null value since this is a forced lock on the key
@@ -173,15 +175,15 @@ public class EntryFactoryImpl implements EntryFactory {
       mvccEntry.copyForUpdate(container, localModeWriteSkewCheck);
       return mvccEntry;
    }
-   
+
    @Override
    public CacheEntry wrapEntryForDelta(InvocationContext ctx, Object deltaKey, Delta delta ) throws InterruptedException {
       CacheEntry cacheEntry = getFromContext(ctx, deltaKey);
       DeltaAwareCacheEntry deltaAwareEntry = null;
-      if (cacheEntry != null) {        
+      if (cacheEntry != null) {
          deltaAwareEntry = wrapEntryForDelta(ctx, deltaKey, cacheEntry);
-      } else {                     
-         InternalCacheEntry ice = getFromContainer(deltaKey);
+      } else {
+         InternalCacheEntry ice = getFromContainer(deltaKey, ctx);
          if (ice != null){
             deltaAwareEntry = newDeltaAwareCacheEntry(ctx, deltaKey, (DeltaAware)ice.getValue());
          }
@@ -190,12 +192,12 @@ public class EntryFactoryImpl implements EntryFactory {
          deltaAwareEntry.appendDelta(delta);
       return deltaAwareEntry;
    }
-   
+
    private DeltaAwareCacheEntry wrapEntryForDelta(InvocationContext ctx, Object key, CacheEntry cacheEntry) {
       if (cacheEntry instanceof DeltaAwareCacheEntry) return (DeltaAwareCacheEntry) cacheEntry;
       return wrapInternalCacheEntryForDelta(ctx, key, cacheEntry);
    }
-   
+
    private DeltaAwareCacheEntry wrapInternalCacheEntryForDelta(InvocationContext ctx, Object key, CacheEntry cacheEntry) {
       DeltaAwareCacheEntry e;
       if(cacheEntry instanceof MVCCEntry){
@@ -219,8 +221,8 @@ public class EntryFactoryImpl implements EntryFactory {
       return cacheEntry;
    }
 
-   private InternalCacheEntry getFromContainer(Object key) {
-      final InternalCacheEntry ice = container.get(key);
+   protected InternalCacheEntry getFromContainer(Object key, InvocationContext context) {
+      final InternalCacheEntry ice = container.get(key, null);
       if (trace) log.tracef("Retrieved from container %s", ice);
       return ice;
    }
@@ -263,7 +265,7 @@ public class EntryFactoryImpl implements EntryFactory {
       if (cacheEntry != null) {
          mvccEntry = wrapMvccEntryForPut(ctx, key, cacheEntry, providedMetadata);
       } else {
-         InternalCacheEntry ice = getFromContainer(key);
+         InternalCacheEntry ice = getFromContainer(key, ctx);
          if (ice != null) {
             mvccEntry = wrapInternalCacheEntryForPut(ctx, ice.getKey(), ice, providedMetadata);
          }
@@ -288,13 +290,13 @@ public class EntryFactoryImpl implements EntryFactory {
             ? new RepeatableReadEntry(key, value, metadata)
             : new ReadCommittedEntry(key, value, metadata);
    }
-   
+
    private DeltaAwareCacheEntry newDeltaAwareCacheEntry(InvocationContext ctx, Object key, DeltaAware deltaAware){
       DeltaAwareCacheEntry deltaEntry = createWrappedDeltaEntry(key, deltaAware, null);
       ctx.putLookedUpEntry(key, deltaEntry);
       return deltaEntry;
    }
-   
+
    private DeltaAwareCacheEntry createWrappedDeltaEntry(Object key, DeltaAware deltaAware, CacheEntry entry) {
       return new DeltaAwareCacheEntry(key,deltaAware, entry);
    }

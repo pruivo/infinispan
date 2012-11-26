@@ -25,8 +25,10 @@ package org.infinispan.interceptors.locking;
 
 import org.infinispan.metadata.Metadata;
 import org.infinispan.commands.FlagAffectedCommand;
+import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderPrepareCommand;
+import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
@@ -46,12 +48,16 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.StateTransferLock;
 import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.transaction.WriteSkewHelper;
+import org.infinispan.transaction.gmu.GMUHelper;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.util.Immutables;
 import org.infinispan.util.InfinispanCollections;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.infinispan.transaction.WriteSkewHelper.performTotalOrderWriteSkewCheckAndReturnNewVersions;
 import static org.infinispan.transaction.WriteSkewHelper.performWriteSkewCheckAndReturnNewVersions;
@@ -82,7 +88,17 @@ public interface ClusteringDependentLogic {
 
    EntryVersionsMap createNewVersionsAndCheckForWriteSkews(VersionGenerator versionGenerator, TxInvocationContext context, VersionedPrepareCommand prepareCommand);
    
+   /**
+    * performs the read set validation
+    *
+    * @param context          the transaction context
+    * @param prepareCommand   the prepare command    
+    */
+   void performReadSetValidation(TxInvocationContext context, GMUPrepareCommand prepareCommand);
+
    Address getAddress();
+
+   Collection<Address> getWriteOwners(CacheTransaction cacheTransaction);
 
    public static abstract class AbstractClusteringDependentLogic implements ClusteringDependentLogic {
 
@@ -190,6 +206,11 @@ public interface ClusteringDependentLogic {
       }
 
       @Override
+      public Collection<Address> getWriteOwners(CacheTransaction cacheTransaction) {
+         return null;
+      }
+
+      @Override
       public void commitEntry(CacheEntry entry, Metadata metadata, FlagAffectedCommand command, InvocationContext ctx) {
          // Cache flags before they're reset
          // TODO: Can the reset be done after notification instead?
@@ -205,6 +226,11 @@ public interface ClusteringDependentLogic {
 
       @Override
       public EntryVersionsMap createNewVersionsAndCheckForWriteSkews(VersionGenerator versionGenerator, TxInvocationContext context, VersionedPrepareCommand prepareCommand) {
+         throw new IllegalStateException("Cannot invoke this method for local caches");
+      }
+
+      @Override
+      public void performReadSetValidation(TxInvocationContext context, GMUPrepareCommand prepareCommand) {
          throw new IllegalStateException("Cannot invoke this method for local caches");
       }
    }
@@ -269,7 +295,12 @@ public interface ClusteringDependentLogic {
       public List<Address> getOwners(Object key) {
          return null;
       }
-      
+
+      @Override
+      public Collection<Address> getWriteOwners(CacheTransaction cacheTransaction) {
+         return null;
+      }
+
       @Override
       public Address getAddress() {
          return rpcManager.getAddress();
@@ -293,6 +324,13 @@ public interface ClusteringDependentLogic {
             context.getCacheTransaction().setUpdatedEntryVersions(new EntryVersionsMap());
          }
          return null;
+      }
+
+      @Override
+      public void performReadSetValidation(TxInvocationContext context, GMUPrepareCommand prepareCommand) {
+         if (rpcManager.getTransport().isCoordinator()) {
+            GMUHelper.performReadSetValidation(prepareCommand, dataContainer, this);
+         }
       }
    }
 
@@ -457,5 +495,23 @@ public interface ClusteringDependentLogic {
          cacheTransaction.setUpdatedEntryVersions(uv);
          return (uv.isEmpty()) ? null : uv;
       }
+
+      @Override
+      public void performReadSetValidation(TxInvocationContext context, GMUPrepareCommand prepareCommand) {
+         GMUHelper.performReadSetValidation(prepareCommand, dataContainer, this);
+      }
+
+      @Override
+      public Collection<Address> getWriteOwners(CacheTransaction cacheTransaction) {
+         if (cacheTransaction.hasModification(ClearCommand.class)) {
+            return null;
+         }
+         Set<Object> affectedKeys = new HashSet<Object>();
+         for (WriteCommand writeCommand : cacheTransaction.getModifications()) {
+            affectedKeys.addAll(writeCommand.getAffectedKeys());
+         }
+         return dm.locate(affectedKeys);
+      }
+
    }
 }

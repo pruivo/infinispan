@@ -73,7 +73,7 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
    
    private static final WriteCommand[] EMPTY_WRITE_COMMAND_ARRAY = new WriteCommand[0];
    private static final Object[] EMPTY_ARRAY = new Object[0];
-   private static final Comparator<Object> KEY_COMPARATOR = new Comparator<Object>() {
+   public static final Comparator<Object> KEY_COMPARATOR = new Comparator<Object>() {
 
       private final Hash hash = new MurmurHash3();
 
@@ -82,6 +82,8 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
          return Integer.valueOf(hash.hash(o1)).compareTo(hash.hash(o2));
       }
    };
+
+   private transient boolean wasInvoked;
 
    public void initialize(CacheNotifier notifier, RecoveryManager recoveryManager) {
       this.notifier = notifier;
@@ -277,5 +279,13 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
          TimSort.sort(sorted, KEY_COMPARATOR);
       }
       return sorted;
+   }
+
+   public boolean wasInvoked() {
+      return wasInvoked;
+   }
+
+   public void setWasInvoked(boolean wasInvoked) {
+      this.wasInvoked = wasInvoked;
    }
 }

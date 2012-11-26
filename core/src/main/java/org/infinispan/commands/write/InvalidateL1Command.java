@@ -104,7 +104,7 @@ public class InvalidateL1Command extends InvalidateCommand {
       final boolean trace = log.isTraceEnabled();
       if (trace) log.tracef("Preparing to invalidate keys %s", Arrays.asList(keys));
       for (Object k : getKeys()) {
-         InternalCacheEntry ice = dataContainer.get(k);
+         InternalCacheEntry ice = dataContainer.get(k, null);
          if (ice != null) {
             DataLocality locality = dm.getLocality(k);
 

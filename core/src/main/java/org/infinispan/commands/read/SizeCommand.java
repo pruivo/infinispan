@@ -51,10 +51,10 @@ public class SizeCommand extends AbstractLocalCommand implements VisitableComman
    @Override
    public Integer perform(InvocationContext ctx) throws Throwable {
       if (noTxModifications(ctx)) {
-         return container.size();
+         return container.size(null);
       }
 
-      int size = container.size();
+      int size = container.size(null);
       for (CacheEntry e: ctx.getLookedUpEntries().values()) {
          if (e.isCreated()) {
             size ++;
@@ -69,7 +69,7 @@ public class SizeCommand extends AbstractLocalCommand implements VisitableComman
    @Override
    public String toString() {
       return "SizeCommand{" +
-            "containerSize=" + container.size() +
+            "containerSize=" + container.size(null) +
             '}';
    }
 }

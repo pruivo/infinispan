@@ -36,6 +36,8 @@ import org.infinispan.commands.read.ReduceCommand;
 import org.infinispan.commands.read.SizeCommand;
 import org.infinispan.commands.read.ValuesCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
+import org.infinispan.commands.remote.GMUClusteredGetCommand;
+import org.infinispan.commands.remote.GarbageCollectorControlCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.remote.recovery.CompleteTransactionCommand;
@@ -43,11 +45,14 @@ import org.infinispan.commands.remote.recovery.GetInDoubtTransactionsCommand;
 import org.infinispan.commands.remote.recovery.GetInDoubtTxInfoCommand;
 import org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand;
 import org.infinispan.commands.tx.CommitCommand;
+import org.infinispan.commands.tx.GMUCommitCommand;
+import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
 import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.commands.write.*;
+import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.context.Flag;
 import org.infinispan.distexec.mapreduce.Mapper;
 import org.infinispan.distexec.mapreduce.Reducer;
@@ -65,6 +70,7 @@ import org.infinispan.util.logging.LogFactory;
 
 import javax.transaction.xa.Xid;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -327,6 +333,26 @@ public class ControlledCommandFactory implements CommandsFactory {
    @Override
    public CancelCommand buildCancelCommandCommand(UUID commandUUID) {
       return actual.buildCancelCommandCommand(commandUUID);
+   }
+
+   @Override
+   public GMUPrepareCommand buildGMUPrepareCommand(GlobalTransaction gtx, List<WriteCommand> modifications, boolean onePhaseCommit) {
+      return actual.buildGMUPrepareCommand(gtx, modifications, onePhaseCommit);
+   }
+
+   @Override
+   public GMUCommitCommand buildGMUCommitCommand(GlobalTransaction gtx) {
+      return actual.buildGMUCommitCommand(gtx);
+   }
+
+   @Override
+   public GMUClusteredGetCommand buildGMUClusteredGetCommand(Object key, Set<Flag> flags, boolean acquireRemoteLock, GlobalTransaction gtx, GMUVersion txVersion, BitSet alreadyReadFromMask) {
+      return actual.buildGMUClusteredGetCommand(key, flags, acquireRemoteLock, gtx, txVersion, alreadyReadFromMask);
+   }
+
+   @Override
+   public GarbageCollectorControlCommand buildGarbageCollectorControlCommand(GarbageCollectorControlCommand.Type type, int minimumVisibleViewId) {
+      return actual.buildGarbageCollectorControlCommand(type, minimumVisibleViewId);
    }
 
    @Override

@@ -117,9 +117,9 @@ public class StateResponseOrderingTest extends MultipleCacheManagersTest {
       TestingUtil.waitForRehashToComplete(cache(0), cache(1), cache(2));
 
       DataContainer dataContainer = TestingUtil.extractComponent(cache(0), DataContainer.class);
-      assertTrue(dataContainer.containsKey(k1));
-      assertTrue(dataContainer.containsKey(k2));
-      assertTrue(dataContainer.containsKey(k3));
+      assertTrue(dataContainer.containsKey(k1, null));
+      assertTrue(dataContainer.containsKey(k2, null));
+      assertTrue(dataContainer.containsKey(k3, null));
    }
 
    public void testStateResponseWhileRestartingBrokenTransfers() throws Throwable {
@@ -192,7 +192,7 @@ public class StateResponseOrderingTest extends MultipleCacheManagersTest {
 
       log.debugf("Final checkpoint status: %s", checkPoint);
       DataContainer dataContainer = TestingUtil.extractComponent(cache(0), DataContainer.class);
-      assertTrue(dataContainer.containsKey(k1));
+      assertTrue(dataContainer.containsKey(k1, null));
    }
 
    private void replaceInvocationHandler(final CheckPoint checkPoint, final EmbeddedCacheManager manager,

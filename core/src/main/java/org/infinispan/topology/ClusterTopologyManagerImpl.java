@@ -138,7 +138,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
    }
 
    @Override
-   public CacheTopology handleJoin(String cacheName, Address joiner, CacheJoinInfo joinInfo, int viewId) throws Exception {
+   public List<CacheTopology> handleJoin(String cacheName, Address joiner, CacheJoinInfo joinInfo, int viewId) throws Exception {
       waitForView(viewId);
       if (isShuttingDown) {
          log.debugf("Ignoring join request from %s for cache %s, the local cache manager is shutting down",
@@ -170,7 +170,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
          rebalancePolicy.updateCacheStatus(cacheName, cacheStatus);
       }
 
-      return cacheStatus.getCacheTopology();
+      return cacheStatus.getCacheTopologyHistory();
    }
 
    @Override
@@ -215,6 +215,20 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
          broadcastConsistentHashUpdate(cacheName, cacheStatus);
          rebalancePolicy.updateCacheStatus(cacheName, cacheStatus);
       }
+   }
+
+   @Override
+   public void gcUnreachableCacheTopology(String cacheName, int minTopologyId) {
+      ClusterCacheStatus cacheStatus = cacheStatusMap.get(cacheName);
+      if (cacheStatus != null) {
+         cacheStatus.gcUnreachableCacheTopology(minTopologyId);
+      }
+   }
+
+   @Override
+   public int getCacheHistorySize(String cacheName) {
+      ClusterCacheStatus cacheStatus = cacheStatusMap.get(cacheName);
+      return cacheStatus == null ? 0 : cacheStatus.getCacheTopologyHistory().size();
    }
 
    protected void handleNewView(List<Address> ignored, boolean mergeView, int newViewId) {

@@ -30,7 +30,10 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import javax.naming.Context;
+import java.io.BufferedWriter;
 import java.io.Closeable;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.ObjectOutput;
 import java.io.OutputStream;
 import java.lang.management.LockInfo;
@@ -673,5 +676,17 @@ public final class Util {
       }
 
       return sb.toString();
+   }
+
+   public static BufferedWriter getBufferedWriter(String filePath) {
+      try {
+         return new BufferedWriter(new FileWriter(filePath));
+      } catch (IOException e) {
+         return null;
+      }
+   }
+
+   public static void safeWrite(BufferedWriter writer, Object object) throws IOException {
+      writer.write(object == null ? "null" : object.toString());
    }
 }

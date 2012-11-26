@@ -57,6 +57,6 @@ public class LocalDeltaAwarePassivationTest extends LocalDeltaAwareEvictionTest 
       assertEquals(1, cacheStore.loadAllKeys(null).size()); // one entry in store
 
       DataContainer dataContainer = cache(cacheIndex).getAdvancedCache().getDataContainer();
-      assertEquals(1, dataContainer.size());        // only one entry in memory (the other one was evicted)
+      assertEquals(1, dataContainer.size(null));        // only one entry in memory (the other one was evicted)
    }
 }

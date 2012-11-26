@@ -167,7 +167,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
       // (not present in data container yet). In that case we fetch the value remotely first. If the value exists remotely (non-null)
       // then we use it. Otherwise if remote value is null it's possible that the state transfer finished in between
       // the "isAffectedByRehash" and "retrieveFromRemoteSource" so the caller can hope to find the value in the local data container.
-      if (dm.isAffectedByRehash(key) && !dataContainer.containsKey(key)) {
+      if (dm.isAffectedByRehash(key) && !dataContainer.containsKey(key, null)) {
          if (trace) log.tracef("Doing a remote get for key %s", key);
 
          // attempt a remote lookup
@@ -185,7 +185,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    }
 
    private InternalCacheEntry localGetCacheEntry(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
-      InternalCacheEntry ice = dataContainer.get(key);
+      InternalCacheEntry ice = dataContainer.get(key, null);
       if (ice != null) {
          if (!ctx.replaceValue(key, ice))  {
             if (isWrite)

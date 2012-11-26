@@ -54,6 +54,11 @@ import org.infinispan.container.entries.metadata.MetadataTransientCacheValue;
 import org.infinispan.container.entries.metadata.MetadataTransientMortalCacheEntry;
 import org.infinispan.container.entries.metadata.MetadataTransientMortalCacheValue;
 import org.infinispan.container.versioning.SimpleClusteredVersion;
+import org.infinispan.container.entries.gmu.InternalGMUNullCacheEntry;
+import org.infinispan.container.entries.gmu.InternalGMUNullCacheValue;
+import org.infinispan.container.versioning.gmu.GMUCacheEntryVersion;
+import org.infinispan.container.versioning.gmu.GMUDistributedVersion;
+import org.infinispan.container.versioning.gmu.GMUReplicatedVersion;
 import org.infinispan.context.Flag;
 import org.infinispan.distribution.ch.DefaultConsistentHash;
 import org.infinispan.distribution.ch.DefaultConsistentHashFactory;
@@ -315,6 +320,12 @@ public class ExternalizerTable implements ObjectTable {
       addInternalExternalizer(new InfinispanCollections.EmptyList.EmptyListExternalizer());
 
       addInternalExternalizer(new EmbeddedMetadata.Externalizer());
+
+      addInternalExternalizer(new InternalGMUNullCacheEntry.Externalizer());
+      addInternalExternalizer(new InternalGMUNullCacheValue.Externalizer());
+      addInternalExternalizer(new GMUReplicatedVersion.Externalizer(gcr));
+      addInternalExternalizer(new GMUDistributedVersion.Externalizer(gcr));
+      addInternalExternalizer(new GMUCacheEntryVersion.Externalizer(gcr));
    }
 
    void addInternalExternalizer(AdvancedExternalizer<?> ext) {

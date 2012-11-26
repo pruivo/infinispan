@@ -83,7 +83,7 @@ public class NonStringKeyStateTransferTest extends AbstractCacheTest {
          cm2 = TestCacheManagerFactory.createClusteredCacheManager(conf);
          Cache c2 = cm2.getCache();
          assert c2.size() > 0;
-         for (Object key: c2.getAdvancedCache().getDataContainer().keySet()) {
+         for (Object key: c2.getAdvancedCache().getDataContainer().keySet(null)) {
             assert key instanceof Person: "expected key to be person but obtained " + key;
          }
          

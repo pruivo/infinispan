@@ -23,34 +23,18 @@
 package org.infinispan.container;
 
 import net.jcip.annotations.ThreadSafe;
-import org.infinispan.CacheException;
-import org.infinispan.metadata.Metadata;
 import org.infinispan.container.entries.InternalCacheEntry;
-import org.infinispan.eviction.ActivationManager;
-import org.infinispan.eviction.EvictionManager;
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.eviction.EvictionStrategy;
 import org.infinispan.eviction.EvictionThreadPolicy;
-import org.infinispan.eviction.PassivationManager;
-import org.infinispan.factories.annotations.Inject;
-import org.infinispan.loaders.CacheLoaderException;
-import org.infinispan.loaders.CacheLoaderManager;
-import org.infinispan.loaders.CacheStore;
-import org.infinispan.util.CollectionFactory;
+import org.infinispan.metadata.Metadata;
 import org.infinispan.util.Equivalence;
-import org.infinispan.util.Immutables;
-import org.infinispan.util.TimeService;
-import org.infinispan.util.concurrent.BoundedConcurrentHashMap;
-import org.infinispan.util.concurrent.BoundedConcurrentHashMap.Eviction;
-import org.infinispan.util.concurrent.BoundedConcurrentHashMap.EvictionListener;
+import org.infinispan.util.Util;
 
-import java.util.AbstractCollection;
-import java.util.AbstractSet;
-import java.util.Collection;
-import java.util.Collections;
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * DefaultDataContainer is both eviction and non-eviction based data container.
@@ -60,75 +44,23 @@ import java.util.concurrent.ConcurrentMap;
  * @author Galder Zamarreño
  * @author Vladimir Blagojevic
  * @author <a href="http://gleamynode.net/">Trustin Lee</a>
- *
+ * @author Pedro Ruivo
  * @since 4.0
  */
 @ThreadSafe
-public class DefaultDataContainer implements DataContainer {
-
-   final protected ConcurrentMap<Object, InternalCacheEntry> entries;
-   protected InternalEntryFactory entryFactory;
-   final protected DefaultEvictionListener evictionListener;
-   private EvictionManager evictionManager;
-   private PassivationManager passivator;
-   private ActivationManager activator;
-   private CacheLoaderManager clm;
-   private TimeService timeService;
+public class DefaultDataContainer extends AbstractDataContainer<InternalCacheEntry> {
 
    public DefaultDataContainer(int concurrencyLevel) {
-      // If no comparing implementations passed, could fallback on JDK CHM
-      entries = CollectionFactory.makeConcurrentMap(128, concurrencyLevel);
-      evictionListener = null;
+      super(concurrencyLevel);
    }
 
-   public DefaultDataContainer(int concurrencyLevel,
+   public DefaultDataContainer(int concurrencyLevel, Equivalence keyEq, Equivalence valueEq) {
+      super(concurrencyLevel, keyEq, valueEq);
+   }
+
+   protected DefaultDataContainer(int concurrencyLevel, int maxEntries, EvictionStrategy strategy, EvictionThreadPolicy policy,
          Equivalence keyEq, Equivalence valueEq) {
-      // If at least one comparing implementation give, use ComparingCHMv8
-      entries = CollectionFactory.makeConcurrentMap(128, concurrencyLevel, keyEq, valueEq);
-      evictionListener = null;
-   }
-
-   protected DefaultDataContainer(int concurrencyLevel, int maxEntries,
-         EvictionStrategy strategy, EvictionThreadPolicy policy,
-         Equivalence keyEquivalence, Equivalence valueEquivalence) {
-      // translate eviction policy and strategy
-      switch (policy) {
-         case PIGGYBACK:
-         case DEFAULT:
-            evictionListener = new DefaultEvictionListener();
-            break;
-         default:
-            throw new IllegalArgumentException("No such eviction thread policy " + strategy);
-      }
-
-      Eviction eviction;
-      switch (strategy) {
-         case FIFO:
-         case UNORDERED:
-         case LRU:
-            eviction = Eviction.LRU;
-            break;
-         case LIRS:
-            eviction = Eviction.LIRS;
-            break;
-         default:
-            throw new IllegalArgumentException("No such eviction strategy " + strategy);
-      }
-
-      entries = new BoundedConcurrentHashMap<Object, InternalCacheEntry>(
-            maxEntries, concurrencyLevel, eviction, evictionListener,
-            keyEquivalence, valueEquivalence);
-   }
-
-   @Inject
-   public void initialize(EvictionManager evictionManager, PassivationManager passivator,
-         InternalEntryFactory entryFactory, ActivationManager activator, CacheLoaderManager clm, TimeService timeService) {
-      this.evictionManager = evictionManager;
-      this.passivator = passivator;
-      this.entryFactory = entryFactory;
-      this.activator = activator;
-      this.clm = clm;
-      this.timeService = timeService;
+      super(concurrencyLevel, maxEntries, strategy, policy, keyEq, valueEq);
    }
 
    public static DataContainer boundedDataContainer(int concurrencyLevel, int maxEntries,
@@ -148,13 +80,13 @@ public class DefaultDataContainer implements DataContainer {
    }
 
    @Override
-   public InternalCacheEntry peek(Object key) {
+   public InternalCacheEntry peek(Object key, Metadata metadata) {
       return entries.get(key);
    }
 
    @Override
-   public InternalCacheEntry get(Object k) {
-      InternalCacheEntry e = peek(k);
+   public InternalCacheEntry get(Object k, Metadata metadata) {
+      InternalCacheEntry e = peek(k, metadata);
       if (e != null && e.canExpire()) {
          long currentTimeMillis = timeService.wallClockTime();
          if (e.isExpired(currentTimeMillis)) {
@@ -186,8 +118,8 @@ public class DefaultDataContainer implements DataContainer {
    }
 
    @Override
-   public boolean containsKey(Object k) {
-      InternalCacheEntry ice = peek(k);
+   public boolean containsKey(Object k, Metadata metadata) {
+      InternalCacheEntry ice = peek(k, metadata);
       if (ice != null && ice.canExpire() && ice.isExpired(timeService.wallClockTime())) {
          entries.remove(k);
          ice = null;
@@ -196,13 +128,13 @@ public class DefaultDataContainer implements DataContainer {
    }
 
    @Override
-   public InternalCacheEntry remove(Object k) {
+   public InternalCacheEntry remove(Object k, Metadata metadata) {
       InternalCacheEntry e = entries.remove(k);
       return e == null || (e.canExpire() && e.isExpired(timeService.wallClockTime())) ? null : e;
    }
 
    @Override
-   public int size() {
+   public int size(Metadata metadata) {
       return entries.size();
    }
 
@@ -212,18 +144,8 @@ public class DefaultDataContainer implements DataContainer {
    }
 
    @Override
-   public Set<Object> keySet() {
-      return Collections.unmodifiableSet(entries.keySet());
-   }
-
-   @Override
-   public Collection<Object> values() {
-      return new Values();
-   }
-
-   @Override
-   public Set<InternalCacheEntry> entrySet() {
-      return new EntrySet();
+   public void clear(Metadata metadata) {
+      clear();
    }
 
    @Override
@@ -238,55 +160,59 @@ public class DefaultDataContainer implements DataContainer {
    }
 
    @Override
-   public Iterator<InternalCacheEntry> iterator() {
-      return new EntryIterator(entries.values().iterator());
+   protected Map<Object, InternalCacheEntry> getCacheEntries(Map<Object, InternalCacheEntry> evicted) {
+      return evicted;
    }
 
-   private final class DefaultEvictionListener implements EvictionListener<Object, InternalCacheEntry> {
+   @Override
+   protected InternalCacheEntry getCacheEntry(InternalCacheEntry evicted) {
+      return evicted;
+   }
 
-      @Override
-      public void onEntryEviction(Map<Object, InternalCacheEntry> evicted) {
-         evictionManager.onEntryEviction(evicted);
+   @Override
+   protected InternalCacheEntry getCacheEntry(InternalCacheEntry entry, Metadata metadata) {
+      return entry;
+   }
+
+   @Override
+   protected EntryIterator createEntryIterator(Metadata metadata) {
+      return new DefaultEntryIterator(entries.values().iterator());
+   }
+
+   @Override
+   public final boolean dumpTo(String filePath) {
+      BufferedWriter bufferedWriter = Util.getBufferedWriter(filePath);
+      if (bufferedWriter == null) {
+         return false;
       }
-
-      @Override
-      public void onEntryChosenForEviction(InternalCacheEntry entry) {
-         passivator.passivate(entry);
-      }
-
-      @Override
-      public void onEntryActivated(Object key) {
-         activator.activate(key);
-      }
-
-      @Override
-      public void onEntryRemoved(Object key) {
-         try {
-            CacheStore cacheStore = clm.getCacheStore();
-            if (cacheStore != null)
-               cacheStore.remove(key);
-         } catch (CacheLoaderException e) {
-            throw new CacheException(e);
+      try {
+         for (Map.Entry<Object, InternalCacheEntry> entry : entries.entrySet()) {
+            Util.safeWrite(bufferedWriter, entry.getKey());
+            Util.safeWrite(bufferedWriter, "=");
+            Util.safeWrite(bufferedWriter, entry.getValue().getValue());
+            Util.safeWrite(bufferedWriter, "=");
+            Util.safeWrite(bufferedWriter, entry.getValue().getMetadata().version());
+            bufferedWriter.newLine();
+            bufferedWriter.flush();
          }
+         return true;
+      } catch (IOException e) {
+         return false;
+      } finally {
+         Util.close(bufferedWriter);
       }
    }
 
-   private static class ImmutableEntryIterator extends EntryIterator {
-      ImmutableEntryIterator(Iterator<InternalCacheEntry> it){
-         super(it);
-      }
-
-      @Override
-      public InternalCacheEntry next() {
-         return Immutables.immutableInternalCacheEntry(super.next());
-      }
+   @Override
+   public void purgeOldValues(EntryVersion minimumVersion) {
+      //no-op
    }
 
-   public static class EntryIterator implements Iterator<InternalCacheEntry> {
+   public static class DefaultEntryIterator extends EntryIterator {
 
       private final Iterator<InternalCacheEntry> it;
 
-      EntryIterator(Iterator<InternalCacheEntry> it){this.it=it;}
+      DefaultEntryIterator(Iterator<InternalCacheEntry> it){this.it=it;}
 
       @Override
       public InternalCacheEntry next() {
@@ -303,81 +229,4 @@ public class DefaultDataContainer implements DataContainer {
          throw new UnsupportedOperationException();
       }
    }
-
-   /**
-    * Minimal implementation needed for unmodifiable Set
-    *
-    */
-   private class EntrySet extends AbstractSet<InternalCacheEntry> {
-
-      @Override
-      public boolean contains(Object o) {
-         if (!(o instanceof Map.Entry)) {
-            return false;
-         }
-
-         @SuppressWarnings("rawtypes")
-         Map.Entry e = (Map.Entry) o;
-         InternalCacheEntry ice = entries.get(e.getKey());
-         if (ice == null) {
-            return false;
-         }
-         return ice.getValue().equals(e.getValue());
-      }
-
-      @Override
-      public Iterator<InternalCacheEntry> iterator() {
-         return new ImmutableEntryIterator(entries.values().iterator());
-      }
-
-      @Override
-      public int size() {
-         return entries.size();
-      }
-
-      @Override
-      public String toString() {
-         return entries.toString();
-      }
-   }
-
-   /**
-    * Minimal implementation needed for unmodifiable Collection
-    *
-    */
-   private class Values extends AbstractCollection<Object> {
-      @Override
-      public Iterator<Object> iterator() {
-         return new ValueIterator(entries.values().iterator());
-      }
-
-      @Override
-      public int size() {
-         return entries.size();
-      }
-   }
-
-   private static class ValueIterator implements Iterator<Object> {
-      Iterator<InternalCacheEntry> currentIterator;
-
-      private ValueIterator(Iterator<InternalCacheEntry> it) {
-         currentIterator = it;
-      }
-
-      @Override
-      public boolean hasNext() {
-         return currentIterator.hasNext();
-      }
-
-      @Override
-      public void remove() {
-         throw new UnsupportedOperationException();
-      }
-
-      @Override
-      public Object next() {
-         return currentIterator.next().getValue();
-      }
-   }
-
 }

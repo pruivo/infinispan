@@ -101,7 +101,7 @@ public class LocalDeltaAwareEvictionTest extends MultipleCacheManagersTest {
       assertEquals(2, cacheStore.loadAllKeys(null).size()); // two entries in store
 
       DataContainer dataContainer = cache(cacheIndex).getAdvancedCache().getDataContainer();
-      assertEquals(1, dataContainer.size());        // only one entry in memory (the other one was evicted)
+      assertEquals(1, dataContainer.size(null));        // only one entry in memory (the other one was evicted)
    }
 
    protected void test(final DeltaAwareAccessor daa, final int nodeThatReads, final int nodeThatWrites) throws Exception {

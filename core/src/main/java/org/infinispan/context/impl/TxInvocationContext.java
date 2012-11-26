@@ -23,7 +23,9 @@
 package org.infinispan.context.impl;
 
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 
@@ -36,6 +38,8 @@ import java.util.Set;
  * Interface defining additional functionality for invocation contexts that propagate within a transaction's scope.
  *
  * @author Mircea.Markus@jboss.com
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 public interface TxInvocationContext extends InvocationContext {
@@ -93,4 +97,33 @@ public interface TxInvocationContext extends InvocationContext {
    boolean isImplicitTransaction();
 
    CacheTransaction getCacheTransaction();
+
+   /**
+    * @return  the current transaction snapshot version
+    */
+   EntryVersion getTransactionVersion();
+
+   /**
+    * set a new transaction snapshot version
+    *
+    * @param version the new snapshot version
+    */
+   void setTransactionVersion(EntryVersion version);
+
+   /**
+    * @return  the set of address in which this transaction has already read some key
+    */
+   Set<Address> getAlreadyReadFrom();
+
+   /**
+    * add {@param address} to the already read from set
+    *
+    * @param address the address
+    */
+   void addReadFrom(Address address);
+
+   /**
+    * @return  the key read by this transaction
+    */
+   Collection<Object> getReadSet();
 }

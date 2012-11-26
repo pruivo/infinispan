@@ -115,7 +115,7 @@ public class PassivationManagerImpl implements PassivationManager {
             if (trace) log.tracef("Passivating %s", e.getKey());
             cacheStore.store(e);
          }
-         log.passivatedEntries(container.size(),
+         log.passivatedEntries(container.size(null),
                                Util.prettyPrintTime(timeService.timeDuration(start, TimeUnit.MILLISECONDS)));
       }
    }

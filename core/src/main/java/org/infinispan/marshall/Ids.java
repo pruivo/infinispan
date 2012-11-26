@@ -28,6 +28,8 @@ package org.infinispan.marshall;
  * defined, externalizers.
  *
  * @author Galder Zamarreño
+ * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 public interface Ids {
@@ -127,4 +129,11 @@ public interface Ids {
    int DELTA_COMPOSITE_KEY = 97;
 
    int EMBEDDED_METADATA = 98;
+
+   //GMU
+   int INTERNAL_GMU_NULL_ENTRY = 99;
+   int INTERNAL_GMU_NULL_VALUE = 100;
+   int GMU_REPLICATED_VERSION = 101;
+   int GMU_DISTRIBUTED_VERSION = 102;
+   int GMU_CACHE_VERSION = 103;
 }

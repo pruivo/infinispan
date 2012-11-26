@@ -23,10 +23,7 @@
 
 package org.infinispan.lock;
 
-import org.infinispan.interceptors.EntryWrappingInterceptor;
-import org.infinispan.remoting.transport.jgroups.JGroupsAddress;
 import org.infinispan.test.AbstractInfinispanTest;
-import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.concurrent.locks.OwnableReentrantLock;
 import org.infinispan.util.concurrent.locks.containers.OwnableReentrantPerEntryLockContainer;
 import org.testng.annotations.Test;
@@ -44,8 +41,8 @@ public class SimpleLockContainerTest extends AbstractInfinispanTest {
       assert k1 != k2 && k1.equals(k2);
 
       Object owner = new Object();
-      lc.acquireLock(owner, k1, 0, TimeUnit.MILLISECONDS);
-      assert lc.isLocked(k1);
+      lc.acquireExclusiveLock(owner, k1, 0, TimeUnit.MILLISECONDS);
+      assert lc.isExclusiveLocked(k1);
 
 
       fork(new Runnable() {
@@ -54,7 +51,7 @@ public class SimpleLockContainerTest extends AbstractInfinispanTest {
             final Object otherOwner = new Object();
             for (int i =0; i < 10; i++) {
                try {
-                  final OwnableReentrantLock ownableReentrantLock = lc.acquireLock(otherOwner, k2, 500, TimeUnit.MILLISECONDS);
+                  final OwnableReentrantLock ownableReentrantLock = lc.acquireExclusiveLock(otherOwner, k2, 500, TimeUnit.MILLISECONDS);
                   log.trace("ownableReentrantLock = " + ownableReentrantLock);
                   if (ownableReentrantLock != null) return;
                } catch (InterruptedException e) {

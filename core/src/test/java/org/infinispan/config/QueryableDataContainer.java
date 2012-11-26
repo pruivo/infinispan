@@ -22,6 +22,7 @@
  */
 package org.infinispan.config;
 
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -58,15 +59,15 @@ public class QueryableDataContainer implements DataContainer {
 	}
 
 	@Override
-	public InternalCacheEntry get(Object k) {
-		loggedOperations.add("get(" + k + ")" );
-		return delegate.get(k);
+	public InternalCacheEntry get(Object k, Metadata metadata) {
+		loggedOperations.add("get(" + k + "," + metadata + ")" );
+		return delegate.get(k, null);
 	}
 
 	@Override
-	public InternalCacheEntry peek(Object k) {
-		loggedOperations.add("peek(" + k + ")" );
-		return delegate.peek(k);
+	public InternalCacheEntry peek(Object k, Metadata metadata) {
+		loggedOperations.add("peek(" + k + "," + metadata + ")" );
+		return delegate.peek(k, null);
 	}
 
 	@Override
@@ -76,21 +77,21 @@ public class QueryableDataContainer implements DataContainer {
 	}
 
 	@Override
-	public boolean containsKey(Object k) {
-		loggedOperations.add("containsKey(" + k + ")" );
-		return delegate.containsKey(k);
+	public boolean containsKey(Object k, Metadata metadata) {
+		loggedOperations.add("containsKey(" + k + ", " + metadata + ")" );
+		return delegate.containsKey(k, null);
 	}
 
 	@Override
-	public InternalCacheEntry remove(Object k) {
-		loggedOperations.add("remove(" + k + ")" );
-		return delegate.remove(k);
+	public InternalCacheEntry remove(Object k, Metadata metadata) {
+		loggedOperations.add("remove(" + k + ", " + metadata + ")" );
+		return delegate.remove(k, null);
 	}
 
 	@Override
-	public int size() {
-		loggedOperations.add("size()" );
-		return delegate.size();
+	public int size(Metadata metadata) {
+		loggedOperations.add("size(" + metadata + ")" );
+		return delegate.size(null);
 	}
 
 	@Override
@@ -100,21 +101,21 @@ public class QueryableDataContainer implements DataContainer {
 	}
 
 	@Override
-	public Set<Object> keySet() {
-		loggedOperations.add("keySet()" );
-		return delegate.keySet();
+	public Set<Object> keySet(Metadata metadata) {
+		loggedOperations.add("keySet(" + metadata + ")" );
+		return delegate.keySet(null);
 	}
 
 	@Override
-	public Collection<Object> values() {
-		loggedOperations.add("values()" );
-		return delegate.values();
+	public Collection<Object> values(Metadata metadata) {
+		loggedOperations.add("values(" + metadata+ ")" );
+		return delegate.values(null);
 	}
 
 	@Override
-	public Set<InternalCacheEntry> entrySet() {
-		loggedOperations.add("entrySet()" );
-		return delegate.entrySet();
+	public Set<InternalCacheEntry> entrySet(Metadata metadata) {
+		loggedOperations.add("entrySet( " + metadata + ")" );
+		return delegate.entrySet(null);
 	}
 
 	@Override
@@ -122,9 +123,24 @@ public class QueryableDataContainer implements DataContainer {
 		loggedOperations.add("purgeExpired()" );
 		delegate.purgeExpired();
 	}
+
+   @Override
+   public void clear(Metadata metadata) {
+      loggedOperations.add("clear(" + metadata + ")");
+      delegate.clear(metadata);
+   }
 	
-	public Collection<String> getLoggedOperations() {
-	   return loggedOperations;
+   @Override
+   public boolean dumpTo(String filePath) {
+      return delegate.dumpTo(filePath);
    }
 
+   @Override
+   public void purgeOldValues(EntryVersion minimumVersion) {
+      delegate.purgeOldValues(minimumVersion);
+   }
+
+   public Collection<String> getLoggedOperations() {
+	   return loggedOperations;
+   }
 }
