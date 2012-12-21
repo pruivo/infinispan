@@ -43,7 +43,7 @@ public class Version {
 
    public static final String VERSION = String.format("%s.%s.%s%s%s", MAJOR, MINOR, MICRO, SNAPSHOT ? "-" : ".", MODIFIER);
    public static final String CODENAME = "Delirium";
-   public static final String PROJECT_NAME = "Infinispan";
+   public static final String PROJECT_NAME = "Infinispan (Cloud-TM)";
    public static final byte[] VERSION_ID = readVersionBytes();
    public static final String MAJOR_MINOR = MAJOR + "." + MINOR;
 

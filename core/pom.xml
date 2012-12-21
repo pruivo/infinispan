@@ -120,10 +120,16 @@
       </dependency>
       
       <!-- Pedro -->
-      <dependency>
-         <groupId>com.clearspring.analytics</groupId>
-         <artifactId>stream</artifactId>
-         <version>2.2.0</version>
+       <dependency>
+           <groupId>com.clearspring.analytics</groupId>
+           <artifactId>stream</artifactId>
+           <version>2.2.0</version>
+       </dependency>
+
+       <dependency>
+           <groupId>com.github.egrim</groupId>
+           <artifactId>java-bloomier-filter</artifactId>
+           <version>1.0.Final</version>
       </dependency>
    </dependencies>
 

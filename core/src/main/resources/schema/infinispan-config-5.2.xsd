@@ -1157,6 +1157,100 @@
           </xs:sequence>
         </xs:complexType>
       </xs:element>
+        <xs:element name="dataPlacement" minOccurs="0">
+            <xs:annotation>
+                <xs:documentation>
+                    Configures the Data Placement algorithm (chooses the best localtion for the keys)
+                </xs:documentation>
+            </xs:annotation>
+            <xs:complexType>
+                <xs:sequence>
+                    <xs:element name="properties" type="tns:properties" minOccurs="0">
+                        <xs:annotation>
+                            <xs:documentation>
+                                Some ObjectLookupFactories relies on properties for configuration. These properties
+                                are passed directly to the ObjectLookupFactory.
+                            </xs:documentation>
+                        </xs:annotation>
+                    </xs:element>
+                </xs:sequence>
+                <xs:attribute name="enabled" type="xs:boolean">
+                    <xs:annotation>
+                        <xs:documentation>
+                            Enables or disables Data Placement
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="coolDownTime" type="xs:int">
+                    <xs:annotation>
+                        <xs:documentation>
+                            The minimum amount of time (in milliseconds) to wait between two consecutive triggers to
+                            data placement algorithm
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="maxNumberOfKeysToRequest" type="xs:int">
+                    <xs:annotation>
+                        <xs:documentation>
+                            The maximum number of remote keys that each node requests to the owner
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="objectLookupFactory" type="xs:string">
+                    <xs:annotation>
+                        <xs:documentation>
+                            The ObjectLookupFactory implementation to store the new key mapping
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+            </xs:complexType>
+        </xs:element>
+        <xs:element name="garbageCollector" minOccurs="0">
+            <xs:annotation>
+                <xs:documentation>
+                    Configures the Garbage Collector for GMU algorithm
+                </xs:documentation>
+            </xs:annotation>
+            <xs:complexType>
+                <xs:attribute name="enabled" type="xs:boolean">
+                    <xs:annotation>
+                        <xs:documentation>
+                            Enables or disables garbage collection
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="transactionThreshold" type="xs:int">
+                    <xs:annotation>
+                        <xs:documentation>
+                            The number of transactions committed to trigger the garbage collection of old values
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="versionGCMaxIdle" type="xs:int">
+                    <xs:annotation>
+                        <xs:documentation>
+                            The maximum idle time (in seconds) between two consecutive garbage collection of old
+                            values
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="l1GCInterval" type="xs:int">
+                    <xs:annotation>
+                        <xs:documentation>
+                            The time interval (in seconds) between garbage collection of old value in L1 Cache
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="viewGCBackOff" type="xs:int">
+                    <xs:annotation>
+                        <xs:documentation>
+                            The time to wait (in seconds) to trigger the garbage collection of old cache views,
+                            after a view change event occurs
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+            </xs:complexType>
+        </xs:element>
     </xs:all>
     <xs:attribute name="name" type="xs:string"/>
   </xs:complexType>
@@ -1674,6 +1768,13 @@
 
   <xs:simpleType name="versioningScheme">
     <xs:restriction base="xs:string">
+        <xs:enumeration value="GMU">
+            <xs:annotation>
+                <xs:documentation>
+                    The version scheme for GMU when SERIALIZABLE is enable
+                </xs:documentation>
+            </xs:annotation>
+        </xs:enumeration>
       <xs:enumeration value="SIMPLE">
         <xs:annotation>
           <xs:documentation>
