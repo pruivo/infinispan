@@ -447,11 +447,11 @@ public class ReconfigurableReplicationManager {
 
    @ManagedAttribute(description = "Returns a collection of replication protocols IDs that can be used in the switchTo",
                      writable = false)
-   public final Collection<String> getAvailableProtocolIds() {
+   public final String getAvailableProtocolIds() {
       Collection<ReconfigurableProtocol> protocols = registry.getAllAvailableProtocols();
-      List<String> result = new LinkedList<String>();
+	  String result = "";
       for (ReconfigurableProtocol p : protocols) {
-         result.add(p.getUniqueProtocolName());
+	     result += p.getUniqueProtocolName()+" " ;
       }
       return result;
    }
@@ -574,7 +574,7 @@ public class ReconfigurableReplicationManager {
    }
 
    @ManagedAttribute(description = "Returns true if it is possible to change the reconfigurable protocol", writable = false)
-   public final boolean allowProtocolSwitch() {
+   public final boolean getAllowProtocolSwitch() {
       return allowSwitch;
    }
 

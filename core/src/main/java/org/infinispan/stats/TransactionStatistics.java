@@ -35,7 +35,7 @@ public abstract class TransactionStatistics implements InfinispanStat {
       this.initTime = System.nanoTime();
       this.isReadOnly = true; //as far as it does not tries to perform a put operation
       this.takenLocks = new HashMap<Object, Long>();
-      this.transactionalClass = "DEFAULT_ISPN_CLASS";
+      this.transactionalClass = TransactionsStatisticsRegistry.DEFAULT_ISPN_CLASS;
       this.statisticsContainer = new StatisticsContainerImpl(size);
       this.configuration = configuration;
       if (log.isTraceEnabled()) {

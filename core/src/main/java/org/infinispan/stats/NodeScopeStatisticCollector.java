@@ -67,6 +67,14 @@ public class NodeScopeStatisticCollector {
                this.localTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
             }
          }
+		 else{
+		    if(ts.isReadOnly()){
+		       this.localTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_ABORTED_EXECUTION_TIME));
+            }
+            else{
+		       this.localTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
+            }
+         }
       }
       else if(ts instanceof RemoteTransactionStatistics){
          ts.flush(this.remoteTransactionStatistics);
@@ -78,6 +86,14 @@ public class NodeScopeStatisticCollector {
                this.remoteTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
             }
          }
+		else{
+		   if(ts.isReadOnly()){
+		      this.remoteTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_ABORTED_EXECUTION_TIME));
+		   }
+		   else{
+		      this.remoteTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
+		   }
+		}
       }
    }
 
@@ -290,6 +306,8 @@ public class NodeScopeStatisticCollector {
             return microAvgLocal(IspnStats.NUM_PREPARES, IspnStats.WR_TX_LOCAL_EXECUTION_TIME);
          case WR_TX_SUCCESSFUL_EXECUTION_TIME:
             return microAvgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME);
+		 case WR_TX_ABORTED_EXECUTION_TIME:
+		    return microAvgLocal(IspnStats.NUM_ABORTED_WR_TX, IspnStats.WR_TX_ABORTED_EXECUTION_TIME);
          case RO_TX_SUCCESSFUL_EXECUTION_TIME:
             return microAvgLocal(IspnStats.NUM_COMMITTED_RO_TX, IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME);
          case PREPARE_COMMAND_SIZE:
@@ -375,13 +393,33 @@ public class NodeScopeStatisticCollector {
          case NUM_REMOTE_PUT:
             return localTransactionStatistics.getValue(NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX);
           case LOCAL_GET_EXECUTION:
-            long local_get_time = localTransactionStatistics.getValue(ALL_GET_EXECUTION) -
-            localTransactionStatistics.getValue(RTT_GET);
-              return  (convertNanosToMicro(local_get_time) * 1.0) / (localTransactionStatistics.getValue(IspnStats.NUM_GET) * 1.0);
+            long num = localTransactionStatistics.getValue(IspnStats.NUM_GET);
+			if(num == 0){
+		       return 0;
+            }
+            else{
+			   long local_get_time = localTransactionStatistics.getValue(ALL_GET_EXECUTION) -
+               localTransactionStatistics.getValue(RTT_GET);
+
+               return  convertNanosToMicro(local_get_time) / num;
+            }
          case TBC:
             return convertNanosToMicro(avgMultipleLocalCounters(IspnStats.TBC_EXECUTION_TIME, IspnStats.NUM_GET, IspnStats.NUM_PUT));
          case NTBC:
             return microAvgLocal(IspnStats.NTBC_COUNT, IspnStats.NTBC_EXECUTION_TIME);
+	     case RESPONSE_TIME:
+		    long succWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
+			long abortWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
+			long succRdTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
+
+			long numWr = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
+			long numRd = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_RO_TX);
+
+			if((numWr + numRd) > 0){
+		       return (succRdTot + succWrTot + abortWrTot) / (numWr + numRd);
+			}else{
+			   return 0;
+			}
          default:
             throw new NoIspnStatException("Invalid statistic "+param);
       }

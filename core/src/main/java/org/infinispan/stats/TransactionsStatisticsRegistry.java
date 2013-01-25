@@ -22,6 +22,8 @@ import java.util.concurrent.ConcurrentMap;
 public final class TransactionsStatisticsRegistry {
 
    private static final Log log = LogFactory.getLog(TransactionsStatisticsRegistry.class);
+   
+   public static final String DEFAULT_ISPN_CLASS = "DEFAULT_ISPN_CLASS";
 
    //Now it is unbounded, we can define a MAX_NO_CLASSES
    private static final Map<String, NodeScopeStatisticCollector> transactionalClassesStatsMap
@@ -40,7 +42,7 @@ public final class TransactionsStatisticsRegistry {
    public static void init(Configuration configuration){
       log.info("Initializing transactionalClassesMap");
       TransactionsStatisticsRegistry.configuration = configuration;
-      transactionalClassesStatsMap.put("UNKNOWN_ISPN_CLASS", new NodeScopeStatisticCollector(configuration));
+      transactionalClassesStatsMap.put(DEFAULT_ISPN_CLASS, new NodeScopeStatisticCollector(configuration));
    }
 
    public static void addNTBCValue(long currtime) {
@@ -89,7 +91,7 @@ public final class TransactionsStatisticsRegistry {
    }
 
    public static void addValueAndFlushIfNeeded(IspnStats param, double value, boolean local) {
-      NodeScopeStatisticCollector nssc = transactionalClassesStatsMap.get("UNKNOWN_ISPN_STATS");
+      NodeScopeStatisticCollector nssc = transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS);
       if (local) {
          nssc.addLocalValue(param, value);
       } else {
@@ -98,7 +100,7 @@ public final class TransactionsStatisticsRegistry {
    }
 
    public static void incrementValueAndFlushIfNeeded(IspnStats param, boolean local) {
-      NodeScopeStatisticCollector nssc = transactionalClassesStatsMap.get("UNKNOWN_ISPN_STATS");
+      NodeScopeStatisticCollector nssc = transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS);
       if (local) {
          nssc.addLocalValue(param, 1D);
       } else {
@@ -158,7 +160,7 @@ public final class TransactionsStatisticsRegistry {
          return null;
       }
       if(className == null){
-          return transactionalClassesStatsMap.get("DEFAULT_ISPN_CLASS").getAttribute(param);
+          return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
       }else{
          if(transactionalClassesStatsMap.get(className) != null)
           return transactionalClassesStatsMap.get(className).getAttribute(param);
@@ -171,7 +173,7 @@ public final class TransactionsStatisticsRegistry {
        if (configuration == null) {
            return null;
        }
-       return transactionalClassesStatsMap.get("DEFAULT_ISPN_CLASS").getAttribute(param);
+       return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
     }
 
    public static Object getPercentile(IspnStats param, int percentile, String className){
@@ -179,7 +181,7 @@ public final class TransactionsStatisticsRegistry {
          return null;
       }
       if(className == null){
-          return transactionalClassesStatsMap.get("DEFAULT_ISPN_CLASS").getPercentile(param, percentile);
+          return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getPercentile(param, percentile);
       }else{
          if(transactionalClassesStatsMap.get(className) != null)
             return transactionalClassesStatsMap.get(className).getPercentile(param, percentile);
@@ -191,7 +193,7 @@ public final class TransactionsStatisticsRegistry {
        if (configuration == null) {
            return null;
        }
-       return transactionalClassesStatsMap.get("DEFAULT_ISPN_CLASS").getPercentile(param, percentile);
+       return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getPercentile(param, percentile);
     }
 
    public static void addTakenLock(Object lock) {

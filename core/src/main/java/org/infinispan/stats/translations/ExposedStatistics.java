@@ -139,7 +139,9 @@ public class ExposedStatistics {
 
       NTBC_EXECUTION_TIME(true,false),
       NTBC_COUNT(true,false),
-      NTBC(false,false); //Time between Transactions in a thread   // ONLY FOR QUERY, derived on the fly
+      NTBC(false,false), //Time between Transactions in a thread   // ONLY FOR QUERY, derived on the fly
+
+      RESPONSE_TIME(true,false);
 
       private boolean local;
       private boolean remote;
