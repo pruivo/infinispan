@@ -395,13 +395,13 @@ public class NodeScopeStatisticCollector {
           case LOCAL_GET_EXECUTION:
             long num = localTransactionStatistics.getValue(IspnStats.NUM_GET);
 			if(num == 0){
-		       return 0;
+		       return new Long(0L);;
             }
             else{
 			   long local_get_time = localTransactionStatistics.getValue(ALL_GET_EXECUTION) -
                localTransactionStatistics.getValue(RTT_GET);
 
-               return  convertNanosToMicro(local_get_time) / num;
+               return  new Long(convertNanosToMicro(local_get_time) / num);
             }
          case TBC:
             return convertNanosToMicro(avgMultipleLocalCounters(IspnStats.TBC_EXECUTION_TIME, IspnStats.NUM_GET, IspnStats.NUM_PUT));
