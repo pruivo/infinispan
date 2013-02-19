@@ -63,6 +63,11 @@ public class SortedTransactionQueue {
          }
 
          @Override
+         public long getConcurrentClockNumber(){
+            throw new IllegalStateException("Cannot return the concurrent clock number from the first node");
+         }
+
+         @Override
          public boolean isReady() {
             return false;
          }
@@ -132,6 +137,11 @@ public class SortedTransactionQueue {
          }
 
          @Override
+         public long getConcurrentClockNumber(){
+            throw new IllegalStateException("Cannot return the concurrent clock number from the last node");
+         }
+
+         @Override
          public boolean isReady() {
             return false;
          }
@@ -193,12 +203,12 @@ public class SortedTransactionQueue {
       lastEntry.setPrevious(firstEntry);
    }
 
-   public final void prepare(CacheTransaction cacheTransaction) {
+   public final void prepare(CacheTransaction cacheTransaction, long concurrentClockNumber) {
       GlobalTransaction globalTransaction = cacheTransaction.getGlobalTransaction();
       if (concurrentHashMap.contains(globalTransaction)) {
          log.warnf("Duplicated prepare for %s", globalTransaction);
       }
-      Node entry = new TransactionEntryImpl(cacheTransaction);
+      Node entry = new TransactionEntryImpl(cacheTransaction, concurrentClockNumber);
       concurrentHashMap.put(globalTransaction, entry);
       addNew(entry);
    }
@@ -400,13 +410,15 @@ public class SortedTransactionQueue {
       private boolean ready;
       private boolean committed;
       private GMUCommitCommand commitCommand;
+      private long concurrentClockNumber; //This is the value of the last committed vector clock's n-th entry on this node n at the time this object was created.
 
       private Node previous;
       private Node next;
 
-      private TransactionEntryImpl(CacheTransaction cacheTransaction) {
+      private TransactionEntryImpl(CacheTransaction cacheTransaction, long concurrentClockNumber) {
          this.cacheTransaction = cacheTransaction;
          this.entryVersion = toGMUVersion(cacheTransaction.getTransactionVersion());
+         this.concurrentClockNumber = concurrentClockNumber;
       }
 
       public synchronized void commitVersion(GMUVersion commitVersion) {
@@ -419,6 +431,10 @@ public class SortedTransactionQueue {
 
       public synchronized GMUVersion getVersion() {
          return entryVersion;
+      }
+
+      public synchronized long getConcurrentClockNumber(){
+         return concurrentClockNumber;
       }
 
       public CacheTransaction getCacheTransaction() {
@@ -552,5 +568,6 @@ public class SortedTransactionQueue {
       void awaitUntilCommitted(GMUCommitCommand commitCommand) throws InterruptedException;
       CacheTransaction getCacheTransactionForCommit();
       void committed();
+      long getConcurrentClockNumber();
    }
 }

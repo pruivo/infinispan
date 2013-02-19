@@ -108,11 +108,12 @@ public class TransactionCommitManager {
     * @param cacheTransaction the transaction to be prepared
     */
    public synchronized void prepareTransaction(CacheTransaction cacheTransaction) {
+      long concurrentClockNumber = commitLog.getCurrentVersion().getThisNodeVersionValue();
       EntryVersion preparedVersion = versionGenerator.setNodeVersion(commitLog.getCurrentVersion(),
                                                                      ++lastPreparedVersion);
 
       cacheTransaction.setTransactionVersion(preparedVersion);
-      sortedTransactionQueue.prepare(cacheTransaction);
+      sortedTransactionQueue.prepare(cacheTransaction,concurrentClockNumber);
    }
 
    public void rollbackTransaction(CacheTransaction cacheTransaction) {
@@ -179,7 +180,7 @@ public class TransactionCommitManager {
 
                      CacheTransaction cacheTransaction = transactionEntry.getCacheTransactionForCommit();
 
-                     CommittedTransaction committedTransaction = new CommittedTransaction(cacheTransaction, subVersion);
+                     CommittedTransaction committedTransaction = new CommittedTransaction(cacheTransaction, subVersion, transactionEntry.getConcurrentClockNumber());
 
                      commitContextEntries.commitContextEntries(createInvocationContext(cacheTransaction, subVersion));
                      committedTransactions.add(committedTransaction);

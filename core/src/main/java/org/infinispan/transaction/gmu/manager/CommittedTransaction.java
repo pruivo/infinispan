@@ -40,9 +40,11 @@ public class CommittedTransaction {
    private final EntryVersion commitVersion;
    private final Collection<WriteCommand> modifications;
    private final int subVersion;
+   private final long concurrentClockNumber;
 
-   public CommittedTransaction(CacheTransaction cacheTransaction, int subVersion) {
+   public CommittedTransaction(CacheTransaction cacheTransaction, int subVersion, long concurrentClockNumber) {
       this.subVersion = subVersion;
+      this.concurrentClockNumber = concurrentClockNumber;
       commitVersion = cacheTransaction.getTransactionVersion();
       modifications = new LinkedList<WriteCommand>(cacheTransaction.getModifications());
    }
@@ -57,5 +59,9 @@ public class CommittedTransaction {
 
    public final int getSubVersion() {
       return subVersion;
+   }
+
+   public final long getConcurrentClockNumber(){
+      return this.concurrentClockNumber;
    }
 }
