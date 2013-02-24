@@ -82,7 +82,7 @@ public class GMUDistributionInterceptor extends DistributionInterceptor {
             log.tracef("Trying to retrieve a the key %s from L1 GMU Data Container", key);
          }
          TxInvocationContext txInvocationContext = (TxInvocationContext) ctx;
-         InternalGMUCacheEntry gmuCacheEntry = l1GMUContainer.getValidVersion(key,txInvocationContext,
+         InternalGMUCacheEntry gmuCacheEntry = l1GMUContainer.getValidVersion(key,
                                                                               txInvocationContext.getTransactionVersion(),
                                                                               txInvocationContext.getAlreadyReadFrom());
          

@@ -104,7 +104,7 @@ public class L1GMUContainer {
 			stats.put(s, new AtomicLong(0));
 	}
 
-	public final InternalGMUCacheEntry getValidVersion(Object key, TxInvocationContext ctx, EntryVersion txVersion, Collection<Address> readFrom) {
+	public final InternalGMUCacheEntry getValidVersion(Object key, EntryVersion txVersion, Collection<Address> readFrom) {
 		if (!enabled) {
 			return null;
 		}
