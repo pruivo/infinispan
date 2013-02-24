@@ -41,7 +41,6 @@ import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.container.versioning.gmu.GMUVersionGenerator;
-import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.distribution.DistributionManager;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
@@ -111,7 +110,6 @@ public class L1GMUContainer {
 		if (readFrom == null || readFrom.isEmpty()){
 			return null;
 		}
-		
 		L1VersionChain versionChain = l1Container.get(key);
 		if (versionChain != null) {
 			VersionEntry<L1Entry> versionEntry = findMaxVersion(versionChain, txVersion, readFrom);
@@ -143,7 +141,7 @@ public class L1GMUContainer {
 		}
 		return true;
 	}
-	
+
 	public final void insertOrUpdate(Object key, InternalGMUCacheEntry value) {
 		if (!enabled) {
 			return;
@@ -358,6 +356,7 @@ public class L1GMUContainer {
 				this.readVersion = gmuCacheEntry.isMostRecent() ? gmuCacheEntry.getMaximumValidVersion() : gmuCacheEntry.getMaximumTransactionVersion();
 			else	
 				this.readVersion = gmuCacheEntry.getMaximumTransactionVersion();					
+			
 			this.invalid = false;
 		}
 
