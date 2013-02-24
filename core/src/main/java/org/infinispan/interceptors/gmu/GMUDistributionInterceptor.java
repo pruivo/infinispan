@@ -55,18 +55,20 @@ public class GMUDistributionInterceptor extends DistributionInterceptor {
    private static final Log log = LogFactory.getLog(GMUDistributionInterceptor.class);
    protected GMUVersionGenerator versionGenerator;
    private L1GMUContainer l1GMUContainer;
-
+   boolean isL1CacheEnabled;
+   
    @Inject
    public void setVersionGenerator(VersionGenerator versionGenerator, L1GMUContainer l1GMUContainer) {
       this.versionGenerator = toGMUVersionGenerator(versionGenerator);
       this.l1GMUContainer = l1GMUContainer;
    }
+   
 
    @Override
    protected void prepareOnAffectedNodes(TxInvocationContext ctx, PrepareCommand command,
                                          Collection<Address> recipients, boolean sync) {
       Map<Address, Response> responses = rpcManager.invokeRemotely(recipients, command, true, true, false);
-      log.debugf("prepare command for transaction %s is sent. responses are: %s",
+      log.infof("prepare command for transaction %s is sent. responses are: %s",
                  command.getGlobalTransaction().prettyPrint(), responses.toString());
 
       joinAndSetTransactionVersion(responses.values(), ctx, versionGenerator);
@@ -80,12 +82,14 @@ public class GMUDistributionInterceptor extends DistributionInterceptor {
             log.tracef("Trying to retrieve a the key %s from L1 GMU Data Container", key);
          }
          TxInvocationContext txInvocationContext = (TxInvocationContext) ctx;
-         InternalGMUCacheEntry gmuCacheEntry = l1GMUContainer.getValidVersion(key,
+         InternalGMUCacheEntry gmuCacheEntry = l1GMUContainer.getValidVersion(key,txInvocationContext,
                                                                               txInvocationContext.getTransactionVersion(),
                                                                               txInvocationContext.getAlreadyReadFrom());
+         
          if (gmuCacheEntry != null) {
             if (log.isTraceEnabled()) {
-               log.tracef("Retrieve a L1 entry for key %s: %s", key, gmuCacheEntry);
+            	log.tracef("Transaction %s reading from cache:", txInvocationContext.getGlobalTransaction().getId());
+            	log.tracef("Retrieve a L1 entry for key %s: %s", key, gmuCacheEntry);
             }
             txInvocationContext.addKeyReadInCommand(key, gmuCacheEntry);
             txInvocationContext.addReadFrom(dm.getPrimaryLocation(key));
@@ -100,24 +104,32 @@ public class GMUDistributionInterceptor extends DistributionInterceptor {
 
    @Override
    protected void storeInL1(Object key, InternalCacheEntry ice, InvocationContext ctx, boolean isWrite) throws Throwable {
-      if (log.isTraceEnabled()) {
-         log.tracef("Doing a put in L1 into the L1 GMU Data Container");
-      }
-      InternalGMUCacheEntry gmuCacheEntry = ctx.getKeysReadInCommand().get(key);
-      if (gmuCacheEntry == null) {
-         throw new NullPointerException("GMU cache entry cannot be null");
-      }
-      l1GMUContainer.insertOrUpdate(key, gmuCacheEntry);
-      CacheEntry ce = ctx.lookupEntry(key);
-      if (ce == null || ce.isNull() || ce.isLockPlaceholder() || ce.getValue() == null) {
-         if (ce != null && ce.isChanged()) {
-            ce.setValue(ice.getValue());
-         } else {
-            if (isWrite)
-               entryFactory.wrapEntryForPut(ctx, key, ice, false);
-            else
-               ctx.putLookedUpEntry(key, ice);
-         }
-      }
+
+	   InternalGMUCacheEntry gmuCacheEntry = ctx.getKeysReadInCommand().get(key);
+	   if (gmuCacheEntry == null) {
+		   throw new NullPointerException("GMU cache entry cannot be null");
+	   }
+	   if(gmuCacheEntry.getCreationVersion() != null){
+		   if (log.isTraceEnabled()) {
+			   log.tracef("Doing a put in L1 into the L1 GMU Data Container");
+		   }
+		   l1GMUContainer.insertOrUpdate(key, gmuCacheEntry);
+	   }
+	   else{
+		   if (log.isTraceEnabled()) {
+			   log.tracef("Entry retrieved from L1 GMU Data Container. No need to cache it again");
+		   }
+	   }
+	   CacheEntry ce = ctx.lookupEntry(key);
+	   if (ce == null || ce.isNull() || ce.isLockPlaceholder() || ce.getValue() == null) {
+		   if (ce != null && ce.isChanged()) {
+			   ce.setValue(ice.getValue());
+		   } else {
+			   if (isWrite)
+				   entryFactory.wrapEntryForPut(ctx, key, ice, false);
+			   else
+				   ctx.putLookedUpEntry(key, ice);
+		   }
+	   }
    }
 }
