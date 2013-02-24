@@ -356,7 +356,6 @@ public class L1GMUContainer {
 				this.readVersion = gmuCacheEntry.isMostRecent() ? gmuCacheEntry.getMaximumValidVersion() : gmuCacheEntry.getMaximumTransactionVersion();
 			else	
 				this.readVersion = gmuCacheEntry.getMaximumTransactionVersion();					
-			
 			this.invalid = false;
 		}
 
