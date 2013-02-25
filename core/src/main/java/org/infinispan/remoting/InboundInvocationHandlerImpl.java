@@ -84,8 +84,9 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    public void inject(GlobalComponentRegistry gcr,
                       EmbeddedCacheManager embeddedCacheManager, Transport transport,
                       GlobalConfiguration globalConfiguration, CacheViewsManager cacheViewsManager,
-                      Configuration configuration,
-                      @ComponentName(KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncTransportExecutor) {
+                      Configuration configuration
+                      ,@ComponentName(KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncTransportExecutor
+                      ) {
       this.gcr = gcr;
       this.embeddedCacheManager = embeddedCacheManager;
       this.transport = transport;
@@ -158,7 +159,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
              public void run() {
 
                 try {
-                   if (trace) log.tracef("Calling perform() on %s", cmd);
+                   if (trace) log.tracef("Calling perform() on %s from a new thread", cmd);
                    ResponseGenerator respGen = cr.getResponseGenerator();
                    cmd.setResponseGenerator(respGen);
                    Object retval = cmd.perform(null);

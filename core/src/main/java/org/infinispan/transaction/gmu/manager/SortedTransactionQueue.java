@@ -47,7 +47,7 @@ public class SortedTransactionQueue {
 
    private static final Log log = LogFactory.getLog(SortedTransactionQueue.class);
 
-   private Configuration configuration;
+   private boolean synchCommitPhase;
    private final ConcurrentHashMap<GlobalTransaction, Node> concurrentHashMap;
    private final Node firstEntry;
    private final Node lastEntry;
@@ -207,9 +207,8 @@ public class SortedTransactionQueue {
       lastEntry.setPrevious(firstEntry);
    }
 
-   @Inject
-   public void inject(Configuration configuration){
-      this.configuration = configuration;
+   public void setSynchCommitPhase(boolean synchCommitPhase){
+      this.synchCommitPhase = synchCommitPhase;
    }
 
    public final void prepare(CacheTransaction cacheTransaction, long concurrentClockNumber) {
@@ -486,7 +485,7 @@ public class SortedTransactionQueue {
             }
             return;
          }
-         if (configuration.transaction().syncCommitPhase() && commitCommand != null) {
+         if (synchCommitPhase && commitCommand != null) {
             this.commitCommand = commitCommand;
             if (log.isTraceEnabled()) {
                log.tracef("Don't wait. It is remote. Reply will be sent when this [%s] is committed.", this);
@@ -497,7 +496,7 @@ public class SortedTransactionQueue {
             wait();
          }
 
-         if (!configuration.transaction().syncCommitPhase() && commitCommand != null) {
+         if (!synchCommitPhase && commitCommand != null) {
             commitCommand.sendReply(null, false); //It could be unnecessary
          }
 
