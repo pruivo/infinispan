@@ -496,6 +496,12 @@ public class SortedTransactionQueue {
          while (!committed) {
             wait();
          }
+
+         if (!configuration.transaction().syncCommitPhase() && commitCommand != null) {
+            commitCommand.sendReply(null, false); //It could be unnecessary
+         }
+
+
          if (log.isTraceEnabled()) {
             log.tracef("Done! This [%s] is committed.", this);
          }

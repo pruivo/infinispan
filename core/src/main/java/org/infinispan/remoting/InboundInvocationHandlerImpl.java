@@ -27,9 +27,14 @@ import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.control.CacheViewControlCommand;
 import org.infinispan.commands.control.StateTransferControlCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
+import org.infinispan.commands.tx.CommitCommand;
+import org.infinispan.commands.tx.GMUCommitCommand;
 import org.infinispan.config.GlobalConfiguration;
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.factories.GlobalComponentRegistry;
+import org.infinispan.factories.KnownComponentNames;
+import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
@@ -42,14 +47,18 @@ import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.statetransfer.StateTransferManager;
+import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.jgroups.blocks.RequestHandler;
+
+import java.util.concurrent.ExecutorService;
 
 /**
  * Sets the cache interceptor chain on an RPCCommand before calling it to perform
  *
  * @author Manik Surtani
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 @Scope(Scopes.GLOBAL)
@@ -61,6 +70,8 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    private GlobalConfiguration globalConfiguration;
    private Transport transport;
    private CacheViewsManager cacheViewsManager;
+   private Configuration configuration;
+   private ExecutorService asyncTransportExecutor;
 
    /**
     * How to handle an invocation based on the join status of a given cache *
@@ -72,12 +83,16 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    @Inject
    public void inject(GlobalComponentRegistry gcr,
                       EmbeddedCacheManager embeddedCacheManager, Transport transport,
-                      GlobalConfiguration globalConfiguration, CacheViewsManager cacheViewsManager) {
+                      GlobalConfiguration globalConfiguration, CacheViewsManager cacheViewsManager,
+                      Configuration configuration,
+                      @ComponentName(KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncTransportExecutor) {
       this.gcr = gcr;
       this.embeddedCacheManager = embeddedCacheManager;
       this.transport = transport;
       this.globalConfiguration = globalConfiguration;
       this.cacheViewsManager = cacheViewsManager;
+      this.configuration = configuration;
+      this.asyncTransportExecutor = asyncTransportExecutor;
    }
 
    private boolean hasJoinStarted(final ComponentRegistry componentRegistry) throws InterruptedException {
@@ -122,18 +137,39 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       // initialize this command with components specific to the intended cache instance
       commandsFactory.initializeReplicableCommand(cmd, true);
 
-      try {
-         if (trace) log.tracef("Calling perform() on %s", cmd);
-         ResponseGenerator respGen = cr.getResponseGenerator();
-         cmd.setResponseGenerator(respGen);
-         Object retval = cmd.perform(null);
-         if (retval == RequestHandler.DO_NOT_REPLY) {
-            return retval;
+      boolean threadCanBlock = this.configuration.locking().isolationLevel().equals(IsolationLevel.SERIALIZABLE) && !this.configuration.transaction().syncCommitPhase();
+      if(!threadCanBlock || !(cmd instanceof CommitCommand)){
+         try {
+            if (trace) log.tracef("Calling perform() on %s", cmd);
+            ResponseGenerator respGen = cr.getResponseGenerator();
+            cmd.setResponseGenerator(respGen);
+            Object retval = cmd.perform(null);
+            if (retval == RequestHandler.DO_NOT_REPLY) {
+               return retval;
+            }
+            return respGen.getResponse(cmd, retval);
+         } catch (Exception e) {
+            log.trace("Exception executing command", e);
+            return new ExceptionResponse(e);
          }
-         return respGen.getResponse(cmd, retval);
-      } catch (Exception e) {
-         log.trace("Exception executing command", e);
-         return new ExceptionResponse(e);
+      }else{
+          this.asyncTransportExecutor.execute(new Runnable() {
+             @Override
+             public void run() {
+
+                try {
+                   if (trace) log.tracef("Calling perform() on %s", cmd);
+                   ResponseGenerator respGen = cr.getResponseGenerator();
+                   cmd.setResponseGenerator(respGen);
+                   Object retval = cmd.perform(null);
+
+                } catch (Throwable e) {
+                   log.trace("Exception executing command", e);
+
+                }
+             }
+          });
+         return RequestHandler.DO_NOT_REPLY;
       }
    }
 
