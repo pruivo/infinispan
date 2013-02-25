@@ -23,7 +23,9 @@
 package org.infinispan.transaction.gmu.manager;
 
 import org.infinispan.commands.tx.GMUCommitCommand;
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.versioning.gmu.GMUVersion;
+import org.infinispan.factories.annotations.Inject;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.logging.Log;
@@ -38,12 +40,14 @@ import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersion;
  * // TODO: Document this
  *
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class SortedTransactionQueue {
 
    private static final Log log = LogFactory.getLog(SortedTransactionQueue.class);
 
+   private Configuration configuration;
    private final ConcurrentHashMap<GlobalTransaction, Node> concurrentHashMap;
    private final Node firstEntry;
    private final Node lastEntry;
@@ -201,6 +205,11 @@ public class SortedTransactionQueue {
 
       firstEntry.setNext(lastEntry);
       lastEntry.setPrevious(firstEntry);
+   }
+
+   @Inject
+   public void inject(Configuration configuration){
+      this.configuration = configuration;
    }
 
    public final void prepare(CacheTransaction cacheTransaction, long concurrentClockNumber) {
@@ -477,7 +486,7 @@ public class SortedTransactionQueue {
             }
             return;
          }
-         if (commitCommand != null) {
+         if (configuration.transaction().syncCommitPhase() && commitCommand != null) {
             this.commitCommand = commitCommand;
             if (log.isTraceEnabled()) {
                log.tracef("Don't wait. It is remote. Reply will be sent when this [%s] is committed.", this);

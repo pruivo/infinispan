@@ -209,7 +209,6 @@ public class CommitLog {
        */
 
 
-
       synchronized (this) {
          iterator = currentVersion;
       }
