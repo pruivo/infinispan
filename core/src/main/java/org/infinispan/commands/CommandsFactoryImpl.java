@@ -282,12 +282,16 @@ public class CommandsFactoryImpl implements CommandsFactory {
 
    @Override
    public CommitCommand buildCommitCommand(GlobalTransaction gtx) {
-      return new CommitCommand(cacheName, gtx);
+      CommitCommand cmd = new CommitCommand(cacheName, gtx);
+      cmd.setSynchCommitPhase(this.configuration.isSyncCommitPhase());
+      return cmd;
    }
 
    @Override
    public VersionedCommitCommand buildVersionedCommitCommand(GlobalTransaction gtx) {
-      return new VersionedCommitCommand(cacheName, gtx);
+      VersionedCommitCommand cmd = new VersionedCommitCommand(cacheName, gtx);
+      cmd.setSynchCommitPhase(this.configuration.isSyncCommitPhase());
+      return cmd;
    }
 
    @Override
@@ -553,7 +557,9 @@ public class CommandsFactoryImpl implements CommandsFactory {
 
    @Override
    public GMUCommitCommand buildSerializableCommitCommand(GlobalTransaction gtx) {
-      return new GMUCommitCommand(cacheName, gtx);
+      GMUCommitCommand cmd = new GMUCommitCommand(cacheName, gtx);
+      cmd.setSynchCommitPhase(this.configuration.isSyncCommitPhase());
+      return cmd;
    }
 
    @Override

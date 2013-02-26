@@ -29,6 +29,7 @@ import org.infinispan.transaction.xa.GlobalTransaction;
  * Command corresponding to the 2nd phase of 2PC when serializable isolation level is used
  *
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class GMUCommitCommand extends CommitCommand {
@@ -68,12 +69,13 @@ public class GMUCommitCommand extends CommitCommand {
 
    @Override
    public Object[] getParameters() {
-      return new Object[] {globalTx, commitVersion};
+      return new Object[] {globalTx, synchCommitPhase, commitVersion};
    }
 
    @Override
    public void setParameters(int commandId, Object[] args) {
       globalTx = (GlobalTransaction) args[0];
-      commitVersion = (EntryVersion) args[1];
+      synchCommitPhase = (Boolean) args[1];
+      commitVersion = (EntryVersion) args[2];
    }
 }

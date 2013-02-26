@@ -32,6 +32,7 @@ import org.infinispan.transaction.xa.GlobalTransaction;
  *
  * @author Manik Surtani (<a href="mailto:manik@jboss.org">manik@jboss.org</a>)
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 public class CommitCommand extends AbstractTransactionBoundaryCommand {
@@ -44,6 +45,8 @@ public class CommitCommand extends AbstractTransactionBoundaryCommand {
     * for details.
     */
    public static final byte RESEND_PREPARE = 1;
+
+   protected boolean synchCommitPhase = false;
 
    private CommitCommand() {
       super(null); // For command id uniqueness test
@@ -78,6 +81,14 @@ public class CommitCommand extends AbstractTransactionBoundaryCommand {
       return "CommitCommand {" + super.toString();
    }
 
+   public void setSynchCommitPhase(boolean synchCommitPhase){
+      this.synchCommitPhase = synchCommitPhase;
+   }
+
+   public boolean getSynchCommitPhase(){
+      return this.synchCommitPhase;
+   }
+
    /**
     * choose the method to invoke depending if the total order protocol is be used or not
     *
@@ -92,6 +103,17 @@ public class CommitCommand extends AbstractTransactionBoundaryCommand {
       } else {
          return super.perform(ctx);
       }
+   }
+
+   @Override
+   public Object[] getParameters() {
+      return new Object[]{globalTx, synchCommitPhase};
+   }
+
+   @Override
+   public void setParameters(int commandId, Object[] args) {
+      globalTx = (GlobalTransaction) args[0];
+      synchCommitPhase = (Boolean) args[1];
    }
 
 }

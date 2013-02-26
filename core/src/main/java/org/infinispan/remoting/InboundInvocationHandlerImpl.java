@@ -30,7 +30,6 @@ import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.GMUCommitCommand;
 import org.infinispan.config.GlobalConfiguration;
-import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.KnownComponentNames;
@@ -41,13 +40,11 @@ import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.manager.NamedCacheNotFoundException;
 import org.infinispan.remoting.responses.ExceptionResponse;
-import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.ResponseGenerator;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.statetransfer.StateTransferManager;
-import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.jgroups.blocks.RequestHandler;
@@ -70,7 +67,6 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    private GlobalConfiguration globalConfiguration;
    private Transport transport;
    private CacheViewsManager cacheViewsManager;
-   private Configuration configuration;
    private ExecutorService asyncTransportExecutor;
 
    /**
@@ -83,8 +79,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    @Inject
    public void inject(GlobalComponentRegistry gcr,
                       EmbeddedCacheManager embeddedCacheManager, Transport transport,
-                      GlobalConfiguration globalConfiguration, CacheViewsManager cacheViewsManager,
-                      Configuration configuration
+                      GlobalConfiguration globalConfiguration, CacheViewsManager cacheViewsManager
                       ,@ComponentName(KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncTransportExecutor
                       ) {
       this.gcr = gcr;
@@ -92,7 +87,6 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       this.transport = transport;
       this.globalConfiguration = globalConfiguration;
       this.cacheViewsManager = cacheViewsManager;
-      this.configuration = configuration;
       this.asyncTransportExecutor = asyncTransportExecutor;
    }
 
@@ -138,8 +132,8 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       // initialize this command with components specific to the intended cache instance
       commandsFactory.initializeReplicableCommand(cmd, true);
 
-      boolean threadCanBlock = this.configuration.locking().isolationLevel().equals(IsolationLevel.SERIALIZABLE) && !this.configuration.transaction().syncCommitPhase();
-      if(!threadCanBlock || !(cmd instanceof CommitCommand)){
+      boolean threadCanBlock = (cmd instanceof GMUCommitCommand) && !((GMUCommitCommand) cmd).getSynchCommitPhase();
+      if(!threadCanBlock){
          try {
             if (trace) log.tracef("Calling perform() on %s", cmd);
             ResponseGenerator respGen = cr.getResponseGenerator();
