@@ -241,7 +241,6 @@ public class DistributionInterceptor extends BaseRpcInterceptor {
          ((TxInvocationContext)ctx).addAffectedKey(key);
       }
 
-
       if (ice != null) {
          if (storeInL1) {
             if (isL1CacheEnabled) {

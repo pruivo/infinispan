@@ -171,10 +171,12 @@ public final class TransactionsStatisticsRegistry {
       }else{
           log.debug("Statistics not merged for transaction class not found on transactionalClassStatsMap");
       }
-
       thread.remove();
       TransactionTS lastTS = lastTransactionTS.get();
-      lastTS.setEndLastTxTs(System.nanoTime());
+      if(lastTS != null)
+       lastTS.setEndLastTxTs(System.nanoTime());
+ 
+   
    }
 
    public static Object getAttribute(IspnStats param,String className){
@@ -342,6 +344,4 @@ public final class TransactionsStatisticsRegistry {
          }
       }
    }
-
-
 }
