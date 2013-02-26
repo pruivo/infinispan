@@ -30,6 +30,7 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.context.SingleKeyNonTxInvocationContext;
 import org.infinispan.distribution.DistributionManager;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -120,8 +121,8 @@ public class NonVersionedCommitContextEntries implements CommitContextEntries {
       boolean local = distributionManager.getLocality(entry.getKey()).isLocal();
       // ignore locality for removals, even if skipOwnershipCheck is not true
       if (!skipOwnershipCheck && !entry.isRemoved() && !distributionManager.getLocality(entry.getKey()).isLocal()) {
-         if (configuration.clustering().l1().enabled()) {
-            distributionManager.transformForL1(entry);
+         if (configuration.clustering().l1().enabled() && configuration.locking().isolationLevel() != IsolationLevel.SERIALIZABLE) {
+        	 distributionManager.transformForL1(entry);
          } else {
             doCommit = false;
          }

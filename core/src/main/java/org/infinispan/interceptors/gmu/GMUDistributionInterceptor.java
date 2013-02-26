@@ -55,7 +55,6 @@ public class GMUDistributionInterceptor extends DistributionInterceptor {
 	private static final Log log = LogFactory.getLog(GMUDistributionInterceptor.class);
 	protected GMUVersionGenerator versionGenerator;
 	private L1GMUContainer l1GMUContainer;
-	boolean isL1CacheEnabled;
 
 	@Inject
 	public void setVersionGenerator(VersionGenerator versionGenerator, L1GMUContainer l1GMUContainer) {
@@ -86,7 +85,7 @@ public class GMUDistributionInterceptor extends DistributionInterceptor {
 					txInvocationContext.getAlreadyReadFrom());			
 			if (gmuCacheEntry != null) {
 				if (log.isTraceEnabled()) {
-					log.tracef("Transaction %s reading from cache: \n Retrieve a L1 entry for key %s: %s", txInvocationContext.getGlobalTransaction().prettyPrint(), key, gmuCacheEntry);					
+					log.tracef("Transaction %s reading from cache a L1 entry for key %s: %s", txInvocationContext.getGlobalTransaction().prettyPrint(), key, gmuCacheEntry);					
 				}
 				txInvocationContext.addKeyReadInCommand(key, gmuCacheEntry);
 				txInvocationContext.addReadFrom(dm.getPrimaryLocation(key));
