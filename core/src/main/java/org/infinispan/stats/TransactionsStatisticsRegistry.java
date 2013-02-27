@@ -174,7 +174,8 @@ public final class TransactionsStatisticsRegistry {
 
       thread.remove();
       TransactionTS lastTS = lastTransactionTS.get();
-      lastTS.setEndLastTxTs(System.nanoTime());
+      if(lastTS != null)
+        lastTS.setEndLastTxTs(System.nanoTime());
    }
 
    public static Object getAttribute(IspnStats param,String className){
