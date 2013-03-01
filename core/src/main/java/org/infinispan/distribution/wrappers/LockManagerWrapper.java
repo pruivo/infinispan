@@ -24,9 +24,11 @@ public class LockManagerWrapper implements LockManager {
    private static final Log log = LogFactory.getLog(LockManagerWrapper.class);
 
    private final LockManager actual;
+   private final StreamLibContainer streamLibContainer;   
 
-   public LockManagerWrapper(LockManager actual) {
+   public LockManagerWrapper(LockManager actual, StreamLibContainer streamLibContainer) {
       this.actual = actual;
+      this.streamLibContainer = streamLibContainer;
    }
 
    private boolean updateContentionStats(Object key, TxInvocationContext tctx){
@@ -122,14 +124,14 @@ public class LockManagerWrapper implements LockManager {
       try{
          locked = actual.acquireLock(ctx, key, timeoutMillis, skipLocking);  //this returns false if you already have acquired the lock previously
       } catch(TimeoutException e){
-         StreamLibContainer.getInstance().addLockInformation(key, experiencedContention, true);
+         streamLibContainer.addLockInformation(key, experiencedContention, true);
          throw e;
       } catch(InterruptedException e){
-         StreamLibContainer.getInstance().addLockInformation(key, experiencedContention, true);
+         streamLibContainer.addLockInformation(key, experiencedContention, true);
          throw e;
       }
 
-      StreamLibContainer.getInstance().addLockInformation(key, experiencedContention, false);
+      streamLibContainer.addLockInformation(key, experiencedContention, false);
 
       if(txScope && experiencedContention && locked){
          lockingTime = System.nanoTime() - lockingTime;

@@ -23,6 +23,8 @@
 package org.infinispan.factories;
 
 import org.infinispan.config.ConfigurationException;
+import org.infinispan.dataplacement.statetransfer.DataPlacementStateConsumer;
+import org.infinispan.dataplacement.statetransfer.DataPlacementStateProvider;
 import org.infinispan.factories.annotations.DefaultFactoryFor;
 import org.infinispan.statetransfer.*;
 
@@ -43,12 +45,16 @@ public class StateTransferComponentFactory extends AbstractNamedCacheComponentFa
       if (!configuration.clustering().cacheMode().isClustered())
          return null;
 
+      boolean dataPlacementEnabled = configuration.dataPlacement().enabled() &&
+            configuration.clustering().cacheMode().isDistributed();
       if (componentType.equals(StateTransferManager.class)) {
          return componentType.cast(new StateTransferManagerImpl());
       } else if (componentType.equals(StateProvider.class)) {
-         return componentType.cast(new StateProviderImpl());
+         return dataPlacementEnabled ? componentType.cast(new DataPlacementStateProvider()) :
+               componentType.cast(new StateProviderImpl());
       } else if (componentType.equals(StateConsumer.class)) {
-         return componentType.cast(new StateConsumerImpl());
+         return dataPlacementEnabled ? componentType.cast(new DataPlacementStateConsumer()) :
+               componentType.cast(new StateConsumerImpl());
       }
 
       throw new ConfigurationException("Don't know how to create a " + componentType.getName());

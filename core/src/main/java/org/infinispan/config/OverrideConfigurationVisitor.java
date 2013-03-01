@@ -62,6 +62,7 @@ public class OverrideConfigurationVisitor extends AbstractConfigurationBeanVisit
    private StoreAsBinary storeAsBinary = null;
    private DataContainerType dataContainerType;
    private VersioningConfigurationBean versioningType;
+   private DataPlacementType dataPlacementType;
 
    public void override(OverrideConfigurationVisitor override) {
       
@@ -97,6 +98,7 @@ public class OverrideConfigurationVisitor extends AbstractConfigurationBeanVisit
       overrideFields(storeAsBinary, override.storeAsBinary);
       overrideFields(dataContainerType, override.dataContainerType);
       overrideFields(versioningType, override.versioningType);
+      overrideFields(dataPlacementType, override.dataPlacementType);
    }
 
    private void overrideFields(AbstractConfigurationBean bean, AbstractConfigurationBean overrides) {
@@ -221,4 +223,8 @@ public class OverrideConfigurationVisitor extends AbstractConfigurationBeanVisit
       this.versioningType = config;
    }
 
+   @Override
+   public void visitDataPlacementType(DataPlacementType dataPlacementType) {
+      this.dataPlacementType = dataPlacementType;
+   }
 }

@@ -115,7 +115,7 @@ public class StateConsumerTest {
       DefaultConsistentHashFactory chf = new DefaultConsistentHashFactory();
       DefaultConsistentHash ch1 = chf.create(new MurmurHash3(), 2, 4, members1);
       DefaultConsistentHash ch2 = chf.updateMembers(ch1, members2);
-      DefaultConsistentHash ch3 = chf.rebalance(ch2);
+      DefaultConsistentHash ch3 = chf.rebalance(ch2, null);
 
       log.debug(ch1);
       log.debug(ch2);

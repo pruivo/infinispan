@@ -87,7 +87,7 @@ public class DefaultConsistentHashFactoryTest extends AbstractInfinispanTest {
 
       // check that the base CH is already balanced
       assertSame(baseCH, chf.updateMembers(baseCH, baseCH.getMembers()));
-      assertSame(baseCH, chf.rebalance(baseCH));
+      assertSame(baseCH, chf.rebalance(baseCH, null));
 
       // starting point, so that we don't confuse nodes
       int nodeIndex = baseCH.getMembers().size();
@@ -130,7 +130,7 @@ public class DefaultConsistentHashFactoryTest extends AbstractInfinispanTest {
       }
 
       // second phase: rebalance with the new members list
-      DefaultConsistentHash rebalancedCH = chf.rebalance(updatedMembersCH);
+      DefaultConsistentHash rebalancedCH = chf.rebalance(updatedMembersCH, null);
       checkDistribution(rebalancedCH, false);
 
       for (int l = 0; l < rebalancedCH.getNumSegments(); l++) {
@@ -272,15 +272,15 @@ public class DefaultConsistentHashFactoryTest extends AbstractInfinispanTest {
       System.out.println(ch1);
 
       DefaultConsistentHash ch2 = chf.updateMembers(ch1, Arrays.<Address>asList(A, B));
-      ch2 = chf.rebalance(ch2);
+      ch2 = chf.rebalance(ch2, null);
       System.out.println(ch2);
 
       DefaultConsistentHash ch3 = chf.updateMembers(ch2, Arrays.<Address>asList(A, B, C));
-      ch3 = chf.rebalance(ch3);
+      ch3 = chf.rebalance(ch3, null);
       System.out.println(ch3);
 
       DefaultConsistentHash ch4 = chf.updateMembers(ch3, Arrays.<Address>asList(A, B, C, D));
-      ch4 = chf.rebalance(ch4);
+      ch4 = chf.rebalance(ch4, null);
       System.out.println(ch4);
    }
 }

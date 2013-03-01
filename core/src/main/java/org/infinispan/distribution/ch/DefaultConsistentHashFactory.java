@@ -22,10 +22,10 @@ package org.infinispan.distribution.ch;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.io.Serializable;
 import java.util.*;
 
 import org.infinispan.commons.hash.Hash;
+import org.infinispan.dataplacement.ch.ConsistentHashChanges;
 import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
 import org.infinispan.remoting.transport.Address;
@@ -92,7 +92,15 @@ public class DefaultConsistentHashFactory implements ConsistentHashFactory<Defau
    }
 
    @Override
-   public DefaultConsistentHash rebalance(DefaultConsistentHash baseCH) {
+   public DefaultConsistentHash rebalance(DefaultConsistentHash baseCH, Object customData) {
+      int numberOfOwners = -1;
+      if (customData != null && customData instanceof ConsistentHashChanges) {
+         ConsistentHashChanges consistentHashChanges = (ConsistentHashChanges) customData;
+         numberOfOwners = consistentHashChanges.getNewReplicationDegree();
+      }
+      if (numberOfOwners == -1) {
+         numberOfOwners = baseCH.getNumOwners();
+      }
 
       // This method assign new owners to the segments so that
       // * num_owners(s) == numOwners, for each segment s
@@ -102,7 +110,7 @@ public class DefaultConsistentHashFactory implements ConsistentHashFactory<Defau
       // * num_segments_owned(n) <= ceil(numSegments*numOwners/numNodes) for each node n
       Hash hashFunction = baseCH.getHashFunction();
 
-      Builder builder = new Builder(baseCH);
+      Builder builder = new Builder(baseCH, numberOfOwners);
       rebalanceBuilder(builder);
 
       DefaultConsistentHash balancedCH = builder.build(hashFunction);
@@ -346,22 +354,7 @@ public class DefaultConsistentHashFactory implements ConsistentHashFactory<Defau
       }
 
       public Builder(DefaultConsistentHash baseCH, List<Address> actualMembers) {
-         int numSegments = baseCH.getNumSegments();
-         Set<Address> actualMembersSet = new HashSet<Address>(actualMembers);
-         List[] owners = new List[numSegments];
-         for (int segment = 0; segment < numSegments; segment++) {
-            owners[segment] = new ArrayList<Address>(baseCH.locateOwnersForSegment(segment));
-            owners[segment].retainAll(actualMembersSet);
-         }
-         this.initialNumOwners = baseCH.getNumOwners();
-         this.actualNumOwners = Math.min(initialNumOwners, actualMembers.size());
-         this.members = actualMembers;
-         this.segmentOwners = owners;
-         this.stats = new OwnershipStatistics(baseCH, actualMembers);
-      }
-
-      public Builder(DefaultConsistentHash baseCH) {
-         this(baseCH, baseCH.getMembers());
+         this(baseCH, actualMembers, baseCH.getNumOwners());
       }
 
       public Builder(Builder other) {
@@ -375,6 +368,25 @@ public class DefaultConsistentHashFactory implements ConsistentHashFactory<Defau
          this.members = other.members;
          this.segmentOwners = owners;
          this.stats = new OwnershipStatistics(other.stats);
+      }
+
+      public Builder(DefaultConsistentHash baseCH, int numberOfOwners) {
+         this(baseCH, baseCH.getMembers(), numberOfOwners);
+      }
+
+      private Builder(DefaultConsistentHash baseCH, List<Address> actualMembers, int initialNumOwners) {
+         int numSegments = baseCH.getNumSegments();
+         Set<Address> actualMembersSet = new HashSet<Address>(actualMembers);
+         List[] owners = new List[numSegments];
+         for (int segment = 0; segment < numSegments; segment++) {
+            owners[segment] = new ArrayList<Address>(baseCH.locateOwnersForSegment(segment));
+            owners[segment].retainAll(actualMembersSet);
+         }
+         this.initialNumOwners = initialNumOwners;
+         this.actualNumOwners = Math.min(initialNumOwners, actualMembers.size());
+         this.members = actualMembers;
+         this.segmentOwners = owners;
+         this.stats = new OwnershipStatistics(baseCH, actualMembers);
       }
 
       public int getActualNumOwners() {

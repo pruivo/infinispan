@@ -89,7 +89,8 @@ public enum Element {
     BACKUP("backup"),
     BACKUP_FOR("backupFor"),
     TAKE_OFFLINE("takeOffline"),
-    CONDITIONAL_EXECUTOR("conditionalExecutor")
+    CONDITIONAL_EXECUTOR("conditionalExecutor"),
+     DATA_PLACEMENT("dataPlacement")
     ;
 
     private final String name;

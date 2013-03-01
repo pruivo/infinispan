@@ -64,18 +64,18 @@ public class StateProviderImpl implements StateProvider {
    private static final Log log = LogFactory.getLog(StateProviderImpl.class);
    private static final boolean trace = log.isTraceEnabled();
 
-   private String cacheName;
+   protected String cacheName;
    private Configuration configuration;
-   private RpcManager rpcManager;
-   private CommandsFactory commandsFactory;
+   protected RpcManager rpcManager;
+   protected CommandsFactory commandsFactory;
    private CacheNotifier cacheNotifier;
    private TransactionTable transactionTable;     // optional
-   private DataContainer dataContainer;
-   private CacheLoaderManager cacheLoaderManager; // optional
+   protected DataContainer dataContainer;
+   protected CacheLoaderManager cacheLoaderManager; // optional
    private ExecutorService executorService;
    private StateTransferLock stateTransferLock;
-   private long timeout;
-   private int chunkSize;
+   protected long timeout;
+   protected int chunkSize;
 
    private StateConsumer stateConsumer;
 
@@ -190,7 +190,7 @@ public class StateProviderImpl implements StateProvider {
       final ConsistentHash readCh = cacheTopology.getReadConsistentHash();
 
       Set<Integer> ownedSegments = readCh.getSegmentsForOwner(rpcManager.getAddress());
-      if (!ownedSegments.containsAll(segments)) {
+      if (segments != null && !ownedSegments.containsAll(segments)) {
          segments.removeAll(ownedSegments);
          throw new IllegalArgumentException("Segments " + segments + " are not owned by " + rpcManager.getAddress());
       }
@@ -255,7 +255,7 @@ public class StateProviderImpl implements StateProvider {
          Set<Object> lockedKeys = tx.getLockedKeys();
          synchronized (lockedKeys) {
             for (Object key : lockedKeys) {
-               if (segments.contains(readCh.getSegment(key))) {
+               if (isKeyLocal(key, readCh, segments)) {
                   filteredLockedKeys.add(key);
                }
             }
@@ -263,7 +263,7 @@ public class StateProviderImpl implements StateProvider {
          Set<Object> backupLockedKeys = tx.getBackupLockedKeys();
          synchronized (backupLockedKeys) {
             for (Object key : backupLockedKeys) {
-               if (segments.contains(readCh.getSegment(key))) {
+               if (isKeyLocal(key, readCh, segments)) {
                   filteredLockedKeys.add(key);
                }
             }
@@ -279,6 +279,10 @@ public class StateProviderImpl implements StateProvider {
       }
    }
 
+   protected boolean isKeyLocal(Object key, ConsistentHash consistentHash, Set<Integer> segments) {
+      return segments.contains(consistentHash.getSegment(key));
+   }
+
    @Override
    public void startOutboundTransfer(Address destination, int requestTopologyId, Set<Integer> segments)
          throws InterruptedException {
@@ -290,10 +294,15 @@ public class StateProviderImpl implements StateProvider {
       final CacheTopology cacheTopology = getCacheTopology(requestTopologyId, destination, false);
 
       // the destination node must already have an InboundTransferTask waiting for these segments
-      OutboundTransferTask outboundTransfer = new OutboundTransferTask(destination, segments, chunkSize, cacheTopology.getTopologyId(),
-            cacheTopology.getReadConsistentHash(), this, dataContainer, cacheLoaderManager, rpcManager, commandsFactory, timeout, cacheName);
+      OutboundTransferTask outboundTransfer = createTask(destination, segments, cacheTopology);
       addTransfer(outboundTransfer);
       outboundTransfer.execute(executorService);
+   }
+   
+   protected OutboundTransferTask createTask(Address destination, Set<Integer> segments, CacheTopology cacheTopology) {
+      return new OutboundTransferTask(destination, segments, chunkSize, cacheTopology.getTopologyId(),
+                                      cacheTopology.getReadConsistentHash(), this, cacheTopology.getWriteConsistentHash(), 
+                                      dataContainer, cacheLoaderManager, rpcManager, commandsFactory, timeout, cacheName);
    }
 
    private void addTransfer(OutboundTransferTask transferTask) {

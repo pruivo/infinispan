@@ -22,7 +22,7 @@ import java.util.Map;
 @MBean(objectName = "StreamLibStatistics", description = "Show analytics for workload monitor")
 public class StreamLibInterceptor extends BaseCustomInterceptor {
 
-   private static final StreamLibContainer streamLibContainer = StreamLibContainer.getInstance();
+   private StreamLibContainer streamLibContainer;
    private boolean statisticEnabled = false;
    private DistributionManager distributionManager;
 
@@ -200,6 +200,7 @@ public class StreamLibInterceptor extends BaseCustomInterceptor {
       super.start();
       setStatisticsEnabled(true);
       this.distributionManager = cache.getAdvancedCache().getDistributionManager();
+      this.streamLibContainer = StreamLibContainer.getOrCreateStreamLibContainer(cache);
    }
 
    private boolean isRemote(Object k) {

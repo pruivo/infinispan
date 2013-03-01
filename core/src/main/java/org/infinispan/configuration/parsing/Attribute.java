@@ -154,7 +154,11 @@ public enum Attribute {
    MAX_POOL_SIZE("maxPoolSize"),
    THREAD_PRIORITY("treadPriority"),
    KEEP_ALIVE_TIME("keepAliveTime"),
-   QUEUE_SIZE("queueSize");
+   QUEUE_SIZE("queueSize"),
+   OBJECT_LOOKUP_FACTORY("objectLookupFactory"),
+   COOL_DOWN_TIME("coolDownTime"),
+   MAX_KEYS_TO_REQUEST("maxNumberOfKeysToRequest")
+   ;
 
     private final String name;
 

@@ -52,5 +52,7 @@ public interface ConfigurationChildBuilder {
 
    SitesConfigurationBuilder sites();
 
+   DataPlacementConfigurationBuilder dataPlacement();
+   
    Configuration build();
 }

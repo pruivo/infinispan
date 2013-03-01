@@ -304,7 +304,7 @@ public class TopologyAwareConsistentHashFactoryTest extends AbstractInfinispanTe
          int expectedRacks = Math.min(expectedOwners, countRacks(currentMembers));
          int expectedSites = Math.min(expectedOwners, countSites(currentMembers));
          ch = chf.updateMembers(ch, currentMembers);
-         ch = chf.rebalance(ch);
+         ch = chf.rebalance(ch, null);
          assertAllLocations(expectedOwners, expectedMachines, expectedRacks, expectedSites);
       }
       log.debugf("Created CH with members %s", chMembers);
@@ -362,7 +362,7 @@ public class TopologyAwareConsistentHashFactoryTest extends AbstractInfinispanTe
          List<Address> addressCopy = new ArrayList<Address>(chMembers);
          addressCopy.remove(addr);
          DefaultConsistentHash newCH = chf.updateMembers(ch, addressCopy);
-         newCH = chf.rebalance(newCH);
+         newCH = chf.rebalance(newCH, null);
 
          // Allow a small number of segment moves, even though this is a leave, because the CH factory
          // generates extra moves trying to balance the CH.

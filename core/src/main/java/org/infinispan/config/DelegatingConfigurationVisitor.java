@@ -302,4 +302,10 @@ public class DelegatingConfigurationVisitor implements ConfigurationBeanVisitor 
          delegate.visitConditionalExecutorType(config);
       }
    }
+   
+   public void visitDataPlacementType(DataPlacementType dataPlacementType) {
+      for (ConfigurationBeanVisitor delegate : delegates) {
+         delegate.visitDataPlacementType(dataPlacementType);
+      }
+   }
 }

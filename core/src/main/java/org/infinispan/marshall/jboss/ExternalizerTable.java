@@ -52,6 +52,8 @@ import org.infinispan.container.entries.versioned.VersionedTransientCacheValue;
 import org.infinispan.container.entries.versioned.VersionedTransientMortalCacheEntry;
 import org.infinispan.container.entries.versioned.VersionedTransientMortalCacheValue;
 import org.infinispan.context.Flag;
+import org.infinispan.dataplacement.ch.DataPlacementConsistentHash;
+import org.infinispan.dataplacement.ch.DataPlacementConsistentHashFactory;
 import org.infinispan.distribution.ch.DefaultConsistentHash;
 import org.infinispan.distribution.ch.DefaultConsistentHashFactory;
 import org.infinispan.distribution.ch.ReplicatedConsistentHash;
@@ -308,6 +310,9 @@ public class ExternalizerTable implements ObjectTable {
       addInternalExternalizer(new InfinispanCollections.EmptySet.EmptySetExternalizer());
       addInternalExternalizer(new InfinispanCollections.EmptyMap.EmptyMapExternalizer());
       addInternalExternalizer(new InfinispanCollections.EmptyList.EmptyListExternalizer());
+      
+      addInternalExternalizer(new DataPlacementConsistentHash.Externalizer());
+      addInternalExternalizer(new DataPlacementConsistentHashFactory.Externalizer());
    }
 
    void addInternalExternalizer(AdvancedExternalizer<?> ext) {

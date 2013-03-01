@@ -32,6 +32,7 @@ import org.infinispan.commands.read.MapCombineCommand;
 import org.infinispan.commands.read.ReduceCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
+import org.infinispan.commands.remote.DataPlacementCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.remote.recovery.CompleteTransactionCommand;
@@ -237,6 +238,9 @@ public class RemoteCommandsFactory {
                break;
             case CancelCommand.COMMAND_ID:
                command = new CancelCommand(cacheName);
+               break;
+            case DataPlacementCommand.COMMAND_ID:
+               command = new DataPlacementCommand(cacheName);
                break;
             default:
                throw new CacheException("Unknown command id " + id + "!");

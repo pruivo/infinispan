@@ -28,7 +28,7 @@ import org.infinispan.factories.scopes.Scopes;
  *
  * It is used both in distributed and replicated mode.
  *
- * Implementations can trigger a rebalance using {@link ClusterTopologyManager#triggerRebalance(String)}.
+ * Implementations can trigger a rebalance using {@link ClusterTopologyManager#triggerRebalance(String, Object)}.
  * They don't control the resulting consistent hash directly, but they can use the {@link ClusterCacheStatus}
  * to access the cache's custom {@link org.infinispan.distribution.ch.ConsistentHashFactory} implementation
  * and influence the generated consistent hash indirectly.

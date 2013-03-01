@@ -62,6 +62,7 @@ import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextContainer;
+import org.infinispan.dataplacement.DataPlacementRebalancePolicy;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.KnownComponentNames;
@@ -174,12 +175,17 @@ public class TestingUtil {
       long giveup = System.currentTimeMillis() + gracetime;
       for (Cache c : caches) {
          StateTransferManager stateTransferManager = extractComponent(c, StateTransferManager.class);
-         DefaultRebalancePolicy rebalancePolicy = (DefaultRebalancePolicy) TestingUtil.extractGlobalComponent(c.getCacheManager(), RebalancePolicy.class);
+         RebalancePolicy rebalancePolicy = (RebalancePolicy) TestingUtil.extractGlobalComponent(c.getCacheManager(), RebalancePolicy.class);
          Address cacheAddress = c.getAdvancedCache().getRpcManager().getAddress();
          while (true) {
             CacheTopology cacheTopology = stateTransferManager.getCacheTopology();
             boolean rebalanceInProgress = stateTransferManager.isStateTransferInProgress();
-            boolean chIsBalanced = !rebalanceInProgress && rebalancePolicy.isBalanced(cacheTopology.getCurrentCH());
+            boolean chIsBalanced = cacheTopology.getPendingCH() == null;
+            if (rebalancePolicy instanceof DefaultRebalancePolicy) {
+               chIsBalanced = chIsBalanced && ((DefaultRebalancePolicy) rebalancePolicy).isBalanced(cacheTopology.getCurrentCH());
+            } else if (rebalancePolicy instanceof DataPlacementRebalancePolicy) {
+               chIsBalanced = chIsBalanced && ((DataPlacementRebalancePolicy) rebalancePolicy).isBalanced(c.getName(), cacheTopology.getCurrentCH());
+            }
             boolean chContainsAllMembers = cacheTopology.getCurrentCH().getMembers().size() == caches.length;
             if (chIsBalanced && chContainsAllMembers)
                break;

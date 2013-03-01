@@ -121,12 +121,12 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
    }
 
    @Override
-   public void triggerRebalance(final String cacheName) throws Exception {
+   public void triggerRebalance(final String cacheName, final Object customData) throws Exception {
       asyncTransportExecutor.submit(new Callable<Object>() {
          @Override
          public Object call() throws Exception {
             try {
-               startRebalance(cacheName);
+               startRebalance(cacheName, customData);
                return null;
             } catch (Throwable t) {
                log.errorf(t, "Failed to start rebalance: %s", t.getMessage());
@@ -320,7 +320,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
       broadcastConsistentHashUpdate(cacheName, cacheStatus);
 
       // Trigger another rebalance in case the CH is not balanced
-      triggerRebalance(cacheName);
+      triggerRebalance(cacheName, null);
    }
 
    private void broadcastConsistentHashUpdate(String cacheName, ClusterCacheStatus cacheStatus) throws Exception {
@@ -333,7 +333,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
       executeOnClusterSync(command, getGlobalTimeout(), cacheStatus.isTotalOrder(), cacheStatus.isDistributed());
    }
 
-   private void startRebalance(String cacheName) throws Exception {
+   private void startRebalance(String cacheName, Object customData) throws Exception {
       ClusterCacheStatus cacheStatus = cacheStatusMap.get(cacheName);
 
       synchronized (cacheStatus) {
@@ -368,7 +368,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
          ConsistentHashFactory chFactory = cacheStatus.getJoinInfo().getConsistentHashFactory();
          // This update will only add the joiners to the CH, we have already checked that we don't have leavers
          ConsistentHash updatedMembersCH = chFactory.updateMembers(currentCH, newMembers);
-         ConsistentHash balancedCH = chFactory.rebalance(updatedMembersCH);
+         ConsistentHash balancedCH = chFactory.rebalance(updatedMembersCH, customData);
          if (balancedCH.equals(currentCH)) {
             log.tracef("The balanced CH is the same as the current CH, not rebalancing");
             return;

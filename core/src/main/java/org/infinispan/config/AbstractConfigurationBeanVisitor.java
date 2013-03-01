@@ -253,6 +253,10 @@ public abstract class AbstractConfigurationBeanVisitor implements ConfigurationB
       defaultVisit(config);
    }
 
+   public void visitDataPlacementType(Configuration.DataPlacementType dataPlacementType) {
+      defaultVisit(dataPlacementType);
+   }
+
    public void defaultVisit(AbstractConfigurationBean c) {
    }
 }

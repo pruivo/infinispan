@@ -106,6 +106,10 @@ abstract class AbstractConfigurationChildBuilder implements ConfigurationChildBu
       return builder.sites();
    }
 
+   public DataPlacementConfigurationBuilder dataPlacement() {
+      return builder.dataPlacement();
+   }
+
    protected ConfigurationBuilder getBuilder() {
       return builder;
    }

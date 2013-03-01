@@ -67,4 +67,9 @@ public interface DataRehashedEvent<K, V> extends Event<K, V> {
     * @return Retrieves the new topology id after rehashing was triggered.
     */
    int getNewTopologyId();
+   
+   /**    
+    * @return  the keys moved by the rehash event. Only non-null is the event is not pre
+    */
+   Collection<Object> getKeysMoved();
 }

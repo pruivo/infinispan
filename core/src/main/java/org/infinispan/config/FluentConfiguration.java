@@ -26,6 +26,7 @@ package org.infinispan.config;
 import org.infinispan.commons.hash.Hash;
 import org.infinispan.configuration.cache.VersioningScheme;
 import org.infinispan.container.DataContainer;
+import org.infinispan.dataplacement.lookup.ObjectLookupFactory;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.distribution.group.Group;
 import org.infinispan.distribution.group.Grouper;
@@ -817,6 +818,17 @@ public class FluentConfiguration extends AbstractFluentConfigurationBean {
       InvocationBatchingConfig disable();
 
    }
+
+   @Deprecated
+   public static interface DataPlacementConfig extends FluentTypes {
+      DataPlacementConfig enable();
+      DataPlacementConfig disable();
+      DataPlacementConfig coolDowntime(int milliseconds);
+      DataPlacementConfig objectLookupFactory(ObjectLookupFactory factory);
+      DataPlacementConfig withProperties(Properties properties);
+      DataPlacementConfig addProperty(String key, String value);
+      DataPlacementConfig maxNumberOfKeysToRequest(int maxNumberOfKeysToRequest);
+   }
 }
 
 @Deprecated
@@ -875,6 +887,8 @@ interface FluentTypes {
    FluentConfiguration.InvocationBatchingConfig invocationBatching();
 
    FluentConfiguration.VersioningConfig versioning();
+
+   FluentConfiguration.DataPlacementConfig dataPlacement();
 
    Configuration build();
 }
@@ -1039,6 +1053,10 @@ abstract class AbstractFluentConfigurationBean extends AbstractNamedCacheConfigu
       return this;
    }
 
+   @Override
+   public FluentConfiguration.DataPlacementConfig dataPlacement() {
+      return config.dataPlacement;
+   }
 }
 
 

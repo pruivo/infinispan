@@ -37,6 +37,7 @@ import org.infinispan.commands.read.ReduceCommand;
 import org.infinispan.commands.read.SizeCommand;
 import org.infinispan.commands.read.ValuesCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
+import org.infinispan.commands.remote.DataPlacementCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.remote.recovery.CompleteTransactionCommand;
@@ -344,6 +345,11 @@ public class ControlledCommandFactory implements CommandsFactory {
    @Override
    public CancelCommand buildCancelCommandCommand(UUID commandUUID) {
       return actual.buildCancelCommandCommand(commandUUID);
+   }
+
+   @Override
+   public DataPlacementCommand buildDataPlacementCommand(DataPlacementCommand.Type type, long roundId) {
+      return actual.buildDataPlacementCommand(type, roundId);
    }
 
    @Override

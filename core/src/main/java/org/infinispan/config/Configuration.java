@@ -29,6 +29,8 @@ import org.infinispan.config.FluentConfiguration.*;
 import org.infinispan.configuration.cache.VersioningScheme;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.DefaultDataContainer;
+import org.infinispan.dataplacement.c50.C50MLObjectLookupFactory;
+import org.infinispan.dataplacement.lookup.ObjectLookupFactory;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.distribution.ch.DefaultConsistentHash;
 import org.infinispan.distribution.group.Grouper;
@@ -165,6 +167,9 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
 
    @XmlElement
    VersioningConfigurationBean versioning = new VersioningConfigurationBean().setConfiguration(this);
+
+   @XmlElement
+   DataPlacementType dataPlacement = new DataPlacementType().setConfiguration(this);
 
    @SuppressWarnings("unused")
    @Start(priority = 1)
@@ -1506,6 +1511,26 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
             transaction.transactionMode == TransactionMode.TRANSACTIONAL;
    }
 
+   public boolean isDataPlacementEnabled() {
+      return dataPlacement.enabled;
+   }
+
+   public ObjectLookupFactory getObjectLookupFactory() {
+      return dataPlacement.objectLookupFactory;
+   }
+
+   public TypedProperties getDataPlacementProperties() {
+      return dataPlacement.properties;
+   }
+
+   public int getCoolDownTime() {
+      return dataPlacement.coolDowntime;
+   }
+
+   public int getMaxNumberOfKeyToRequest() {
+      return dataPlacement.maxNumberOfKeysToRequest;
+   }
+
    // ------------------------------------------------------------------------------------------------------------
    //   HELPERS
    // ------------------------------------------------------------------------------------------------------------
@@ -1532,6 +1557,7 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       unsafe.accept(v);
       indexing.accept(v);
       versioning.accept(v);
+      dataPlacement.accept(v);
    }
 
    /**
@@ -1672,6 +1698,10 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
          if (indexing != null) {
             dolly.indexing = indexing.clone();
             dolly.indexing.setConfiguration(dolly);
+         }
+         if (dataPlacement != null) {
+            dolly.dataPlacement = (DataPlacementType) dataPlacement.clone();
+            dolly.dataPlacement.setConfiguration(dolly);
          }
          dolly.fluentConfig = new FluentConfiguration(dolly);
          return dolly;
@@ -4787,6 +4817,113 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       
       public String toString(){
          return "Indexing[enabled="+enabled+",localOnly="+indexLocalOnly+"]";
+      }
+   }
+
+   @XmlAccessorType(XmlAccessType.PROPERTY)
+   @ConfigurationDoc(name = "dataplacement")
+   @Deprecated public static class DataPlacementType extends AbstractFluentConfigurationBean implements DataPlacementConfig {
+
+      @ConfigurationDocRef(bean = Configuration.class, targetElement = "setDataPlacementEnabled")
+      protected boolean enabled = false;
+
+      @ConfigurationDocRef(bean = Configuration.class, targetElement = "setDataPlacementObjectLookupFactory")
+      protected ObjectLookupFactory objectLookupFactory = new C50MLObjectLookupFactory();
+
+      @XmlElement(name = "properties")
+      protected TypedProperties properties = new TypedProperties();
+
+      @ConfigurationDocRef(bean = Configuration.class, targetElement = "setDataPlacementObjectLookupFactory")
+      protected int coolDowntime = 30000;
+
+      protected int maxNumberOfKeysToRequest = 500;
+
+      @Override
+      public DataPlacementConfig coolDowntime(int milliseconds) {
+         testImmutability("coolDowntime");
+         coolDowntime = milliseconds;
+         return this;
+      }
+
+      @Override
+      public DataPlacementConfig maxNumberOfKeysToRequest(int maxNumberOfKeysToRequest) {
+         testImmutability("maxNumberOfKeysToRequest");
+         maxNumberOfKeysToRequest = maxNumberOfKeysToRequest;
+         return this;
+      }
+
+      private void setEnabled(boolean enabled) {
+         testImmutability("enabled");
+         this.enabled = enabled;
+      }
+
+      @Override
+      public DataPlacementConfig enable() {
+         setEnabled(true);
+         return this;
+      }
+
+      @Override
+      public DataPlacementConfig disable() {
+         setEnabled(false);
+         return this;
+      }
+
+      @Override
+      public DataPlacementConfig objectLookupFactory(ObjectLookupFactory factory) {
+         testImmutability("objectLookupFactory");
+         objectLookupFactory = factory;
+         return this;
+      }
+
+      @Override
+      public DataPlacementConfig withProperties(Properties properties) {
+         testImmutability("properties");
+         this.properties = new TypedProperties(properties);
+         return this;
+      }
+
+      @Override
+      public DataPlacementConfig addProperty(String key, String value) {
+         properties.put(key, value);
+         return this;
+      }
+
+      @Override
+      protected DataPlacementType setConfiguration(Configuration config) {
+         super.setConfiguration(config);
+         return this;
+      }
+
+      public void accept(ConfigurationBeanVisitor v) {
+         v.visitDataPlacementType(this);
+      }
+
+      @Override
+      public boolean equals(Object o) {
+         if (this == o) return true;
+         if (o == null || getClass() != o.getClass()) return false;
+
+         DataPlacementType that = (DataPlacementType) o;
+
+         if (coolDowntime != that.coolDowntime) return false;
+         if (maxNumberOfKeysToRequest != that.maxNumberOfKeysToRequest) return false;
+         if (enabled != that.enabled) return false;
+         if (objectLookupFactory != null ? !objectLookupFactory.equals(that.objectLookupFactory) : that.objectLookupFactory != null)
+            return false;
+         if (properties != null ? !properties.equals(that.properties) : that.properties != null) return false;
+
+         return true;
+      }
+
+      @Override
+      public int hashCode() {
+         int result = (enabled ? 1 : 0);
+         result = 31 * result + (objectLookupFactory != null ? objectLookupFactory.hashCode() : 0);
+         result = 31 * result + (properties != null ? properties.hashCode() : 0);
+         result = 31 * result + coolDowntime;
+         result = 31 * result + maxNumberOfKeysToRequest;
+         return result;
       }
    }
 

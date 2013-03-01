@@ -36,7 +36,7 @@ public interface ClusterTopologyManager {
    /**
     * Used by {@link RebalancePolicy} to start a state transfer.
     */
-   void triggerRebalance(String cacheName) throws Exception;
+   void triggerRebalance(String cacheName, Object customData) throws Exception;
 
 
    /**

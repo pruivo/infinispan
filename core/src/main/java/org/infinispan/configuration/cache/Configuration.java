@@ -43,6 +43,7 @@ public class Configuration {
    private final UnsafeConfiguration unsafeConfiguration;
    private final Map<Class<?>, ?> moduleConfiguration;
    private final SitesConfiguration sites;
+   private final DataPlacementConfiguration dataPlacementConfiguration;
 
    Configuration(ClusteringConfiguration clusteringConfiguration,
                  CustomInterceptorsConfiguration customInterceptorsConfiguration,
@@ -53,7 +54,8 @@ public class Configuration {
                  LoadersConfiguration loadersConfiguration,
                  LockingConfiguration lockingConfiguration, StoreAsBinaryConfiguration storeAsBinaryConfiguration,
                  TransactionConfiguration transactionConfiguration, UnsafeConfiguration unsafeConfiguration,
-                 VersioningConfiguration versioningConfiguration, List<?> modules, SitesConfiguration sites, ClassLoader cl) {
+                 VersioningConfiguration versioningConfiguration, List<?> modules, SitesConfiguration sites, ClassLoader cl,
+                 DataPlacementConfiguration dataPlacementConfiguration) {
       this.clusteringConfiguration = clusteringConfiguration;
       this.customInterceptorsConfiguration = customInterceptorsConfiguration;
       this.dataContainerConfiguration = dataContainerConfiguration;
@@ -76,6 +78,7 @@ public class Configuration {
       this.moduleConfiguration = Collections.unmodifiableMap(modulesMap);
       this.sites = sites;
       this.classLoader = cl;
+      this.dataPlacementConfiguration = dataPlacementConfiguration;
    }
 
    /**
@@ -159,6 +162,10 @@ public class Configuration {
       return versioningConfiguration;
    }
 
+   public DataPlacementConfiguration dataPlacement() {
+      return dataPlacementConfiguration;
+   }
+
    @Override
    public String toString() {
       return "Configuration{" +
@@ -180,6 +187,7 @@ public class Configuration {
             ", versioning=" + versioningConfiguration +
             ", unsafe=" + unsafeConfiguration +
             ", sites=" + sites +
+            ", dataPlacement=" + dataPlacementConfiguration +
             '}';
    }
 
@@ -226,6 +234,9 @@ public class Configuration {
          return false;
       if (versioningConfiguration != null ? !versioningConfiguration.equals(that.versioningConfiguration) : that.versioningConfiguration != null)
          return false;
+      if (dataPlacementConfiguration != null ? !dataPlacementConfiguration.equals(that.dataPlacementConfiguration) :
+            that.dataContainerConfiguration != null)
+         return false;
 
       return true;
    }
@@ -250,6 +261,7 @@ public class Configuration {
       result = 31 * result + (versioningConfiguration != null ? versioningConfiguration.hashCode() : 0);
       result = 31 * result + (unsafeConfiguration != null ? unsafeConfiguration.hashCode() : 0);
       result = 31 * result + (sites != null ? sites.hashCode() : 0);
+      result = 31 * result + (dataPlacementConfiguration != null ? dataPlacementConfiguration.hashCode() : 0);
       return result;
    }
 }

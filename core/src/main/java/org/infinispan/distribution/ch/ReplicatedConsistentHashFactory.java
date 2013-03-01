@@ -55,7 +55,7 @@ public class ReplicatedConsistentHashFactory implements ConsistentHashFactory<Re
    }
 
    @Override
-   public ReplicatedConsistentHash rebalance(ReplicatedConsistentHash baseCH) {
+   public ReplicatedConsistentHash rebalance(ReplicatedConsistentHash baseCH, Object customData) {
       return baseCH;
    }
 

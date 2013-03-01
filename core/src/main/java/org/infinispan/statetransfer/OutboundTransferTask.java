@@ -55,7 +55,7 @@ import java.util.concurrent.FutureTask;
  */
 public class OutboundTransferTask implements Runnable {
 
-   private static final Log log = LogFactory.getLog(OutboundTransferTask.class);
+   protected static final Log log = LogFactory.getLog(OutboundTransferTask.class);
 
    private final boolean trace = log.isTraceEnabled();
 
@@ -63,19 +63,21 @@ public class OutboundTransferTask implements Runnable {
 
    private final int topologyId;
 
-   private final Address destination;
+   protected final Address destination;
 
-   private final Set<Integer> segments = new CopyOnWriteArraySet<Integer>();
+   protected final Set<Integer> segments = new CopyOnWriteArraySet<Integer>();
 
    private final int stateTransferChunkSize;
 
-   private final ConsistentHash readCh;
+   protected final ConsistentHash readCh;
+
+   protected final ConsistentHash writeCh;
 
    private final DataContainer dataContainer;
 
    private final CacheLoaderManager cacheLoaderManager;
 
-   private final RpcManager rpcManager;
+   protected final RpcManager rpcManager;
 
    private final CommandsFactory commandsFactory;
 
@@ -83,7 +85,7 @@ public class OutboundTransferTask implements Runnable {
 
    private final String cacheName;
 
-   private final Map<Integer, List<InternalCacheEntry>> entriesBySegment = ConcurrentMapFactory.makeConcurrentMap();
+   protected final Map<Integer, List<InternalCacheEntry>> entriesBySegment = ConcurrentMapFactory.makeConcurrentMap();
 
    /**
     * The total number of entries from all segments accumulated in entriesBySegment.
@@ -96,12 +98,13 @@ public class OutboundTransferTask implements Runnable {
    private FutureTask<Void> runnableFuture;
 
    public OutboundTransferTask(Address destination, Set<Integer> segments, int stateTransferChunkSize,
-                               int topologyId, ConsistentHash readCh, StateProviderImpl stateProvider, DataContainer dataContainer,
+                               int topologyId, ConsistentHash readCh, StateProviderImpl stateProvider, ConsistentHash writeCh, DataContainer dataContainer,
                                CacheLoaderManager cacheLoaderManager, RpcManager rpcManager,
                                CommandsFactory commandsFactory, long timeout, String cacheName) {
-      if (segments == null || segments.isEmpty()) {
+      this.writeCh = writeCh;
+      /*if (segments == null || segments.isEmpty()) {
          throw new IllegalArgumentException("Segments must not be null or empty");
-      }
+      }*/ //Pedro: is segments are null, it means that it is a data placement request
       if (destination == null) {
          throw new IllegalArgumentException("Destination address cannot be null");
       }
@@ -110,7 +113,9 @@ public class OutboundTransferTask implements Runnable {
       }
       this.stateProvider = stateProvider;
       this.destination = destination;
-      this.segments.addAll(segments);
+      if (segments != null) {
+         this.segments.addAll(segments);
+      }
       this.stateTransferChunkSize = stateTransferChunkSize;
       this.topologyId = topologyId;
       this.readCh = readCh;
@@ -150,7 +155,7 @@ public class OutboundTransferTask implements Runnable {
          for (InternalCacheEntry ice : dataContainer) {
             Object key = ice.getKey();  //todo [anistor] should we check for expired entries?
             int segmentId = readCh.getSegment(key);
-            if (segments.contains(segmentId)) {
+            if (isKeyMoved(key)) {
                sendEntry(ice, segmentId);
             }
          }
@@ -163,7 +168,7 @@ public class OutboundTransferTask implements Runnable {
                Set<Object> storedKeys = cacheStore.loadAllKeys(new ReadOnlyDataContainerBackedKeySet(dataContainer));
                for (Object key : storedKeys) {
                   int segmentId = readCh.getSegment(key);
-                  if (segments.contains(segmentId)) {
+                  if (isKeyMoved(key)) {
                      try {
                         InternalCacheEntry ice = cacheStore.load(key);
                         if (ice != null) { // check entry still exists
@@ -196,6 +201,10 @@ public class OutboundTransferTask implements Runnable {
       }
    }
 
+   protected boolean isKeyMoved(Object key) {
+      return segments.contains(readCh.getSegment(key));
+   }
+
    /**
     * Obtains the CacheStore that will be used for pulling segments that will be sent to other new owners on request.
     * The CacheStore is ignored if it is disabled or if it is shared or if fetchPersistentState is disabled.
@@ -223,7 +232,7 @@ public class OutboundTransferTask implements Runnable {
       accumulatedEntries++;
    }
 
-   private void sendEntries(boolean isLast) {
+   protected void sendEntries(boolean isLast) {
       List<StateChunk> chunks = new ArrayList<StateChunk>();
       for (Map.Entry<Integer, List<InternalCacheEntry>> e : entriesBySegment.entrySet()) {
          List<InternalCacheEntry> entries = e.getValue();
@@ -242,6 +251,10 @@ public class OutboundTransferTask implements Runnable {
          }
       }
 
+      sendChunks(chunks, isLast);
+   }
+
+   protected final void sendChunks(List<StateChunk> chunks, boolean isLast) {
       if (!chunks.isEmpty()) {
          if (trace) {
             if (isLast) {

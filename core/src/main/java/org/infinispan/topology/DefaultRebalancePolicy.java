@@ -66,7 +66,7 @@ public class DefaultRebalancePolicy implements RebalancePolicy {
       }
 
       log.tracef("Triggering rebalance for cache %s", cacheName);
-      clusterTopologyManager.triggerRebalance(cacheName);
+      clusterTopologyManager.triggerRebalance(cacheName, null);
    }
 
    public boolean isBalanced(ConsistentHash ch) {

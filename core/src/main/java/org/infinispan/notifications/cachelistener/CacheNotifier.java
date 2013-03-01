@@ -108,7 +108,7 @@ public interface CacheNotifier extends Listenable {
     */
    void notifyTransactionRegistered(GlobalTransaction globalTransaction, InvocationContext ctx);
 
-   void notifyDataRehashed(ConsistentHash oldCH, ConsistentHash newCH, int newTopologyId, boolean pre);
+   void notifyDataRehashed(ConsistentHash oldCH, ConsistentHash newCH, int newTopologyId, boolean pre, Collection<Object> keysMoved);
 
    void notifyTopologyChanged(ConsistentHash oldConsistentHash, ConsistentHash newConsistentHash, int newTopologyId, boolean pre);
 }

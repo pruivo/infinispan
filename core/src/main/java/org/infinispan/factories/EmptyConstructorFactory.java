@@ -26,6 +26,7 @@ import org.infinispan.commands.CancellationService;
 import org.infinispan.commands.CancellationServiceImpl;
 import org.infinispan.commands.RemoteCommandsFactory;
 import org.infinispan.config.ConfigurationException;
+import org.infinispan.dataplacement.DataPlacementRebalancePolicy;
 import org.infinispan.factories.annotations.DefaultFactoryFor;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
@@ -34,7 +35,6 @@ import org.infinispan.remoting.InboundInvocationHandler;
 import org.infinispan.remoting.InboundInvocationHandlerImpl;
 import org.infinispan.topology.ClusterTopologyManager;
 import org.infinispan.topology.ClusterTopologyManagerImpl;
-import org.infinispan.topology.DefaultRebalancePolicy;
 import org.infinispan.topology.LocalTopologyManager;
 import org.infinispan.topology.LocalTopologyManagerImpl;
 import org.infinispan.topology.RebalancePolicy;
@@ -67,8 +67,8 @@ public class EmptyConstructorFactory extends AbstractComponentFactory implements
          return (T) new LocalTopologyManagerImpl();
       else if (componentType.equals(ClusterTopologyManager.class))
          return (T) new ClusterTopologyManagerImpl();
-      else if (componentType.equals(RebalancePolicy.class))
-         return (T) new DefaultRebalancePolicy();
+      else if (componentType.equals(RebalancePolicy.class)) //TODO how can I check if data placement is enabled?
+         return (T) new DataPlacementRebalancePolicy();
       else if (componentType.equals(BackupReceiverRepository.class))
          return (T) new BackupReceiverRepositoryImpl();
       else if (componentType.equals(CancellationService.class))

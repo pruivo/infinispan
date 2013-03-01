@@ -222,4 +222,19 @@ public class ConfigurationValidatingVisitor extends AbstractConfigurationBeanVis
          config.queueSize = 10;
       }
    }
+
+   @Override
+   public void visitDataPlacementType(Configuration.DataPlacementType dataPlacementType) {
+      if (dataPlacementType.enabled) {
+         if (dataPlacementType.objectLookupFactory == null) {
+            throw new ConfigurationException("Expected an Object Lookup Factory instance");
+         }
+         if (dataPlacementType.coolDowntime < 1000) {
+            throw new ConfigurationException("Expected a cool down time higher or equal than 1000");
+         }
+         if (dataPlacementType.maxNumberOfKeysToRequest < 1) {
+            throw new ConfigurationException("The max number of keys to request should be higher than 0");
+         }
+      }
+   }
 }

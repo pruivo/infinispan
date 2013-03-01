@@ -70,10 +70,11 @@ public interface ConsistentHashFactory<CH extends ConsistentHash> {
     * {@code rebalance(rebalance(ch))} must be equivalent to {@code rebalance(ch)}.
     *
     * @param baseCH An existing consistent hash instance, should not be {@code null}
+    * @param customData some custom data that needs to be in ConsistentHashFactory
     * @return A new {@link ConsistentHash} instance, or {@code baseCH} if the existing instance
     *         does not need any changes.
     */
-   CH rebalance(CH baseCH);
+   CH rebalance(CH baseCH, Object customData);
 
    /**
     * Creates a union of two compatible ConsistentHashes (use the same hashing function and have the same configuration

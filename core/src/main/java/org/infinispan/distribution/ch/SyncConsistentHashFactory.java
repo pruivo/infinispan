@@ -199,7 +199,7 @@ public class SyncConsistentHashFactory implements ConsistentHashFactory<DefaultC
    }
 
    @Override
-   public DefaultConsistentHash rebalance(DefaultConsistentHash baseCH) {
+   public DefaultConsistentHash rebalance(DefaultConsistentHash baseCH, Object customData) {
       DefaultConsistentHash rebalancedCH = create(baseCH.getHashFunction(), baseCH.getNumOwners(), baseCH.getNumSegments(), baseCH.getMembers());
 
       // the ConsistentHashFactory contract says we should return the same instance if we're not making changes

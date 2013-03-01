@@ -123,4 +123,6 @@ public interface ConfigurationBeanVisitor {
    void visitVersioningConfigurationBean(VersioningConfigurationBean config);
 
    void visitConditionalExecutorType(ConditionalExecutorType config);
+   
+   void visitDataPlacementType(DataPlacementType dataPlacementType);
 }
