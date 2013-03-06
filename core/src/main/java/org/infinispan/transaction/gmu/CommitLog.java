@@ -170,7 +170,7 @@ public class CommitLog {
 
       while (iterator != null &&
               (firstFoundPossible == null ||
-                      concurrentClockNumber > iterator.getVersion().getThisNodeVersionValue())
+                      concurrentClockNumber < iterator.getVersion().getThisNodeVersionValue())
               ) {
          if (isLessOrEquals(iterator.getVersion(), gmuVersion)) {
             possibleVersion.add(iterator.getVersion());
@@ -215,7 +215,7 @@ public class CommitLog {
 
       while (iterator != null &&
               (firstFoundPossible == null ||
-                      concurrentClockNumber > iterator.getVersion().getThisNodeVersionValue())
+                      concurrentClockNumber < iterator.getVersion().getThisNodeVersionValue())
               ) {
          if (log.isTraceEnabled()) {
             log.tracef("getReadVersion(...) ==> comparing %s and %s", iterator.getVersion(), gmuReadVersion);
