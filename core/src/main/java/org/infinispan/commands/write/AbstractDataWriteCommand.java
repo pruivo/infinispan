@@ -36,6 +36,8 @@ import java.util.Set;
  */
 public abstract class AbstractDataWriteCommand extends AbstractDataCommand implements DataWriteCommand {
 
+   protected boolean previousRead;
+   
    protected AbstractDataWriteCommand() {
    }
 
@@ -51,5 +53,19 @@ public abstract class AbstractDataWriteCommand extends AbstractDataCommand imple
    @Override
    public boolean isReturnValueExpected() {
       return flags == null || !flags.contains(Flag.SKIP_REMOTE_LOOKUP);
+   }
+
+   /**
+    * It marks the key as read when this write command was executed. This is only used when write skew check is enabled.
+    * 
+    * @param value   {@code true} if the key was previous read before this command execution
+    */
+   public final void setPreviousRead(boolean value) {
+      this.previousRead = value;
+   }
+   
+   @Override
+   public final boolean wasPreviousRead() {
+      return previousRead;
    }
 }

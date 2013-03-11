@@ -76,7 +76,7 @@ public class VersionedPutKeyValueCommand extends PutKeyValueCommand {
 
    @Override
    public Object[] getParameters() {
-      return new Object[]{key, value, lifespanMillis, maxIdleTimeMillis, version, flags};
+      return new Object[]{key, value, lifespanMillis, maxIdleTimeMillis, version, flags, previousRead};
    }
 
    @SuppressWarnings("unchecked")
@@ -89,5 +89,6 @@ public class VersionedPutKeyValueCommand extends PutKeyValueCommand {
       maxIdleTimeMillis = (Long) parameters[3];
       version = (EntryVersion) parameters[4];
       flags = (Set<Flag>) parameters[5];
+      previousRead = (Boolean) parameters[6];
    }
 }

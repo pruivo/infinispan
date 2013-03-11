@@ -181,11 +181,12 @@ public class RemoveCommand extends AbstractDataWriteCommand {
       if (commandId != COMMAND_ID) throw new IllegalStateException("Invalid method id");
       key = parameters[0];
       flags = (Set<Flag>) parameters[1];
+      previousRead = (Boolean) parameters[2];
    }
 
    @Override
    public Object[] getParameters() {
-      return new Object[]{key, flags};
+      return new Object[]{key, flags, previousRead};
    }
 
    @Override

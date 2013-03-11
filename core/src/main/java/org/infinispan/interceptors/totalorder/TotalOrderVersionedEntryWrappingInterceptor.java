@@ -24,6 +24,8 @@ package org.infinispan.interceptors.totalorder;
 
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
+import org.infinispan.commands.write.RemoveCommand;
+import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.container.entries.ClusteredRepeatableReadEntry;
 import org.infinispan.container.entries.MVCCEntry;
@@ -101,31 +103,26 @@ public class TotalOrderVersionedEntryWrappingInterceptor extends VersionedEntryW
       }
 
       @Override
-      protected final MVCCEntry wrapEntryForReplace(InvocationContext ctx, Object key) throws InterruptedException {
-         return checkForWriteSkew(super.wrapEntryForReplace(ctx, key));
+      protected final MVCCEntry wrapEntryForReplace(InvocationContext ctx, Object key, ReplaceCommand command) throws InterruptedException {
+         return checkForWriteSkew(super.wrapEntryForReplace(ctx, key, command), command);
       }
 
       @Override
-      protected final MVCCEntry wrapEntryForRemove(InvocationContext ctx, Object key) throws InterruptedException {
-         MVCCEntry mvccEntry = super.wrapEntryForRemove(ctx, key);
+      protected final MVCCEntry wrapEntryForRemove(InvocationContext ctx, Object key, RemoveCommand command) throws InterruptedException {
+         MVCCEntry mvccEntry = super.wrapEntryForRemove(ctx, key, command);
          if (mvccEntry != null) {
-            return checkForWriteSkew(mvccEntry);
+            return checkForWriteSkew(mvccEntry, command);
          } else {
             return null;
          }
       }
 
       @Override
-      protected final MVCCEntry wrapEntryForClear(InvocationContext ctx, Object key) throws InterruptedException {
-         return checkForWriteSkew(super.wrapEntryForClear(ctx, key));
+      protected final MVCCEntry wrapEntryForPut(InvocationContext ctx, Object key, boolean putIfAbsent, WriteCommand command) throws InterruptedException {
+         return checkForWriteSkew(super.wrapEntryForPut(ctx, key, putIfAbsent, command), command);
       }
 
-      @Override
-      protected final MVCCEntry wrapEntryForPut(InvocationContext ctx, Object key, boolean putIfAbsent) throws InterruptedException {
-         return checkForWriteSkew(super.wrapEntryForPut(ctx, key, putIfAbsent));
-      }
-
-      private MVCCEntry checkForWriteSkew(MVCCEntry mvccEntry) {
+      private MVCCEntry checkForWriteSkew(MVCCEntry mvccEntry, WriteCommand command) {
          ClusteredRepeatableReadEntry clusterMvccEntry = (ClusteredRepeatableReadEntry) mvccEntry;
 
          EntryVersionsMap versionsSeen = prepareCommand.getVersionsSeen();
@@ -135,7 +132,7 @@ public class TotalOrderVersionedEntryWrappingInterceptor extends VersionedEntryW
             clusterMvccEntry.setVersion(versionSeen);
          }
 
-         if (!clusterMvccEntry.performWriteSkewCheck(dataContainer)) {
+         if (!clusterMvccEntry.performWriteSkewCheck(dataContainer, command.wasPreviousRead())) {
             throw WriteSkewException.createException(mvccEntry.getKey(), dataContainer.get(mvccEntry.getKey(), null),
                                                      mvccEntry, prepareCommand.getGlobalTransaction());
          }

@@ -120,7 +120,7 @@ public class PutKeyValueCommand extends AbstractDataWriteCommand {
 
    @Override
    public Object[] getParameters() {
-      return new Object[]{key, value, lifespanMillis, maxIdleTimeMillis, flags};
+      return new Object[]{key, value, lifespanMillis, maxIdleTimeMillis, flags, previousRead};
    }
 
    @Override
@@ -132,6 +132,7 @@ public class PutKeyValueCommand extends AbstractDataWriteCommand {
       lifespanMillis = (Long) parameters[2];
       maxIdleTimeMillis = (Long) parameters[3];
       flags = (Set<Flag>) parameters[4];
+      previousRead = (Boolean) parameters[5];
    }
 
    public boolean isPutIfAbsent() {

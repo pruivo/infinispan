@@ -42,7 +42,7 @@ public class ClusteredRepeatableReadEntry extends RepeatableReadEntry {
       this.version = version;
    }
 
-   public boolean performWriteSkewCheck(DataContainer container) {
+   public boolean performWriteSkewCheck(DataContainer container, boolean previousRead) {
       InternalCacheEntry ice = container.get(key, null);
       if (ice == null) {
          log.tracef("Entry for key '%s' doesn't exist in the container and current version is %s", key, version);
@@ -51,7 +51,7 @@ public class ClusteredRepeatableReadEntry extends RepeatableReadEntry {
       if (ice.getVersion() == null)
          throw new IllegalStateException("Entries cannot have null versions! Entry is " + key);
       // Could be that we didn't do a remote get first ... so we haven't effectively read this entry yet.
-      if (version == null) return true;
+      if (version == null) return !previousRead;
       log.tracef("Current version is: %s, version at read time is %s", ice.getVersion(), version);
       return InequalVersionComparisonResult.AFTER != ice.getVersion().compareTo(version);
    }

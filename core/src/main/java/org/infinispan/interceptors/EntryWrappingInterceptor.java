@@ -92,6 +92,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    @Override
    public Object visitGetKeyValueCommand(InvocationContext ctx, GetKeyValueCommand command) throws Throwable {
       try {
+         checkIfKeyRead(ctx, command.getKey(), command);
          entryFactory.wrapEntryForReading(ctx, command.getKey());
          return invokeNextInterceptor(ctx, command);
       } finally {
@@ -127,6 +128,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    @Override
    public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
       entryFactory.wrapEntryForPut(ctx, command.getKey(), null, !command.isPutIfAbsent());
+      checkIfKeyRead(ctx, command.getKey(), command);
       return invokeNextAndApplyChanges(ctx, command);
    }
 
@@ -139,12 +141,14 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    @Override
    public Object visitRemoveCommand(InvocationContext ctx, RemoveCommand command) throws Throwable {
       entryFactory.wrapEntryForRemove(ctx, command.getKey());
+      checkIfKeyRead(ctx, command.getKey(), command);
       return invokeNextAndApplyChanges(ctx, command);
    }
 
    @Override
    public Object visitReplaceCommand(InvocationContext ctx, ReplaceCommand command) throws Throwable {
       entryFactory.wrapEntryForReplace(ctx, command.getKey());
+      checkIfKeyRead(ctx, command.getKey(), command);
       return invokeNextAndApplyChanges(ctx, command);
    }
 
@@ -179,7 +183,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       public final Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
          boolean notWrapped = false;
          for (Object key : dataContainer.keySet(null)) {
-            wrapEntryForClear(ctx, key);
+            wrapEntryForClear(ctx, key, command);
             notWrapped = true;
          }
          if (notWrapped)
@@ -192,7 +196,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
          boolean notWrapped = false;
          for (Object key : command.getMap().keySet()) {
             if (cll.localNodeIsOwner(key)) {
-               wrapEntryForPut(ctx, key, false);
+               wrapEntryForPut(ctx, key, false, command);
                notWrapped = true;
             }
          }
@@ -204,7 +208,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       @Override
       public final Object visitRemoveCommand(InvocationContext ctx, RemoveCommand command) throws Throwable {
          if (cll.localNodeIsOwner(command.getKey())) {
-            wrapEntryForRemove(ctx, command.getKey());
+            wrapEntryForRemove(ctx, command.getKey(), command);
             invokeNextInterceptor(ctx, command);
          }
          return null;
@@ -213,7 +217,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       @Override
       public final Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
          if (cll.localNodeIsOwner(command.getKey())) {
-            wrapEntryForPut(ctx, command.getKey(), command.isPutIfAbsent());
+            wrapEntryForPut(ctx, command.getKey(), command.isPutIfAbsent(), command);
             invokeNextInterceptor(ctx, command);
          }
          return null;
@@ -231,25 +235,25 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       @Override
       public final Object visitReplaceCommand(InvocationContext ctx, ReplaceCommand command) throws Throwable {
          if (cll.localNodeIsOwner(command.getKey())) {
-            wrapEntryForReplace(ctx, command.getKey());
+            wrapEntryForReplace(ctx, command.getKey(), command);
             invokeNextInterceptor(ctx, command);
          }
          return null;
       }
 
-      protected MVCCEntry wrapEntryForReplace(InvocationContext ctx, Object key) throws InterruptedException {
+      protected MVCCEntry wrapEntryForReplace(InvocationContext ctx, Object key, ReplaceCommand command) throws InterruptedException {
          return entryFactory.wrapEntryForReplace(ctx, key);
       }
 
-      protected MVCCEntry wrapEntryForPut(InvocationContext ctx, Object key, boolean putIfAbsent) throws InterruptedException {
+      protected MVCCEntry wrapEntryForPut(InvocationContext ctx, Object key, boolean putIfAbsent, WriteCommand command) throws InterruptedException {
          return entryFactory.wrapEntryForPut(ctx, key, null, !putIfAbsent);
       }
 
-      protected MVCCEntry wrapEntryForRemove(InvocationContext ctx, Object key) throws InterruptedException {
+      protected MVCCEntry wrapEntryForRemove(InvocationContext ctx, Object key, RemoveCommand command) throws InterruptedException {
          return entryFactory.wrapEntryForRemove(ctx, key);
       }
 
-      protected MVCCEntry wrapEntryForClear(InvocationContext ctx, Object key) throws InterruptedException {
+      protected MVCCEntry wrapEntryForClear(InvocationContext ctx, Object key, ClearCommand command) throws InterruptedException {
          return entryFactory.wrapEntryForClear(ctx, key);
       }
    }
@@ -269,5 +273,9 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
                     (!ctx.isOriginLocal() || !ctx.hasModifications())) ||
             //original condition: one phase commit
             (!totalOrder && command.isOnePhaseCommit());
+   }
+
+   protected void checkIfKeyRead(InvocationContext context, Object key, VisitableCommand command) {
+      //no-op, it is only needed to check the write skew
    }
 }
