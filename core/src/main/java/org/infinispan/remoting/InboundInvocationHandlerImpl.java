@@ -132,8 +132,8 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       // initialize this command with components specific to the intended cache instance
       commandsFactory.initializeReplicableCommand(cmd, true);
 
-      boolean threadCanBlock = (cmd instanceof GMUCommitCommand) && !((GMUCommitCommand) cmd).getSynchCommitPhase();
-      if(!threadCanBlock){
+      //boolean threadCanBlock = (cmd instanceof GMUCommitCommand) && !((GMUCommitCommand) cmd).getSynchCommitPhase();
+      //if(!threadCanBlock){
          try {
             if (trace) log.tracef("Calling perform() on %s", cmd);
             ResponseGenerator respGen = cr.getResponseGenerator();
@@ -147,7 +147,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
             log.trace("Exception executing command", e);
             return new ExceptionResponse(e);
          }
-      }else{
+      /*}else{
           this.asyncTransportExecutor.execute(new Runnable() {
              @Override
              public void run() {
@@ -165,7 +165,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
              }
           });
          return RequestHandler.DO_NOT_REPLY;
-      }
+      }*/
    }
 
    private Object handleWithWaitForBlocks(final CacheRpcCommand cmd, final ComponentRegistry cr) throws Throwable {

@@ -39,6 +39,7 @@ import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.xa.CacheTransaction;
+import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.concurrent.TimeoutException;
 
 /**
@@ -103,7 +104,7 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
       try {
       return super.visitCommitCommand(ctx, command);
       } finally {
-         if (releaseLockOnTxCompletion(ctx)) lockManager.unlockAll(ctx);
+         if (releaseLockOnTxCompletion(ctx) && IsolationLevel.SERIALIZABLE!=configuration.getIsolationLevel()) lockManager.unlockAll(ctx);
       }
    }
 

@@ -478,6 +478,7 @@ public class SortedTransactionQueue {
          if (log.isTraceEnabled()) {
             log.tracef("await until this [%s] is committed.", this);
          }
+
          if (committed && commitCommand != null) {
             commitCommand.sendReply(null, false);
             if (log.isTraceEnabled()) {
@@ -485,21 +486,18 @@ public class SortedTransactionQueue {
             }
             return;
          }
-         if (synchCommitPhase && commitCommand != null) {
+
+         if (commitCommand != null) {
             this.commitCommand = commitCommand;
             if (log.isTraceEnabled()) {
                log.tracef("Don't wait. It is remote. Reply will be sent when this [%s] is committed.", this);
             }
             return;
          }
+
          while (!committed) {
             wait();
          }
-
-         if (!synchCommitPhase && commitCommand != null) {
-            commitCommand.sendReply(null, false); //It could be unnecessary
-         }
-
 
          if (log.isTraceEnabled()) {
             log.tracef("Done! This [%s] is committed.", this);
