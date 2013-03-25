@@ -75,7 +75,7 @@ public class GMUDistributionInterceptor extends DistributionInterceptor {
    @Override
    protected InternalCacheEntry retrieveFromRemoteSource(Object key, InvocationContext ctx, boolean acquireRemoteLock)
          throws Exception {
-      if (ctx instanceof TxInvocationContext) {
+      if (isL1CacheEnabled && ctx instanceof TxInvocationContext) {
          if (log.isTraceEnabled()) {
             log.tracef("Trying to retrieve a the key %s from L1 GMU Data Container", key);
          }

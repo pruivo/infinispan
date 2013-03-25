@@ -88,7 +88,8 @@ public class DistributionInterceptor extends BaseRpcInterceptor {
    StateTransferLock stateTransferLock;
    CommandsFactory cf;
    protected DataContainer dataContainer;
-   boolean isL1CacheEnabled, needReliableReturnValues;
+   protected boolean isL1CacheEnabled;
+   boolean needReliableReturnValues;
    protected EntryFactory entryFactory;
    L1Manager l1Manager;
    LockManager lockManager;
