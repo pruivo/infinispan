@@ -425,18 +425,20 @@ public class DataPlacementManager {
 
    @ManagedAttribute(description = "The Object Lookup Factory class name", writable = false)
    public final String getObjectLookupFactoryClassName() {
-      return objectLookupFactory.getClass().getCanonicalName();
+      return objectLookupFactory == null ? "N/A" : objectLookupFactory.getClass().getCanonicalName();
    }
 
    @ManagedAttribute(description = "The max number of keys to request in each round", writable = false)
    public final int getMaxNumberOfKeysToRequest() {
-      return accessesManager.getMaxNumberOfKeysToRequest();
+      return accessesManager == null ? 0 : accessesManager.getMaxNumberOfKeysToRequest();
    }
 
    @ManagedOperation(description = "Sets a new value (if higher than zero) for the max number of keys to request in " +
          "each round")
    public final void setMaxNumberOfKeysToRequest(int value) {
-      accessesManager.setMaxNumberOfKeysToRequest(value);
+      if (accessesManager != null) {
+         accessesManager.setMaxNumberOfKeysToRequest(value);
+      }
    }
 
    private void saveObjectsToMoveToFile(Map<Object, OwnersInfo> ownersInfoMap) {
