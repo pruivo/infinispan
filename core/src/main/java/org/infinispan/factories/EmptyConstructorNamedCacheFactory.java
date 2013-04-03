@@ -32,7 +32,6 @@ import org.infinispan.configuration.cache.Configurations;
 import org.infinispan.container.CommitContextEntries;
 import org.infinispan.container.GMUCommitContextEntries;
 import org.infinispan.container.NonVersionedCommitContextEntries;
-import org.infinispan.container.TotalOrderVersionedCommitContextEntries;
 import org.infinispan.container.VersionedCommitContextEntries;
 import org.infinispan.container.gmu.GMUL1Manager;
 import org.infinispan.container.gmu.L1GMUContainer;
@@ -55,12 +54,7 @@ import org.infinispan.loaders.CacheLoaderManagerImpl;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
 import org.infinispan.notifications.cachelistener.CacheNotifierImpl;
 import org.infinispan.reconfigurableprotocol.ProtocolTable;
-import org.infinispan.reconfigurableprotocol.component.ClusteringDependentLogicDelegate;
-import org.infinispan.reconfigurableprotocol.exception.AlreadyExistingComponentProtocolException;
 import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
-import org.infinispan.reconfigurableprotocol.protocol.PassiveReplicationCommitProtocol;
-import org.infinispan.reconfigurableprotocol.protocol.TotalOrderCommitProtocol;
-import org.infinispan.reconfigurableprotocol.protocol.TwoPhaseCommitProtocol;
 import org.infinispan.statetransfer.StateTransferLock;
 import org.infinispan.statetransfer.StateTransferLockImpl;
 import org.infinispan.transaction.TransactionCoordinator;
@@ -109,39 +103,16 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
    public <T> T construct(Class<T> componentType) {
       Class<?> componentImpl;
       if (componentType.equals(ClusteringDependentLogic.class)) {
-         ClusteringDependentLogicDelegate cdl = new ClusteringDependentLogicDelegate();
          CacheMode cacheMode = configuration.clustering().cacheMode();
-         
-         try {
-            if (cacheMode.isReplicated() || !cacheMode.isClustered() || cacheMode.isInvalidation()) {
-               componentRegistry.registerComponent(new ClusteringDependentLogic.ReplicationLogic(),
-                                                   ClusteringDependentLogic.ReplicationLogic.class);
-               componentRegistry.registerComponent(new ClusteringDependentLogic.TotalOrderReplicationNodesLogic(),
-                                                   ClusteringDependentLogic.TotalOrderReplicationNodesLogic.class);
-
-               cdl.add(TwoPhaseCommitProtocol.UID,
-                       componentRegistry.getComponent(ClusteringDependentLogic.ReplicationLogic.class));
-               cdl.add(PassiveReplicationCommitProtocol.UID,
-                       componentRegistry.getComponent(ClusteringDependentLogic.ReplicationLogic.class));
-               cdl.add(TotalOrderCommitProtocol.UID,
-                       componentRegistry.getComponent(ClusteringDependentLogic.TotalOrderReplicationNodesLogic.class));
-            } else {
-               componentRegistry.registerComponent(new ClusteringDependentLogic.DistributionLogic(),
-                                                   ClusteringDependentLogic.DistributionLogic.class);
-               componentRegistry.registerComponent(new ClusteringDependentLogic.TotalOrderDistributionLogic(),
-                                                   ClusteringDependentLogic.TotalOrderDistributionLogic.class);
-
-               cdl.add(TwoPhaseCommitProtocol.UID,
-                       componentRegistry.getComponent(ClusteringDependentLogic.DistributionLogic.class));
-               cdl.add(PassiveReplicationCommitProtocol.UID,
-                       componentRegistry.getComponent(ClusteringDependentLogic.DistributionLogic.class));
-               cdl.add(TotalOrderCommitProtocol.UID,
-                       componentRegistry.getComponent(ClusteringDependentLogic.TotalOrderDistributionLogic.class));
-            }
-         } catch (AlreadyExistingComponentProtocolException e) {
-            throw new ConfigurationException(e);
+         if (!cacheMode.isClustered()) {
+            return componentType.cast(new ClusteringDependentLogic.LocalLogic());
+         } else if (cacheMode.isInvalidation()) {
+            return componentType.cast(new ClusteringDependentLogic.InvalidationLogic());
+         } else if (cacheMode.isReplicated()) {
+            return componentType.cast(new ClusteringDependentLogic.ReplicationLogic());
+         } else {
+            return componentType.cast(new ClusteringDependentLogic.DistributionLogic());
          }
-         return (T) cdl;
       } else {
          boolean isTransactional = configuration.transaction().transactionMode().isTransactional();
          if (componentType.equals(InvocationContextContainer.class)) {
@@ -200,11 +171,7 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
             if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
                return (T) new GMUCommitContextEntries();
             } else if (Configurations.isVersioningEnabled(configuration)  && configuration.clustering().cacheMode().isClustered()) {
-               if (configuration.transaction().transactionProtocol().isTotalOrder()) {
-                  return (T) new TotalOrderVersionedCommitContextEntries();
-               } else {
-                  return (T) new VersionedCommitContextEntries();
-               }
+               return (T) new VersionedCommitContextEntries();
             } else {
                return (T) new NonVersionedCommitContextEntries();
             }

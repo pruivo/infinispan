@@ -24,9 +24,13 @@
 package org.infinispan.container;
 
 import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.container.entries.ClusteredRepeatableReadEntry;
 import org.infinispan.container.versioning.EntryVersion;
+import org.infinispan.container.versioning.IncrementableEntryVersion;
+import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.factories.annotations.Inject;
 import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -40,6 +44,12 @@ import org.infinispan.util.logging.LogFactory;
 public class VersionedCommitContextEntries extends NonVersionedCommitContextEntries {
 
    private final Log log = LogFactory.getLog(VersionedCommitContextEntries.class);
+   private VersionGenerator versionGenerator;
+
+   @Inject
+   public final void injectVersionGenerator(VersionGenerator versionGenerator) {
+      this.versionGenerator = versionGenerator;
+   }
 
    @Override
    protected Log getLog() {
@@ -49,7 +59,20 @@ public class VersionedCommitContextEntries extends NonVersionedCommitContextEntr
    @Override
    protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
       if (ctx.isInTxScope() && !isFromStateTransfer(ctx)) {
-         EntryVersion version = ((TxInvocationContext) ctx).getCacheTransaction().getUpdatedEntryVersions().get(entry.getKey());
+         ClusteredRepeatableReadEntry clusterMvccEntry = (ClusteredRepeatableReadEntry) entry;
+         EntryVersion version;
+
+         if (((TxInvocationContext) ctx).getGlobalTransaction().getReconfigurableProtocol().useTotalOrder()) {
+            EntryVersion existingVersion = clusterMvccEntry.getVersion();
+            if (existingVersion == null) {
+               version = versionGenerator.generateNew();
+            } else {
+               version = versionGenerator.increment((IncrementableEntryVersion) existingVersion);
+            }
+         } else {
+            version = ((TxInvocationContext) ctx).getCacheTransaction().getUpdatedEntryVersions().get(entry.getKey());
+         }
+
          clusteringDependentLogic.commitEntry(entry, version, skipOwnershipCheck, ctx);
       } else {
          // This could be a state transfer call!

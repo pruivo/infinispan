@@ -289,7 +289,7 @@ public interface ClusteringDependentLogic {
 
       @Override
       public void performReadSetValidation(TxInvocationContext context, GMUPrepareCommand prepareCommand) {
-         if (rpcManager.getTransport().isCoordinator()) {
+         if (stateTransferManager.getCacheTopology().getReadConsistentHash().getMembers().get(0).equals(rpcManager.getAddress())) {
             GMUHelper.performReadSetValidation(prepareCommand, dataContainer, this);
          }
       }
@@ -314,6 +314,38 @@ public interface ClusteringDependentLogic {
             super.commitEntry(entry, newVersion, skipOwnershipCheck, ctx);
          } finally {
             stateTransferLock.releaseSharedTopologyLock();
+         }
+      }
+
+      @Override
+      public EntryVersionsMap createNewVersionsAndCheckForWriteSkews(VersionGenerator versionGenerator, TxInvocationContext context, VersionedPrepareCommand prepareCommand) {
+         if (prepareCommand.getGlobalTransaction().getReconfigurableProtocol().useTotalOrder()) {
+            if (context.isOriginLocal()) {
+               throw new IllegalStateException("This must not be reached");
+            }
+
+            EntryVersionsMap updatedVersionMap;
+
+            if (!prepareCommand.isSkipWriteSkewCheck()) {
+               updatedVersionMap = performWriteSkewCheckAndReturnNewVersions(prepareCommand, dataContainer,
+                                                                             versionGenerator, context, keySpecificLogic);
+            } else {
+               updatedVersionMap = returnNewVersions(prepareCommand, versionGenerator, context, keySpecificLogic);
+            }
+
+            context.getCacheTransaction().setUpdatedEntryVersions(updatedVersionMap);
+            return updatedVersionMap;
+         } else {
+            return super.createNewVersionsAndCheckForWriteSkews(versionGenerator, context, prepareCommand);
+         }
+      }
+
+      @Override
+      public void performReadSetValidation(TxInvocationContext context, GMUPrepareCommand prepareCommand) {
+         if (prepareCommand.getGlobalTransaction().getReconfigurableProtocol().useTotalOrder()) {
+            GMUHelper.performReadSetValidation(prepareCommand, dataContainer, this);
+         } else {
+            super.performReadSetValidation(context, prepareCommand);
          }
       }
    }
@@ -428,19 +460,37 @@ public interface ClusteringDependentLogic {
 
       @Override
       public EntryVersionsMap createNewVersionsAndCheckForWriteSkews(VersionGenerator versionGenerator, TxInvocationContext context, VersionedPrepareCommand prepareCommand) {
-         // Perform a write skew check on mapped entries.
-         EntryVersionsMap uv = performWriteSkewCheckAndReturnNewVersions(prepareCommand, dataContainer,
-                                                                         versionGenerator, context,
-                                                                         keySpecificLogic);
+         if (prepareCommand.getGlobalTransaction().getReconfigurableProtocol().useTotalOrder()) {
+            if (context.isOriginLocal()) {
+               throw new IllegalStateException("This must not be reached");
+            }
 
-         CacheTransaction cacheTransaction = context.getCacheTransaction();
-         EntryVersionsMap uvOld = cacheTransaction.getUpdatedEntryVersions();
-         if (uvOld != null && !uvOld.isEmpty()) {
-            uvOld.putAll(uv);
-            uv = uvOld;
+            EntryVersionsMap updatedVersionMap;
+
+            if (!prepareCommand.isSkipWriteSkewCheck()) {
+               updatedVersionMap = performWriteSkewCheckAndReturnNewVersions(prepareCommand, dataContainer,
+                                                                             versionGenerator, context, keySpecificLogic);
+            } else {
+               updatedVersionMap = returnNewVersions(prepareCommand, versionGenerator, context, keySpecificLogic);
+            }
+
+            context.getCacheTransaction().setUpdatedEntryVersions(updatedVersionMap);
+            return updatedVersionMap;
+         } else {
+            // Perform a write skew check on mapped entries.
+            EntryVersionsMap uv = performWriteSkewCheckAndReturnNewVersions(prepareCommand, dataContainer,
+                                                                            versionGenerator, context,
+                                                                            keySpecificLogic);
+
+            CacheTransaction cacheTransaction = context.getCacheTransaction();
+            EntryVersionsMap uvOld = cacheTransaction.getUpdatedEntryVersions();
+            if (uvOld != null && !uvOld.isEmpty()) {
+               uvOld.putAll(uv);
+               uv = uvOld;
+            }
+            cacheTransaction.setUpdatedEntryVersions(uv);
+            return (uv.isEmpty()) ? null : uv;
          }
-         cacheTransaction.setUpdatedEntryVersions(uv);
-         return (uv.isEmpty()) ? null : uv;
       }
 
       @Override
@@ -466,67 +516,4 @@ public interface ClusteringDependentLogic {
       }
    }
 
-   /**
-    * Logic for total order protocol in replicated mode
-    */
-   public static final class TotalOrderReplicationNodesLogic extends ReplicationLogic {
-
-      @Override
-      public EntryVersionsMap createNewVersionsAndCheckForWriteSkews(VersionGenerator versionGenerator,
-                                                                     TxInvocationContext context,
-                                                                     VersionedPrepareCommand prepareCommand) {
-         if (context.isOriginLocal()) {
-            throw new IllegalStateException("This must not be reached");
-         }
-
-         EntryVersionsMap updatedVersionMap;
-
-         if (!prepareCommand.isSkipWriteSkewCheck()) {
-            updatedVersionMap = performWriteSkewCheckAndReturnNewVersions(prepareCommand, dataContainer,
-                                                                          versionGenerator, context, keySpecificLogic);
-         } else {
-            updatedVersionMap = returnNewVersions(prepareCommand, versionGenerator, context, keySpecificLogic);
-         }
-
-         context.getCacheTransaction().setUpdatedEntryVersions(updatedVersionMap);
-         return updatedVersionMap;
-      }
-
-      @Override
-      public void performReadSetValidation(TxInvocationContext context, GMUPrepareCommand prepareCommand) {
-         GMUHelper.performReadSetValidation(prepareCommand, dataContainer, this);
-      }
-   }
-
-   /**
-    * Logic for the total order protocol in distribution mode
-    */
-   public static final class TotalOrderDistributionLogic extends DistributionLogic {
-
-      @Override
-      public EntryVersionsMap createNewVersionsAndCheckForWriteSkews(VersionGenerator versionGenerator,
-                                                                     TxInvocationContext context,
-                                                                     VersionedPrepareCommand prepareCommand) {
-         if (context.isOriginLocal()) {
-            throw new IllegalStateException("This must not be reached");
-         }
-
-         EntryVersionsMap updatedVersionMap;
-
-         if (!prepareCommand.isSkipWriteSkewCheck()) {
-            updatedVersionMap = performWriteSkewCheckAndReturnNewVersions(prepareCommand, dataContainer,
-                                                                          versionGenerator, context, keySpecificLogic);
-         } else {
-            updatedVersionMap = returnNewVersions(prepareCommand, versionGenerator, context, keySpecificLogic);
-         }
-
-         context.getCacheTransaction().setUpdatedEntryVersions(updatedVersionMap);
-         return updatedVersionMap;
-      }
-
-      @Override
-      public void performReadSetValidation(TxInvocationContext context, GMUPrepareCommand prepareCommand) {
-         GMUHelper.performReadSetValidation(prepareCommand, dataContainer, this);
-      }
-   }
 }

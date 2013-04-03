@@ -91,7 +91,6 @@ public class TxInterceptor extends CommandInterceptor {
    private final AtomicLong localPrepares = new AtomicLong(0);
    private final AtomicLong localCommits = new AtomicLong(0);
    private final AtomicLong localRollbacks = new AtomicLong(0);
-   @ManagedAttribute(description = "Enables or disables the gathering of statistics by this component", writable = true)
    private boolean statisticsEnabled;
 
    private final Map<Transaction, Long> startPrepare = new ConcurrentHashMap<Transaction, Long>();
