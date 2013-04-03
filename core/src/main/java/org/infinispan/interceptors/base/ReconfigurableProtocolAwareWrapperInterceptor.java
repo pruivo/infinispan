@@ -90,6 +90,17 @@ public class ReconfigurableProtocolAwareWrapperInterceptor extends CommandInterc
       return protocolDependentInterceptor.toString();
    }
 
+   public final boolean hasInterceptorClass(Class<?> clazz, boolean matchSubclass) {
+      for (CommandInterceptor interceptor : protocolDependentInterceptor.values()) {
+         if (matchSubclass && clazz.isAssignableFrom(interceptor.getClass())) {
+            return true;
+         } else if (!matchSubclass && interceptor.getClass().equals(clazz)) {
+            return true;
+         }
+      }
+      return false;
+   }
+
    @Override
    protected Object handleDefault(InvocationContext ctx, VisitableCommand command) throws Throwable {
       return command.acceptVisitor(ctx, getNext(ctx.getProtocolId()));

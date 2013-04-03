@@ -271,7 +271,7 @@ public class InterceptorChain {
          validateCustomInterceptor(interceptorClass);
          CommandInterceptor it = firstInChain;
          while (it != null) {
-            if (it.getClass().equals(afterInterceptor)) {
+            if (isSameClass(it, afterInterceptor, false)) {
                toAdd.setNext(it.getNext());
                it.setNext(toAdd);
                return true;
@@ -304,7 +304,7 @@ public class InterceptorChain {
          }
          CommandInterceptor it = firstInChain;
          while (it.getNext() != null) {
-            if (it.getNext().getClass().equals(beforeInterceptor)) {
+            if (isSameClass(it, beforeInterceptor, false)) {
                toAdd.setNext(it.getNext());
                it.setNext(toAdd);
                return true;
@@ -466,11 +466,7 @@ public class InterceptorChain {
       // Called when building interceptor chain and so concurrent start calls are protected already
       CommandInterceptor it = firstInChain;
       while (it != null) {
-         if (alsoMatchSubClasses) {
-            if (interceptorType.isAssignableFrom(it.getClass())) return true;
-         } else {
-            if (it.getClass().equals(interceptorType)) return true;
-         }
+         if (isSameClass(it, interceptorType, alsoMatchSubClasses)) return true;
          it = it.getNext();
       }
       return false;
@@ -484,6 +480,14 @@ public class InterceptorChain {
       EnumMap<InterceptorType, CommandInterceptor> newInterceptors = protocol.buildInterceptorChain();
       for (Map.Entry<InterceptorType, CommandInterceptor> entry : newInterceptors.entrySet()) {
          wrappers.get(entry.getKey()).setProtocolDependentInterceptor(protocol.getUniqueProtocolName(), entry.getValue());
+      }
+   }
+
+   private boolean isSameClass(CommandInterceptor interceptor, Class<?> clazz, boolean matchSubclass) {
+      if (interceptor instanceof ReconfigurableProtocolAwareWrapperInterceptor) {
+         return ((ReconfigurableProtocolAwareWrapperInterceptor) interceptor).hasInterceptorClass(clazz, matchSubclass);
+      } else {
+         return matchSubclass ? clazz.isAssignableFrom(interceptor.getClass()) : interceptor.getClass().equals(clazz);
       }
    }
 }
