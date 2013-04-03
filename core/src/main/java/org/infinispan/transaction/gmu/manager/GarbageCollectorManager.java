@@ -126,10 +126,12 @@ public class GarbageCollectorManager {
 
    @Stop
    public void stop() {
-      versionGarbageCollectorThread.interrupt();
-      l1GarbageCollectorThread.interrupt();
-      viewGarbageCollectorThread.interrupt();
-      cacheManagerNotifier.removeListener(this);
+      if (enabled) {
+         versionGarbageCollectorThread.interrupt();
+         l1GarbageCollectorThread.interrupt();
+         viewGarbageCollectorThread.interrupt();
+         cacheManagerNotifier.removeListener(this);
+      }
    }
 
    /**
