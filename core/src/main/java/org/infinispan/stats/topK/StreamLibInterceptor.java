@@ -220,9 +220,9 @@ public class StreamLibInterceptor extends BaseCustomInterceptor {
    @Override
    protected void start() {
       super.start();
-      setStatisticsEnabled(true);
       this.distributionManager = cache.getAdvancedCache().getDistributionManager();
       this.streamLibContainer = StreamLibContainer.getOrCreateStreamLibContainer(cache);
+      setStatisticsEnabled(true);
    }
 
    private boolean isRemote(Object k) {
