@@ -39,6 +39,7 @@ public class TotalOrderDistConsistencyTest extends DistConsistencyTest {
    @Override
    protected void decorate(ConfigurationBuilder builder) {
       super.decorate(builder);
-      builder.transaction().transactionProtocol(TransactionProtocol.TOTAL_ORDER);
+      builder.transaction().transactionProtocol(TransactionProtocol.TOTAL_ORDER)
+            .recovery().disable();
    }
 }
