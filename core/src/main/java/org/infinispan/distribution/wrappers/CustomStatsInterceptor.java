@@ -73,7 +73,7 @@ public abstract class CustomStatsInterceptor extends BaseCustomInterceptor {
    //TODO what about the transaction implicit vs transaction explicit? should we take in account this and ignore
    //the implicit stuff?
 
-   private final Log log = LogFactory.getLog(getClass());
+   protected final Log log = LogFactory.getLog(getClass());
 
    private TransactionTable transactionTable;
    private Configuration configuration;
@@ -806,6 +806,7 @@ public abstract class CustomStatsInterceptor extends BaseCustomInterceptor {
       try {
          return rpcManagerWrapper.getTransport().getMembers().size();
       } catch (Throwable throwable) {
+         log.error("Error obtaining Number of Nodes. returning 0", throwable);
          return 0;
       }
    }
@@ -822,6 +823,7 @@ public abstract class CustomStatsInterceptor extends BaseCustomInterceptor {
             }
          }
       } catch (Throwable throwable) {
+         log.error("Error obtaining Replication Degree. returning 0", throwable);
          return 0;
       }
 
@@ -836,6 +838,7 @@ public abstract class CustomStatsInterceptor extends BaseCustomInterceptor {
             return transactionTable.getLocalTxCount();
          }
       } catch (Throwable throwable) {
+         log.error("Error obtaining Local Active Transactions. returning 0", throwable);
          return 0;
       }
 

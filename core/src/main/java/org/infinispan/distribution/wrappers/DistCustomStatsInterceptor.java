@@ -54,10 +54,13 @@ public class DistCustomStatsInterceptor extends CustomStatsInterceptor {
    @ManagedAttribute(description = "Number of replicas for each key")
    @Metric(displayName = "Replication Degree")
    public long getReplicationDegree() {
-      if(distributionManager != null){
-
-	     return distributionManager.getReplicationDegree();
-
+      try {
+         if(distributionManager != null){
+            return distributionManager.getReplicationDegree();
+         }
+      } catch (Throwable throwable) {
+         log.error("Error obtaining Replication Degree. returning 0", throwable);
+         return 0;
       }
       return 1;
    }

@@ -429,19 +429,19 @@ public class NodeScopeStatisticCollector {
             return convertNanosToMicro(avgMultipleLocalCounters(IspnStats.TBC_EXECUTION_TIME, IspnStats.NUM_GET, IspnStats.NUM_PUT));
          case NTBC:
             return microAvgLocal(IspnStats.NTBC_COUNT, IspnStats.NTBC_EXECUTION_TIME);
-	     case RESPONSE_TIME:
-		    long succWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
-			long abortWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
-			long succRdTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
+         case RESPONSE_TIME:
+            long succWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
+            long abortWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
+            long succRdTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
 
-			long numWr = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
-			long numRd = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_RO_TX);
+            long numWr = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
+            long numRd = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_RO_TX);
 
-			if((numWr + numRd) > 0){
-		       return (succRdTot + succWrTot + abortWrTot) / (numWr + numRd);
-			}else{
-			   return 0;
-			}
+            if((numWr + numRd) > 0){
+               return new Long((succRdTot + succWrTot + abortWrTot) / (numWr + numRd));
+            }else{
+               return new Long(0);
+            }
          default:
             throw new NoIspnStatException("Invalid statistic "+param);
       }

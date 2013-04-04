@@ -207,7 +207,7 @@ public final class TransactionsStatisticsRegistry {
              return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
        }
        catch(Throwable e){
-          e.printStackTrace();
+          log.errorf(e, "Error obtaining attribute %s. returning null", param);
           return null;
        }
     }
