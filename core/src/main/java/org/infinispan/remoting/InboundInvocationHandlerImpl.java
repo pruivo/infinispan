@@ -63,11 +63,9 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    GlobalComponentRegistry gcr;
    private static final Log log = LogFactory.getLog(InboundInvocationHandlerImpl.class);
    private static final boolean trace = log.isTraceEnabled();
-   private EmbeddedCacheManager embeddedCacheManager;
    private GlobalConfiguration globalConfiguration;
    private Transport transport;
    private CacheViewsManager cacheViewsManager;
-   private ExecutorService asyncTransportExecutor;
 
    /**
     * How to handle an invocation based on the join status of a given cache *
@@ -77,17 +75,13 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    }
 
    @Inject
-   public void inject(GlobalComponentRegistry gcr,
-                      EmbeddedCacheManager embeddedCacheManager, Transport transport,
+   public void inject(GlobalComponentRegistry gcr, Transport transport,
                       GlobalConfiguration globalConfiguration, CacheViewsManager cacheViewsManager
-                      ,@ComponentName(KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncTransportExecutor
                       ) {
       this.gcr = gcr;
-      this.embeddedCacheManager = embeddedCacheManager;
       this.transport = transport;
       this.globalConfiguration = globalConfiguration;
       this.cacheViewsManager = cacheViewsManager;
-      this.asyncTransportExecutor = asyncTransportExecutor;
    }
 
    private boolean hasJoinStarted(final ComponentRegistry componentRegistry) throws InterruptedException {
@@ -128,44 +122,22 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
 
    private Object handleInternal(final CacheRpcCommand cmd, final ComponentRegistry cr) throws Throwable {
       CommandsFactory commandsFactory = cr.getCommandsFactory();
-
       // initialize this command with components specific to the intended cache instance
       commandsFactory.initializeReplicableCommand(cmd, true);
-
-      //boolean threadCanBlock = (cmd instanceof GMUCommitCommand) && !((GMUCommitCommand) cmd).getSynchCommitPhase();
-      //if(!threadCanBlock){
-         try {
-            if (trace) log.tracef("Calling perform() on %s", cmd);
-            ResponseGenerator respGen = cr.getResponseGenerator();
-            cmd.setResponseGenerator(respGen);
-            Object retval = cmd.perform(null);
-            if (retval == RequestHandler.DO_NOT_REPLY) {
-               return retval;
-            }
-            return respGen.getResponse(cmd, retval);
-         } catch (Exception e) {
-            log.trace("Exception executing command", e);
-            return new ExceptionResponse(e);
+      try {
+         if (trace) log.tracef("Calling perform() on %s", cmd);
+         ResponseGenerator respGen = cr.getResponseGenerator();
+         cmd.setResponseGenerator(respGen);
+         Object retval = cmd.perform(null);
+         if (retval == RequestHandler.DO_NOT_REPLY) {
+            return retval;
          }
-      /*}else{
-          this.asyncTransportExecutor.execute(new Runnable() {
-             @Override
-             public void run() {
+         return respGen.getResponse(cmd, retval);
+      } catch (Exception e) {
+         log.trace("Exception executing command", e);
+         return new ExceptionResponse(e);
+      }
 
-                try {
-                   if (trace) log.tracef("Calling perform() on %s from a new thread", cmd);
-                   ResponseGenerator respGen = cr.getResponseGenerator();
-                   cmd.setResponseGenerator(respGen);
-                   Object retval = cmd.perform(null);
-
-                } catch (Throwable e) {
-                   log.trace("Exception executing command", e);
-
-                }
-             }
-          });
-         return RequestHandler.DO_NOT_REPLY;
-      }*/
    }
 
    private Object handleWithWaitForBlocks(final CacheRpcCommand cmd, final ComponentRegistry cr) throws Throwable {

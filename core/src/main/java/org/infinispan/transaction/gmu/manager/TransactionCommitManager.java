@@ -24,7 +24,6 @@ package org.infinispan.transaction.gmu.manager;
 
 import org.infinispan.Cache;
 import org.infinispan.commands.tx.GMUCommitCommand;
-//import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.CommitContextEntries;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.VersionGenerator;
@@ -72,7 +71,6 @@ public class TransactionCommitManager {
    private Cache cache;
    private CommitContextEntries commitContextEntries;
    private GarbageCollectorManager garbageCollectorManager;
-   //private Configuration configuration;
    private LockManager lm;
 
    public TransactionCommitManager() {
@@ -82,7 +80,7 @@ public class TransactionCommitManager {
    @Inject
    public void inject(InvocationContextContainer icc, VersionGenerator versionGenerator, CommitLog commitLog,
                       Transport transport, Cache cache, CommitContextEntries commitContextEntries,
-                      GarbageCollectorManager garbageCollectorManager/*, Configuration configuration*/, LockManager lm) {
+                      GarbageCollectorManager garbageCollectorManager, LockManager lm) {
       this.icc = icc;
       this.versionGenerator = toGMUVersionGenerator(versionGenerator);
       this.commitLog = commitLog;
@@ -90,7 +88,6 @@ public class TransactionCommitManager {
       this.cache = cache;
       this.commitContextEntries = commitContextEntries;
       this.garbageCollectorManager = garbageCollectorManager;
-      //this.configuration = configuration;
       this.lm = lm;
    }
 
@@ -99,7 +96,6 @@ public class TransactionCommitManager {
    public void start() {
       commitThread = new CommitThread(transport.getAddress() + "-" + cache.getName() + "-GMU-Commit");
       commitThread.start();
-      //sortedTransactionQueue.setSynchCommitPhase(configuration.transaction().syncCommitPhase());
    }
 
    @Stop

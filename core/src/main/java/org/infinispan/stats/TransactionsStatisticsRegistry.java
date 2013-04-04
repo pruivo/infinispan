@@ -179,24 +179,37 @@ public final class TransactionsStatisticsRegistry {
    }
 
    public static Object getAttribute(IspnStats param,String className){
-      if (configuration == null) {
-         return null;
+
+      try{
+         if (configuration == null) {
+            return null;
+         }
+         if(className == null){
+            return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
+         }else{
+            if(transactionalClassesStatsMap.get(className) != null)
+               return transactionalClassesStatsMap.get(className).getAttribute(param);
+            else
+               return null;
+         }
       }
-      if(className == null){
-          return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
-      }else{
-         if(transactionalClassesStatsMap.get(className) != null)
-          return transactionalClassesStatsMap.get(className).getAttribute(param);
-         else
-          return null;
+      catch (Throwable e){
+         e.printStackTrace();
+         return null;
       }
    }
 
-   public static Object getAttribute(IspnStats param){
-       if (configuration == null) {
-           return null;
+    public static Object getAttribute(IspnStats param){
+       try{
+          if (configuration == null) {
+             return null;
+          }
+             return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
        }
-       return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
+       catch(Throwable e){
+          e.printStackTrace();
+          return null;
+       }
     }
 
    public static Object getPercentile(IspnStats param, int percentile, String className){
