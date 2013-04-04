@@ -803,18 +803,26 @@ public abstract class CustomStatsInterceptor extends BaseCustomInterceptor {
    @ManagedAttribute(description = "Number of nodes in the cluster")
    @Metric(displayName = "Number of nodes")
    public long getNumNodes() {
-      return rpcManagerWrapper.getTransport().getMembers().size();
+      try {
+         return rpcManagerWrapper.getTransport().getMembers().size();
+      } catch (Throwable throwable) {
+         return 0;
+      }
    }
 
    @ManagedAttribute(description = "Number of replicas for each key")
    @Metric(displayName = "Replication Degree")
    public long getReplicationDegree(){
-      if(this.rpcManagerWrapper != null){
-          if(this.rpcManagerWrapper.getTransport() != null){
-              if(this.rpcManagerWrapper.getTransport().getMembers() != null){
-                   return this.rpcManagerWrapper.getTransport().getMembers().size();
-              }
-          }
+      try {
+         if(this.rpcManagerWrapper != null){
+            if(this.rpcManagerWrapper.getTransport() != null){
+               if(this.rpcManagerWrapper.getTransport().getMembers() != null){
+                  return this.rpcManagerWrapper.getTransport().getMembers().size();
+               }
+            }
+         }
+      } catch (Throwable throwable) {
+         return 0;
       }
 
       return 1;
@@ -823,8 +831,12 @@ public abstract class CustomStatsInterceptor extends BaseCustomInterceptor {
    @ManagedAttribute(description = "Number of concurrent transactions executing on the current node")
    @Metric(displayName = "Local Active Transactions")
    public long getLocalActiveTransactions() {
-      if(transactionTable != null){
-          return transactionTable.getLocalTxCount();
+      try {
+         if(transactionTable != null){
+            return transactionTable.getLocalTxCount();
+         }
+      } catch (Throwable throwable) {
+         return 0;
       }
 
       return 0;
