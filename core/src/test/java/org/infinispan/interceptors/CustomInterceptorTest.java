@@ -25,10 +25,16 @@ import org.infinispan.Cache;
 import org.infinispan.config.ConfigurationException;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.cache.InterceptorConfiguration.Position;
+import org.infinispan.interceptors.base.BaseCustomInterceptor;
 import org.infinispan.interceptors.base.CommandInterceptor;
+import org.infinispan.manager.CacheContainer;
+import org.infinispan.manager.DefaultCacheManager;
+import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.test.AbstractInfinispanTest;
 import org.infinispan.test.CacheManagerCallable;
+import org.infinispan.test.TestingUtil;
 import org.infinispan.test.fwk.TestCacheManagerFactory;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 @Test(groups = "functional", testName = "interceptors.CustomInterceptorTest")
@@ -56,4 +62,53 @@ public class CustomInterceptorTest extends AbstractInfinispanTest {
       TestCacheManagerFactory.createCacheManager(builder);
    }
 
+   public void testTwoCustomInterceptors() {
+      EmbeddedCacheManager cacheManager = null;
+      Cache cache = null;
+      try {
+         ConfigurationBuilder builder = new ConfigurationBuilder();
+         builder.customInterceptors().addInterceptor().interceptor(new FirstCustomInterceptor())
+               .before(InvocationContextInterceptor.class);
+         builder.customInterceptors().addInterceptor().interceptor(new SecondCustomInterceptor())
+               .after(InvocationContextInterceptor.class);
+         cacheManager = TestCacheManagerFactory.createCacheManager(builder);
+         cache = cacheManager.getCache();
+
+         InterceptorChain interceptorChain = TestingUtil.extractComponent(cache, InterceptorChain.class);
+         Assert.assertTrue(interceptorChain.containsInterceptorType(FirstCustomInterceptor.class));
+         Assert.assertTrue(interceptorChain.containsInterceptorType(SecondCustomInterceptor.class));
+      } finally {
+         if (cache != null) {
+            cache.stop();
+         }
+         if (cacheManager != null) {
+            cacheManager.stop();
+         }
+      }
+   }
+
+
+   public static class FirstCustomInterceptor extends BaseCustomInterceptor {
+      @Override
+      protected void start() {
+         getLog().trace("Start first custom interceptor");
+      }
+
+      @Override
+      protected void stop() {
+         getLog().trace("Stop first custom interceptor");
+      }
+   }
+
+   public static class SecondCustomInterceptor extends BaseCustomInterceptor {
+      @Override
+      protected void start() {
+         getLog().trace("Start second custom interceptor");
+      }
+
+      @Override
+      protected void stop() {
+         getLog().trace("Stop second custom interceptor");
+      }
+   }
 }
