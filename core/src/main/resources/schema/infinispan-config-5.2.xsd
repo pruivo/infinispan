@@ -1008,6 +1008,22 @@
           </xs:attribute>
         </xs:complexType>
       </xs:element>
+        <xs:element name="customStats" minOccurs="0">
+            <xs:annotation>
+                <xs:documentation>
+                    Determines whether extended, fine grained statistics have to be collected
+                </xs:documentation>
+            </xs:annotation>
+            <xs:complexType>
+                <xs:attribute name="sampleServiceTimes" type="xs:boolean">
+                    <xs:annotation>
+                        <xs:documentation>
+                            Enable or disable statistics gathering and reporting
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+            </xs:complexType>
+        </xs:element>
       <xs:element name="storeAsBinary" minOccurs="0">
         <xs:annotation>
           <xs:documentation>

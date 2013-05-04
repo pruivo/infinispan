@@ -28,8 +28,8 @@ import java.util.Map;
 import static org.infinispan.stats.translations.ExposedStatistics.IspnStats;
 
 /**
- * Websiste: www.cloudtm.eu
- * Date: 01/05/12
+ * Websiste: www.cloudtm.eu Date: 01/05/12
+ *
  * @author Diego Didona <didona@gsd.inesc-id.pt>
  * @author Pedro Ruivo
  * @since 5.2

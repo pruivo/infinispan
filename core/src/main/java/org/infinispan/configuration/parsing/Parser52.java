@@ -30,7 +30,6 @@ import java.util.Properties;
 
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamReader;
 
 import org.infinispan.commons.hash.Hash;
 import org.infinispan.config.ConfigurationException;
@@ -256,7 +255,7 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
       }
    }
 
-    private void parseCustomStats(XMLStreamReader reader, ConfigurationBuilderHolder holder) throws XMLStreamException {
+    private void parseCustomStats(final XMLExtendedStreamReader reader, ConfigurationBuilderHolder holder) throws XMLStreamException {
         ConfigurationBuilder builder = holder.getCurrentConfigurationBuilder();
         for (int i = 0; i < reader.getAttributeCount(); i++) {
             ParseUtils.requireNoNamespaceAttribute(reader, i);

@@ -33,560 +33,571 @@ import static org.infinispan.stats.translations.ExposedStatistics.IspnStats.*;
 
 
 /**
- * Websiste: www.cloudtm.eu
- * Date: 01/05/12
+ * Websiste: www.cloudtm.eu Date: 01/05/12
  *
  * @author Diego Didona <didona@gsd.inesc-id.pt>
  * @author Pedro Ruivo
  * @since 5.2
  */
 public class NodeScopeStatisticCollector {
-    private final static Log log = LogFactory.getLog(NodeScopeStatisticCollector.class);
+   private final static Log log = LogFactory.getLog(NodeScopeStatisticCollector.class);
 
-    private LocalTransactionStatistics localTransactionStatistics;
-    private RemoteTransactionStatistics remoteTransactionStatistics;
+   private LocalTransactionStatistics localTransactionStatistics;
+   private RemoteTransactionStatistics remoteTransactionStatistics;
 
-    private PercentileStats localTransactionWrExecutionTime;
-    private PercentileStats remoteTransactionWrExecutionTime;
-    private PercentileStats localTransactionRoExecutionTime;
-    private PercentileStats remoteTransactionRoExecutionTime;
+   private PercentileStats localTransactionWrExecutionTime;
+   private PercentileStats remoteTransactionWrExecutionTime;
+   private PercentileStats localTransactionRoExecutionTime;
+   private PercentileStats remoteTransactionRoExecutionTime;
 
-    private Configuration configuration;
+   private Configuration configuration;
 
 
-    private long lastResetTime;
+   private long lastResetTime;
 
-    public final synchronized void reset() {
-        if (log.isTraceEnabled()) {
-            log.tracef("Resetting Node Scope Statistics");
-        }
-        this.localTransactionStatistics = new LocalTransactionStatistics(this.configuration);
-        this.remoteTransactionStatistics = new RemoteTransactionStatistics(this.configuration);
+   public final synchronized void reset() {
+      if (log.isTraceEnabled()) {
+         log.tracef("Resetting Node Scope Statistics");
+      }
+      this.localTransactionStatistics = new LocalTransactionStatistics(this.configuration);
+      this.remoteTransactionStatistics = new RemoteTransactionStatistics(this.configuration);
 
-        this.localTransactionRoExecutionTime = PercentileStatsFactory.createNewPercentileStats();
-        this.localTransactionWrExecutionTime = PercentileStatsFactory.createNewPercentileStats();
-        this.remoteTransactionRoExecutionTime = PercentileStatsFactory.createNewPercentileStats();
-        this.remoteTransactionWrExecutionTime = PercentileStatsFactory.createNewPercentileStats();
+      this.localTransactionRoExecutionTime = PercentileStatsFactory.createNewPercentileStats();
+      this.localTransactionWrExecutionTime = PercentileStatsFactory.createNewPercentileStats();
+      this.remoteTransactionRoExecutionTime = PercentileStatsFactory.createNewPercentileStats();
+      this.remoteTransactionWrExecutionTime = PercentileStatsFactory.createNewPercentileStats();
 
-        this.lastResetTime = System.nanoTime();
-    }
+      this.lastResetTime = System.nanoTime();
+   }
 
-    public NodeScopeStatisticCollector(Configuration configuration) {
-        this.configuration = configuration;
-        reset();
-    }
+   public NodeScopeStatisticCollector(Configuration configuration) {
+      this.configuration = configuration;
+      reset();
+   }
 
-    public final synchronized void merge(TransactionStatistics ts) {
-        if (log.isTraceEnabled()) {
-            log.tracef("Merge transaction statistics %s to the node statistics", ts);
-        }
-        if (ts instanceof LocalTransactionStatistics) {
-            ts.flush(this.localTransactionStatistics);
-            if (ts.isCommit()) {
-                if (ts.isReadOnly()) {
-                    this.localTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
-                } else {
-                    this.localTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
-                }
+   public final synchronized void merge(TransactionStatistics ts) {
+      if (log.isTraceEnabled()) {
+         log.tracef("Merge transaction statistics %s to the node statistics", ts);
+      }
+      if (ts instanceof LocalTransactionStatistics) {
+         ts.flush(this.localTransactionStatistics);
+         if (ts.isCommit()) {
+            if (ts.isReadOnly()) {
+               this.localTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
             } else {
-                if (ts.isReadOnly()) {
-                    this.localTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_ABORTED_EXECUTION_TIME));
-                } else {
-                    this.localTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
-                }
+               this.localTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
             }
-        } else if (ts instanceof RemoteTransactionStatistics) {
-            ts.flush(this.remoteTransactionStatistics);
-            if (ts.isCommit()) {
-                if (ts.isReadOnly()) {
-                    this.remoteTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
-                } else {
-                    this.remoteTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
-                }
+         } else {
+            if (ts.isReadOnly()) {
+               this.localTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_ABORTED_EXECUTION_TIME));
             } else {
-                if (ts.isReadOnly()) {
-                    this.remoteTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_ABORTED_EXECUTION_TIME));
-                } else {
-                    this.remoteTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
-                }
+               this.localTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
             }
-        }
-    }
+         }
+      } else if (ts instanceof RemoteTransactionStatistics) {
+         ts.flush(this.remoteTransactionStatistics);
+         if (ts.isCommit()) {
+            if (ts.isReadOnly()) {
+               this.remoteTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
+            } else {
+               this.remoteTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
+            }
+         } else {
+            if (ts.isReadOnly()) {
+               this.remoteTransactionRoExecutionTime.insertSample(ts.getValue(IspnStats.RO_TX_ABORTED_EXECUTION_TIME));
+            } else {
+               this.remoteTransactionWrExecutionTime.insertSample(ts.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
+            }
+         }
+      }
+   }
 
-    public final synchronized void addLocalValue(IspnStats stat, double value) {
-        localTransactionStatistics.addValue(stat, value);
-    }
+   public final synchronized void addLocalValue(IspnStats stat, double value) {
+      localTransactionStatistics.addValue(stat, value);
+   }
 
-    public final synchronized void addRemoteValue(IspnStats stat, double value) {
-        remoteTransactionStatistics.addValue(stat, value);
-    }
+   public final synchronized void addRemoteValue(IspnStats stat, double value) {
+      remoteTransactionStatistics.addValue(stat, value);
+   }
 
 
-    public final synchronized double getPercentile(IspnStats param, int percentile) throws NoIspnStatException {
-        if (log.isTraceEnabled()) {
-            log.tracef("Get percentile %s from %s", percentile, param);
-        }
-        switch (param) {
-            case RO_LOCAL_PERCENTILE:
-                return localTransactionRoExecutionTime.getKPercentile(percentile);
-            case WR_LOCAL_PERCENTILE:
-                return localTransactionWrExecutionTime.getKPercentile(percentile);
-            case RO_REMOTE_PERCENTILE:
-                return remoteTransactionRoExecutionTime.getKPercentile(percentile);
-            case WR_REMOTE_PERCENTILE:
-                return remoteTransactionWrExecutionTime.getKPercentile(percentile);
-            default:
-                throw new NoIspnStatException("Invalid percentile " + param);
-        }
-    }
+   public final synchronized double getPercentile(IspnStats param, int percentile) throws NoIspnStatException {
+      if (log.isTraceEnabled()) {
+         log.tracef("Get percentile %s from %s", percentile, param);
+      }
+      switch (param) {
+         case RO_LOCAL_PERCENTILE:
+            return localTransactionRoExecutionTime.getKPercentile(percentile);
+         case WR_LOCAL_PERCENTILE:
+            return localTransactionWrExecutionTime.getKPercentile(percentile);
+         case RO_REMOTE_PERCENTILE:
+            return remoteTransactionRoExecutionTime.getKPercentile(percentile);
+         case WR_REMOTE_PERCENTILE:
+            return remoteTransactionWrExecutionTime.getKPercentile(percentile);
+         default:
+            throw new NoIspnStatException("Invalid percentile " + param);
+      }
+   }
 
    /*
    Can I invoke this synchronized method from inside itself??
     */
 
-    @SuppressWarnings("UnnecessaryBoxing")
-    public final synchronized Object getAttribute(IspnStats param) throws NoIspnStatException {
-        if (log.isTraceEnabled()) {
-            log.tracef("Get attribute %s", param);
-        }
-        switch (param) {
+   @SuppressWarnings("UnnecessaryBoxing")
+   public final synchronized Object getAttribute(IspnStats param) throws NoIspnStatException {
+      if (log.isTraceEnabled()) {
+         log.tracef("Get attribute %s", param);
+      }
+      switch (param) {
 
-            case LOCK_HOLD_TIME: {
-                long localLocks = localTransactionStatistics.getValue(IspnStats.NUM_HELD_LOCKS);
-                long remoteLocks = remoteTransactionStatistics.getValue(IspnStats.NUM_HELD_LOCKS);
-                if ((localLocks + remoteLocks) != 0) {
-                    long localHoldTime = localTransactionStatistics.getValue(IspnStats.LOCK_HOLD_TIME);
-                    long remoteHoldTime = remoteTransactionStatistics.getValue(IspnStats.LOCK_HOLD_TIME);
-                    return new Long(convertNanosToMicro(localHoldTime + remoteHoldTime) / (localLocks + remoteLocks));
-                }
-                return new Long(0);
+         case LOCK_HOLD_TIME: {
+            long localLocks = localTransactionStatistics.getValue(IspnStats.NUM_HELD_LOCKS);
+            long remoteLocks = remoteTransactionStatistics.getValue(IspnStats.NUM_HELD_LOCKS);
+            if ((localLocks + remoteLocks) != 0) {
+               long localHoldTime = localTransactionStatistics.getValue(IspnStats.LOCK_HOLD_TIME);
+               long remoteHoldTime = remoteTransactionStatistics.getValue(IspnStats.LOCK_HOLD_TIME);
+               return new Long(convertNanosToMicro(localHoldTime + remoteHoldTime) / (localLocks + remoteLocks));
             }
-            case REMOTE_GET_S:
-                return microAvgLocal(IspnStats.NUM_REMOTE_GET, IspnStats.REMOTE_GET_S);
-            case RTT_PREPARE:
-                return microAvgLocal(IspnStats.NUM_RTTS_PREPARE, IspnStats.RTT_PREPARE);
-            case RTT_COMMIT:
-                return microAvgLocal(IspnStats.NUM_RTTS_COMMIT, IspnStats.RTT_COMMIT);
-            case RTT_ROLLBACK:
-                return microAvgLocal(IspnStats.NUM_RTTS_ROLLBACK, IspnStats.RTT_ROLLBACK);
-            case RTT_GET:
-                return microAvgLocal(IspnStats.NUM_RTTS_GET, IspnStats.RTT_GET);
-            case ASYNC_COMMIT:
-                return microAvgLocal(IspnStats.NUM_ASYNC_COMMIT, IspnStats.ASYNC_COMMIT);
-            case ASYNC_COMPLETE_NOTIFY:
-                return microAvgLocal(IspnStats.NUM_ASYNC_COMPLETE_NOTIFY, IspnStats.ASYNC_COMPLETE_NOTIFY);
-            case ASYNC_PREPARE:
-                return microAvgLocal(IspnStats.NUM_ASYNC_PREPARE, IspnStats.ASYNC_PREPARE);
-            case ASYNC_ROLLBACK:
-                return microAvgLocal(IspnStats.NUM_ASYNC_ROLLBACK, IspnStats.ASYNC_ROLLBACK);
-            case NUM_NODES_COMMIT:
-                return avgMultipleLocalCounters(IspnStats.NUM_NODES_COMMIT, IspnStats.NUM_RTTS_COMMIT, IspnStats.NUM_ASYNC_COMMIT);
-            case NUM_NODES_GET:
-                return avgMultipleLocalCounters(IspnStats.NUM_NODES_GET, IspnStats.NUM_RTTS_GET);
-            case NUM_NODES_PREPARE:
-                return avgMultipleLocalCounters(IspnStats.NUM_NODES_PREPARE, IspnStats.NUM_RTTS_PREPARE, IspnStats.NUM_ASYNC_PREPARE);
-            case NUM_NODES_ROLLBACK:
-                return avgMultipleLocalCounters(IspnStats.NUM_NODES_ROLLBACK, IspnStats.NUM_RTTS_ROLLBACK, IspnStats.NUM_ASYNC_ROLLBACK);
-            case NUM_NODES_COMPLETE_NOTIFY:
-                return avgMultipleLocalCounters(IspnStats.NUM_NODES_COMPLETE_NOTIFY, IspnStats.NUM_ASYNC_COMPLETE_NOTIFY);
-            case PUTS_PER_LOCAL_TX: {
-                long numLocalTxToPrepare = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
-                if (numLocalTxToPrepare != 0) {
-                    long numSuccessfulPuts = localTransactionStatistics.getValue(IspnStats.NUM_SUCCESSFUL_PUTS);
-                    return new Long(numSuccessfulPuts / numLocalTxToPrepare);
-                }
-                return new Long(0);
+            return new Long(0);
+         }
+         case REMOTE_GET_S:
+            return microAvgLocal(IspnStats.NUM_REMOTE_GET, IspnStats.REMOTE_GET_S);
+         case RTT_PREPARE:
+            return microAvgLocal(IspnStats.NUM_RTTS_PREPARE, IspnStats.RTT_PREPARE);
+         case RTT_COMMIT:
+            return microAvgLocal(IspnStats.NUM_RTTS_COMMIT, IspnStats.RTT_COMMIT);
+         case RTT_ROLLBACK:
+            return microAvgLocal(IspnStats.NUM_RTTS_ROLLBACK, IspnStats.RTT_ROLLBACK);
+         case RTT_GET:
+            return microAvgLocal(IspnStats.NUM_RTTS_GET, IspnStats.RTT_GET);
+         case ASYNC_COMMIT:
+            return microAvgLocal(IspnStats.NUM_ASYNC_COMMIT, IspnStats.ASYNC_COMMIT);
+         case ASYNC_COMPLETE_NOTIFY:
+            return microAvgLocal(IspnStats.NUM_ASYNC_COMPLETE_NOTIFY, IspnStats.ASYNC_COMPLETE_NOTIFY);
+         case ASYNC_PREPARE:
+            return microAvgLocal(IspnStats.NUM_ASYNC_PREPARE, IspnStats.ASYNC_PREPARE);
+         case ASYNC_ROLLBACK:
+            return microAvgLocal(IspnStats.NUM_ASYNC_ROLLBACK, IspnStats.ASYNC_ROLLBACK);
+         case NUM_NODES_COMMIT:
+            return avgMultipleLocalCounters(IspnStats.NUM_NODES_COMMIT, IspnStats.NUM_RTTS_COMMIT, IspnStats.NUM_ASYNC_COMMIT);
+         case NUM_NODES_GET:
+            return avgMultipleLocalCounters(IspnStats.NUM_NODES_GET, IspnStats.NUM_RTTS_GET);
+         case NUM_NODES_PREPARE:
+            return avgMultipleLocalCounters(IspnStats.NUM_NODES_PREPARE, IspnStats.NUM_RTTS_PREPARE, IspnStats.NUM_ASYNC_PREPARE);
+         case NUM_NODES_ROLLBACK:
+            return avgMultipleLocalCounters(IspnStats.NUM_NODES_ROLLBACK, IspnStats.NUM_RTTS_ROLLBACK, IspnStats.NUM_ASYNC_ROLLBACK);
+         case NUM_NODES_COMPLETE_NOTIFY:
+            return avgMultipleLocalCounters(IspnStats.NUM_NODES_COMPLETE_NOTIFY, IspnStats.NUM_ASYNC_COMPLETE_NOTIFY);
+         case PUTS_PER_LOCAL_TX: {
+            long numLocalTxToPrepare = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
+            if (numLocalTxToPrepare != 0) {
+               long numSuccessfulPuts = localTransactionStatistics.getValue(IspnStats.NUM_SUCCESSFUL_PUTS);
+               return new Long(numSuccessfulPuts / numLocalTxToPrepare);
+            }
+            return new Long(0);
 
+         }
+         case LOCAL_CONTENTION_PROBABILITY: {
+            long numLocalPuts = localTransactionStatistics.getValue(IspnStats.NUM_PUT);
+            if (numLocalPuts != 0) {
+               long numLocalLocalContention = localTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_LOCAL);
+               long numLocalRemoteContention = localTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_REMOTE);
+               return new Double((numLocalLocalContention + numLocalRemoteContention) * 1.0 / numLocalPuts);
             }
-            case LOCAL_CONTENTION_PROBABILITY: {
-                long numLocalPuts = localTransactionStatistics.getValue(IspnStats.NUM_PUT);
-                if (numLocalPuts != 0) {
-                    long numLocalLocalContention = localTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_LOCAL);
-                    long numLocalRemoteContention = localTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_REMOTE);
-                    return new Double((numLocalLocalContention + numLocalRemoteContention) * 1.0 / numLocalPuts);
-                }
-                return new Double(0);
+            return new Double(0);
+         }
+         case REMOTE_CONTENTION_PROBABILITY: {
+            long numRemotePuts = remoteTransactionStatistics.getValue(IspnStats.NUM_PUT);
+            if (numRemotePuts != 0) {
+               long numRemoteLocalContention = remoteTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_LOCAL);
+               long numRemoteRemoteContention = remoteTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_REMOTE);
+               return new Double((numRemoteLocalContention + numRemoteRemoteContention) * 1.0 / numRemotePuts);
             }
-            case REMOTE_CONTENTION_PROBABILITY: {
-                long numRemotePuts = remoteTransactionStatistics.getValue(IspnStats.NUM_PUT);
-                if (numRemotePuts != 0) {
-                    long numRemoteLocalContention = remoteTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_LOCAL);
-                    long numRemoteRemoteContention = remoteTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_REMOTE);
-                    return new Double((numRemoteLocalContention + numRemoteRemoteContention) * 1.0 / numRemotePuts);
-                }
-                return new Double(0);
+            return new Double(0);
+         }
+         case LOCK_CONTENTION_PROBABILITY: {
+            long numLocalPuts = localTransactionStatistics.getValue(IspnStats.NUM_PUT);
+            long numRemotePuts = remoteTransactionStatistics.getValue(IspnStats.NUM_PUT);
+            long totalPuts = numLocalPuts + numRemotePuts;
+            if (totalPuts != 0) {
+               long localLocal = localTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_LOCAL);
+               long localRemote = localTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_REMOTE);
+               long remoteLocal = remoteTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_LOCAL);
+               long remoteRemote = remoteTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_REMOTE);
+               long totalCont = localLocal + localRemote + remoteLocal + remoteRemote;
+               return new Double(totalCont / totalPuts);
             }
-            case LOCK_CONTENTION_PROBABILITY: {
-                long numLocalPuts = localTransactionStatistics.getValue(IspnStats.NUM_PUT);
-                long numRemotePuts = remoteTransactionStatistics.getValue(IspnStats.NUM_PUT);
-                long totalPuts = numLocalPuts + numRemotePuts;
-                if (totalPuts != 0) {
-                    long localLocal = localTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_LOCAL);
-                    long localRemote = localTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_REMOTE);
-                    long remoteLocal = remoteTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_LOCAL);
-                    long remoteRemote = remoteTransactionStatistics.getValue(IspnStats.LOCK_CONTENTION_TO_REMOTE);
-                    long totalCont = localLocal + localRemote + remoteLocal + remoteRemote;
-                    return new Double(totalCont / totalPuts);
-                }
-                return new Double(0);
-            }
+            return new Double(0);
+         }
 
-            case NUM_OWNED_WR_ITEMS_IN_LOCAL_PREPARE: {
-                return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_OWNED_WR_ITEMS_IN_OK_PREPARE);
-            }
-            case NUM_OWNED_WR_ITEMS_IN_REMOTE_PREPARE: {
-                return avgRemote(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_OWNED_WR_ITEMS_IN_OK_PREPARE);
-            }
+         case NUM_OWNED_WR_ITEMS_IN_LOCAL_PREPARE: {
+            return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_OWNED_WR_ITEMS_IN_OK_PREPARE);
+         }
+         case NUM_OWNED_WR_ITEMS_IN_REMOTE_PREPARE: {
+            return avgRemote(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_OWNED_WR_ITEMS_IN_OK_PREPARE);
+         }
 
-            case NUM_OWNED_RD_ITEMS_IN_LOCAL_PREPARE: {
-                return avgLocal(IspnStats.NUM_COMMITTED_RO_TX, IspnStats.NUM_OWNED_RD_ITEMS_IN_OK_PREPARE);
-            }
-            case NUM_OWNED_RD_ITEMS_IN_REMOTE_PREPARE: {
-                return avgRemote(IspnStats.NUM_COMMITTED_RO_TX, IspnStats.NUM_OWNED_RD_ITEMS_IN_OK_PREPARE);
-            }
+         case NUM_OWNED_RD_ITEMS_IN_LOCAL_PREPARE: {
+            return avgLocal(IspnStats.NUM_COMMITTED_RO_TX, IspnStats.NUM_OWNED_RD_ITEMS_IN_OK_PREPARE);
+         }
+         case NUM_OWNED_RD_ITEMS_IN_REMOTE_PREPARE: {
+            return avgRemote(IspnStats.NUM_COMMITTED_RO_TX, IspnStats.NUM_OWNED_RD_ITEMS_IN_OK_PREPARE);
+         }
 
 
 
         /*
          Local execution times
           */
-            case UPDATE_TX_LOCAL_S: {
-                return microAvgLocal(IspnStats.NUM_UPDATE_TX_GOT_TO_PREPARE, IspnStats.UPDATE_TX_LOCAL_S);
-            }
-            case UPDATE_TX_LOCAL_R: {
-                return microAvgLocal(IspnStats.NUM_UPDATE_TX_GOT_TO_PREPARE, IspnStats.UPDATE_TX_LOCAL_R);
-            }
-            case READ_ONLY_TX_LOCAL_S: {
-                return microAvgLocal(IspnStats.NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_LOCAL_S);
-            }
-            case READ_ONLY_TX_LOCAL_R: {
-                return microAvgLocal(IspnStats.NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_LOCAL_R);
-            }
+         case UPDATE_TX_LOCAL_S: {
+            return microAvgLocal(IspnStats.NUM_UPDATE_TX_GOT_TO_PREPARE, IspnStats.UPDATE_TX_LOCAL_S);
+         }
+         case UPDATE_TX_LOCAL_R: {
+            return microAvgLocal(IspnStats.NUM_UPDATE_TX_GOT_TO_PREPARE, IspnStats.UPDATE_TX_LOCAL_R);
+         }
+         case READ_ONLY_TX_LOCAL_S: {
+            return microAvgLocal(IspnStats.NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_LOCAL_S);
+         }
+         case READ_ONLY_TX_LOCAL_R: {
+            return microAvgLocal(IspnStats.NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_LOCAL_R);
+         }
          /*
          Prepare Times (only relevant to successfully executed prepareCommand
           */
 
-            case UPDATE_TX_LOCAL_PREPARE_R: {
-                return microAvgLocal(IspnStats.NUM_UPDATE_TX_PREPARED, IspnStats.UPDATE_TX_LOCAL_PREPARE_R);
-            }
+         case UPDATE_TX_LOCAL_PREPARE_R: {
+            return microAvgLocal(IspnStats.NUM_UPDATE_TX_PREPARED, IspnStats.UPDATE_TX_LOCAL_PREPARE_R);
+         }
 
-            case UPDATE_TX_LOCAL_PREPARE_S: {
-                return microAvgLocal(IspnStats.NUM_UPDATE_TX_PREPARED, IspnStats.UPDATE_TX_LOCAL_PREPARE_S);
-            }
-            case UPDATE_TX_REMOTE_PREPARE_R: {
-                return microAvgRemote(IspnStats.NUM_UPDATE_TX_PREPARED, IspnStats.UPDATE_TX_REMOTE_PREPARE_R);
-            }
-            case UPDATE_TX_REMOTE_PREPARE_S: {
-                return microAvgRemote(IspnStats.NUM_UPDATE_TX_PREPARED, IspnStats.UPDATE_TX_REMOTE_PREPARE_S);
-            }
-            case READ_ONLY_TX_PREPARE_R: {
-                return microAvgRemote(NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_PREPARE_R);
-            }
-            case READ_ONLY_TX_PREPARE_S: {
-                return microAvgRemote(NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_PREPARE_S);
-            }
+         case UPDATE_TX_LOCAL_PREPARE_S: {
+            return microAvgLocal(IspnStats.NUM_UPDATE_TX_PREPARED, IspnStats.UPDATE_TX_LOCAL_PREPARE_S);
+         }
+         case UPDATE_TX_REMOTE_PREPARE_R: {
+            return microAvgRemote(IspnStats.NUM_UPDATE_TX_PREPARED, IspnStats.UPDATE_TX_REMOTE_PREPARE_R);
+         }
+         case UPDATE_TX_REMOTE_PREPARE_S: {
+            return microAvgRemote(IspnStats.NUM_UPDATE_TX_PREPARED, IspnStats.UPDATE_TX_REMOTE_PREPARE_S);
+         }
+         case READ_ONLY_TX_PREPARE_R: {
+            return microAvgRemote(NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_PREPARE_R);
+         }
+         case READ_ONLY_TX_PREPARE_S: {
+            return microAvgRemote(NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_PREPARE_S);
+         }
 
           /*
              Commit Times
            */
 
-            case UPDATE_TX_LOCAL_COMMIT_R: {
-                return microAvgLocal(IspnStats.NUM_UPDATE_TX_LOCAL_COMMIT, IspnStats.UPDATE_TX_LOCAL_COMMIT_R);
-            }
-            case UPDATE_TX_LOCAL_COMMIT_S: {
-                return microAvgLocal(IspnStats.NUM_UPDATE_TX_LOCAL_COMMIT, IspnStats.UPDATE_TX_LOCAL_COMMIT_S);
-            }
-            case UPDATE_TX_REMOTE_COMMIT_R: {
-                return microAvgRemote(IspnStats.NUM_UPDATE_TX_REMOTE_COMMIT, IspnStats.UPDATE_TX_REMOTE_COMMIT_R);
-            }
-            case UPDATE_TX_REMOTE_COMMIT_S: {
-                return microAvgRemote(IspnStats.NUM_UPDATE_TX_REMOTE_COMMIT, IspnStats.UPDATE_TX_REMOTE_COMMIT_S);
-            }
-            case READ_ONLY_TX_COMMIT_R: {
-                return microAvgRemote(NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_COMMIT_R);
-            }
-            case READ_ONLY_TX_COMMIT_S: {
-                return microAvgRemote(NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_COMMIT_S);
-            }
+         case UPDATE_TX_LOCAL_COMMIT_R: {
+            return microAvgLocal(IspnStats.NUM_UPDATE_TX_LOCAL_COMMIT, IspnStats.UPDATE_TX_LOCAL_COMMIT_R);
+         }
+         case UPDATE_TX_LOCAL_COMMIT_S: {
+            return microAvgLocal(IspnStats.NUM_UPDATE_TX_LOCAL_COMMIT, IspnStats.UPDATE_TX_LOCAL_COMMIT_S);
+         }
+         case UPDATE_TX_REMOTE_COMMIT_R: {
+            return microAvgRemote(IspnStats.NUM_UPDATE_TX_REMOTE_COMMIT, IspnStats.UPDATE_TX_REMOTE_COMMIT_R);
+         }
+         case UPDATE_TX_REMOTE_COMMIT_S: {
+            return microAvgRemote(IspnStats.NUM_UPDATE_TX_REMOTE_COMMIT, IspnStats.UPDATE_TX_REMOTE_COMMIT_S);
+         }
+         case READ_ONLY_TX_COMMIT_R: {
+            return microAvgRemote(NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_COMMIT_R);
+         }
+         case READ_ONLY_TX_COMMIT_S: {
+            return microAvgRemote(NUM_READ_ONLY_TX_COMMIT, IspnStats.READ_ONLY_TX_COMMIT_S);
+         }
 
           /*
           Rollback times
            */
 
-            case UPDATE_TX_REMOTE_ROLLBACK_R: {
-                return microAvgRemote(NUM_UPDATE_TX_REMOTE_ROLLBACK, IspnStats.UPDATE_TX_REMOTE_ROLLBACK_R);
+         case UPDATE_TX_REMOTE_ROLLBACK_R: {
+            return microAvgRemote(NUM_UPDATE_TX_REMOTE_ROLLBACK, IspnStats.UPDATE_TX_REMOTE_ROLLBACK_R);
+         }
+         case UPDATE_TX_REMOTE_ROLLBACK_S: {
+            return microAvgRemote(NUM_UPDATE_TX_REMOTE_ROLLBACK, IspnStats.UPDATE_TX_REMOTE_ROLLBACK_S);
+         }
+         case UPDATE_TX_LOCAL_REMOTE_ROLLBACK_R: {
+            return microAvgLocal(NUM_UPDATE_TX_LOCAL_REMOTE_ROLLBACK, IspnStats.UPDATE_TX_LOCAL_REMOTE_ROLLBACK_R);
+         }
+         case UPDATE_TX_LOCAL_REMOTE_ROLLBACK_S: {
+            return microAvgLocal(NUM_UPDATE_TX_LOCAL_REMOTE_ROLLBACK, IspnStats.UPDATE_TX_LOCAL_REMOTE_ROLLBACK_S);
+         }
+         case UPDATE_TX_LOCAL_LOCAL_ROLLBACK_R: {
+            return microAvgLocal(NUM_UPDATE_TX_LOCAL_LOCAL_ROLLBACK, IspnStats.UPDATE_TX_LOCAL_LOCAL_ROLLBACK_R);
+         }
+         case UPDATE_TX_LOCAL_LOCAL_ROLLBACK_S: {
+            return microAvgLocal(NUM_UPDATE_TX_LOCAL_LOCAL_ROLLBACK, IspnStats.UPDATE_TX_LOCAL_LOCAL_ROLLBACK_S);
+         }
+         case NUM_ABORTED_TX_DUE_TO_NOT_LAST_VALUE_ACCESSED: {
+            return new Long(localTransactionStatistics.getValue(NUM_ABORTED_TX_DUE_TO_NOT_LAST_VALUE_ACCESSED));
+         }
+         case REMOTE_GET_WAITING_TIME: {
+            return new Long(microAvgRemote(NUM_SERVED_REMOTE_GETS, REMOTE_GET_WAITING_TIME));
+         }
+         case LOCK_WAITING_TIME: {
+            long localWaitedForLocks = localTransactionStatistics.getValue(IspnStats.NUM_WAITED_FOR_LOCKS);
+            long remoteWaitedForLocks = remoteTransactionStatistics.getValue(IspnStats.NUM_WAITED_FOR_LOCKS);
+            long totalWaitedForLocks = localWaitedForLocks + remoteWaitedForLocks;
+            if (totalWaitedForLocks != 0) {
+               long localWaitedTime = localTransactionStatistics.getValue(IspnStats.LOCK_WAITING_TIME);
+               long remoteWaitedTime = remoteTransactionStatistics.getValue(IspnStats.LOCK_WAITING_TIME);
+               return new Long(convertNanosToMicro(localWaitedTime + remoteWaitedTime) / totalWaitedForLocks);
             }
-            case UPDATE_TX_REMOTE_ROLLBACK_S: {
-                return microAvgRemote(NUM_UPDATE_TX_REMOTE_ROLLBACK, IspnStats.UPDATE_TX_REMOTE_ROLLBACK_S);
+            return new Long(0);
+         }
+         case TX_WRITE_PERCENTAGE: {     //computed on the locally born txs
+            long readTx = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                  localTransactionStatistics.getValue(NUM_ABORTED_RO_TX);
+            long writeTx = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX) +
+                  localTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
+            long total = readTx + writeTx;
+            if (total != 0)
+               return new Double(writeTx * 1.0 / total);
+            return new Double(0);
+         }
+         case SUCCESSFUL_WRITE_PERCENTAGE: { //computed on the locally born txs
+            long readSuxTx = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT);
+            long writeSuxTx = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
+            long total = readSuxTx + writeSuxTx;
+            if (total != 0) {
+               return new Double(writeSuxTx * 1.0 / total);
             }
-            case UPDATE_TX_LOCAL_REMOTE_ROLLBACK_R: {
-                return microAvgLocal(NUM_UPDATE_TX_LOCAL_REMOTE_ROLLBACK, IspnStats.UPDATE_TX_LOCAL_REMOTE_ROLLBACK_R);
-            }
-            case UPDATE_TX_LOCAL_REMOTE_ROLLBACK_S: {
-                return microAvgLocal(NUM_UPDATE_TX_LOCAL_REMOTE_ROLLBACK, IspnStats.UPDATE_TX_LOCAL_REMOTE_ROLLBACK_S);
-            }
-            case UPDATE_TX_LOCAL_LOCAL_ROLLBACK_R: {
-                return microAvgLocal(NUM_UPDATE_TX_LOCAL_LOCAL_ROLLBACK, IspnStats.UPDATE_TX_LOCAL_LOCAL_ROLLBACK_R);
-            }
-            case UPDATE_TX_LOCAL_LOCAL_ROLLBACK_S: {
-                return microAvgLocal(NUM_UPDATE_TX_LOCAL_LOCAL_ROLLBACK, IspnStats.UPDATE_TX_LOCAL_LOCAL_ROLLBACK_S);
-            }
-            case NUM_ABORTED_TX_DUE_TO_NOT_LAST_VALUE_ACCESSED:{
-                return new Long(localTransactionStatistics.getValue(NUM_ABORTED_TX_DUE_TO_NOT_LAST_VALUE_ACCESSED));
-            }
-            case REMOTE_GET_WAITING_TIME:{
-                return microAvgLocal(NUM_SERVED_REMOTE_GETS,REMOTE_GET_WAITING_TIME);
-            }
-            case LOCK_WAITING_TIME: {
-                long localWaitedForLocks = localTransactionStatistics.getValue(IspnStats.NUM_WAITED_FOR_LOCKS);
-                long remoteWaitedForLocks = remoteTransactionStatistics.getValue(IspnStats.NUM_WAITED_FOR_LOCKS);
-                long totalWaitedForLocks = localWaitedForLocks + remoteWaitedForLocks;
-                if (totalWaitedForLocks != 0) {
-                    long localWaitedTime = localTransactionStatistics.getValue(IspnStats.LOCK_WAITING_TIME);
-                    long remoteWaitedTime = remoteTransactionStatistics.getValue(IspnStats.LOCK_WAITING_TIME);
-                    return new Long(convertNanosToMicro(localWaitedTime + remoteWaitedTime) / totalWaitedForLocks);
-                }
-                return new Long(0);
-            }
-            case TX_WRITE_PERCENTAGE: {     //computed on the locally born txs
-                long readTx = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        localTransactionStatistics.getValue(NUM_ABORTED_RO_TX);
-                long writeTx = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX) +
-                        localTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
-                long total = readTx + writeTx;
-                if (total != 0)
-                    return new Double(writeTx * 1.0 / total);
-                return new Double(0);
-            }
-            case SUCCESSFUL_WRITE_PERCENTAGE: { //computed on the locally born txs
-                long readSuxTx = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT);
-                long writeSuxTx = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
-                long total = readSuxTx + writeSuxTx;
-                if (total != 0) {
-                    return new Double(writeSuxTx * 1.0 / total);
-                }
-                return new Double(0);
-            }
-            case APPLICATION_CONTENTION_FACTOR: {
-                long localTakenLocks = localTransactionStatistics.getValue(IspnStats.NUM_HELD_LOCKS);
-                long remoteTakenLocks = remoteTransactionStatistics.getValue(IspnStats.NUM_HELD_LOCKS);
-                long elapsedTime = System.nanoTime() - this.lastResetTime;
-                double totalLocksArrivalRate = (localTakenLocks + remoteTakenLocks) / convertNanosToMicro(elapsedTime);
-                long holdTime = (Long) this.getAttribute(IspnStats.LOCK_HOLD_TIME);
+            return new Double(0);
+         }
+         case APPLICATION_CONTENTION_FACTOR: {
+            long localTakenLocks = localTransactionStatistics.getValue(IspnStats.NUM_HELD_LOCKS);
+            long remoteTakenLocks = remoteTransactionStatistics.getValue(IspnStats.NUM_HELD_LOCKS);
+            long elapsedTime = System.nanoTime() - this.lastResetTime;
+            double totalLocksArrivalRate = (localTakenLocks + remoteTakenLocks) / convertNanosToMicro(elapsedTime);
+            long holdTime = (Long) this.getAttribute(IspnStats.LOCK_HOLD_TIME);
 
-                if ((totalLocksArrivalRate * holdTime) != 0) {
-                    double lockContProb = (Double) this.getAttribute(IspnStats.LOCK_CONTENTION_PROBABILITY);
-                    return new Double(lockContProb / (totalLocksArrivalRate * holdTime));
-                }
-                return new Double(0);
+            if ((totalLocksArrivalRate * holdTime) != 0) {
+               double lockContProb = (Double) this.getAttribute(IspnStats.LOCK_CONTENTION_PROBABILITY);
+               return new Double(lockContProb / (totalLocksArrivalRate * holdTime));
             }
-            case NUM_SUCCESSFUL_GETS_RO_TX:
-                return avgLocal(IspnStats.NUM_READ_ONLY_TX_COMMIT, NUM_SUCCESSFUL_GETS_RO_TX);
-            case NUM_SUCCESSFUL_GETS_WR_TX:
-                return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, NUM_SUCCESSFUL_GETS_WR_TX);
-            case NUM_SUCCESSFUL_REMOTE_GETS_RO_TX:
-                return avgLocal(IspnStats.NUM_READ_ONLY_TX_COMMIT, IspnStats.NUM_SUCCESSFUL_REMOTE_GETS_RO_TX);
-            case NUM_SUCCESSFUL_REMOTE_GETS_WR_TX:
-                return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_SUCCESSFUL_REMOTE_GETS_WR_TX);
-            case REMOTE_GET_EXECUTION:
-                return microAvgLocal(IspnStats.NUM_REMOTE_GET, IspnStats.REMOTE_GET_EXECUTION);
-            case NUM_SUCCESSFUL_PUTS_WR_TX:
-                return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_SUCCESSFUL_PUTS_WR_TX);
-            case NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX:
-                return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX);
-            case REMOTE_PUT_EXECUTION:
-                return microAvgLocal(IspnStats.NUM_REMOTE_PUT, IspnStats.REMOTE_PUT_EXECUTION);
-            case NUM_LOCK_FAILED_DEADLOCK:
-            case NUM_LOCK_FAILED_TIMEOUT:
-                return new Long(localTransactionStatistics.getValue(param));
-            case NUM_READLOCK_FAILED_TIMEOUT:
-                return new Long(localTransactionStatistics.getValue(param));
-            case WR_TX_SUCCESSFUL_EXECUTION_TIME:
-                return microAvgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME);
-            case WR_TX_ABORTED_EXECUTION_TIME:
-                return microAvgLocal(IspnStats.NUM_ABORTED_WR_TX, IspnStats.WR_TX_ABORTED_EXECUTION_TIME);
-            case PREPARE_COMMAND_SIZE:
-                return avgMultipleLocalCounters(IspnStats.PREPARE_COMMAND_SIZE, IspnStats.NUM_RTTS_PREPARE, IspnStats.NUM_ASYNC_PREPARE);
-            case COMMIT_COMMAND_SIZE:
-                return avgMultipleLocalCounters(IspnStats.COMMIT_COMMAND_SIZE, IspnStats.NUM_RTTS_COMMIT, IspnStats.NUM_ASYNC_COMMIT);
-            case CLUSTERED_GET_COMMAND_SIZE:
-                return avgLocal(IspnStats.NUM_RTTS_GET, IspnStats.CLUSTERED_GET_COMMAND_SIZE);
-            case NUM_LOCK_PER_LOCAL_TX:
-                return avgMultipleLocalCounters(IspnStats.NUM_HELD_LOCKS, IspnStats.NUM_COMMITTED_WR_TX, NUM_ABORTED_WR_TX);
-            case NUM_LOCK_PER_REMOTE_TX:
-                return avgMultipleRemoteCounters(IspnStats.NUM_HELD_LOCKS, IspnStats.NUM_COMMITTED_WR_TX, NUM_ABORTED_WR_TX);
-            case NUM_LOCK_PER_SUCCESS_LOCAL_TX:
-                return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_HELD_LOCKS_SUCCESS_TX);
-            case TX_COMPLETE_NOTIFY_EXECUTION_TIME:
-                return microAvgRemote(IspnStats.NUM_TX_COMPLETE_NOTIFY_COMMAND, IspnStats.TX_COMPLETE_NOTIFY_EXECUTION_TIME);
-            case ABORT_RATE:
-                long totalAbort = localTransactionStatistics.getValue(NUM_ABORTED_RO_TX) +
-                        localTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
-                long totalCommitAndAbort = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX) + totalAbort;
-                if (totalCommitAndAbort != 0) {
-                    return new Double(totalAbort * 1.0 / totalCommitAndAbort);
-                }
-                return new Double(0);
-            case ARRIVAL_RATE:
-                long localCommittedTx = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
-                long localAbortedTx = localTransactionStatistics.getValue(NUM_ABORTED_RO_TX) +
-                        localTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
-                long remoteCommittedTx = remoteTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        remoteTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
-                long remoteAbortedTx = remoteTransactionStatistics.getValue(NUM_ABORTED_RO_TX) +
-                        remoteTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
-                long totalBornTx = localAbortedTx + localCommittedTx + remoteAbortedTx + remoteCommittedTx;
-                return new Double(totalBornTx * 1.0 / convertNanosToSeconds(System.nanoTime() - this.lastResetTime));
-            case THROUGHPUT:
-                long totalLocalBornTx = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
-                return new Double(totalLocalBornTx * 1.0 / convertNanosToSeconds(System.nanoTime() - this.lastResetTime));
-            case LOCK_HOLD_TIME_LOCAL:
-                return microAvgLocal(IspnStats.NUM_HELD_LOCKS, IspnStats.LOCK_HOLD_TIME);
-            case LOCK_HOLD_TIME_REMOTE:
-                return microAvgRemote(IspnStats.NUM_HELD_LOCKS, IspnStats.LOCK_HOLD_TIME);
-            case NUM_COMMITS:
-                return new Long(localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX) +
-                        remoteTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        remoteTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX));
-            case NUM_LOCAL_COMMITS:
-                return new Long(localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX));
-            case WRITE_SKEW_PROBABILITY:
-                long totalTxs = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
-                        localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX) +
-                        localTransactionStatistics.getValue(NUM_ABORTED_RO_TX) +
-                        localTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
-                if (totalTxs != 0) {
-                    long writeSkew = localTransactionStatistics.getValue(IspnStats.NUM_WRITE_SKEW);
-                    return new Double(writeSkew * 1.0 / totalTxs);
-                }
-                return new Double(0);
-            case NUM_GET:
-                return localTransactionStatistics.getValue(NUM_SUCCESSFUL_GETS_WR_TX) +
-                        localTransactionStatistics.getValue(NUM_SUCCESSFUL_GETS_RO_TX);
-            case NUM_REMOTE_GET:
-                return localTransactionStatistics.getValue(NUM_SUCCESSFUL_REMOTE_GETS_WR_TX) +
-                        localTransactionStatistics.getValue(NUM_SUCCESSFUL_REMOTE_GETS_RO_TX);
-            case NUM_PUT:
-                return localTransactionStatistics.getValue(NUM_SUCCESSFUL_PUTS_WR_TX);
-            case NUM_REMOTE_PUT:
-                return localTransactionStatistics.getValue(NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX);
-            case LOCAL_GET_EXECUTION:
-                long num = localTransactionStatistics.getValue(IspnStats.NUM_GET);
-                if (num == 0) {
-                    return new Long(0L);
-                } else {
-                    long local_get_time = localTransactionStatistics.getValue(ALL_GET_EXECUTION) -
-                            localTransactionStatistics.getValue(RTT_GET);
-
-                    return new Long(convertNanosToMicro(local_get_time) / num);
-                }
-            case WAIT_TIME_IN_COMMIT_QUEUE: {
-                return microAvgLocal(NUM_WAITS_IN_COMMIT_QUEUE, WAIT_TIME_IN_COMMIT_QUEUE);
+            return new Double(0);
+         }
+         case NUM_SUCCESSFUL_GETS_RO_TX:
+            return avgLocal(IspnStats.NUM_READ_ONLY_TX_COMMIT, NUM_SUCCESSFUL_GETS_RO_TX);
+         case NUM_SUCCESSFUL_GETS_WR_TX:
+            return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, NUM_SUCCESSFUL_GETS_WR_TX);
+         case NUM_SUCCESSFUL_REMOTE_GETS_RO_TX:
+            return avgLocal(IspnStats.NUM_READ_ONLY_TX_COMMIT, IspnStats.NUM_SUCCESSFUL_REMOTE_GETS_RO_TX);
+         case NUM_SUCCESSFUL_REMOTE_GETS_WR_TX:
+            return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_SUCCESSFUL_REMOTE_GETS_WR_TX);
+         case REMOTE_GET_EXECUTION:
+            return microAvgLocal(IspnStats.NUM_REMOTE_GET, IspnStats.REMOTE_GET_EXECUTION);
+         case NUM_SUCCESSFUL_PUTS_WR_TX:
+            return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_SUCCESSFUL_PUTS_WR_TX);
+         case NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX:
+            return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX);
+         case REMOTE_PUT_EXECUTION:
+            return microAvgLocal(IspnStats.NUM_REMOTE_PUT, IspnStats.REMOTE_PUT_EXECUTION);
+         case NUM_LOCK_FAILED_DEADLOCK:
+         case NUM_LOCK_FAILED_TIMEOUT:
+            return new Long(localTransactionStatistics.getValue(param));
+         case NUM_READLOCK_FAILED_TIMEOUT:
+            return new Long(localTransactionStatistics.getValue(param));
+         case WR_TX_SUCCESSFUL_EXECUTION_TIME:
+            return microAvgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME);
+         case WR_TX_ABORTED_EXECUTION_TIME:
+            return microAvgLocal(IspnStats.NUM_ABORTED_WR_TX, IspnStats.WR_TX_ABORTED_EXECUTION_TIME);
+         case PREPARE_COMMAND_SIZE:
+            return avgMultipleLocalCounters(IspnStats.PREPARE_COMMAND_SIZE, IspnStats.NUM_RTTS_PREPARE, IspnStats.NUM_ASYNC_PREPARE);
+         case COMMIT_COMMAND_SIZE:
+            return avgMultipleLocalCounters(IspnStats.COMMIT_COMMAND_SIZE, IspnStats.NUM_RTTS_COMMIT, IspnStats.NUM_ASYNC_COMMIT);
+         case CLUSTERED_GET_COMMAND_SIZE:
+            return avgLocal(IspnStats.NUM_RTTS_GET, IspnStats.CLUSTERED_GET_COMMAND_SIZE);
+         case NUM_LOCK_PER_LOCAL_TX:
+            return avgMultipleLocalCounters(IspnStats.NUM_HELD_LOCKS, IspnStats.NUM_COMMITTED_WR_TX, NUM_ABORTED_WR_TX);
+         case NUM_LOCK_PER_REMOTE_TX:
+            return avgMultipleRemoteCounters(IspnStats.NUM_HELD_LOCKS, IspnStats.NUM_COMMITTED_WR_TX, NUM_ABORTED_WR_TX);
+         case NUM_LOCK_PER_SUCCESS_LOCAL_TX:
+            return avgLocal(IspnStats.NUM_COMMITTED_WR_TX, IspnStats.NUM_HELD_LOCKS_SUCCESS_TX);
+         case TX_COMPLETE_NOTIFY_EXECUTION_TIME:
+            return microAvgRemote(IspnStats.NUM_TX_COMPLETE_NOTIFY_COMMAND, IspnStats.TX_COMPLETE_NOTIFY_EXECUTION_TIME);
+         case UPDATE_TX_TOTAL_R: {
+            return microAvgLocal(IspnStats.NUM_COMMITTED_WR_TX, UPDATE_TX_TOTAL_R);
+         }
+         case UPDATE_TX_TOTAL_S: {
+            return microAvgLocal(IspnStats.NUM_COMMITTED_WR_TX, UPDATE_TX_TOTAL_S);
+         }
+         case READ_ONLY_TX_TOTAL_R: {
+            return microAvgLocal(NUM_READ_ONLY_TX_COMMIT, READ_ONLY_TX_TOTAL_R);
+         }
+         case READ_ONLY_TX_TOTAL_S: {
+            return microAvgLocal(NUM_READ_ONLY_TX_COMMIT, READ_ONLY_TX_TOTAL_S);
+         }
+         case ABORT_RATE:
+            long totalAbort = localTransactionStatistics.getValue(NUM_ABORTED_RO_TX) +
+                  localTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
+            long totalCommitAndAbort = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                  localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX) + totalAbort;
+            if (totalCommitAndAbort != 0) {
+               return new Double(totalAbort * 1.0 / totalCommitAndAbort);
             }
-            case WAIT_TIME_IN_REMOTE_COMMIT_QUEUE: {
-                return microAvgRemote(NUM_WAITS_IN_COMMIT_QUEUE, WAIT_TIME_IN_COMMIT_QUEUE);
+            return new Double(0);
+         case ARRIVAL_RATE:
+            long localCommittedTx = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                  localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
+            long localAbortedTx = localTransactionStatistics.getValue(NUM_ABORTED_RO_TX) +
+                  localTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
+            long remoteCommittedTx = remoteTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                  remoteTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
+            long remoteAbortedTx = remoteTransactionStatistics.getValue(NUM_ABORTED_RO_TX) +
+                  remoteTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
+            long totalBornTx = localAbortedTx + localCommittedTx + remoteAbortedTx + remoteCommittedTx;
+            return new Double(totalBornTx * 1.0 / convertNanosToSeconds(System.nanoTime() - this.lastResetTime));
+         case THROUGHPUT:
+            long totalLocalBornTx = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                  localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
+            return new Double(totalLocalBornTx * 1.0 / convertNanosToSeconds(System.nanoTime() - this.lastResetTime));
+         case LOCK_HOLD_TIME_LOCAL:
+            return microAvgLocal(IspnStats.NUM_HELD_LOCKS, IspnStats.LOCK_HOLD_TIME);
+         case LOCK_HOLD_TIME_REMOTE:
+            return microAvgRemote(IspnStats.NUM_HELD_LOCKS, IspnStats.LOCK_HOLD_TIME);
+         case NUM_COMMITS:
+            return new Long(localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                                  localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX) +
+                                  remoteTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                                  remoteTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX));
+         case NUM_LOCAL_COMMITS:
+            return new Long(localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                                  localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX));
+         case WRITE_SKEW_PROBABILITY:
+            long totalTxs = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT) +
+                  localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX) +
+                  localTransactionStatistics.getValue(NUM_ABORTED_RO_TX) +
+                  localTransactionStatistics.getValue(NUM_ABORTED_WR_TX);
+            if (totalTxs != 0) {
+               long writeSkew = localTransactionStatistics.getValue(IspnStats.NUM_WRITE_SKEW);
+               return new Double(writeSkew * 1.0 / totalTxs);
             }
-            case NUM_ABORTED_TX_DUE_TO_VALIDATION:{
-                return new Long(localTransactionStatistics.getValue(NUM_ABORTED_TX_DUE_TO_VALIDATION));
+            return new Double(0);
+         case NUM_GET:
+            return localTransactionStatistics.getValue(NUM_SUCCESSFUL_GETS_WR_TX) +
+                  localTransactionStatistics.getValue(NUM_SUCCESSFUL_GETS_RO_TX);
+         case NUM_REMOTE_GET:
+            return localTransactionStatistics.getValue(NUM_SUCCESSFUL_REMOTE_GETS_WR_TX) +
+                  localTransactionStatistics.getValue(NUM_SUCCESSFUL_REMOTE_GETS_RO_TX);
+         case NUM_PUT:
+            return localTransactionStatistics.getValue(NUM_SUCCESSFUL_PUTS_WR_TX);
+         case NUM_REMOTE_PUT:
+            return localTransactionStatistics.getValue(NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX);
+         case LOCAL_GET_EXECUTION:
+            long num = localTransactionStatistics.getValue(IspnStats.NUM_GET);
+            if (num == 0) {
+               return new Long(0L);
+            } else {
+               long local_get_time = localTransactionStatistics.getValue(ALL_GET_EXECUTION) -
+                     localTransactionStatistics.getValue(RTT_GET);
+
+               return new Long(convertNanosToMicro(local_get_time) / num);
             }
-            case NUM_KILLED_TX_DUE_TO_VALIDATION:{
-                return new Long(localTransactionStatistics.getValue(NUM_KILLED_TX_DUE_TO_VALIDATION) + remoteTransactionStatistics.getValue(NUM_KILLED_TX_DUE_TO_VALIDATION));
+         case WAIT_TIME_IN_COMMIT_QUEUE: {
+            return microAvgLocal(NUM_WAITS_IN_COMMIT_QUEUE, WAIT_TIME_IN_COMMIT_QUEUE);
+         }
+         case WAIT_TIME_IN_REMOTE_COMMIT_QUEUE: {
+            return microAvgRemote(NUM_WAITS_IN_COMMIT_QUEUE, WAIT_TIME_IN_COMMIT_QUEUE);
+         }
+         case NUM_ABORTED_TX_DUE_TO_VALIDATION: {
+            return new Long(localTransactionStatistics.getValue(NUM_ABORTED_TX_DUE_TO_VALIDATION));
+         }
+         case NUM_KILLED_TX_DUE_TO_VALIDATION: {
+            return new Long(localTransactionStatistics.getValue(NUM_KILLED_TX_DUE_TO_VALIDATION) + remoteTransactionStatistics.getValue(NUM_KILLED_TX_DUE_TO_VALIDATION));
+         }
+         case RO_TX_SUCCESSFUL_EXECUTION_TIME: {
+            return microAvgLocal(NUM_COMMITTED_RO_TX, RO_TX_SUCCESSFUL_EXECUTION_TIME);
+         }
+
+         case TBC:
+            return convertNanosToMicro(avgMultipleLocalCounters(IspnStats.TBC_EXECUTION_TIME, IspnStats.NUM_GET, IspnStats.NUM_PUT));
+         case NTBC:
+            return microAvgLocal(IspnStats.NTBC_COUNT, IspnStats.NTBC_EXECUTION_TIME);
+         case RESPONSE_TIME:
+            long succWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
+            long abortWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
+            long succRdTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
+
+            long numWr = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
+            long numRd = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT);
+
+            if ((numWr + numRd) > 0) {
+               return new Long((succRdTot + succWrTot + abortWrTot) / (numWr + numRd));
+            } else {
+               return 0;
             }
-            case RO_TX_SUCCESSFUL_EXECUTION_TIME:{
-                return microAvgLocal(NUM_COMMITTED_RO_TX,RO_TX_SUCCESSFUL_EXECUTION_TIME);
-            }
+         default:
+            throw new NoIspnStatException("Invalid statistic " + param);
+      }
+   }
 
-            case TBC:
-                return convertNanosToMicro(avgMultipleLocalCounters(IspnStats.TBC_EXECUTION_TIME, IspnStats.NUM_GET, IspnStats.NUM_PUT));
-            case NTBC:
-                return microAvgLocal(IspnStats.NTBC_COUNT, IspnStats.NTBC_EXECUTION_TIME);
-            case RESPONSE_TIME:
-                long succWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME));
-                long abortWrTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
-                long succRdTot = convertNanosToMicro(localTransactionStatistics.getValue(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME));
+   @SuppressWarnings("UnnecessaryBoxing")
+   private Long avgLocal(IspnStats counter, IspnStats duration) {
+      long num = localTransactionStatistics.getValue(counter);
+      if (num != 0) {
+         long dur = localTransactionStatistics.getValue(duration);
+         return new Long(dur / num);
+      }
+      return new Long(0);
+   }
 
-                long numWr = localTransactionStatistics.getValue(IspnStats.NUM_COMMITTED_WR_TX);
-                long numRd = localTransactionStatistics.getValue(IspnStats.NUM_READ_ONLY_TX_COMMIT);
+   @SuppressWarnings("UnnecessaryBoxing")
+   private Long avgRemote(IspnStats counter, IspnStats duration) {
+      long num = remoteTransactionStatistics.getValue(counter);
+      if (num != 0) {
+         long dur = remoteTransactionStatistics.getValue(duration);
+         return new Long(dur / num);
+      }
+      return new Long(0);
+   }
 
-                if ((numWr + numRd) > 0) {
-                    return new Long((succRdTot + succWrTot + abortWrTot) / (numWr + numRd));
-                } else {
-                    return 0;
-                }
-            default:
-                throw new NoIspnStatException("Invalid statistic " + param);
-        }
-    }
+   @SuppressWarnings("UnnecessaryBoxing")
+   private Long avgMultipleLocalCounters(IspnStats duration, IspnStats... counters) {
+      long num = 0;
+      for (IspnStats counter : counters) {
+         num += localTransactionStatistics.getValue(counter);
+      }
+      if (num != 0) {
+         long dur = localTransactionStatistics.getValue(duration);
+         return new Long(dur / num);
+      }
+      return new Long(0);
+   }
 
-    @SuppressWarnings("UnnecessaryBoxing")
-    private Long avgLocal(IspnStats counter, IspnStats duration) {
-        long num = localTransactionStatistics.getValue(counter);
-        if (num != 0) {
-            long dur = localTransactionStatistics.getValue(duration);
-            return new Long(dur / num);
-        }
-        return new Long(0);
-    }
+   @SuppressWarnings("UnnecessaryBoxing")
+   private Long avgMultipleRemoteCounters(IspnStats duration, IspnStats... counters) {
+      long num = 0;
+      for (IspnStats counter : counters) {
+         num += remoteTransactionStatistics.getValue(counter);
+      }
+      if (num != 0) {
+         long dur = remoteTransactionStatistics.getValue(duration);
+         return new Long(dur / num);
+      }
+      return new Long(0);
+   }
 
-    @SuppressWarnings("UnnecessaryBoxing")
-    private Long avgRemote(IspnStats counter, IspnStats duration) {
-        long num = remoteTransactionStatistics.getValue(counter);
-        if (num != 0) {
-            long dur = remoteTransactionStatistics.getValue(duration);
-            return new Long(dur / num);
-        }
-        return new Long(0);
-    }
+   private static long convertNanosToMicro(long nanos) {
+      return nanos / 1000;
+   }
 
-    @SuppressWarnings("UnnecessaryBoxing")
-    private Long avgMultipleLocalCounters(IspnStats duration, IspnStats... counters) {
-        long num = 0;
-        for (IspnStats counter : counters) {
-            num += localTransactionStatistics.getValue(counter);
-        }
-        if (num != 0) {
-            long dur = localTransactionStatistics.getValue(duration);
-            return new Long(dur / num);
-        }
-        return new Long(0);
-    }
+   private static long convertNanosToMillis(long nanos) {
+      return nanos / 1000000;
+   }
 
-    @SuppressWarnings("UnnecessaryBoxing")
-    private Long avgMultipleRemoteCounters(IspnStats duration, IspnStats... counters) {
-        long num = 0;
-        for (IspnStats counter : counters) {
-            num += remoteTransactionStatistics.getValue(counter);
-        }
-        if (num != 0) {
-            long dur = remoteTransactionStatistics.getValue(duration);
-            return new Long(dur / num);
-        }
-        return new Long(0);
-    }
+   private static long convertNanosToSeconds(long nanos) {
+      return nanos / 1000000000;
+   }
 
-    private static long convertNanosToMicro(long nanos) {
-        return nanos / 1000;
-    }
+   private Long microAvgLocal(IspnStats counter, IspnStats duration) {
+      return convertNanosToMicro(avgLocal(counter, duration));
+   }
 
-    private static long convertNanosToMillis(long nanos) {
-        return nanos / 1000000;
-    }
-
-    private static long convertNanosToSeconds(long nanos) {
-        return nanos / 1000000000;
-    }
-
-    private Long microAvgLocal(IspnStats counter, IspnStats duration) {
-        return convertNanosToMicro(avgLocal(counter, duration));
-    }
-
-    private Long microAvgRemote(IspnStats counter, IspnStats duration) {
-        return convertNanosToMicro(avgRemote(counter, duration));
-    }
+   private Long microAvgRemote(IspnStats counter, IspnStats duration) {
+      return convertNanosToMicro(avgRemote(counter, duration));
+   }
 
 }

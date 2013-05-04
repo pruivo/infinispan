@@ -18,16 +18,16 @@
  */
 package org.infinispan.configuration.cache;
 
-import static java.util.Arrays.asList;
+import org.infinispan.config.ConfigurationException;
+import org.infinispan.configuration.Builder;
+import org.infinispan.configuration.ConfigurationUtils;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.infinispan.config.ConfigurationException;
-import org.infinispan.configuration.Builder;
-import org.infinispan.configuration.ConfigurationUtils;
+import static java.util.Arrays.asList;
 
 public class ConfigurationBuilder implements ConfigurationChildBuilder {
 
@@ -188,6 +188,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
     public DataPlacementConfigurationBuilder dataPlacement() {
         return dataPlacement;
     }
+
     @Override
     public CustomStatsConfigurationBuilder customStats() {
         return customStats;
@@ -200,10 +201,10 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
 
     @SuppressWarnings("unchecked")
     public void validate() {
-        for (Builder<?> validatable:
+        for (Builder<?> validatable :
                 asList(clustering, dataContainer, deadlockDetection, eviction, expiration, indexing,
                         invocationBatching, jmxStatistics, loaders, locking, storeAsBinary, transaction,
-                        versioning, unsafe, sites, dataPlacement, garbageCollector,customStats)) {
+                        versioning, unsafe, sites, dataPlacement, garbageCollector, customStats)) {
             validatable.validate();
         }
         for (Builder<?> m : modules) {
@@ -225,11 +226,11 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
         List<Object> modulesConfig = new LinkedList<Object>();
         for (Builder<?> module : modules)
             modulesConfig.add(module.create());
-        return new Configuration(clustering.create(), customStats.create(),customInterceptors.create(),
+        return new Configuration(clustering.create(), customStats.create(), customInterceptors.create(),
                 dataContainer.create(), deadlockDetection.create(), eviction.create(),
                 expiration.create(), indexing.create(), invocationBatching.create(),
                 jmxStatistics.create(), loaders.create(), locking.create(), storeAsBinary.create(),
-                transaction.create(), unsafe.create(), versioning.create(), modulesConfig,sites.create() , classLoader,
+                transaction.create(), unsafe.create(), versioning.create(), modulesConfig, sites.create(), classLoader,
                 dataPlacement.create(), garbageCollector.create());
     }
 

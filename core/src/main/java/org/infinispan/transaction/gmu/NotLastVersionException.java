@@ -1,4 +1,4 @@
-package org.infinispan.transaction.gmu;/*
+/*
  * INESC-ID, Instituto de Engenharia de Sistemas e Computadores Investigação e Desevolvimento em Lisboa
  * Copyright 2013 INESC-ID and/or its affiliates and other
  * contributors as indicated by the @author tags. All rights reserved.
@@ -20,6 +20,7 @@ package org.infinispan.transaction.gmu;/*
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
+package org.infinispan.transaction.gmu;
 
 import org.infinispan.CacheException;
 
@@ -27,7 +28,7 @@ import org.infinispan.CacheException;
  * @author Diego Didona, didona@gsd.inesc-id.pt
  *         Date: 21/03/13
  */
-public class NotLastVersionException extends CacheException{
+public class NotLastVersionException extends CacheException {
 
     public NotLastVersionException(String msg) {
         super(msg);

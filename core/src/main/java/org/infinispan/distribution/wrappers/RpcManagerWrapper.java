@@ -55,230 +55,230 @@ import java.util.Map;
  * @since 5.2
  */
 public class RpcManagerWrapper implements RpcManager {
-    private static final Log log = LogFactory.getLog(RpcManagerWrapper.class);
-    private final RpcManager actual;
-    private final RpcDispatcher.Marshaller marshaller;
+   private static final Log log = LogFactory.getLog(RpcManagerWrapper.class);
+   private final RpcManager actual;
+   private final RpcDispatcher.Marshaller marshaller;
 
-    public RpcManagerWrapper(RpcManager actual) {
-        this.actual = actual;
-        Transport t = actual.getTransport();
-        if (t instanceof JGroupsTransport) {
-            marshaller = ((JGroupsTransport) t).getCommandAwareRpcDispatcher().getMarshaller();
-        } else {
-            marshaller = null;
-        }
-    }
+   public RpcManagerWrapper(RpcManager actual) {
+      this.actual = actual;
+      Transport t = actual.getTransport();
+      if (t instanceof JGroupsTransport) {
+         marshaller = ((JGroupsTransport) t).getCommandAwareRpcDispatcher().getMarshaller();
+      } else {
+         marshaller = null;
+      }
+   }
 
-    @Override
-    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
-                                                 ResponseMode mode, long timeout, boolean usePriorityQueue,
-                                                 ResponseFilter responseFilter, boolean totalOrder){
-        long currentTime = System.nanoTime();
-        Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, responseFilter, totalOrder);
-        updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
-        return ret;
-    }
+   @Override
+   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
+                                                ResponseMode mode, long timeout, boolean usePriorityQueue,
+                                                ResponseFilter responseFilter, boolean totalOrder) {
+      long currentTime = System.nanoTime();
+      Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, responseFilter, totalOrder);
+      updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
+      return ret;
+   }
 
-    @Override
-    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
-                                                 ResponseMode mode, long timeout, boolean usePriorityQueue, boolean totalOrder) {
-        long currentTime = System.nanoTime();
-        Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, totalOrder);
-        updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
-        return ret;
-    }
+   @Override
+   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
+                                                ResponseMode mode, long timeout, boolean usePriorityQueue, boolean totalOrder) {
+      long currentTime = System.nanoTime();
+      Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, totalOrder);
+      updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
+      return ret;
+   }
 
-    @Override
-    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean totalOrder) {
-        long currentTime = System.nanoTime();
-        Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, totalOrder);
-        updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
-        return ret;
-    }
+   @Override
+   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, boolean totalOrder) {
+      long currentTime = System.nanoTime();
+      Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, totalOrder);
+      updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
+      return ret;
+   }
 
-    @Override
-    public void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean totalOrder) throws RpcException {
-        long currentTime = System.nanoTime();
-        actual.broadcastRpcCommand(rpc, sync, totalOrder);
-        updateStats(rpc, sync, currentTime, null);
-    }
+   @Override
+   public void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean totalOrder) throws RpcException {
+      long currentTime = System.nanoTime();
+      actual.broadcastRpcCommand(rpc, sync, totalOrder);
+      updateStats(rpc, sync, currentTime, null);
+   }
 
-    @Override
-    public void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean usePriorityQueue, boolean totalOrder) throws RpcException {
-        long currentTime = System.nanoTime();
-        actual.broadcastRpcCommand(rpc, sync, usePriorityQueue, totalOrder);
-        updateStats(rpc, sync, currentTime, null);
-    }
+   @Override
+   public void broadcastRpcCommand(ReplicableCommand rpc, boolean sync, boolean usePriorityQueue, boolean totalOrder) throws RpcException {
+      long currentTime = System.nanoTime();
+      actual.broadcastRpcCommand(rpc, sync, usePriorityQueue, totalOrder);
+      updateStats(rpc, sync, currentTime, null);
+   }
 
-    @Override
-    public void broadcastRpcCommandInFuture(ReplicableCommand rpc, NotifyingNotifiableFuture<Object> future) {
-        long currentTime = System.nanoTime();
-        actual.broadcastRpcCommandInFuture(rpc, future);
-        updateStats(rpc, false, currentTime, null);
-    }
+   @Override
+   public void broadcastRpcCommandInFuture(ReplicableCommand rpc, NotifyingNotifiableFuture<Object> future) {
+      long currentTime = System.nanoTime();
+      actual.broadcastRpcCommandInFuture(rpc, future);
+      updateStats(rpc, false, currentTime, null);
+   }
 
-    @Override
-    public void broadcastRpcCommandInFuture(ReplicableCommand rpc, boolean usePriorityQueue,
-                                            NotifyingNotifiableFuture<Object> future) {
-        long currentTime = System.nanoTime();
-        actual.broadcastRpcCommandInFuture(rpc, usePriorityQueue, future);
-        updateStats(rpc, false, currentTime, null);
-    }
+   @Override
+   public void broadcastRpcCommandInFuture(ReplicableCommand rpc, boolean usePriorityQueue,
+                                           NotifyingNotifiableFuture<Object> future) {
+      long currentTime = System.nanoTime();
+      actual.broadcastRpcCommandInFuture(rpc, usePriorityQueue, future);
+      updateStats(rpc, false, currentTime, null);
+   }
 
-    @Override
-    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync, boolean totalOrder) throws RpcException {
-        long currentTime = System.nanoTime();
-        Map<Address, Response> ret = actual.invokeRemotely(recipients, rpc, sync, totalOrder);
-        updateStats(rpc, sync, currentTime, recipients);
-        return ret;
-    }
+   @Override
+   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync, boolean totalOrder) throws RpcException {
+      long currentTime = System.nanoTime();
+      Map<Address, Response> ret = actual.invokeRemotely(recipients, rpc, sync, totalOrder);
+      updateStats(rpc, sync, currentTime, recipients);
+      return ret;
+   }
 
-    @Override
-    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync,
-                                                 boolean usePriorityQueue, boolean totalOrder) throws RpcException {
-        long currentTime = System.nanoTime();
-        Map<Address, Response> ret = actual.invokeRemotely(recipients, rpc, sync, usePriorityQueue, totalOrder);
-        updateStats(rpc, sync, currentTime, recipients);
-        return ret;
-    }
+   @Override
+   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync,
+                                                boolean usePriorityQueue, boolean totalOrder) throws RpcException {
+      long currentTime = System.nanoTime();
+      Map<Address, Response> ret = actual.invokeRemotely(recipients, rpc, sync, usePriorityQueue, totalOrder);
+      updateStats(rpc, sync, currentTime, recipients);
+      return ret;
+   }
 
-    @Override
-    public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc,
-                                       NotifyingNotifiableFuture<Object> future) {
-        long currentTime = System.nanoTime();
-        actual.invokeRemotelyInFuture(recipients, rpc, future);
-        updateStats(rpc, false, currentTime, recipients);
-    }
+   @Override
+   public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc,
+                                      NotifyingNotifiableFuture<Object> future) {
+      long currentTime = System.nanoTime();
+      actual.invokeRemotelyInFuture(recipients, rpc, future);
+      updateStats(rpc, false, currentTime, recipients);
+   }
 
-    @Override
-    public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
-                                       NotifyingNotifiableFuture<Object> future) {
-        long currentTime = System.nanoTime();
-        actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future);
-        updateStats(rpc, false, currentTime, recipients);
-    }
+   @Override
+   public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
+                                      NotifyingNotifiableFuture<Object> future) {
+      long currentTime = System.nanoTime();
+      actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future);
+      updateStats(rpc, false, currentTime, recipients);
+   }
 
-    @Override
-    public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
-                                       NotifyingNotifiableFuture<Object> future, long timeout) {
-        long currentTime = System.nanoTime();
-        actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future, timeout);
-        updateStats(rpc, false, currentTime, recipients);
-    }
+   @Override
+   public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
+                                      NotifyingNotifiableFuture<Object> future, long timeout) {
+      long currentTime = System.nanoTime();
+      actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future, timeout);
+      updateStats(rpc, false, currentTime, recipients);
+   }
 
-    @Override
-    public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
-                                       NotifyingNotifiableFuture<Object> future, long timeout, boolean ignoreLeavers) {
-        long currentTime = System.nanoTime();
-        actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future, timeout, ignoreLeavers);
-        updateStats(rpc, false, currentTime, recipients);
-    }
+   @Override
+   public void invokeRemotelyInFuture(Collection<Address> recipients, ReplicableCommand rpc, boolean usePriorityQueue,
+                                      NotifyingNotifiableFuture<Object> future, long timeout, boolean ignoreLeavers) {
+      long currentTime = System.nanoTime();
+      actual.invokeRemotelyInFuture(recipients, rpc, usePriorityQueue, future, timeout, ignoreLeavers);
+      updateStats(rpc, false, currentTime, recipients);
+   }
 
-    @Override
-    public Transport getTransport() {
-        return actual.getTransport();
-    }
+   @Override
+   public Transport getTransport() {
+      return actual.getTransport();
+   }
 
-    @Override
-    public List<Address> getMembers() {
-        return actual.getMembers();
-    }
+   @Override
+   public List<Address> getMembers() {
+      return actual.getMembers();
+   }
 
-    @Override
-    public Address getAddress() {
-        return actual.getAddress();
-    }
+   @Override
+   public Address getAddress() {
+      return actual.getAddress();
+   }
 
-    @Override
-    public int getTopologyId() {
-        return actual.getTopologyId();
-    }
+   @Override
+   public int getTopologyId() {
+      return actual.getTopologyId();
+   }
 
-    private void updateStats(ReplicableCommand command, boolean sync, long init, Collection<Address> recipients) {
-        if (!TransactionsStatisticsRegistry.hasStatisticCollector() &&
-                !(command instanceof TxCompletionNotificationCommand)) {
-            if (log.isTraceEnabled()) {
-                log.tracef("Does not update stats for command %s. No statistic collector found", command);
-            }
-            return;
-        }
-        IspnStats durationStat;
-        IspnStats counterStat;
-        IspnStats recipientSizeStat;
-        IspnStats commandSizeStat = null;
-        if (command instanceof PrepareCommand) {
-            if (sync) {
-                durationStat = IspnStats.RTT_PREPARE;
-                counterStat = IspnStats.NUM_RTTS_PREPARE;
-            } else {
-                durationStat = IspnStats.ASYNC_PREPARE;
-                counterStat = IspnStats.NUM_ASYNC_PREPARE;
-            }
-            recipientSizeStat = IspnStats.NUM_NODES_PREPARE;
-            commandSizeStat = IspnStats.PREPARE_COMMAND_SIZE;
-        } else if (command instanceof RollbackCommand) {
-            if (sync) {
-                durationStat = IspnStats.RTT_ROLLBACK;
-                counterStat = IspnStats.NUM_RTTS_ROLLBACK;
-            } else {
-                durationStat = IspnStats.ASYNC_ROLLBACK;
-                counterStat = IspnStats.NUM_ASYNC_ROLLBACK;
-            }
-            recipientSizeStat = IspnStats.NUM_NODES_ROLLBACK;
-        } else if (command instanceof CommitCommand) {
-            if (sync) {
-                durationStat = IspnStats.RTT_COMMIT;
-                counterStat = IspnStats.NUM_RTTS_COMMIT;
-            } else {
-                durationStat = IspnStats.ASYNC_COMMIT;
-                counterStat = IspnStats.NUM_ASYNC_COMMIT;
-            }
-            recipientSizeStat = IspnStats.NUM_NODES_COMMIT;
-            commandSizeStat = IspnStats.COMMIT_COMMAND_SIZE;
-        } else if (command instanceof ClusteredGetCommand) {
-            durationStat = IspnStats.RTT_GET;
-            counterStat = IspnStats.NUM_RTTS_GET;
-            recipientSizeStat = IspnStats.NUM_NODES_GET;
-            commandSizeStat = IspnStats.CLUSTERED_GET_COMMAND_SIZE;
-        } else if (command instanceof TxCompletionNotificationCommand) {
-            durationStat = IspnStats.ASYNC_COMPLETE_NOTIFY;
-            counterStat = IspnStats.NUM_ASYNC_COMPLETE_NOTIFY;
-            recipientSizeStat = IspnStats.NUM_NODES_COMPLETE_NOTIFY;
+   private void updateStats(ReplicableCommand command, boolean sync, long init, Collection<Address> recipients) {
+      if (!TransactionsStatisticsRegistry.hasStatisticCollector() &&
+            !(command instanceof TxCompletionNotificationCommand)) {
+         if (log.isTraceEnabled()) {
+            log.tracef("Does not update stats for command %s. No statistic collector found", command);
+         }
+         return;
+      }
+      IspnStats durationStat;
+      IspnStats counterStat;
+      IspnStats recipientSizeStat;
+      IspnStats commandSizeStat = null;
+      if (command instanceof PrepareCommand) {
+         if (sync) {
+            durationStat = IspnStats.RTT_PREPARE;
+            counterStat = IspnStats.NUM_RTTS_PREPARE;
+         } else {
+            durationStat = IspnStats.ASYNC_PREPARE;
+            counterStat = IspnStats.NUM_ASYNC_PREPARE;
+         }
+         recipientSizeStat = IspnStats.NUM_NODES_PREPARE;
+         commandSizeStat = IspnStats.PREPARE_COMMAND_SIZE;
+      } else if (command instanceof RollbackCommand) {
+         if (sync) {
+            durationStat = IspnStats.RTT_ROLLBACK;
+            counterStat = IspnStats.NUM_RTTS_ROLLBACK;
+         } else {
+            durationStat = IspnStats.ASYNC_ROLLBACK;
+            counterStat = IspnStats.NUM_ASYNC_ROLLBACK;
+         }
+         recipientSizeStat = IspnStats.NUM_NODES_ROLLBACK;
+      } else if (command instanceof CommitCommand) {
+         if (sync) {
+            durationStat = IspnStats.RTT_COMMIT;
+            counterStat = IspnStats.NUM_RTTS_COMMIT;
+         } else {
+            durationStat = IspnStats.ASYNC_COMMIT;
+            counterStat = IspnStats.NUM_ASYNC_COMMIT;
+         }
+         recipientSizeStat = IspnStats.NUM_NODES_COMMIT;
+         commandSizeStat = IspnStats.COMMIT_COMMAND_SIZE;
+      } else if (command instanceof ClusteredGetCommand) {
+         durationStat = IspnStats.RTT_GET;
+         counterStat = IspnStats.NUM_RTTS_GET;
+         recipientSizeStat = IspnStats.NUM_NODES_GET;
+         commandSizeStat = IspnStats.CLUSTERED_GET_COMMAND_SIZE;
+      } else if (command instanceof TxCompletionNotificationCommand) {
+         durationStat = IspnStats.ASYNC_COMPLETE_NOTIFY;
+         counterStat = IspnStats.NUM_ASYNC_COMPLETE_NOTIFY;
+         recipientSizeStat = IspnStats.NUM_NODES_COMPLETE_NOTIFY;
 
-            if (log.isTraceEnabled()) {
-                log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
-                        "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
-            }
+         if (log.isTraceEnabled()) {
+            log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
+                             "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
+         }
 
-            TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(durationStat, System.nanoTime() - init, true);
-            TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(counterStat, true);
-            TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(recipientSizeStat, recipientListSize(recipients), true);
+         TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(durationStat, System.nanoTime() - init, true);
+         TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(counterStat, true);
+         TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(recipientSizeStat, recipientListSize(recipients), true);
 
-            return;
-        } else {
-            if (log.isTraceEnabled()) {
-                log.tracef("Does not update stats for command %s. The command is not needed", command);
-            }
-            return;
-        }
-        TransactionsStatisticsRegistry.addValue(durationStat, System.nanoTime() - init);
-        TransactionsStatisticsRegistry.incrementValue(counterStat);
-        TransactionsStatisticsRegistry.addValue(recipientSizeStat, recipientListSize(recipients));
-        if (commandSizeStat != null) {
-            TransactionsStatisticsRegistry.addValue(commandSizeStat, getCommandSize(command));
-        }
-    }
+         return;
+      } else {
+         if (log.isTraceEnabled()) {
+            log.tracef("Does not update stats for command %s. The command is not needed", command);
+         }
+         return;
+      }
+      TransactionsStatisticsRegistry.addValue(durationStat, System.nanoTime() - init);
+      TransactionsStatisticsRegistry.incrementValue(counterStat);
+      TransactionsStatisticsRegistry.addValue(recipientSizeStat, recipientListSize(recipients));
+      if (commandSizeStat != null) {
+         TransactionsStatisticsRegistry.addValue(commandSizeStat, getCommandSize(command));
+      }
+   }
 
-    private int recipientListSize(Collection<Address> recipients) {
-        return recipients == null ? actual.getTransport().getMembers().size() : recipients.size();
-    }
+   private int recipientListSize(Collection<Address> recipients) {
+      return recipients == null ? actual.getTransport().getMembers().size() : recipients.size();
+   }
 
-    private int getCommandSize(ReplicableCommand command) {
-        try {
-            Buffer buffer = marshaller.objectToBuffer(command);
-            return buffer != null ? buffer.getLength() : 0;
-        } catch (Exception e) {
-            return 0;
-        }
-    }
+   private int getCommandSize(ReplicableCommand command) {
+      try {
+         Buffer buffer = marshaller.objectToBuffer(command);
+         return buffer != null ? buffer.getLength() : 0;
+      } catch (Exception e) {
+         return 0;
+      }
+   }
 }
