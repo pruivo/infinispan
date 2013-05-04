@@ -93,6 +93,7 @@ public enum Element {
     DATA_PLACEMENT("dataPlacement"),
     GARBAGE_COLLECTOR("garbageCollector"),
     GMU_EXECUTOR("gmuExecutor"),
+    CUSTOM_STATS("customStats"),
     ;
 
     private final String name;

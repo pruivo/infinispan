@@ -20,38 +20,45 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.infinispan.stats.translations;
 
-import java.util.EnumMap;
-import java.util.Map;
+package org.infinispan.configuration.cache;
 
-import static org.infinispan.stats.translations.ExposedStatistics.IspnStats;
 
 /**
- * Websiste: www.cloudtm.eu Date: 01/05/12
- * @author Diego Didona <didona@gsd.inesc-id.pt>
- * @author Pedro Ruivo
- * @since 5.2
+ * @author Diego Didona - didona@gsd.inesc-id.pt
  */
-public class LocalStatistics {
-   public static final int NOT_FOUND = -1;
-   private static final Map<IspnStats, Integer> translationMap = new EnumMap<IspnStats, Integer>(IspnStats.class);
+public class CustomStatsConfiguration {
 
-   static {
-      int i = 0;
-      for (IspnStats stat : IspnStats.values()) {
-         if (stat.isLocal()) {
-            translationMap.put(stat, i++);
-         }
-      }
+   private final boolean sampleServiceTimes;
+
+   CustomStatsConfiguration(boolean sampleServiceTimes) {
+      this.sampleServiceTimes = sampleServiceTimes;
    }
 
-   public static int getIndex(IspnStats stat) {
-      Integer idx = translationMap.get(stat);
-      return idx == null ? NOT_FOUND : idx;
+   public boolean isSampleServiceTimes() {
+      return sampleServiceTimes;
    }
 
-   public static int getSize() {
-      return translationMap.size();
+   @Override
+   public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+
+      CustomStatsConfiguration that = (CustomStatsConfiguration) o;
+
+      return sampleServiceTimes == that.sampleServiceTimes;
+
+   }
+
+   @Override
+   public int hashCode() {
+      return (sampleServiceTimes ? 1 : 0);
+   }
+
+   @Override
+   public String toString() {
+      return "CustomStatsConfiguration{" +
+            "sampleServiceTimes=" + sampleServiceTimes +
+            '}';
    }
 }

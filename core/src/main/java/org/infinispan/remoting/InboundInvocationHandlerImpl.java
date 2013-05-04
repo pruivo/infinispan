@@ -48,6 +48,8 @@ import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.ResponseGenerator;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
+import org.infinispan.stats.TransactionsStatisticsRegistry;
+import org.infinispan.stats.translations.ExposedStatistics;
 import org.infinispan.transaction.TotalOrderRemoteTransactionState;
 import org.infinispan.transaction.totalorder.TotalOrderLatch;
 import org.infinispan.transaction.totalorder.TotalOrderManager;
@@ -95,7 +97,8 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
 
       if (cr == null) {
          if (!globalConfiguration.transport().strictPeerToPeer() || cmd instanceof ConfigurationStateCommand) {
-            if (trace) log.tracef("Strict peer to peer off, so silently ignoring that %s cache is not defined", cacheName);
+            if (trace)
+               log.tracef("Strict peer to peer off, so silently ignoring that %s cache is not defined", cacheName);
             reply(response, null);
             return;
          }
@@ -114,8 +117,8 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       try {
          if (trace) log.tracef("Calling perform() on %s", cmd);
          ResponseGenerator respGen = cr.getResponseGenerator();
-         if(cmd instanceof CancellableCommand){
-            cancelService.register(Thread.currentThread(), ((CancellableCommand)cmd).getUUID());
+         if (cmd instanceof CancellableCommand) {
+            cancelService.register(Thread.currentThread(), ((CancellableCommand) cmd).getUUID());
          }
          Object retval = cmd.perform(null);
          Response response = respGen.getResponse(cmd, retval);
@@ -125,8 +128,8 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
          log.error("Exception executing command", e);
          return new ExceptionResponse(e);
       } finally {
-         if(cmd instanceof CancellableCommand){
-            cancelService.unregister(((CancellableCommand)cmd).getUUID());
+         if (cmd instanceof CancellableCommand) {
+            cancelService.unregister(((CancellableCommand) cmd).getUUID());
          }
       }
    }
@@ -144,7 +147,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       }
 
       CommandsFactory commandsFactory = cr.getCommandsFactory();
-
+      final long arrivalTime = System.nanoTime();
       // initialize this command with components specific to the intended cache instance
       commandsFactory.initializeReplicableCommand(cmd, true);
       if (cmd instanceof TotalOrderPrepareCommand) {
@@ -185,6 +188,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       } else if (cmd instanceof GMUClusteredGetCommand) {
          final GMUClusteredGetCommand gmuClusteredGetCommand = (GMUClusteredGetCommand) cmd;
          gmuClusteredGetCommand.init();
+
          gmuExecutorService.execute(new BlockingRunnable() {
             @Override
             public boolean isReady() {
@@ -195,6 +199,10 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
             public void run() {
                Response resp;
                try {
+                  if (TransactionsStatisticsRegistry.isActive()) {
+                     TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(ExposedStatistics.IspnStats.REMOTE_GET_WAITING_TIME, System.nanoTime() - arrivalTime, false);
+                     TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(ExposedStatistics.IspnStats.NUM_SERVED_REMOTE_GETS, false);
+                  }
                   resp = handleInternal(cmd, cr);
                } catch (Throwable throwable) {
                   log.exceptionHandlingCommand(cmd, throwable);
@@ -218,6 +226,11 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
             public void run() {
                Response resp;
                try {
+                  if (TransactionsStatisticsRegistry.isActive()) {
+                     boolean isLocal = cmd.getOrigin().equals(transport.getAddress());
+                     TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(ExposedStatistics.IspnStats.WAIT_TIME_IN_COMMIT_QUEUE, System.nanoTime() - arrivalTime, isLocal);
+                     TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(ExposedStatistics.IspnStats.NUM_WAITS_IN_COMMIT_QUEUE, isLocal);
+                  }
                   resp = handleInternal(cmd, cr);
                } catch (Throwable throwable) {
                   log.exceptionHandlingCommand(cmd, throwable);

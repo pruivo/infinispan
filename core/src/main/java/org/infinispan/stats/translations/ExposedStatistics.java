@@ -23,8 +23,8 @@
 package org.infinispan.stats.translations;
 
 /**
- * Date: 28/12/11
- * Time: 15:38
+ * Date: 28/12/11 Time: 15:38
+ *
  * @author Diego Didona <didona@gsd.inesc-id.pt>
  * @author Pedro Ruivo
  * @since 5.2
@@ -46,32 +46,32 @@ public class ExposedStatistics {
       NUM_COMMITS(false, false),  //ONLY FOR QUERY
       NUM_LOCAL_COMMITS(false, false),  //ONLY FOR QUERY
 
-      NUM_PREPARES(true, false), // L      
+      NUM_PREPARES(true, false), // L
       LOCAL_EXEC_NO_CONT(true, false),            // L
       LOCAL_CONTENTION_PROBABILITY(false, false),  // ONLY FOR QUERY, derived on the fly
       REMOTE_CONTENTION_PROBABILITY(false, false), //ONLY FOR QUERY, derived on the fly
-      LOCK_CONTENTION_PROBABILITY(false,false), //ONLY FOR QUERY, derived on the fly
-      LOCK_HOLD_TIME_LOCAL(false,false), //ONLY FOR QUERY
-      LOCK_HOLD_TIME_REMOTE(false,false), //ONLY FOR QUERY
+      LOCK_CONTENTION_PROBABILITY(false, false), //ONLY FOR QUERY, derived on the fly
+      LOCK_HOLD_TIME_LOCAL(false, false), //ONLY FOR QUERY
+      LOCK_HOLD_TIME_REMOTE(false, false), //ONLY FOR QUERY
       LOCK_CONTENTION_TO_LOCAL(true, true),  // C
       LOCK_CONTENTION_TO_REMOTE(true, true), // C
       NUM_SUCCESSFUL_PUTS(true, false),   // L, this includes also repeated puts over the same item
       PUTS_PER_LOCAL_TX(false, false), // ONLY FOR QUERY, derived on the fly
-      NUM_WAITED_FOR_LOCKS(true, true),   // C      
+      NUM_WAITED_FOR_LOCKS(true, true),   // C
       NUM_REMOTE_GET(true, true),                  // C
-      NUM_GET(true,true),                          // C
-      NUM_SUCCESSFUL_GETS_RO_TX(true,true),        // C
-      NUM_SUCCESSFUL_GETS_WR_TX(true,true),        // C
-      NUM_SUCCESSFUL_REMOTE_GETS_WR_TX(true,true), // C
-      NUM_SUCCESSFUL_REMOTE_GETS_RO_TX(true,true), // C
+      NUM_GET(true, true),                          // C
+      NUM_SUCCESSFUL_GETS_RO_TX(true, true),        // C
+      NUM_SUCCESSFUL_GETS_WR_TX(true, true),        // C
+      NUM_SUCCESSFUL_REMOTE_GETS_WR_TX(true, true), // C
+      NUM_SUCCESSFUL_REMOTE_GETS_RO_TX(true, true), // C
       LOCAL_GET_EXECUTION(true, true),
-      ALL_GET_EXECUTION(true,true),
+      ALL_GET_EXECUTION(true, true),
       REMOTE_GET_EXECUTION(true, true),            // C
       REMOTE_PUT_EXECUTION(true, true),            // C
       NUM_REMOTE_PUT(true, true),                  // C
-      NUM_PUT(true, true),                         // C      
-      NUM_SUCCESSFUL_PUTS_WR_TX(true,true),        // C
-      NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX(true,true), // C
+      NUM_PUT(true, true),                         // C
+      NUM_SUCCESSFUL_PUTS_WR_TX(true, true),        // C
+      NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX(true, true), // C
       TX_WRITE_PERCENTAGE(false, false),           // ONLY FOR QUERY, derived on the fly
       SUCCESSFUL_WRITE_PERCENTAGE(false, false),   // ONLY FOR QUERY, derived on the fly
       WR_TX_ABORTED_EXECUTION_TIME(true, true),    //C
@@ -100,7 +100,7 @@ public class ExposedStatistics {
       LOCAL_ROLLBACK_EXECUTION_TIME(false, false),    // ONLY FOR QUERY, derived on the fly
       REMOTE_ROLLBACK_EXECUTION_TIME(false, false),   // ONLY FOR QUERY, derived on the fly
 
-      COMMIT_EXECUTION_TIME(true, true),     // C
+      //COMMIT_EXECUTION_TIME(true, true),     // C
       NUM_COMMIT_COMMAND(true, true),        // C
       LOCAL_COMMIT_EXECUTION_TIME(false, false),      // ONLY FOR QUERY, derived on the fly
       REMOTE_COMMIT_EXECUTION_TIME(false, false),     // ONLY FOR QUERY, derived on the fly
@@ -126,10 +126,11 @@ public class ExposedStatistics {
       //Lock failed stuff
       NUM_LOCK_FAILED_TIMEOUT(true, false),  //L
       NUM_LOCK_FAILED_DEADLOCK(true, false), //L
+      NUM_READLOCK_FAILED_TIMEOUT(true, false),
 
       //RTT STUFF: everything is local && synchronous communication
       NUM_RTTS_PREPARE(true, false),   // L
-      RTT_PREPARE(true, false),        // L      
+      RTT_PREPARE(true, false),        // L
       NUM_RTTS_COMMIT(true, false),    // L
       RTT_COMMIT(true, false),         // L
       NUM_RTTS_ROLLBACK(true, false),  // L
@@ -145,7 +146,7 @@ public class ExposedStatistics {
       ASYNC_ROLLBACK(true, false),              // L
       NUM_ASYNC_ROLLBACK(true, false),          // L
       ASYNC_COMPLETE_NOTIFY(true, false),       // L
-      NUM_ASYNC_COMPLETE_NOTIFY(true, false),   // L            
+      NUM_ASYNC_COMPLETE_NOTIFY(true, false),   // L
 
       //Number of nodes involved stuff
       NUM_NODES_PREPARE(true, false),           //L
@@ -155,15 +156,78 @@ public class ExposedStatistics {
       NUM_NODES_GET(true, false),               //L
 
       //Additional Stats
-      TBC_EXECUTION_TIME(true,false),
-      TBC_COUNT(true,false),
-      TBC(false,false), //Time between operations in Transaction   // ONLY FOR QUERY, derived on the fly
+      TBC_EXECUTION_TIME(true, false),
+      TBC_COUNT(true, false),
+      TBC(false, false), //Time between operations in Transaction   // ONLY FOR QUERY, derived on the fly
 
-      NTBC_EXECUTION_TIME(true,false),
-      NTBC_COUNT(true,false),
-      NTBC(false,false), //Time between Transactions in a thread   // ONLY FOR QUERY, derived on the fly
+      NTBC_EXECUTION_TIME(true, false),
+      NTBC_COUNT(true, false),
+      NTBC(false, false), //Time between Transactions in a thread   // ONLY FOR QUERY, derived on the fly
 
-      RESPONSE_TIME(true,false);
+      RESPONSE_TIME(true, false),
+
+      //Service and response Times
+      //Cpu demand for the local execution (till the prepare) of a local transaction
+      UPDATE_TX_LOCAL_S(true, false),
+      UPDATE_TX_LOCAL_R(true, false),            // L
+      //Cpu demand for prepareCommand handling   for a transaction. It can be local or remote (in this case it's the validation and replay of the modifications)
+      UPDATE_TX_LOCAL_PREPARE_S(true, false),
+      UPDATE_TX_LOCAL_PREPARE_R(true, false),
+      UPDATE_TX_REMOTE_PREPARE_S(false, true),
+      UPDATE_TX_REMOTE_PREPARE_R(false, true),
+      //Number of prepares. This is used to know how many xacts reach the prepare phase.
+      NUM_UPDATE_TX_GOT_TO_PREPARE(true, true),
+      NUM_UPDATE_TX_PREPARED(true, true), //I need this to compute the time spent by remote xacts which abort due to abort on other nodes
+      //Cpu demand for CommitCommand handling for a transaction. It can be local or remote.
+      UPDATE_TX_LOCAL_COMMIT_S(true, false),
+      UPDATE_TX_LOCAL_COMMIT_R(true, false),     // C
+      UPDATE_TX_REMOTE_COMMIT_S(false, true),
+      UPDATE_TX_REMOTE_COMMIT_R(false, true),
+      NUM_UPDATE_TX_LOCAL_COMMIT(true, false),
+      NUM_UPDATE_TX_REMOTE_COMMIT(false, true),
+      //Cpu demand for a rollbackCommand which has not to be propagated . Coordinator Side
+      UPDATE_TX_LOCAL_LOCAL_ROLLBACK_S(true, false),
+      UPDATE_TX_LOCAL_LOCAL_ROLLBACK_R(true, false),
+      NUM_UPDATE_TX_LOCAL_LOCAL_ROLLBACK(true, false),
+      //Cpu demand for a rollbackCommand which has to be propagated  . Coordinator side
+      UPDATE_TX_LOCAL_REMOTE_ROLLBACK_S(true, false),
+      UPDATE_TX_LOCAL_REMOTE_ROLLBACK_R(true, false),
+      NUM_UPDATE_TX_LOCAL_REMOTE_ROLLBACK(true, false),
+      //Cpu demand for a rollbackCommand, cohort side
+      UPDATE_TX_REMOTE_ROLLBACK_S(false, true),
+      UPDATE_TX_REMOTE_ROLLBACK_R(false, true),
+      NUM_UPDATE_TX_REMOTE_ROLLBACK(false, true),
+      //Cpu demand for the local execution of a readOnlyTransaction
+      READ_ONLY_TX_LOCAL_S(true, false),
+      READ_ONLY_TX_LOCAL_R(true, false),
+      //Cpu demand for the execution of the prepareCommand for a read only transaction
+      READ_ONLY_TX_PREPARE_S(true, false),
+      READ_ONLY_TX_PREPARE_R(true, false),
+      //Cpu demand for the execution of the commitCommand for a read only transaction
+      READ_ONLY_TX_COMMIT_S(true, false),
+      READ_ONLY_TX_COMMIT_R(true, false),
+      NUM_READ_ONLY_TX_COMMIT(true, true), // C
+      //Cpu demand to perform the remote read of a datum
+      REMOTE_GET_S(true, false),
+      WAIT_TIME_IN_COMMIT_QUEUE(true, true),
+      WAIT_TIME_IN_REMOTE_COMMIT_QUEUE(false, false), //used just for query     from customInterceptor
+      NUM_WAITS_IN_COMMIT_QUEUE(true, true),
+      NUM_OWNED_RD_ITEMS_IN_OK_PREPARE(true, true),
+      NUM_OWNED_WR_ITEMS_IN_OK_PREPARE(true, true),
+      NUM_OWNED_RD_ITEMS_IN_LOCAL_PREPARE(true, false), //just for query
+      NUM_OWNED_RD_ITEMS_IN_REMOTE_PREPARE(false, true), //just for query
+      NUM_OWNED_WR_ITEMS_IN_LOCAL_PREPARE(true, false), //just for query
+      NUM_OWNED_WR_ITEMS_IN_REMOTE_PREPARE(false, true), //just for query
+      NUM_ABORTED_TX_DUE_TO_VALIDATION(true, false),
+      NUM_KILLED_TX_DUE_TO_VALIDATION(true, true),
+      NUM_ABORTED_TX_DUE_TO_NOT_LAST_VALUE_ACCESSED(true, false),
+      GET_OPERATION_S(true, false),
+      NUM_SERVED_REMOTE_GETS(false, true),
+      REMOTE_GET_WAITING_TIME(false, true),
+      UPDATE_TX_TOTAL_R(true, false),
+      UPDATE_TX_TOTAL_S(true, false),
+      READ_ONLY_TX_TOTAL_R(true, false),
+      READ_ONLY_TX_TOTAL_S(true, false);
 
       private boolean local;
       private boolean remote;

@@ -25,9 +25,11 @@ package org.infinispan.distribution.wrappers;
 import org.infinispan.commands.SetClassCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.commands.tx.CommitCommand;
+import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
+import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
@@ -51,12 +53,18 @@ import org.infinispan.stats.topK.StreamLibContainer;
 import org.infinispan.stats.translations.ExposedStatistics.IspnStats;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.WriteSkewException;
+import org.infinispan.transaction.gmu.GmuStatsHelper;
+import org.infinispan.transaction.gmu.NotLastVersionException;
+import org.infinispan.transaction.gmu.ValidationException;
+import org.infinispan.util.concurrent.ReadLockTimeoutException;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.DeadlockDetectedException;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Field;
 
 /**
@@ -69,15 +77,19 @@ import java.lang.reflect.Field;
  */
 @MBean(objectName = "ExtendedStatistics", description = "Component that manages and exposes extended statistics " +
       "relevant to transactions.")
-public class CustomStatsInterceptor extends BaseCustomInterceptor {
+public final class CustomStatsInterceptor extends BaseCustomInterceptor {
    //TODO what about the transaction implicit vs transaction explicit? should we take in account this and ignore
    //the implicit stuff?
 
    private final Log log = LogFactory.getLog(getClass());
+
    private TransactionTable transactionTable;
    private Configuration configuration;
    private RpcManager rpcManager;
    private DistributionManager distributionManager;
+   private static ThreadMXBean threadMXBean;
+   private boolean sampleServiceTimes;
+
 
    @Inject
    public void inject(TransactionTable transactionTable, Configuration config, DistributionManager distributionManager) {
@@ -93,6 +105,13 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       replace();
       log.info("Initializing the TransactionStatisticsRegistry");
       TransactionsStatisticsRegistry.init(this.configuration);
+      this.sampleServiceTimes = this.configuration.customStatsConfiguration().isSampleServiceTimes();
+      if (sampleServiceTimes) {
+         threadMXBean = ManagementFactory.getThreadMXBean();
+         log.trace("Sampling Service Times!");
+      } else {
+         log.trace("NOT Sampling Service Times!");
+      }
    }
 
    @Override
@@ -103,7 +122,6 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       }
       TransactionsStatisticsRegistry.setTransactionalClass(command.getTransactionalClass());
       //TransactionsStatisticsRegistry.putThreadClasses(Thread.currentThread().getId(), command.getTransactionalClass());
-      //System.out.println(threadClasses.get(Thread.currentThread().getId()));
       return invokeNextInterceptor(ctx, command);
    }
 
@@ -124,7 +142,10 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
             ret = invokeNextInterceptor(ctx, command);
          } catch (TimeoutException e) {
             if (ctx.isOriginLocal() && isLockTimeout(e)) {
-               TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_LOCK_FAILED_TIMEOUT);
+               if (e instanceof ReadLockTimeoutException)
+                  TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_READLOCK_FAILED_TIMEOUT);
+               else
+                  TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_LOCK_FAILED_TIMEOUT);
             }
             throw e;
          } catch (DeadlockDetectedException e) {
@@ -161,9 +182,11 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
          TransactionsStatisticsRegistry.addNTBCValue(currTimeForAllGetCommand);
          this.initStatsIfNecessary(ctx);
          long currTime = 0;
+         long currCpuTime = 0;
          boolean isRemoteKey = isRemote(command.getKey());
          if (isRemoteKey) {
             currTime = System.nanoTime();
+            currCpuTime = sampleServiceTimes ? threadMXBean.getCurrentThreadCpuTime() : 0;
          }
 
          ret = invokeNextInterceptor(ctx, command);
@@ -188,16 +211,26 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
                     ctx.isOriginLocal(), command.getGlobalTransaction().globalId());
       }
       this.initStatsIfNecessary(ctx);
+      long currCpuTime = sampleServiceTimes ? threadMXBean.getCurrentThreadCpuTime() : 0;
       long currTime = System.nanoTime();
       TransactionsStatisticsRegistry.addNTBCValue(currTime);
+      TransactionsStatisticsRegistry.attachId(ctx);
+      if (GmuStatsHelper.shouldAppendLocks(configuration, true, !ctx.isOriginLocal())) {
+         TransactionsStatisticsRegistry.appendLocks();
+      }
       Object ret = invokeNextInterceptor(ctx, command);
-      updateTime(IspnStats.COMMIT_EXECUTION_TIME, IspnStats.NUM_COMMIT_COMMAND, currTime);
+
+      handleCommitCommand(currTime, currCpuTime, ctx);
+
       TransactionsStatisticsRegistry.setTransactionOutcome(true);
+      //We only terminate a local transaction, since RemoteTransactions have to wait for the unlock message
       if (ctx.isOriginLocal()) {
          TransactionsStatisticsRegistry.terminateTransaction();
       }
+
       return ret;
    }
+
 
    @Override
    public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
@@ -211,14 +244,18 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
          TransactionsStatisticsRegistry.setUpdateTransaction();
       }
 
+
       boolean success = false;
       try {
          long currTime = System.nanoTime();
+         long currCpuTime = sampleServiceTimes ? threadMXBean.getCurrentThreadCpuTime() : 0;
          Object ret = invokeNextInterceptor(ctx, command);
-         updateTime(IspnStats.PREPARE_EXECUTION_TIME, IspnStats.NUM_PREPARE_COMMAND, currTime);
          success = true;
+         handlePrepareCommand(currTime, currCpuTime, ctx, command);
          return ret;
-      } catch (TimeoutException e) {
+      }
+      //If we have an exception, the locking of the locks has failed
+      catch (TimeoutException e) {
          if (ctx.isOriginLocal() && isLockTimeout(e)) {
             TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_LOCK_FAILED_TIMEOUT);
          }
@@ -233,6 +270,16 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
             TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_WRITE_SKEW);
          }
          throw e;
+      } catch (ValidationException e) {
+         if (ctx.isOriginLocal()) {
+            TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_ABORTED_TX_DUE_TO_VALIDATION);
+         }
+         TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_KILLED_TX_DUE_TO_VALIDATION);
+         throw e;
+      } catch (NotLastVersionException e) {
+         if (ctx.isOriginLocal())
+            TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_ABORTED_TX_DUE_TO_NOT_LAST_VALUE_ACCESSED);
+         throw e;
       } finally {
          if (command.isOnePhaseCommit()) {
             TransactionsStatisticsRegistry.setTransactionOutcome(success);
@@ -243,22 +290,27 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       }
    }
 
+
    @Override
    public Object visitRollbackCommand(TxInvocationContext ctx, RollbackCommand command) throws Throwable {
       if (log.isTraceEnabled()) {
          log.tracef("Visit Rollback command %s. Is it local?. Transaction is %s", command,
-                    ctx.isOriginLocal(), command.getGlobalTransaction());
+                    ctx.isOriginLocal(), command.getGlobalTransaction().globalId());
       }
       this.initStatsIfNecessary(ctx);
+      long currentCpuTime = sampleServiceTimes ? threadMXBean.getCurrentThreadCpuTime() : 0;
       long initRollbackTime = System.nanoTime();
       Object ret = invokeNextInterceptor(ctx, command);
-      updateTime(IspnStats.ROLLBACK_EXECUTION_TIME, IspnStats.NUM_ROLLBACKS, initRollbackTime);
       TransactionsStatisticsRegistry.setTransactionOutcome(false);
+
+      handleRollbackCommand(initRollbackTime, currentCpuTime, ctx);
+
       if (ctx.isOriginLocal()) {
          TransactionsStatisticsRegistry.terminateTransaction();
       }
       return ret;
    }
+
 
    @ManagedAttribute(description = "Average number of puts performed by a successful local transaction",
                      displayName = "Number of puts per successful local transaction")
@@ -320,8 +372,6 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleLong((Long) (TransactionsStatisticsRegistry.getAttribute((IspnStats.NUM_NODES_COMMIT))));
    }
 
-   //JMX exposed methods
-
    @ManagedAttribute(description = "Average number of nodes in Complete Notification destination set",
                      displayName = "Average Number of Nodes in Complete Notification Destination Set")
    public long getAvgNumNodesCompleteNotification() {
@@ -372,14 +422,7 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute((IspnStats.LOCK_CONTENTION_PROBABILITY)));
    }
 
-   @ManagedAttribute(description = "Local execution time of a transaction without the time waiting for lock acquisition",
-                     displayName = "Local Execution Time Without Locking Time")
-   public long getLocalExecutionTimeWithoutLock() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.LOCAL_EXEC_NO_CONT));
-   }
-
-   @ManagedAttribute(description = "Average lock holding time (in microseconds)",
-                     displayName = "Average Lock Holding Time")
+   @ManagedAttribute(description = "Avg lock holding time (in microseconds)", displayName = "Avg lock holding time (in microseconds)")
    public long getAvgLockHoldTime() {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.LOCK_HOLD_TIME));
    }
@@ -396,20 +439,7 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.LOCK_HOLD_TIME_REMOTE));
    }
 
-   @ManagedAttribute(description = "Average local commit duration time (2nd phase only) (in microseconds)",
-                     displayName = "Average Commit Time")
-   public long getAvgCommitTime() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.COMMIT_EXECUTION_TIME));
-   }
-
-   @ManagedAttribute(description = "Average local rollback duration time (2nd phase only) (in microseconds)",
-                     displayName = "Average Rollback Time")
-   public long getAvgRollbackTime() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.ROLLBACK_EXECUTION_TIME));
-   }
-
-   @ManagedAttribute(description = "Average prepare command size (in bytes)",
-                     displayName = "Average Prepare Command Size")
+   @ManagedAttribute(description = "Avg prepare command size (in bytes)", displayName = "Avg prepare command size (in bytes)")
    public long getAvgPrepareCommandSize() {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.PREPARE_COMMAND_SIZE));
    }
@@ -452,11 +482,6 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(IspnStats.SUCCESSFUL_WRITE_PERCENTAGE));
    }
 
-   @ManagedAttribute(description = "The number of aborted transactions due to timeout in lock acquisition",
-                     displayName = "Number of Aborted Transaction due to Lock Acquisition Timeout")
-   public long getNumAbortedTxDueTimeout() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_LOCK_FAILED_TIMEOUT));
-   }
 
    @ManagedAttribute(description = "The number of aborted transactions due to deadlock",
                      displayName = "Number of Aborted Transaction due to Deadlock")
@@ -482,11 +507,6 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.WR_TX_ABORTED_EXECUTION_TIME));
    }
 
-   @ManagedAttribute(description = "Average write transaction local execution time (in microseconds)",
-                     displayName = "Average Write Transaction Local Execution Time")
-   public long getAvgWriteTxLocalExecution() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.WR_TX_LOCAL_EXECUTION_TIME));
-   }
 
    @ManagedAttribute(description = "Average number of locks per write local transaction",
                      displayName = "Average Number of Lock per Local Transaction")
@@ -506,44 +526,7 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_LOCK_PER_SUCCESS_LOCAL_TX));
    }
 
-   @ManagedAttribute(description = "Average time it takes to execute the prepare command locally (in microseconds)",
-                     displayName = "Average Local Prepare Execution Time")
-   public long getAvgLocalPrepareTime() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.LOCAL_PREPARE_EXECUTION_TIME));
-   }
-
-   @ManagedAttribute(description = "Average time it takes to execute the prepare command remotely (in microseconds)",
-                     displayName = "Average Remote Prepare Execution Time")
-   public long getAvgRemotePrepareTime() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.REMOTE_PREPARE_EXECUTION_TIME));
-   }
-
-   @ManagedAttribute(description = "Average time it takes to execute the commit command locally (in microseconds)",
-                     displayName = "Average Local Commit Execution Time")
-   public long getAvgLocalCommitTime() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.LOCAL_COMMIT_EXECUTION_TIME));
-   }
-
-   @ManagedAttribute(description = "Average time it takes to execute the commit command remotely (in microseconds)",
-                     displayName = "Average Remote Commit Execution Time")
-   public long getAvgRemoteCommitTime() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.REMOTE_COMMIT_EXECUTION_TIME));
-   }
-
-   @ManagedAttribute(description = "Average time it takes to execute the rollback command locally (in microseconds)",
-                     displayName = "Average Local Rollback Execution Time")
-   public long getAvgLocalRollbackTime() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.LOCAL_ROLLBACK_EXECUTION_TIME));
-   }
-
-   @ManagedAttribute(description = "Average time it takes to execute the rollback command remotely (in microseconds)",
-                     displayName = "Average Remote Rollback Execution Time")
-   public long getAvgRemoteRollbackTime() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.REMOTE_ROLLBACK_EXECUTION_TIME));
-   }
-
-   @ManagedAttribute(description = "Average time it takes to execute the rollback command remotely (in microseconds)",
-                     displayName = "Average Remote Transaction Completion Notify Execution Time")
+   @ManagedAttribute(description = "Avg time it takes to execute the rollback command remotely (in microseconds)", displayName = "Avg time it takes to execute the rollback command remotely (in microseconds)")
    public long getAvgRemoteTxCompleteNotifyTime() {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.TX_COMPLETE_NOTIFY_EXECUTION_TIME));
    }
@@ -713,8 +696,8 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
                      displayName = "Replication Degree")
    public long getReplicationDegree() {
       try {
-      return configuration.clustering().cacheMode().isClustered() ? rpcManager.getMembers().size() :
-            distributionManager == null ? 1 : distributionManager.getConsistentHash().getNumOwners();
+         return configuration.clustering().cacheMode().isClustered() ? rpcManager.getMembers().size() :
+               distributionManager == null ? 1 : distributionManager.getConsistentHash().getNumOwners();
       } catch (Throwable throwable) {
          log.error("Error obtaining Replication Degree. returning 0", throwable);
          return 0;
@@ -732,11 +715,217 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       }
    }
 
-   @ManagedAttribute(description = "Average Response Time",
-                     displayName = "Average Response Time")
+   @ManagedAttribute(description = "Avg Response Time", displayName = "Avg Response Time")
+
    public long getAvgResponseTime() {
+
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.RESPONSE_TIME));
    }
+
+
+    /*Local Update*/
+
+   @ManagedAttribute(description = "Avg CPU demand to execute a local xact up to the prepare phase", displayName = "Avg CPU demand to execute a local xact up to the prepare phase")
+   public long getLocalUpdateTxLocalServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_S));
+   }
+
+   @ManagedAttribute(description = "Avg response time of the local part of a xact up to the prepare phase", displayName = "Avg response time of the local part of a xact up to the prepare phase")
+   public long getLocalUpdateTxLocalResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_R));
+   }
+
+   @ManagedAttribute(description = "Avg response time of a local PrepareCommand", displayName = "Avg response time of a local PrepareCommand")
+   public long getLocalUpdateTxPrepareResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_PREPARE_R));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to execute a local PrepareCommand", displayName = "Avg CPU demand to execute a local PrepareCommand")
+   public long getLocalUpdateTxPrepareServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_PREPARE_S));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to execute a local PrepareCommand", displayName = "Avg CPU demand to execute a local PrepareCommand")
+   public long getLocalUpdateTxCommitServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_COMMIT_S));
+   }
+
+   @ManagedAttribute(description = "Avg response time of a local CommitCommand", displayName = "Avg response time of a local CommitCommand")
+   public long getLocalUpdateTxCommitResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_COMMIT_R));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to execute a local RollbackCommand without remote nodes", displayName = "Avg CPU demand to execute a local RollbackCommand without remote nodes")
+   public long getLocalUpdateTxLocalRollbackServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_LOCAL_ROLLBACK_S));
+   }
+
+   @ManagedAttribute(description = "Avg response time to execute a remote RollbackCommand", displayName = "Avg response time to execute a remote RollbackCommand")
+   public long getLocalUpdateTxLocalRollbackResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_LOCAL_ROLLBACK_R));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to execute a local RollbackCommand with remote nodes", displayName = "Avg CPU demand to execute a local RollbackCommand with remote nodes")
+   public long getLocalUpdateTxRemoteRollbackServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_REMOTE_ROLLBACK_S));
+   }
+
+   @ManagedAttribute(description = "Avg response time to execute a local RollbackCommand with remote nodes", displayName = "Avg response time to execute a local RollbackCommand with remote nodes")
+   public long getLocalUpdateTxRemoteRollbackResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_LOCAL_REMOTE_ROLLBACK_R));
+   }
+
+
+   /*Remote*/
+
+   @ManagedAttribute(description = "Avg response time of the prepare of a remote xact", displayName = "Avg response time of the prepare of a remote xact")
+   public long getRemoteUpdateTxPrepareResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_REMOTE_PREPARE_R));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to execute the prepare of a remote xact", displayName = "Avg CPU demand to execute the prepare of a remote xact")
+   public long getRemoteUpdateTxPrepareServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_REMOTE_PREPARE_S));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to execute the commitCommand of a remote xact", displayName = "Avg CPU demand to execute the commitCommand of a remote xact")
+   public long getRemoteUpdateTxCommitServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_REMOTE_COMMIT_S));
+   }
+
+   @ManagedAttribute(description = "Avg response time of the execution of the commitCommand of a remote xact", displayName = "Avg response time of the execution of the commitCommand of a remote xact")
+   public long getRemoteUpdateTxCommitResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_REMOTE_COMMIT_R));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to perform the rollback of a remote xact", displayName = "Avg CPU demand to perform the rollback of a remote xact")
+   public long getRemoteUpdateTxRollbackServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_REMOTE_ROLLBACK_S));
+   }
+
+   @ManagedAttribute(description = "Avg response time of the rollback of a remote xact", displayName = "Avg response time of the rollback of a remote xact")
+   public long getRemoteUpdateTxRollbackResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_REMOTE_ROLLBACK_R));
+   }
+
+   /* Read Only*/
+
+   @ManagedAttribute(description = "Avg CPU demand to perform the local execution of a read only xact", displayName = "Avg CPU demand to perform the local execution of a read only xact")
+   public long getLocalReadOnlyTxLocalServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.READ_ONLY_TX_LOCAL_S));
+   }
+
+   @ManagedAttribute(description = "Avg response time of the local execution of a read only xact", displayName = "Avg response time of the local execution of a read only xact")
+   public long getLocalReadOnlyTxLocalResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.READ_ONLY_TX_LOCAL_R));
+   }
+
+   @ManagedAttribute(description = "Avg response time of the prepare of a read only xact", displayName = "Avg response time of the prepare of a read only xact")
+   public long getLocalReadOnlyTxPrepareResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.READ_ONLY_TX_PREPARE_R));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to perform the prepare of a read only xact", displayName = "Avg CPU demand to perform the prepare of a read only xact")
+   public long getLocalReadOnlyTxPrepareServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.READ_ONLY_TX_PREPARE_S));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to perform the commit of a read only xact", displayName = "Avg CPU demand to perform the commit of a read only xact")
+   public long getLocalReadOnlyTxCommitServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.READ_ONLY_TX_COMMIT_S));
+   }
+
+   @ManagedAttribute(description = "Avg response time of the commit of a read only xact", displayName = "Avg response time of the commit of a read only xact")
+   public long getLocalReadOnlyTxCommitResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.READ_ONLY_TX_COMMIT_R));
+   }
+
+   @ManagedAttribute(description = "Avg CPU demand to serve a remote get", displayName = "Avg CPU demand to serve a remote get")
+   public long getRemoteGetServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.REMOTE_GET_S));
+   }
+
+   @ManagedAttribute(description = "Avg number of local items in a local prepareCommand", displayName = "Avg number or data items in a local prepareCommand to write")
+   public long getNumOwnedRdItemsInLocalPrepare() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_OWNED_RD_ITEMS_IN_LOCAL_PREPARE));
+   }
+
+   @ManagedAttribute(description = "Avg number of local data items in a local prepareCommand to read-validate", displayName = "Avg number or data items in a local prepareCommand to read-validate")
+   public long getNumOwnedWrItemsInLocalPrepare() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_OWNED_WR_ITEMS_IN_LOCAL_PREPARE));
+   }
+
+   @ManagedAttribute(description = "Avg number of local data items in a remote prepareCommand to read-validate", displayName = "Avg number or data items in a remote prepareCommand to read-validate")
+   public long getNumOwnedRdItemsInRemotePrepare() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_OWNED_RD_ITEMS_IN_REMOTE_PREPARE));
+   }
+
+   @ManagedAttribute(description = "Avg number of local data items in a remote prepareCommand to write", displayName = "Avg number or data items in a remote prepareCommand to write")
+   public long getNumOwnedWrItemsInRemotePrepare() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_OWNED_WR_ITEMS_IN_REMOTE_PREPARE));
+   }
+
+   @ManagedAttribute(description = "Avg waiting time before serving a ClusteredGetCommand", displayName = "Avg waiting time before serving a ClusteredGetCommand")
+   public long getWaitedTimeInRemoteCommitQueue() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.WAIT_TIME_IN_REMOTE_COMMIT_QUEUE));
+   }
+
+   @ManagedAttribute(displayName = "Avg time spent in the commit queue by a xact", description = "Avg time spent in the commit queue by a xact")
+   public long getWaitedTimeInLocalCommitQueue() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.WAIT_TIME_IN_COMMIT_QUEUE));
+   }
+
+
+   @ManagedAttribute(displayName = "The number of xacts killed on the node due to unsuccessful validation", description = "The number of xacts killed on the node due to unsuccessful validation")
+   public long getNumKilledTxDueToValidation() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_KILLED_TX_DUE_TO_VALIDATION));
+   }
+
+   @ManagedAttribute(description = "The number of aborted xacts due to unsuccessful validation", displayName = "The number of aborted xacts due to unsuccessful validation")
+   public long getNumAbortedTxDueToValidation() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_ABORTED_TX_DUE_TO_VALIDATION));
+   }
+
+   @ManagedAttribute(description = "The number of aborted xacts due to timeout in readlock acquisition", displayName = "The number of aborted xacts due to timeout in readlock acquisition")
+   public long getNumAbortedTxDueToReadLock() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_READLOCK_FAILED_TIMEOUT));
+   }
+
+   @ManagedAttribute(displayName = "The number of aborted xacts due to timeout in lock acquisition", description = "The number of aborted xacts due to timeout in lock acquisition")
+   public long getNumAbortedTxDueToWriteLock() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_LOCK_FAILED_TIMEOUT));
+   }
+
+   @ManagedAttribute(displayName = "The number of aborted xacts due to stale read", description = "The number of aborted xacts due to stale read")
+   public long getNumAbortedTxDueToNotLastValueAccessed() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_ABORTED_TX_DUE_TO_NOT_LAST_VALUE_ACCESSED));
+   }
+
+   @ManagedAttribute(displayName = "Avg waiting time for a GMUClusteredGetCommand", description = "Avg waiting time for a GMUClusteredGetCommand")
+   public double getGMUClusteredGetCommandWaitingTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.REMOTE_GET_WAITING_TIME));
+   }
+
+   @ManagedAttribute(displayName = "Avg CPU demand of a local update xact", description = "Avg CPU demand of a local update xact")
+   public double getLocalUpdateTxTotalCpuTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_TOTAL_S));
+   }
+
+   @ManagedAttribute(displayName = "Avg response time of a local update xact", description = "Avg response time of a local update xact")
+   public double getLocalUpdateTxTotalResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.UPDATE_TX_TOTAL_R));
+   }
+
+   @ManagedAttribute(displayName = "Avg CPU demand of a read only xact", description = "Avg CPU demand of a read only xact")
+   public double getReadOnlyTxTotalResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.READ_ONLY_TX_TOTAL_R));
+   }
+
+   @ManagedAttribute(displayName = "Avg response time of a read only xact", description = "Avg response time of a read only xact")
+   public double getReadOnlyTxTotalCpuTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.READ_ONLY_TX_TOTAL_S));
+   }
+
 
    @ManagedOperation(description = "Average number of puts performed by a successful local transaction per class",
                      displayName = "Number of puts per successful local transaction per class")
@@ -873,12 +1062,13 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.LOCK_HOLD_TIME_REMOTE, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average local commit duration time (2nd phase only) (in microseconds) per class",
-                     displayName = "Average Commit Time per class")
-   public long getAvgCommitTimeParam(@Parameter(name = "Transaction Class") String transactionalClass) {
+   /*
+  @ManagedOperation(description = "Average local commit duration time (2nd phase only) (in microseconds) per class",
+          displayName = "Average Commit Time per class")
+  public long getAvgCommitTimeParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.COMMIT_EXECUTION_TIME, transactionalClass));
-   }
-
+  }
+  */
    @ManagedOperation(description = "Average local rollback duration time (2nd phase only) (in microseconds) per class",
                      displayName = "Average Rollback Time per class")
    public long getAvgRollbackTimeParam(@Parameter(name = "Transaction Class") String transactionalClass) {
@@ -916,56 +1106,58 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(IspnStats.ARRIVAL_RATE, transactionalClass));
    }
 
-   @ManagedOperation(description = "Percentage of Write transaction executed locally (committed and aborted) per class",
+   @ManagedOperation(description = "Percentage of Write xact executed locally (committed and aborted) per class",
                      displayName = "Percentage of Write Transactions per class")
    public double getPercentageWriteTransactionsParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(IspnStats.TX_WRITE_PERCENTAGE, transactionalClass));
    }
 
-   @ManagedOperation(description = "Percentage of Write transaction executed in all successfully executed " +
-         "transactions (local transaction only) per class",
+   @ManagedOperation(description = "Percentage of Write xact executed in all successfully executed " +
+         "xacts (local xact only) per class",
                      displayName = "Percentage of Successfully Write Transactions per class")
    public double getPercentageSuccessWriteTransactionsParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(IspnStats.SUCCESSFUL_WRITE_PERCENTAGE, transactionalClass));
    }
 
-   @ManagedOperation(description = "The number of aborted transactions due to timeout in lock acquisition per class",
+   /*
+   @ManagedOperation(description = "The number of aborted xacts due to timeout in lock acquisition per class",
                      displayName = "Number of Aborted Transaction due to Lock Acquisition Timeout per class")
    public long getNumAbortedTxDueTimeoutParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_LOCK_FAILED_TIMEOUT, transactionalClass));
    }
-
-   @ManagedOperation(description = "The number of aborted transactions due to deadlock per class",
+   */
+   @ManagedOperation(description = "The number of aborted xacts due to deadlock per class",
                      displayName = "Number of Aborted Transaction due to Deadlock per class")
    public long getNumAbortedTxDueDeadlockParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_LOCK_FAILED_DEADLOCK, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average successful read-only transaction duration (in microseconds) per class",
+   @ManagedOperation(description = "Average successful read-only xact duration (in microseconds) per class",
                      displayName = "Average Read-Only Transaction Duration per class")
    public long getAvgReadOnlyTxDurationParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.RO_TX_SUCCESSFUL_EXECUTION_TIME, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average successful write transaction duration (in microseconds) per class",
+   @ManagedOperation(description = "Average successful write xact duration (in microseconds) per class",
                      displayName = "Average Write Transaction Duration per class")
    public long getAvgWriteTxDurationParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.WR_TX_SUCCESSFUL_EXECUTION_TIME, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average write transaction local execution time (in microseconds) per class",
+   /*
+   @ManagedOperation(description = "Average write xact local execution time (in microseconds) per class",
                      displayName = "Average Write Transaction Local Execution Time per class")
    public long getAvgWriteTxLocalExecutionParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.WR_TX_LOCAL_EXECUTION_TIME, transactionalClass));
    }
-
-   @ManagedOperation(description = "Average number of locks per write local transaction per class",
+   */
+   @ManagedOperation(description = "Average number of locks per write local xact per class",
                      displayName = "Average Number of Lock per Local Transaction per class")
    public long getAvgNumOfLockLocalTxParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_LOCK_PER_LOCAL_TX, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average number of locks per write remote transaction per class",
+   @ManagedOperation(description = "Average number of locks per write remote xact per class",
                      displayName = "Average Number of Lock per Remote Transaction per class")
    public long getAvgNumOfLockRemoteTxParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_LOCK_PER_REMOTE_TX, transactionalClass));
@@ -1025,32 +1217,32 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(IspnStats.ABORT_RATE, transactionalClass));
    }
 
-   @ManagedOperation(description = "Throughput (in transactions per second) per class",
+   @ManagedOperation(description = "Throughput (in xacts per second) per class",
                      displayName = "Throughput per class")
    public double getThroughputParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(IspnStats.THROUGHPUT, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average number of get operations per local read transaction per class",
-                     displayName = "Average number of get operations per local read transaction per class")
+   @ManagedOperation(description = "Average number of get operations per local read xact per class",
+                     displayName = "Average number of get operations per local read xact per class")
    public long getAvgGetsPerROTransactionParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_SUCCESSFUL_GETS_RO_TX, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average number of get operations per local write transaction per class",
-                     displayName = "Average number of get operations per local write transaction per class")
+   @ManagedOperation(description = "Average number of get operations per local write xact per class",
+                     displayName = "Average number of get operations per local write xact per class")
    public long getAvgGetsPerWrTransactionParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_SUCCESSFUL_GETS_WR_TX, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average number of remote get operations per local write transaction per class",
-                     displayName = "Average number of remote get operations per local write transaction per class")
+   @ManagedOperation(description = "Average number of remote get operations per local write xact per class",
+                     displayName = "Average number of remote get operations per local write xact per class")
    public long getAvgRemoteGetsPerWrTransactionParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_SUCCESSFUL_REMOTE_GETS_WR_TX, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average number of remote get operations per local read transaction per class",
-                     displayName = "Average number of remote get operations per local read transaction per class")
+   @ManagedOperation(description = "Average number of remote get operations per local read xact per class",
+                     displayName = "Average number of remote get operations per local read xact per class")
    public long getAvgRemoteGetsPerROTransactionParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_SUCCESSFUL_REMOTE_GETS_RO_TX, transactionalClass));
    }
@@ -1061,14 +1253,14 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.REMOTE_GET_EXECUTION, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average number of put operations per local write transaction per class",
-                     displayName = "Average number of put operations per local write transaction per class")
+   @ManagedOperation(description = "Average number of put operations per local write xact per class",
+                     displayName = "Average number of put operations per local write xact per class")
    public long getAvgPutsPerWrTransactionParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_SUCCESSFUL_PUTS_WR_TX, transactionalClass));
    }
 
-   @ManagedOperation(description = "Average number of remote put operations per local write transaction per class",
-                     displayName = "Average number of remote put operations per local write transaction per class")
+   @ManagedOperation(description = "Average number of remote put operations per local write xact per class",
+                     displayName = "Average number of remote put operations per local write xact per class")
    public long getAvgRemotePutsPerWrTransactionParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_SUCCESSFUL_REMOTE_PUTS_WR_TX, transactionalClass));
    }
@@ -1103,13 +1295,13 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_REMOTE_PUT, transactionalClass));
    }
 
-   @ManagedOperation(description = "Number of committed transactions since last reset per class",
+   @ManagedOperation(description = "Number of committed xacts since last reset per class",
                      displayName = "Number Of Commits per class")
    public long getNumberOfCommitsParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_COMMITS, transactionalClass));
    }
 
-   @ManagedOperation(description = "Number of local committed transactions since last reset per class",
+   @ManagedOperation(description = "Number of local committed xacts since last reset per class",
                      displayName = "Number Of Local Commits per class")
    public long getNumberOfLocalCommitsParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(IspnStats.NUM_LOCAL_COMMITS, transactionalClass));
@@ -1121,25 +1313,25 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(IspnStats.WRITE_SKEW_PROBABILITY, transactionalClass));
    }
 
-   @ManagedOperation(description = "K-th percentile of local read-only transactions execution time per class",
+   @ManagedOperation(description = "K-th percentile of local read-only xacts execution time per class",
                      displayName = "K-th Percentile Local Read-Only Transactions per class")
    public double getPercentileLocalReadOnlyTransactionParam(@Parameter(name = "Percentile") int percentile, @Parameter(name = "Transaction Class") String transactionalClass) {
       return handleDouble((Double) TransactionsStatisticsRegistry.getPercentile(IspnStats.RO_LOCAL_PERCENTILE, percentile, transactionalClass));
    }
 
-   @ManagedOperation(description = "K-th percentile of remote read-only transactions execution time per class",
+   @ManagedOperation(description = "K-th percentile of remote read-only xacts execution time per class",
                      displayName = "K-th Percentile Remote Read-Only Transactions per class")
    public double getPercentileRemoteReadOnlyTransactionParam(@Parameter(name = "Percentile") int percentile, @Parameter(name = "Transaction Class") String transactionalClass) {
       return handleDouble((Double) TransactionsStatisticsRegistry.getPercentile(IspnStats.RO_REMOTE_PERCENTILE, percentile, transactionalClass));
    }
 
-   @ManagedOperation(description = "K-th percentile of local write transactions execution time per class",
+   @ManagedOperation(description = "K-th percentile of local write xacts execution time per class",
                      displayName = "K-th Percentile Local Write Transactions per class")
    public double getPercentileLocalRWriteTransactionParam(@Parameter(name = "Percentile") int percentile, @Parameter(name = "Transaction Class") String transactionalClass) {
       return handleDouble((Double) TransactionsStatisticsRegistry.getPercentile(IspnStats.WR_LOCAL_PERCENTILE, percentile, transactionalClass));
    }
 
-   @ManagedOperation(description = "K-th percentile of remote write transactions execution time per class",
+   @ManagedOperation(description = "K-th percentile of remote write xacts execution time per class",
                      displayName = "K-th Percentile Remote Write Transactions per class")
    public double getPercentileRemoteWriteTransactionParam(@Parameter(name = "Percentile") int percentile, @Parameter(name = "Transaction Class") String transactionalClass) {
       return handleDouble((Double) TransactionsStatisticsRegistry.getPercentile(IspnStats.WR_REMOTE_PERCENTILE, percentile, transactionalClass));
@@ -1162,15 +1354,136 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
    public long getAvgNTCBTimeParam(@Parameter(name = "Transaction Class") String transactionalClass) {
       return handleLong((Long) (TransactionsStatisticsRegistry.getAttribute((IspnStats.NTBC), transactionalClass)));
    }
+    /*
+     "handleCommand" methods could have been more compact (since they do very similar stuff)
+     But I wanted smaller, clear sub-methods
+    */
 
-   private boolean isRemote(Object key) {
-      return distributionManager != null && !distributionManager.getLocality(key).isLocal();
+   //NB: readOnly transactions are never aborted (RC, RR, GMU)
+   private void handleRollbackCommand(long initTime, long initCpuTime, TxInvocationContext ctx) {
+      if (TransactionsStatisticsRegistry.hasStatisticCollector()) {
+         IspnStats stat, cpuStat, counter;
+         if (ctx.isOriginLocal()) {
+            if (ctx.getCacheTransaction().wasPrepareSent()) {
+               cpuStat = IspnStats.UPDATE_TX_LOCAL_REMOTE_ROLLBACK_S;
+               stat = IspnStats.UPDATE_TX_LOCAL_REMOTE_ROLLBACK_R;
+               counter = IspnStats.NUM_UPDATE_TX_LOCAL_REMOTE_ROLLBACK;
+            } else {
+               cpuStat = IspnStats.UPDATE_TX_LOCAL_LOCAL_ROLLBACK_S;
+               stat = IspnStats.UPDATE_TX_LOCAL_LOCAL_ROLLBACK_R;
+               counter = IspnStats.NUM_UPDATE_TX_LOCAL_LOCAL_ROLLBACK;
+            }
+         } else {
+            cpuStat = IspnStats.UPDATE_TX_REMOTE_ROLLBACK_S;
+            stat = IspnStats.UPDATE_TX_REMOTE_ROLLBACK_R;
+            counter = IspnStats.NUM_UPDATE_TX_REMOTE_ROLLBACK;
+         }
+         updateWallClockTime(stat, counter, initTime);
+         if (sampleServiceTimes)
+            updateServiceTimeWithoutCounter(cpuStat, initCpuTime);
+      }
    }
 
-   private void replace() {
-      log.infof("CustomStatsInterceptor Enabled!");
-      ComponentRegistry componentRegistry = cache.getAdvancedCache().getComponentRegistry();
 
+   private void handleCommitCommand(long initTime, long initCpuTime, TxInvocationContext ctx) {
+      IspnStats stat, cpuStat, counter;
+      if (TransactionsStatisticsRegistry.hasStatisticCollector()) {
+         if (TransactionsStatisticsRegistry.isReadOnly()) {
+            cpuStat = IspnStats.READ_ONLY_TX_COMMIT_S;
+            counter = IspnStats.NUM_READ_ONLY_TX_COMMIT;
+            stat = IspnStats.READ_ONLY_TX_COMMIT_R;
+         }
+         //This is valid both for local and remote. The registry will populate the right container
+         else {
+            if (ctx.isOriginLocal()) {
+               cpuStat = IspnStats.UPDATE_TX_LOCAL_COMMIT_S;
+               counter = IspnStats.NUM_UPDATE_TX_LOCAL_COMMIT;
+               stat = IspnStats.UPDATE_TX_LOCAL_COMMIT_R;
+            } else {
+               cpuStat = IspnStats.UPDATE_TX_REMOTE_COMMIT_S;
+               counter = IspnStats.NUM_UPDATE_TX_REMOTE_COMMIT;
+               stat = IspnStats.UPDATE_TX_REMOTE_COMMIT_R;
+            }
+         }
+
+         updateWallClockTime(stat, counter, initTime);
+         if (sampleServiceTimes)
+            updateServiceTimeWithoutCounter(cpuStat, initCpuTime);
+      }
+   }
+
+   /**
+    * Increases the service and responseTime; This is invoked *only* if the prepareCommand is executed correctly
+    *
+    * @param initTime
+    * @param initCpuTime
+    * @param ctx
+    */
+   private void handlePrepareCommand(long initTime, long initCpuTime, TxInvocationContext ctx, PrepareCommand command) {
+      if (TransactionsStatisticsRegistry.hasStatisticCollector()) {
+         IspnStats stat, cpuStat, counter;
+         if (TransactionsStatisticsRegistry.isReadOnly()) {
+            stat = IspnStats.READ_ONLY_TX_PREPARE_R;
+            cpuStat = IspnStats.READ_ONLY_TX_PREPARE_S;
+            updateWallClockTimeWithoutCounter(stat, initTime);
+            if (sampleServiceTimes)
+               updateServiceTimeWithoutCounter(cpuStat, initCpuTime);
+         }
+         //This is valid both for local and remote. The registry will populate the right container
+         else {
+            if (ctx.isOriginLocal()) {
+               stat = IspnStats.UPDATE_TX_LOCAL_PREPARE_R;
+               cpuStat = IspnStats.UPDATE_TX_LOCAL_PREPARE_S;
+
+            } else {
+               stat = IspnStats.UPDATE_TX_REMOTE_PREPARE_R;
+               cpuStat = IspnStats.UPDATE_TX_REMOTE_PREPARE_S;
+            }
+            counter = IspnStats.NUM_UPDATE_TX_PREPARED;
+            updateWallClockTime(stat, counter, initTime);
+            if (sampleServiceTimes)
+               updateServiceTimeWithoutCounter(cpuStat, initCpuTime);
+         }
+
+         //Take stats relevant to the avg number of read and write data items in the message
+
+         TransactionsStatisticsRegistry.addValue(IspnStats.NUM_OWNED_RD_ITEMS_IN_OK_PREPARE, localRd(command));
+         TransactionsStatisticsRegistry.addValue(IspnStats.NUM_OWNED_WR_ITEMS_IN_OK_PREPARE, localWr(command));
+      }
+
+   }
+
+
+   private int localWr(PrepareCommand command) {
+      WriteCommand[] wrSet = command.getModifications();
+      int localWr = 0;
+      for (WriteCommand wr : wrSet) {
+         for (Object k : wr.getAffectedKeys()) {
+            if (!isRemote(k))
+               localWr++;
+         }
+      }
+      return localWr;
+   }
+
+   private int localRd(PrepareCommand command) {
+      if (!(command instanceof GMUPrepareCommand))
+         return 0;
+      int localRd = 0;
+
+      Object[] rdSet = ((GMUPrepareCommand) command).getReadSet();
+      for (Object rd : rdSet) {
+         if (!isRemote(rd))
+            localRd++;
+      }
+      return localRd;
+   }
+
+
+   private void replace() {
+      log.info("CustomStatsInterceptor Enabled!");
+      ComponentRegistry componentRegistry = cache.getAdvancedCache().getComponentRegistry();
+      this.wireConfiguration();
       GlobalComponentRegistry globalComponentRegistry = componentRegistry.getGlobalComponentRegistry();
       InboundInvocationHandlerWrapper invocationHandlerWrapper = rewireInvocationHandler(globalComponentRegistry);
       globalComponentRegistry.rewire();
@@ -1180,6 +1493,10 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       replaceRpcManager(componentRegistry);
       replaceLockManager(componentRegistry);
       componentRegistry.rewire();
+   }
+
+   private void wireConfiguration() {
+      this.configuration = cache.getAdvancedCache().getCacheConfiguration();
    }
 
    private void replaceFieldInTransport(ComponentRegistry componentRegistry, InboundInvocationHandlerWrapper invocationHandlerWrapper) {
@@ -1206,7 +1523,7 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
 
    private void replaceLockManager(ComponentRegistry componentRegistry) {
       LockManager lockManager = componentRegistry.getComponent(LockManager.class);
-      LockManagerWrapper lockManagerWrapper = new LockManagerWrapper(lockManager, StreamLibContainer.getOrCreateStreamLibContainer(cache));
+      LockManagerWrapper lockManagerWrapper = new LockManagerWrapper(lockManager, StreamLibContainer.getOrCreateStreamLibContainer(cache), this.configuration.customStatsConfiguration().isSampleServiceTimes());
       componentRegistry.registerComponent(lockManagerWrapper, LockManager.class);
    }
 
@@ -1226,8 +1543,21 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
       return e.getMessage().startsWith("Unable to acquire lock after");
    }
 
-   private void updateTime(IspnStats duration, IspnStats counter, long initTime) {
+   private void updateWallClockTime(IspnStats duration, IspnStats counter, long initTime) {
       TransactionsStatisticsRegistry.addValue(duration, System.nanoTime() - initTime);
+      TransactionsStatisticsRegistry.incrementValue(counter);
+   }
+
+   private void updateWallClockTimeWithoutCounter(IspnStats duration, long initTime) {
+      TransactionsStatisticsRegistry.addValue(duration, System.nanoTime() - initTime);
+   }
+
+   private void updateServiceTimeWithoutCounter(IspnStats time, long initTime) {
+      TransactionsStatisticsRegistry.addValue(time, threadMXBean.getCurrentThreadCpuTime() - initTime);
+   }
+
+   private void updateServiceTime(IspnStats duration, IspnStats counter, long initTime) {
+      TransactionsStatisticsRegistry.addValue(duration, threadMXBean.getCurrentThreadCpuTime() - initTime);
       TransactionsStatisticsRegistry.incrementValue(counter);
    }
 
@@ -1238,4 +1568,9 @@ public class CustomStatsInterceptor extends BaseCustomInterceptor {
    private double handleDouble(Double value) {
       return value == null ? 0 : value;
    }
+
+   private boolean isRemote(Object key) {
+      return distributionManager != null && !distributionManager.getLocality(key).isLocal();
+   }
+
 }

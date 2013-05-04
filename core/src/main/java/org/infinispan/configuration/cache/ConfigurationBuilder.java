@@ -34,6 +34,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
    private ClassLoader classLoader;
    private final ClusteringConfigurationBuilder clustering;
    private final CustomInterceptorsConfigurationBuilder customInterceptors;
+   private final CustomStatsConfigurationBuilder customStats;
    private final DataContainerConfigurationBuilder dataContainer;
    private final DeadlockDetectionConfigurationBuilder deadlockDetection;
    private final EvictionConfigurationBuilder eviction;
@@ -55,6 +56,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
    public ConfigurationBuilder() {
       this.clustering = new ClusteringConfigurationBuilder(this);
       this.customInterceptors = new CustomInterceptorsConfigurationBuilder(this);
+      this.customStats = new CustomStatsConfigurationBuilder(this);
       this.dataContainer = new DataContainerConfigurationBuilder(this);
       this.deadlockDetection = new DeadlockDetectionConfigurationBuilder(this);
       this.eviction = new EvictionConfigurationBuilder(this);
@@ -188,16 +190,21 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
    }
 
    @Override
+   public CustomStatsConfigurationBuilder customStats() {
+      return customStats;
+   }
+
+   @Override
    public GarbageCollectorConfigurationBuilder garbageCollector() {
       return garbageCollector;
    }
 
    @SuppressWarnings("unchecked")
    public void validate() {
-      for (Builder<?> validatable:
+      for (Builder<?> validatable :
             asList(clustering, dataContainer, deadlockDetection, eviction, expiration, indexing,
                    invocationBatching, jmxStatistics, loaders, locking, storeAsBinary, transaction,
-                   versioning, unsafe, sites, dataPlacement, garbageCollector)) {
+                   versioning, unsafe, sites, dataPlacement, garbageCollector, customStats)) {
          validatable.validate();
       }
       for (Builder<?> m : modules) {
@@ -219,12 +226,12 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
       List<Object> modulesConfig = new LinkedList<Object>();
       for (Builder<?> module : modules)
          modulesConfig.add(module.create());
-      return new Configuration(clustering.create(), customInterceptors.create(),
-               dataContainer.create(), deadlockDetection.create(), eviction.create(),
-               expiration.create(), indexing.create(), invocationBatching.create(),
-               jmxStatistics.create(), loaders.create(), locking.create(), storeAsBinary.create(),
-               transaction.create(), unsafe.create(), versioning.create(), modulesConfig,sites.create() , classLoader,
-               dataPlacement.create(), garbageCollector.create());
+      return new Configuration(clustering.create(), customStats.create(), customInterceptors.create(),
+                               dataContainer.create(), deadlockDetection.create(), eviction.create(),
+                               expiration.create(), indexing.create(), invocationBatching.create(),
+                               jmxStatistics.create(), loaders.create(), locking.create(), storeAsBinary.create(),
+                               transaction.create(), unsafe.create(), versioning.create(), modulesConfig, sites.create(), classLoader,
+                               dataPlacement.create(), garbageCollector.create());
    }
 
    public ConfigurationBuilder read(Configuration template) {
@@ -247,6 +254,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
       this.versioning.read(template.versioning());
       this.dataPlacement.read(template.dataPlacement());
       this.garbageCollector.read(template.garbageCollector());
+      this.customStats.read(template.customStatsConfiguration());
 
       for (Object c : template.modules().values()) {
          Builder<Object> builder = this.addModule(ConfigurationUtils.builderFor(c));
@@ -279,6 +287,7 @@ public class ConfigurationBuilder implements ConfigurationChildBuilder {
             ", sites=" + sites +
             ", dataPlacement=" + dataPlacement +
             ", garbageCollector=" + garbageCollector +
+            ", customStats=" + customStats +
             '}';
    }
 

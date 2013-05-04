@@ -28,6 +28,7 @@ public class Configuration {
    private final ClassLoader classLoader; //TODO remove this
    private final ClusteringConfiguration clusteringConfiguration;
    private final CustomInterceptorsConfiguration customInterceptorsConfiguration;
+   private final CustomStatsConfiguration customStatsConfiguration;
    private final DataContainerConfiguration dataContainerConfiguration;
    private final DeadlockDetectionConfiguration deadlockDetectionConfiguration;
    private final EvictionConfiguration evictionConfiguration;
@@ -41,12 +42,14 @@ public class Configuration {
    private final TransactionConfiguration transactionConfiguration;
    private final VersioningConfiguration versioningConfiguration;
    private final UnsafeConfiguration unsafeConfiguration;
+
    private final Map<Class<?>, ?> moduleConfiguration;
    private final SitesConfiguration sites;
    private final DataPlacementConfiguration dataPlacementConfiguration;
    private final GarbageCollectorConfiguration garbageCollectorConfiguration;
 
    Configuration(ClusteringConfiguration clusteringConfiguration,
+                 CustomStatsConfiguration customStatsConfiguration,
                  CustomInterceptorsConfiguration customInterceptorsConfiguration,
                  DataContainerConfiguration dataContainerConfiguration, DeadlockDetectionConfiguration deadlockDetectionConfiguration,
                  EvictionConfiguration evictionConfiguration, ExpirationConfiguration expirationConfiguration,
@@ -59,6 +62,7 @@ public class Configuration {
                  DataPlacementConfiguration dataPlacementConfiguration, GarbageCollectorConfiguration garbageCollectorConfiguration) {
       this.clusteringConfiguration = clusteringConfiguration;
       this.customInterceptorsConfiguration = customInterceptorsConfiguration;
+      this.customStatsConfiguration = customStatsConfiguration;
       this.dataContainerConfiguration = dataContainerConfiguration;
       this.deadlockDetectionConfiguration = deadlockDetectionConfiguration;
       this.evictionConfiguration = evictionConfiguration;
@@ -73,7 +77,7 @@ public class Configuration {
       this.unsafeConfiguration = unsafeConfiguration;
       this.versioningConfiguration = versioningConfiguration;
       Map<Class<?>, Object> modulesMap = new HashMap<Class<?>, Object>();
-      for(Object module : modules) {
+      for (Object module : modules) {
          modulesMap.put(module.getClass(), module);
       }
       this.moduleConfiguration = Collections.unmodifiableMap(modulesMap);
@@ -137,7 +141,7 @@ public class Configuration {
 
    @SuppressWarnings("unchecked")
    public <T> T module(Class<T> moduleClass) {
-      return (T)moduleConfiguration.get(moduleClass);
+      return (T) moduleConfiguration.get(moduleClass);
    }
 
    public Map<Class<?>, ?> modules() {
@@ -172,6 +176,10 @@ public class Configuration {
       return garbageCollectorConfiguration;
    }
 
+   public CustomStatsConfiguration customStatsConfiguration() {
+      return customStatsConfiguration;
+   }
+
 
    @Override
    public String toString() {
@@ -196,6 +204,7 @@ public class Configuration {
             ", sites=" + sites +
             ", dataPlacement=" + dataPlacementConfiguration +
             ", garbageCollector=" + garbageCollectorConfiguration +
+            ", customStats=" + customStatsConfiguration +
             '}';
    }
 
@@ -228,9 +237,11 @@ public class Configuration {
          return false;
       if (loadersConfiguration != null ? !loadersConfiguration.equals(that.loadersConfiguration) : that.loadersConfiguration != null)
          return false;
+      if (customStatsConfiguration != null ? !customStatsConfiguration.equals(that.customStatsConfiguration) : that.customStatsConfiguration != null)
+         return false;
       if (lockingConfiguration != null ? !lockingConfiguration.equals(that.lockingConfiguration) : that.lockingConfiguration != null)
          return false;
-      if (moduleConfiguration != null ? !moduleConfiguration.equals(that.moduleConfiguration) : that.moduleConfiguration !=null)
+      if (moduleConfiguration != null ? !moduleConfiguration.equals(that.moduleConfiguration) : that.moduleConfiguration != null)
          return false;
       if (storeAsBinaryConfiguration != null ? !storeAsBinaryConfiguration.equals(that.storeAsBinaryConfiguration) : that.storeAsBinaryConfiguration != null)
          return false;
@@ -246,7 +257,7 @@ public class Configuration {
             that.dataContainerConfiguration != null)
          return false;
       if (garbageCollectorConfiguration != null ? !garbageCollectorConfiguration.equals(that.garbageCollectorConfiguration) :
-      that.garbageCollectorConfiguration != null)
+            that.garbageCollectorConfiguration != null)
          return false;
 
       return true;
@@ -274,6 +285,8 @@ public class Configuration {
       result = 31 * result + (sites != null ? sites.hashCode() : 0);
       result = 31 * result + (dataPlacementConfiguration != null ? dataPlacementConfiguration.hashCode() : 0);
       result = 31 * result + (garbageCollectorConfiguration != null ? garbageCollectorConfiguration.hashCode() : 0);
+      result = 31 * result + (customStatsConfiguration != null ? customStatsConfiguration.hashCode() : 0);
       return result;
    }
+
 }

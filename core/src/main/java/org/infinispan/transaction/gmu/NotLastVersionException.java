@@ -20,38 +20,17 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.infinispan.stats.translations;
+package org.infinispan.transaction.gmu;
 
-import java.util.EnumMap;
-import java.util.Map;
-
-import static org.infinispan.stats.translations.ExposedStatistics.IspnStats;
+import org.infinispan.CacheException;
 
 /**
- * Websiste: www.cloudtm.eu Date: 01/05/12
- * @author Diego Didona <didona@gsd.inesc-id.pt>
- * @author Pedro Ruivo
- * @since 5.2
+ * @author Diego Didona, didona@gsd.inesc-id.pt
+ *         Date: 21/03/13
  */
-public class LocalStatistics {
-   public static final int NOT_FOUND = -1;
-   private static final Map<IspnStats, Integer> translationMap = new EnumMap<IspnStats, Integer>(IspnStats.class);
+public class NotLastVersionException extends CacheException {
 
-   static {
-      int i = 0;
-      for (IspnStats stat : IspnStats.values()) {
-         if (stat.isLocal()) {
-            translationMap.put(stat, i++);
-         }
-      }
-   }
-
-   public static int getIndex(IspnStats stat) {
-      Integer idx = translationMap.get(stat);
-      return idx == null ? NOT_FOUND : idx;
-   }
-
-   public static int getSize() {
-      return translationMap.size();
-   }
+    public NotLastVersionException(String msg) {
+        super(msg);
+    }
 }

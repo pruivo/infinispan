@@ -20,7 +20,6 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-
 package org.infinispan.stats;
 
 import org.infinispan.configuration.cache.Configuration;
@@ -36,8 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Websiste: www.cloudtm.eu
- * Date: 20/04/12
+ * Websiste: www.cloudtm.eu Date: 20/04/12
+ *
  * @author Diego Didona <didona@gsd.inesc-id.pt>
  * @author Pedro Ruivo
  * @since 5.2
@@ -47,6 +46,7 @@ public final class TransactionsStatisticsRegistry {
    private static final Log log = LogFactory.getLog(TransactionsStatisticsRegistry.class);
 
    public static final String DEFAULT_ISPN_CLASS = "DEFAULT_ISPN_CLASS";
+   private static ConcurrentHashMap<Long, Map<Object, Long>> pendingLocks = new ConcurrentHashMap<Long, Map<Object, Long>>();
 
    //Now it is unbounded, we can define a MAX_NO_CLASSES
    private static final Map<String, NodeScopeStatisticCollector> transactionalClassesStatsMap
@@ -62,20 +62,43 @@ public final class TransactionsStatisticsRegistry {
    private static final ThreadLocal<TransactionStatistics> thread = new ThreadLocal<TransactionStatistics>();
    private static ThreadLocal<TransactionTS> lastTransactionTS = new ThreadLocal<TransactionTS>();
 
-   public static void init(Configuration configuration){
+   public static boolean active = false;
+
+   public static boolean isActive() {
+      return active;
+   }
+
+   public static void init(Configuration configuration) {
       log.info("Initializing transactionalClassesMap");
       TransactionsStatisticsRegistry.configuration = configuration;
       transactionalClassesStatsMap.put(DEFAULT_ISPN_CLASS, new NodeScopeStatisticCollector(configuration));
+      active = true;
    }
+
+
+   public static void attachId(TxInvocationContext ctx) {
+      TransactionStatistics txs = thread.get();
+      if (txs == null) {
+         log.debug("Trying to attach ID to xact " +
+                         " but no transaction is associated to the thread");
+         return;
+      }
+      thread.get().injectId(ctx.getGlobalTransaction());
+   }
+
+   public static Map<Object, Long> getCurrentLocks() {
+      return thread.get().getTakenLocks();
+   }
+
 
    public static void addNTBCValue(long currtime) {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
          log.debug("Trying to add NTBC " +
-                 " but no transaction is associated to the thread");
+                         " but no transaction is associated to the thread");
          return;
       }
-      if(txs.getLastOpTimestamp() != 0){
+      if (txs.getLastOpTimestamp() != 0) {
          txs.addValue(IspnStats.TBC_EXECUTION_TIME, currtime - txs.getLastOpTimestamp());
       }
    }
@@ -83,11 +106,28 @@ public final class TransactionsStatisticsRegistry {
    public static void setLastOpTimestamp(long currtime) {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-         log.debug("Trying to set Last Op Timestamp "+
-                 " but no transaction is associated to the thread");
+         log.debug("Trying to set Last Op Timestamp " +
+                         " but no transaction is associated to the thread");
          return;
       }
       txs.setLastOpTimestamp(currtime);
+   }
+
+   public static void appendLocks() {
+      TransactionStatistics stats = thread.get();
+      if (stats == null) {
+         log.debug("Trying to append locks " +
+                         " but no transaction is associated to the thread");
+         return;
+      }
+      appendLocks(stats.getTakenLocks(), stats.id);
+   }
+
+   private static void appendLocks(Map<Object, Long> locks, Long id) {
+      if (locks != null && !locks.isEmpty()) {
+         //log.trace("Appending locks for " + id);
+         pendingLocks.put(id, locks);
+      }
    }
 
    public static void addValue(IspnStats param, double value) {
@@ -102,6 +142,11 @@ public final class TransactionsStatisticsRegistry {
       txs.addValue(param, value);
    }
 
+   public static boolean isReadOnly() {
+      TransactionStatistics txs = thread.get();
+      return txs.isReadOnly();
+   }
+
    public static void incrementValue(IspnStats param) {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
@@ -113,7 +158,16 @@ public final class TransactionsStatisticsRegistry {
       txs.addValue(param, 1D);
    }
 
+   /**
+    * DIE This is used when you do not have the transactionStatics anymore (i.e., after a commitCommand) and still have
+    * to update some statistics
+    *
+    * @param param
+    * @param value
+    * @param local
+    */
    public static void addValueAndFlushIfNeeded(IspnStats param, double value, boolean local) {
+
       NodeScopeStatisticCollector nssc = transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS);
       if (local) {
          nssc.addLocalValue(param, value);
@@ -169,69 +223,84 @@ public final class TransactionsStatisticsRegistry {
       NodeScopeStatisticCollector dest = transactionalClassesStatsMap.get(txs.getTransactionalClass());
       if (dest != null) {
          dest.merge(txs);
-      }else{
-          log.debug("Statistics not merged for transaction class not found on transactionalClassStatsMap");
+      } else {
+         log.debug("Statistics not merged for transaction class not found on transactionalClassStatsMap");
       }
 
       thread.remove();
       TransactionTS lastTS = lastTransactionTS.get();
-      if(lastTS != null)
-        lastTS.setEndLastTxTs(System.nanoTime());
+      if (lastTS != null)
+         lastTS.setEndLastTxTs(System.nanoTime());
    }
 
-   public static Object getAttribute(IspnStats param,String className){
-
-      try{
-         if (configuration == null) {
-            return null;
-         }
-         if(className == null){
-            return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
-         }else{
-            if(transactionalClassesStatsMap.get(className) != null)
-               return transactionalClassesStatsMap.get(className).getAttribute(param);
-            else
-               return null;
-         }
-      }
-      catch (Throwable e){
-         e.printStackTrace();
-         return null;
-      }
-   }
-
-    public static Object getAttribute(IspnStats param){
-       try{
-          if (configuration == null) {
-             return null;
-          }
-             return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
-       }
-       catch(Throwable e){
-          log.errorf(e, "Error obtaining attribute %s. returning null", param);
-          return null;
-       }
-    }
-
-   public static Object getPercentile(IspnStats param, int percentile, String className){
+   public static Object getAttribute(IspnStats param, String className) {
       if (configuration == null) {
          return null;
       }
-      if(className == null){
-          return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getPercentile(param, percentile);
-      }else{
-         if(transactionalClassesStatsMap.get(className) != null)
+      if (className == null) {
+         return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
+      } else {
+         if (transactionalClassesStatsMap.get(className) != null)
+            return transactionalClassesStatsMap.get(className).getAttribute(param);
+         else
+            return null;
+      }
+   }
+
+   public static Object getAttribute(IspnStats param) {
+      if (configuration == null) {
+         return null;
+      }
+      return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
+   }
+
+   public static Object getPercentile(IspnStats param, int percentile, String className) {
+      if (configuration == null) {
+         return null;
+      }
+      if (className == null) {
+         return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getPercentile(param, percentile);
+      } else {
+         if (transactionalClassesStatsMap.get(className) != null)
             return transactionalClassesStatsMap.get(className).getPercentile(param, percentile);
          else
             return null;
       }
    }
-   public static Object getPercentile(IspnStats param, int percentile){
-       if (configuration == null) {
-           return null;
-       }
-       return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getPercentile(param, percentile);
-    }
+
+   public static void flushPendingLocksIfNeeded(GlobalTransaction id) {
+      if (pendingLocks.containsKey(id.getId())) {
+         immediateLockingTimeSampling(pendingLocks.get(id.getId()));
+         pendingLocks.remove(id.getId());
+      }
+   }
+
+
+   private static long computeCumulativeLockHoldTime(Map<Object, Long> takenLocks, int numLocks, long currentTime) {
+      long ret = numLocks * currentTime;
+      for (Object o : takenLocks.keySet())
+         ret -= takenLocks.get(o);
+      return ret;
+   }
+
+   /**
+    * NB: I assume here that *only* remote transactions can have pending locks
+    *
+    * @param locks
+    */
+   private static void immediateLockingTimeSampling(Map<Object, Long> locks) {
+      int size = locks.size();
+      double cumulativeLockHoldTime = computeCumulativeLockHoldTime(locks, size, System.nanoTime());
+      addValueAndFlushIfNeeded(IspnStats.LOCK_HOLD_TIME, cumulativeLockHoldTime, false);
+      addValueAndFlushIfNeeded(IspnStats.NUM_HELD_LOCKS, size, false);
+   }
+
+   public static Object getPercentile(IspnStats param, int percentile) {
+      if (configuration == null) {
+         return null;
+      }
+      return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getPercentile(param, percentile);
+   }
 
    public static void addTakenLock(Object lock) {
       TransactionStatistics txs = thread.get();
@@ -260,7 +329,7 @@ public final class TransactionsStatisticsRegistry {
    //Now, remote transactionStatistics get initialized at InboundInvocationHandler level
    public static void initTransactionIfNecessary(TxInvocationContext tctx) {
       boolean isLocal = tctx.isOriginLocal();
-      if(isLocal)
+      if (isLocal)
          initLocalTransaction();
 
    }
@@ -290,6 +359,7 @@ public final class TransactionsStatisticsRegistry {
       if (thread.get() == null) {
          return;
       }
+      //DIE: is finished == true either both for CommitCommand and RollbackCommand?
       if (finished) {
          if (log.isTraceEnabled()) {
             log.tracef("Detach remote transaction statistic and finish transaction %s", globalTransaction.globalId());
@@ -304,7 +374,7 @@ public final class TransactionsStatisticsRegistry {
       }
    }
 
-   public static void reset(){
+   public static void reset() {
       for (NodeScopeStatisticCollector nsc : transactionalClassesStatsMap.values()) {
          nsc.reset();
       }
@@ -314,23 +384,23 @@ public final class TransactionsStatisticsRegistry {
       return thread.get() != null;
    }
 
-    public static void setTransactionalClass(String className){
+   public static void setTransactionalClass(String className) {
       TransactionStatistics txs = thread.get();
       if (txs == null) {
-          log.debug("Trying to invoke setUpdateTransaction() but no transaction is associated to the thread");
-          return;
-        }
+         log.debug("Trying to invoke setUpdateTransaction() but no transaction is associated to the thread");
+         return;
+      }
       txs.setTransactionalClass(className);
       registerTransactionalClass(className);
-    }
+   }
 
-    private static synchronized void registerTransactionalClass(String className) {
-      if(transactionalClassesStatsMap.get(className) == null){
-         transactionalClassesStatsMap.put(className,new NodeScopeStatisticCollector(configuration));
+   private static synchronized void registerTransactionalClass(String className) {
+      if (transactionalClassesStatsMap.get(className) == null) {
+         transactionalClassesStatsMap.put(className, new NodeScopeStatisticCollector(configuration));
       }
-    }
+   }
 
-    private static void initLocalTransaction(){
+   private static void initLocalTransaction() {
       //Not overriding the InitialValue method leads me to have "null" at the first invocation of get()
       TransactionStatistics lts = thread.get();
       if (lts == null && configuration != null) {
@@ -343,11 +413,11 @@ public final class TransactionsStatisticsRegistry {
          if (lastTS == null) {
             log.tracef("Init a new local transaction statistics for Timestamp");
             lastTransactionTS.set(new TransactionTS());
-         }else{
+         } else {
             addValue(IspnStats.NTBC_EXECUTION_TIME, System.nanoTime() - lastTS.getEndLastTxTs());
             incrementValue(IspnStats.NTBC_COUNT);
          }
-      } else if (configuration == null ) {
+      } else if (configuration == null) {
          if (log.isDebugEnabled()) {
             log.debugf("Trying to create a local transaction statistics in a not initialized Transaction Statistics Registry");
          }
