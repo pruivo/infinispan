@@ -210,6 +210,9 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
             case GARBAGE_COLLECTOR:
                parseGarbageCollector(reader, holder);
                break;
+             case CUSTOM_STATS:
+                 parseCustomStats(reader, holder);
+                 break;
             default:
                throw ParseUtils.unexpectedElement(reader);
          }
@@ -251,6 +254,27 @@ public class Parser52 implements ConfigurationParser<ConfigurationBuilderHolder>
          reader.handleAny(holder);
       }
    }
+
+    private void parseCustomStats(final XMLExtendedStreamReader reader, ConfigurationBuilderHolder holder) throws XMLStreamException {
+        ConfigurationBuilder builder = holder.getCurrentConfigurationBuilder();
+        for (int i = 0; i < reader.getAttributeCount(); i++) {
+            ParseUtils.requireNoNamespaceAttribute(reader, i);
+            String value = replaceProperties(reader.getAttributeValue(i));
+            Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
+            switch (attribute) {
+                case SAMPLE_SERVICE_TIME:
+                    if (Boolean.parseBoolean(value)) {
+                        builder.customStats().sampleServiceTimes();
+                    } else
+                        builder.customStats().notSampleServiceTimes();
+                    break;
+                default:
+                    throw ParseUtils.unexpectedAttribute(reader, i);
+            }
+        }
+
+        ParseUtils.requireNoContent(reader);
+    }
 
    private void parseVersioning(final XMLExtendedStreamReader reader, final ConfigurationBuilderHolder holder) throws XMLStreamException {
       ConfigurationBuilder builder = holder.getCurrentConfigurationBuilder();

@@ -24,22 +24,10 @@ package org.infinispan.distribution.wrappers;
 
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
-import org.infinispan.commands.remote.GMUClusteredGetCommand;
 import org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand;
 import org.infinispan.commands.tx.CommitCommand;
-import org.infinispan.commands.tx.GMUCommitCommand;
-import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
-import org.infinispan.commands.tx.VersionedCommitCommand;
-import org.infinispan.commands.tx.VersionedPrepareCommand;
-import org.infinispan.commands.tx.totalorder.TotalOrderCommitCommand;
-import org.infinispan.commands.tx.totalorder.TotalOrderGMUCommitCommand;
-import org.infinispan.commands.tx.totalorder.TotalOrderGMUPrepareCommand;
-import org.infinispan.commands.tx.totalorder.TotalOrderNonVersionedPrepareCommand;
-import org.infinispan.commands.tx.totalorder.TotalOrderRollbackCommand;
-import org.infinispan.commands.tx.totalorder.TotalOrderVersionedCommitCommand;
-import org.infinispan.commands.tx.totalorder.TotalOrderVersionedPrepareCommand;
 import org.infinispan.remoting.RpcException;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.rpc.ResponseFilter;
@@ -84,7 +72,7 @@ public class RpcManagerWrapper implements RpcManager {
    @Override
    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
                                                 ResponseMode mode, long timeout, boolean usePriorityQueue,
-                                                ResponseFilter responseFilter, boolean totalOrder){
+                                                ResponseFilter responseFilter, boolean totalOrder) {
       long currentTime = System.nanoTime();
       Map<Address, Response> ret = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, usePriorityQueue, responseFilter, totalOrder);
       updateStats(rpcCommand, mode.isSynchronous(), currentTime, recipients);
@@ -205,7 +193,7 @@ public class RpcManagerWrapper implements RpcManager {
    public int getTopologyId() {
       return actual.getTopologyId();
    }
-   
+
    private void updateStats(ReplicableCommand command, boolean sync, long init, Collection<Address> recipients) {
       if (!TransactionsStatisticsRegistry.hasStatisticCollector() &&
             !(command instanceof TxCompletionNotificationCommand)) {
@@ -218,81 +206,60 @@ public class RpcManagerWrapper implements RpcManager {
       IspnStats counterStat;
       IspnStats recipientSizeStat;
       IspnStats commandSizeStat = null;
-      switch (command.getCommandId()) {
-         case PrepareCommand.COMMAND_ID:
-         case VersionedPrepareCommand.COMMAND_ID:
-         case TotalOrderNonVersionedPrepareCommand.COMMAND_ID:
-         case TotalOrderVersionedPrepareCommand.COMMAND_ID:
-         case TotalOrderGMUPrepareCommand.COMMAND_ID:
-         case GMUPrepareCommand.COMMAND_ID:
-            if (sync) {
-               durationStat = IspnStats.RTT_PREPARE;
-               counterStat = IspnStats.NUM_RTTS_PREPARE;
-            } else {
-               durationStat = IspnStats.ASYNC_PREPARE;
-               counterStat = IspnStats.NUM_ASYNC_PREPARE;
-            }
-            recipientSizeStat = IspnStats.NUM_NODES_PREPARE;
-            commandSizeStat = IspnStats.PREPARE_COMMAND_SIZE;
-            break;
-         case RollbackCommand.COMMAND_ID:
-         case TotalOrderRollbackCommand.COMMAND_ID:
-            if (sync) {
-               durationStat = IspnStats.RTT_ROLLBACK;
-               counterStat = IspnStats.NUM_RTTS_ROLLBACK;
-            } else {
-               durationStat = IspnStats.ASYNC_ROLLBACK;
-               counterStat = IspnStats.NUM_ASYNC_ROLLBACK;
-            }
-            recipientSizeStat = IspnStats.NUM_NODES_ROLLBACK;
-            break;
-         case CommitCommand.COMMAND_ID:
-         case VersionedCommitCommand.COMMAND_ID:
-         case TotalOrderCommitCommand.COMMAND_ID:
-         case TotalOrderVersionedCommitCommand.COMMAND_ID:
-         case TotalOrderGMUCommitCommand.COMMAND_ID:
-         case GMUCommitCommand.COMMAND_ID:
-            if (sync) {
-               durationStat = IspnStats.RTT_COMMIT;
-               counterStat = IspnStats.NUM_RTTS_COMMIT;
-            } else {
-               durationStat = IspnStats.ASYNC_COMMIT;
-               counterStat = IspnStats.NUM_ASYNC_COMMIT;
-            }
-            recipientSizeStat = IspnStats.NUM_NODES_COMMIT;
-            commandSizeStat = IspnStats.COMMIT_COMMAND_SIZE;
-            break;
-         case TxCompletionNotificationCommand.COMMAND_ID:
-            durationStat = IspnStats.ASYNC_COMPLETE_NOTIFY;
-            counterStat = IspnStats.NUM_ASYNC_COMPLETE_NOTIFY;
-            recipientSizeStat = IspnStats.NUM_NODES_COMPLETE_NOTIFY;
+      if (command instanceof PrepareCommand) {
+         if (sync) {
+            durationStat = IspnStats.RTT_PREPARE;
+            counterStat = IspnStats.NUM_RTTS_PREPARE;
+         } else {
+            durationStat = IspnStats.ASYNC_PREPARE;
+            counterStat = IspnStats.NUM_ASYNC_PREPARE;
+         }
+         recipientSizeStat = IspnStats.NUM_NODES_PREPARE;
+         commandSizeStat = IspnStats.PREPARE_COMMAND_SIZE;
+      } else if (command instanceof RollbackCommand) {
+         if (sync) {
+            durationStat = IspnStats.RTT_ROLLBACK;
+            counterStat = IspnStats.NUM_RTTS_ROLLBACK;
+         } else {
+            durationStat = IspnStats.ASYNC_ROLLBACK;
+            counterStat = IspnStats.NUM_ASYNC_ROLLBACK;
+         }
+         recipientSizeStat = IspnStats.NUM_NODES_ROLLBACK;
+      } else if (command instanceof CommitCommand) {
+         if (sync) {
+            durationStat = IspnStats.RTT_COMMIT;
+            counterStat = IspnStats.NUM_RTTS_COMMIT;
+         } else {
+            durationStat = IspnStats.ASYNC_COMMIT;
+            counterStat = IspnStats.NUM_ASYNC_COMMIT;
+         }
+         recipientSizeStat = IspnStats.NUM_NODES_COMMIT;
+         commandSizeStat = IspnStats.COMMIT_COMMAND_SIZE;
+      } else if (command instanceof ClusteredGetCommand) {
+         durationStat = IspnStats.RTT_GET;
+         counterStat = IspnStats.NUM_RTTS_GET;
+         recipientSizeStat = IspnStats.NUM_NODES_GET;
+         commandSizeStat = IspnStats.CLUSTERED_GET_COMMAND_SIZE;
+      } else if (command instanceof TxCompletionNotificationCommand) {
+         durationStat = IspnStats.ASYNC_COMPLETE_NOTIFY;
+         counterStat = IspnStats.NUM_ASYNC_COMPLETE_NOTIFY;
+         recipientSizeStat = IspnStats.NUM_NODES_COMPLETE_NOTIFY;
 
-            if (log.isTraceEnabled()) {
-               log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
-                                "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
-            }
+         if (log.isTraceEnabled()) {
+            log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
+                             "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
+         }
 
-            TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(durationStat, System.nanoTime() - init, true);
-            TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(counterStat, true);
-            TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(recipientSizeStat, recipientListSize(recipients), true);
+         TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(durationStat, System.nanoTime() - init, true);
+         TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(counterStat, true);
+         TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(recipientSizeStat, recipientListSize(recipients), true);
 
-            return;
-         case ClusteredGetCommand.COMMAND_ID:
-         case GMUClusteredGetCommand.COMMAND_ID:
-            durationStat = IspnStats.RTT_GET;
-            counterStat = IspnStats.NUM_RTTS_GET;
-            recipientSizeStat = IspnStats.NUM_NODES_GET;
-            commandSizeStat = IspnStats.CLUSTERED_GET_COMMAND_SIZE;
-            break;
-         default:
-            if (log.isTraceEnabled()) {
-               log.tracef("Does not update stats for command %s. The command is not needed", command);
-            }
-            return;
-      }
-      if (log.isTraceEnabled()) {
-         log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
-                          "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
+         return;
+      } else {
+         if (log.isTraceEnabled()) {
+            log.tracef("Does not update stats for command %s. The command is not needed", command);
+         }
+         return;
       }
       TransactionsStatisticsRegistry.addValue(durationStat, System.nanoTime() - init);
       TransactionsStatisticsRegistry.incrementValue(counterStat);

@@ -61,7 +61,7 @@ public class InboundInvocationHandlerWrapper implements InboundInvocationHandler
          log.tracef("Handle remote command [%s] by the invocation handle wrapper from %s", command, origin);
       }
       GlobalTransaction globalTransaction = getGlobalTransaction(command);
-      try{
+      try {
          if (globalTransaction != null) {
             if (log.isDebugEnabled()) {
                log.debugf("The command %s is transactional and the global transaction is %s", command,
