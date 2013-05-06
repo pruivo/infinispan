@@ -308,7 +308,7 @@ public abstract class LocalTransaction extends AbstractCacheTransaction {
       if (log.isDebugEnabled()) {
          log.debugf("[%s] get read keys %s", tx.globalId(), readKeys);
       }
-      return readKeys;
+      return readKeys == null ? InfinispanCollections.emptySet() : readKeys;
    }
 
 }

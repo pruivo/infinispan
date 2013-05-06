@@ -6,14 +6,11 @@ import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.container.versioning.gmu.GMUVersionGenerator;
 import org.infinispan.context.InvocationContextContainer;
-import org.infinispan.factories.KnownComponentNames;
-import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
-import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,7 +33,6 @@ public class TransactionCommitManager {
    private GMUVersionGenerator versionGenerator;
    private CommitLog commitLog;
    private GarbageCollectorManager garbageCollectorManager;
-   private BlockingTaskAwareExecutorService gmuExecutor;
 
    public TransactionCommitManager() {
       sortedTransactionQueue = new SortedTransactionQueue();
@@ -44,14 +40,12 @@ public class TransactionCommitManager {
 
    @Inject
    public void inject(InvocationContextContainer icc, VersionGenerator versionGenerator, CommitLog commitLog,
-                      Transport transport, Cache cache, GarbageCollectorManager garbageCollectorManager,
-                      @ComponentName(value = KnownComponentNames.GMU_EXECUTOR) BlockingTaskAwareExecutorService gmuExecutor) {
+                      Transport transport, Cache cache, GarbageCollectorManager garbageCollectorManager) {
       if (versionGenerator instanceof GMUVersionGenerator) {
          this.versionGenerator = toGMUVersionGenerator(versionGenerator);
       }
       this.commitLog = commitLog;
       this.garbageCollectorManager = garbageCollectorManager;
-      this.gmuExecutor = gmuExecutor;
    }
 
    /**
@@ -66,15 +60,11 @@ public class TransactionCommitManager {
                                                                      ++lastPreparedVersion);
 
       cacheTransaction.setTransactionVersion(preparedVersion);
-      sortedTransactionQueue.prepare(cacheTransaction,concurrentClockNumber);
+      sortedTransactionQueue.prepare(cacheTransaction, concurrentClockNumber);
    }
 
    public void rollbackTransaction(CacheTransaction cacheTransaction) {
-      sortedTransactionQueue.rollback(cacheTransaction);if (sortedTransactionQueue.hasTransactionReadyToCommit()) {
-         //is it safe to do it in this thread?
-         gmuExecutor.checkForReadyTasks();
-      }
-
+      sortedTransactionQueue.rollback(cacheTransaction);
    }
 
    public synchronized TransactionEntry commitTransaction(GlobalTransaction globalTransaction, EntryVersion version) {
@@ -83,10 +73,6 @@ public class TransactionCommitManager {
       TransactionEntry entry = sortedTransactionQueue.commit(globalTransaction, commitVersion);
       if (entry == null) {
          commitLog.updateMostRecentVersion(commitVersion);
-      }
-      if (sortedTransactionQueue.hasTransactionReadyToCommit()) {
-         //is it safe to do it in this thread?
-         gmuExecutor.checkForReadyTasks();
       }
       return entry;
    }
@@ -105,10 +91,7 @@ public class TransactionCommitManager {
    public void transactionCommitted(Collection<CommittedTransaction> transactions) {
       commitLog.insertNewCommittedVersions(transactions);
       garbageCollectorManager.notifyCommittedTransactions(transactions.size());
-      if (sortedTransactionQueue.hasTransactionReadyToCommit()) {
-         //is it safe to do it in this thread?
-         gmuExecutor.checkForReadyTasks();
-      }
+      sortedTransactionQueue.hasTransactionReadyToCommit();
    }
 
    //DEBUG ONLY!

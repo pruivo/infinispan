@@ -40,7 +40,12 @@ public class TotalOrderGMUDistributionInterceptor extends GMUDistributionInterce
    public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
       //this map is only populated after locks are acquired. However, no locks are acquired when total order is enabled
       //so we need to populate it here
-      ctx.addAllAffectedKeys(command.getAffectedKeys());
+      if (ctx.isOriginLocal() && !ctx.getCacheTransaction().hasModification(ClearCommand.class)) {
+         Set<Object> affectedKeys = new HashSet<Object>();
+         affectedKeys.addAll(Arrays.asList(command.getAffectedKeysToLock(false)));
+         affectedKeys.addAll(ctx.getReadSet());
+         ctx.addAllAffectedKeys(affectedKeys);
+      }
       return super.visitPrepareCommand(ctx, command);
    }
 
@@ -77,9 +82,9 @@ public class TotalOrderGMUDistributionInterceptor extends GMUDistributionInterce
       }
 
       try {
-         Set<Object> affectedKeys = getAffectedKeys((GMUPrepareCommand) command);
+         Set<Object> affectedKeys = ctx.getAffectedKeys();
 
-         ResponseFilter responseFilter = affectedKeys == null || isSyncCommitPhase() ? null :
+         ResponseFilter responseFilter = affectedKeys.isEmpty() || isSyncCommitPhase() ? null :
                new KeysValidateFilter(rpcManager.getAddress(), affectedKeys);
 
          Map<Address, Response> responseMap = totalOrderAnycastPrepare(recipients, command, responseFilter);
@@ -87,19 +92,6 @@ public class TotalOrderGMUDistributionInterceptor extends GMUDistributionInterce
       } finally {
          transactionRemotelyPrepared(ctx);
       }
-   }
-
-   private Set<Object> getAffectedKeys(GMUPrepareCommand prepareCommand) {
-      Set<Object> affectedKeys = new HashSet<Object>();
-      for (WriteCommand writeCommand : prepareCommand.getModifications()) {
-         if (writeCommand instanceof ClearCommand) {
-            return null;
-         } else {
-            affectedKeys.addAll(writeCommand.getAffectedKeys());
-         }
-      }
-      affectedKeys.addAll(Arrays.asList(prepareCommand.getReadSet()));
-      return affectedKeys;
    }
 
    @Override

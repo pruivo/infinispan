@@ -26,6 +26,8 @@ import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.context.SingleKeyNonTxInvocationContext;
 import org.infinispan.context.impl.LocalTxInvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.factories.KnownComponentNames;
+import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.EntryWrappingInterceptor;
 import org.infinispan.metadata.EmbeddedMetadata;
@@ -37,6 +39,7 @@ import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.transaction.gmu.manager.CommittedTransaction;
 import org.infinispan.transaction.gmu.manager.TransactionCommitManager;
 import org.infinispan.transaction.xa.CacheTransaction;
+import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -58,13 +61,16 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
    protected GMUVersionGenerator versionGenerator;
    private TransactionCommitManager transactionCommitManager;
    private InvocationContextContainer invocationContextContainer;
+   private BlockingTaskAwareExecutorService gmuExecutor;
 
    @Inject
    public void inject(TransactionCommitManager transactionCommitManager, DataContainer dataContainer,
-                      CommitLog commitLog, VersionGenerator versionGenerator, InvocationContextContainer invocationContextContainer) {
+                      CommitLog commitLog, VersionGenerator versionGenerator, InvocationContextContainer invocationContextContainer,
+                      @ComponentName(value = KnownComponentNames.GMU_EXECUTOR) BlockingTaskAwareExecutorService gmuExecutor) {
       this.transactionCommitManager = transactionCommitManager;
       this.versionGenerator = toGMUVersionGenerator(versionGenerator);
       this.invocationContextContainer = invocationContextContainer;
+      this.gmuExecutor = gmuExecutor;
    }
 
    @Override
@@ -162,6 +168,11 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
          //let ignore the exception. we cannot have some nodes applying the write set and another not another one
          //receives the rollback and don't applies the write set
          log.error("Error while committing transaction", throwable);
+         transactionCommitManager.rollbackTransaction(ctx.getCacheTransaction());
+      } finally {
+         if (ctx.isOriginLocal()) {
+            gmuExecutor.checkForReadyTasks();
+         }
       }
       return retVal;
    }
@@ -172,6 +183,9 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
          return invokeNextInterceptor(ctx, command);
       } finally {
          transactionCommitManager.rollbackTransaction(ctx.getCacheTransaction());
+         if (ctx.isOriginLocal()) {
+            gmuExecutor.checkForReadyTasks();
+         }
       }
    }
 

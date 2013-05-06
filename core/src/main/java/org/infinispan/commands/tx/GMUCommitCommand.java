@@ -94,7 +94,7 @@ public class GMUCommitCommand extends CommitCommand {
    }
 
    public final boolean isReady() {
-      return transactionEntry != null && transactionEntry.isReadyToCommit();
+      return transactionEntry == null || transactionEntry.isReadyToCommit();
    }
 
    public final SortedTransactionQueue.TransactionEntry getTransactionEntry() {

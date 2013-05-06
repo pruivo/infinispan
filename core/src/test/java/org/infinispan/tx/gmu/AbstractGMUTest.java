@@ -205,6 +205,10 @@ public abstract class AbstractGMUTest extends MultipleCacheManagersTest {
       return new MagicKey("KEY_" + KEY_ID.incrementAndGet(), owners);
    }
 
+   protected final Object newKey(int mapTo) {
+      return newKey(Arrays.asList(mapTo), Collections.<Integer>emptyList());
+   }
+
    protected final void assertKeyOwners(Object key, int mapTo, int notMapTo) {
       assertKeyOwners(key, Collections.singleton(mapTo), Collections.singleton(notMapTo));
    }

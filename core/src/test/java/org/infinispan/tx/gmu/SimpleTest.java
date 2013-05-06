@@ -2,10 +2,20 @@ package org.infinispan.tx.gmu;
 
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
+import org.infinispan.interceptors.InterceptorChain;
+import org.infinispan.interceptors.gmu.GMUDistributionInterceptor;
+import org.infinispan.interceptors.gmu.GMUEntryWrappingInterceptor;
+import org.infinispan.interceptors.gmu.TotalOrderGMUDistributionInterceptor;
+import org.infinispan.interceptors.gmu.TotalOrderGMUEntryWrappingInterceptor;
+import org.infinispan.interceptors.locking.OptimisticReadWriteLockingInterceptor;
+import org.infinispan.test.TestingUtil;
 import org.testng.annotations.Test;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 /**
  * @author Pedro Ruivo
@@ -63,7 +73,7 @@ public class SimpleTest extends AbstractGMUTest {
       put(1, KEY_1, VALUE_1, null);
       putIfAbsent(0, KEY_1, VALUE_2, VALUE_1, VALUE_1);
       put(1, KEY_1, VALUE_2, VALUE_1);
-      putIfAbsent(0, KEY_1, VALUE_3, VALUE_2, VALUE_2);      
+      putIfAbsent(0, KEY_1, VALUE_3, VALUE_2, VALUE_2);
       putIfAbsent(0, KEY_2, VALUE_3, null, VALUE_3);
 
       printDataContainer();
@@ -129,6 +139,22 @@ public class SimpleTest extends AbstractGMUTest {
       remove(0, KEY_1, null);
 
       assertNoTransactions();
+   }
+
+   public void testInterceptorChain() {
+      InterceptorChain ic = TestingUtil.extractComponent(cache(0), InterceptorChain.class);
+
+      assertTrue(ic.containsInterceptorType(GMUDistributionInterceptor.class));
+      assertTrue(ic.containsInterceptorType(GMUDistributionInterceptor.class));
+      assertTrue(ic.containsInterceptorType(TotalOrderGMUDistributionInterceptor.class));
+
+      assertTrue(ic.containsInterceptorType(GMUEntryWrappingInterceptor.class));
+      assertTrue(ic.containsInterceptorType(GMUEntryWrappingInterceptor.class));
+      assertTrue(ic.containsInterceptorType(TotalOrderGMUEntryWrappingInterceptor.class));
+
+      assertTrue(ic.containsInterceptorType(OptimisticReadWriteLockingInterceptor.class));
+      assertTrue(ic.containsInterceptorType(OptimisticReadWriteLockingInterceptor.class));
+      assertFalse(ic.containsInterceptorType(OptimisticReadWriteLockingInterceptor.class));
    }
 
    @Override

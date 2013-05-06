@@ -33,7 +33,7 @@ public class OptimisticReadWriteLockingInterceptor extends OptimisticLockingInte
    @Override
    protected void afterWriteLocksAcquired(TxInvocationContext ctx, PrepareCommand command) throws InterruptedException {
       GMUPrepareCommand spc = GMUHelper.convert(command, GMUPrepareCommand.class);
-      Object[] readSet = spc.getReadSet();
+      Object[] readSet = ctx.isOriginLocal() ? ctx.getReadSet().toArray() : spc.getReadSet();
       TimSort.sort(readSet, PrepareCommand.KEY_COMPARATOR);
       acquireReadLocks(ctx, readSet);
    }
