@@ -17,6 +17,7 @@ import org.jgroups.blocks.Response;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import javax.transaction.RollbackException;
 import javax.transaction.Transaction;
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -329,6 +330,7 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
    }
 
    public void testQueue() throws Exception {
+      assertAtLeastCaches(2);
       final DelayCommit delayCommit = addDelayCommit(0, -1);
       final NotifyInboundInvocationHandler notifier = addNotifier(cache(1));
       final Object key1 = newKey(1);
@@ -382,6 +384,112 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
       delayCommit.unblock();
       Assert.assertTrue(first.get(10, TimeUnit.SECONDS));
       Assert.assertTrue(second.get(10, TimeUnit.SECONDS));
+      assertNoTransactions();
+   }
+
+   public void testConsistencyReadOnlyInSomeNodes() throws Exception {
+      assertAtLeastCaches(3);
+      final Object key1 = newKey(0);
+      final Object key2 = newKey(1);
+      final Object key3 = newKey(2);
+      final int initialValue = 1000;
+
+      tm(0).begin();
+      cache(0).put(key1, initialValue);
+      cache(0).put(key2, initialValue);
+      cache(0).put(key3, initialValue);
+      tm(0).commit();
+
+      tm(0).begin();
+      int value = (Integer) cache(0).get(key3);
+      Assert.assertEquals(value, initialValue);
+      Transaction transaction = tm(0).suspend();
+
+      tm(0).begin();
+      cache(0).put(key2, initialValue - 200);
+      cache(0).put(key3, initialValue + 200);
+      tm(0).commit();
+
+      tm(0).begin();
+      value = (Integer) cache(0).get(key1);
+      Assert.assertEquals(value, initialValue);
+      value = (Integer) cache(0).get(key2);
+      Assert.assertEquals(value, initialValue - 200);
+      value = (Integer) cache(0).get(key3);
+      Assert.assertEquals(value, initialValue + 200);
+      tm(0).commit();
+
+      tm(0).resume(transaction);
+      value = (Integer) cache(0).get(key1);
+      Assert.assertEquals(value, initialValue);
+      value = (Integer) cache(0).get(key2);
+      Assert.assertEquals(value, initialValue);
+      //put in a non-conflicting key
+      cache(0).put(key1, initialValue);
+      try {
+         tm(0).commit();
+         Assert.fail("Transaction should fail");
+      } catch (RollbackException e) {
+         //expected
+      }
+
+      tm(0).begin();
+      value = (Integer) cache(0).get(key1);
+      Assert.assertEquals(value, initialValue);
+      value = (Integer) cache(0).get(key2);
+      Assert.assertEquals(value, initialValue - 200);
+      value = (Integer) cache(0).get(key3);
+      Assert.assertEquals(value, initialValue + 200);
+      tm(0).commit();
+
+      assertNoTransactions();
+   }
+
+   public void testConsistencyReadOnlyInSomeNodes2() throws Exception {
+      assertAtLeastCaches(3);
+      final Object key1 = newKey(0);
+      final Object key2 = newKey(1);
+      final Object key3 = newKey(2);
+      final int initialValue = 1000;
+
+      tm(0).begin();
+      cache(0).put(key1, initialValue);
+      cache(0).put(key2, initialValue);
+      cache(0).put(key3, initialValue);
+      tm(0).commit();
+
+      tm(0).begin();
+      cache(0).put(key2, initialValue - 200);
+      cache(0).put(key3, initialValue + 200);
+      tm(0).commit();
+
+      tm(0).begin();
+      int value = (Integer) cache(0).get(key1);
+      Assert.assertEquals(value, initialValue);
+      value = (Integer) cache(0).get(key2);
+      Assert.assertEquals(value, initialValue - 200);
+      value = (Integer) cache(0).get(key3);
+      Assert.assertEquals(value, initialValue + 200);
+      tm(0).commit();
+
+      tm(0).begin();
+      value = (Integer) cache(0).get(key3);
+      Assert.assertEquals(value, initialValue + 200);
+      value = (Integer) cache(0).get(key2);
+      Assert.assertEquals(value, initialValue - 200);
+      //put in a non-conflicting key
+      cache(0).put(key1, initialValue);
+      tm(0).commit();
+
+      tm(0).begin();
+      value = (Integer) cache(0).get(key1);
+      Assert.assertEquals(value, initialValue);
+      value = (Integer) cache(0).get(key2);
+      Assert.assertEquals(value, initialValue - 200);
+      value = (Integer) cache(0).get(key3);
+      Assert.assertEquals(value, initialValue + 200);
+      tm(0).commit();
+
       assertNoTransactions();
    }
 
