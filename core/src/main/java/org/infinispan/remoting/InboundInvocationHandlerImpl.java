@@ -235,7 +235,6 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       } else if (cmd instanceof GMUCommitCommand) {
          final GMUCommitCommand gmuCommitCommand = (GMUCommitCommand) cmd;
          gmuCommitCommand.init();
-         gmuExecutorService.checkForReadyTasks();
          gmuExecutorService.execute(new BlockingRunnable() {
             @Override
             public boolean isReady() {
@@ -256,6 +255,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
                gmuExecutorService.checkForReadyTasks();
             }
          });
+         gmuExecutorService.checkForReadyTasks();
          return;
       }
       Response resp = handleInternal(cmd, cr);

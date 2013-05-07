@@ -1,11 +1,30 @@
 package org.infinispan.tx.gmu;
 
+import org.infinispan.Cache;
+import org.infinispan.commands.remote.CacheRpcCommand;
+import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
+import org.infinispan.factories.ComponentRegistry;
+import org.infinispan.factories.GlobalComponentRegistry;
+import org.infinispan.remoting.InboundInvocationHandler;
+import org.infinispan.remoting.transport.Address;
+import org.infinispan.remoting.transport.Transport;
+import org.infinispan.remoting.transport.jgroups.CommandAwareRpcDispatcher;
+import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
+import org.infinispan.transaction.xa.GlobalTransaction;
+import org.jgroups.blocks.Response;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import javax.transaction.Transaction;
+import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * // TODO: Document this
@@ -27,11 +46,11 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
       final int numberOfKeys = 6;
 
       final Object cache0Key0 = newKey(0, Arrays.asList(1, 2));
-      final Object cache0Key1 = newKey(0, Arrays.asList(1,2));
-      final Object cache1Key0 = newKey(1, Arrays.asList(0,2));
-      final Object cache1Key1 = newKey(1, Arrays.asList(0,2));
-      final Object cache2Key0 = newKey(2, Arrays.asList(1,0));
-      final Object cache2Key1 = newKey(2, Arrays.asList(1,0));
+      final Object cache0Key1 = newKey(0, Arrays.asList(1, 2));
+      final Object cache1Key0 = newKey(1, Arrays.asList(0, 2));
+      final Object cache1Key1 = newKey(1, Arrays.asList(0, 2));
+      final Object cache2Key0 = newKey(2, Arrays.asList(1, 0));
+      final Object cache2Key1 = newKey(2, Arrays.asList(1, 0));
 
       logKeysUsedInTest("testConcurrentTransactionConsistency", cache0Key0, cache0Key1, cache1Key0, cache1Key1,
                         cache2Key0, cache2Key1);
@@ -138,17 +157,17 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
       final int initialValue = 1000;
       final int numberOfKeys = 4;
 
-      final Object cache0Key0 = newKey(0, Arrays.asList(1,2));
-      final Object cache0Key1 = newKey(0, Arrays.asList(1,2));
-      final Object cache1Key0 = newKey(1, Arrays.asList(0,2));
-      final Object cache2Key0 = newKey(2, Arrays.asList(1,0));
+      final Object cache0Key0 = newKey(0, Arrays.asList(1, 2));
+      final Object cache0Key1 = newKey(0, Arrays.asList(1, 2));
+      final Object cache1Key0 = newKey(1, Arrays.asList(0, 2));
+      final Object cache2Key0 = newKey(2, Arrays.asList(1, 0));
 
       logKeysUsedInTest("testConcurrentTransactionConsistency", cache0Key0, cache0Key1, cache1Key0, cache2Key0);
 
-      assertKeyOwners(cache0Key0, Arrays.asList(0), Arrays.asList(1,2));
-      assertKeyOwners(cache0Key1, Arrays.asList(0), Arrays.asList(1,2));
-      assertKeyOwners(cache1Key0, Arrays.asList(1), Arrays.asList(0,2));
-      assertKeyOwners(cache2Key0, Arrays.asList(2), Arrays.asList(1,0));
+      assertKeyOwners(cache0Key0, Arrays.asList(0), Arrays.asList(1, 2));
+      assertKeyOwners(cache0Key1, Arrays.asList(0), Arrays.asList(1, 2));
+      assertKeyOwners(cache1Key0, Arrays.asList(1), Arrays.asList(0, 2));
+      assertKeyOwners(cache2Key0, Arrays.asList(2), Arrays.asList(1, 0));
 
       final DelayCommit cache1DelayCommit = addDelayCommit(1, -1);
       final DelayCommit cache2DelayCommit = addDelayCommit(2, -1);
@@ -222,7 +241,7 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
       assertNoTransactions();
    }
 
-   public void testWriteConsistency() throws Exception{
+   public void testWriteConsistency() throws Exception {
       assertAtLeastCaches(2);
 
       final int initialValue = 1000;
@@ -309,6 +328,63 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
       assertNoTransactions();
    }
 
+   public void testQueue() throws Exception {
+      final DelayCommit delayCommit = addDelayCommit(0, -1);
+      final NotifyInboundInvocationHandler notifier = addNotifier(cache(1));
+      final Object key1 = newKey(1);
+      final Object key2 = newKey(1);
+      final Object key3 = newKey(0);
+
+      for (int i = 0; i < 10; ++i) {
+         //increments only the vector clock for cache 0.
+         cache(0).put(key3, VALUE_1);
+      }
+
+      Future<Boolean> first = fork(new Callable<Boolean>() {
+         @Override
+         public Boolean call() throws Exception {
+            try {
+               tm(0).begin();
+               cache(0).put(key3, VALUE_2);
+               cache(0).put(key1, VALUE_2);
+               delayCommit.blockTransaction(globalTransaction(0));
+               //this is supposed to create a transaction entry in the commit queue with [10,1,0]
+               tm(0).commit();
+            } catch (Throwable throwable) {
+               return Boolean.FALSE;
+            }
+            return Boolean.TRUE;
+         }
+      });
+      //right now, the commit is blocked, i.e. it was not sent.
+      delayCommit.awaitUntilCommitIsBlocked();
+      tm(0).begin();
+      cache(0).put(key2, VALUE_2);
+      GlobalTransaction globalTransaction = globalTransaction(0);
+      final Transaction transaction = tm(0).suspend();
+
+      Future<Boolean> second = fork(new Callable<Boolean>() {
+         @Override
+         public Boolean call() throws Exception {
+            try {
+               tm(0).resume(transaction);
+               tm(0).commit();
+               //this is going to create a  transaction entry in the commit queue with [10,2,0] and ready to commit
+            } catch (Throwable throwable) {
+               return Boolean.FALSE;
+            }
+            return Boolean.TRUE;
+         }
+      });
+      //await until the CommitCommand is put in the queue in cache 1.
+      notifier.awaitUntilCommitReceived(globalTransaction);
+      //when we unblock it, the first transaction entry should be updated to [11,11,0] and re-order to the second place
+      delayCommit.unblock();
+      Assert.assertTrue(first.get(10, TimeUnit.SECONDS));
+      Assert.assertTrue(second.get(10, TimeUnit.SECONDS));
+      assertNoTransactions();
+   }
+
    @Override
    protected void decorate(ConfigurationBuilder builder) {
       builder.clustering().clustering().hash().numOwners(1);
@@ -327,5 +403,61 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
    @Override
    protected CacheMode cacheMode() {
       return CacheMode.DIST_SYNC;
+   }
+
+   private NotifyInboundInvocationHandler addNotifier(Cache<?, ?> cache) {
+      ComponentRegistry componentRegistry = cache.getAdvancedCache().getComponentRegistry();
+      GlobalComponentRegistry globalComponentRegistry = componentRegistry.getGlobalComponentRegistry();
+      InboundInvocationHandler inboundHandler = globalComponentRegistry.getComponent(InboundInvocationHandler.class);
+      NotifyInboundInvocationHandler notifyInboundInvocationHandler = new NotifyInboundInvocationHandler(inboundHandler);
+      globalComponentRegistry.registerComponent(notifyInboundInvocationHandler, InboundInvocationHandler.class);
+      globalComponentRegistry.rewire();
+
+      JGroupsTransport t = (JGroupsTransport) componentRegistry.getComponent(Transport.class);
+      CommandAwareRpcDispatcher card = t.getCommandAwareRpcDispatcher();
+      try {
+         Field f = card.getClass().getDeclaredField("inboundInvocationHandler");
+         f.setAccessible(true);
+         f.set(card, notifyInboundInvocationHandler);
+      } catch (NoSuchFieldException e) {
+         e.printStackTrace();
+      } catch (IllegalAccessException e) {
+         e.printStackTrace();
+      }
+      return notifyInboundInvocationHandler;
+   }
+
+   private class NotifyInboundInvocationHandler implements InboundInvocationHandler {
+
+      private final Set<GlobalTransaction> commitReceived;
+      private final InboundInvocationHandler actual;
+
+      private NotifyInboundInvocationHandler(InboundInvocationHandler actual) {
+         this.actual = actual;
+         commitReceived = new HashSet<GlobalTransaction>();
+      }
+
+      @Override
+      public void handle(CacheRpcCommand command, Address origin, Response response) throws Throwable {
+         actual.handle(command, origin, response);
+         if (command instanceof CommitCommand) {
+            notifyGlobalTransaction(((CommitCommand) command).getGlobalTransaction());
+         }
+      }
+
+      public void notifyGlobalTransaction(GlobalTransaction globalTransaction) {
+         synchronized (commitReceived) {
+            commitReceived.add(globalTransaction);
+            commitReceived.notifyAll();
+         }
+      }
+
+      public void awaitUntilCommitReceived(GlobalTransaction globalTransaction) throws InterruptedException {
+         synchronized (commitReceived) {
+            while (!commitReceived.remove(globalTransaction)) {
+               commitReceived.wait();
+            }
+         }
+      }
    }
 }
