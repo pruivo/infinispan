@@ -88,9 +88,14 @@ public class TransactionCommitManager {
       return transactionEntries;
    }
 
-   public void transactionCommitted(Collection<CommittedTransaction> transactions) {
+   public void transactionCommitted(Collection<CommittedTransaction> transactions, Collection<TransactionEntry> transactionEntries) {
       commitLog.insertNewCommittedVersions(transactions);
       garbageCollectorManager.notifyCommittedTransactions(transactions.size());
+      //mark the entries committed here after they are inserted in the commit log.
+      for (TransactionEntry transactionEntry : transactionEntries) {
+         transactionEntry.committed();
+      }
+      //then we can remove them from the transaction queue.
       sortedTransactionQueue.hasTransactionReadyToCommit();
    }
 
