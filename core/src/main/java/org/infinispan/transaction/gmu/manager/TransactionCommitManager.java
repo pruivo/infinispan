@@ -38,8 +38,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersion;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 import static org.infinispan.transaction.gmu.manager.SortedTransactionQueue.TransactionEntry;
 
 /**
@@ -64,7 +62,7 @@ public class TransactionCommitManager {
    public void inject(InvocationContextContainer icc, VersionGenerator versionGenerator, CommitLog commitLog,
                       Transport transport, Cache cache, GarbageCollectorManager garbageCollectorManager) {
       if (versionGenerator instanceof GMUVersionGenerator) {
-         this.versionGenerator = toGMUVersionGenerator(versionGenerator);
+         this.versionGenerator = (GMUVersionGenerator) versionGenerator;
       }
       this.commitLog = commitLog;
       this.garbageCollectorManager = garbageCollectorManager;
@@ -74,11 +72,14 @@ public class TransactionCommitManager {
     * add a transaction to the queue. A temporary commit vector clock is associated and with it, it order the
     * transactions
     *
-    * @param cacheTransaction the transaction to be prepared
+    * @param cacheTransaction  the transaction to be prepared
+    * @param fromStateTransfer {@code true} if the transaction is from state transfer.
     */
-   public synchronized void prepareTransaction(CacheTransaction cacheTransaction) {
+   public synchronized void prepareTransaction(CacheTransaction cacheTransaction, boolean fromStateTransfer) {
       long concurrentClockNumber = commitLog.getCurrentVersion().getThisNodeVersionValue();
-      EntryVersion preparedVersion = versionGenerator.setNodeVersion(commitLog.getCurrentVersion(),
+      EntryVersion txVersion = !fromStateTransfer ? commitLog.getCurrentVersion() :
+            versionGenerator.mergeAndMax(commitLog.getCurrentVersion(), cacheTransaction.getTransactionVersion());
+      EntryVersion preparedVersion = versionGenerator.setNodeVersion(txVersion,
                                                                      ++lastPreparedVersion);
 
       cacheTransaction.setTransactionVersion(preparedVersion);
@@ -90,7 +91,7 @@ public class TransactionCommitManager {
    }
 
    public synchronized TransactionEntry commitTransaction(GlobalTransaction globalTransaction, EntryVersion version) {
-      GMUVersion commitVersion = toGMUVersion(version);
+      final GMUVersion commitVersion = (GMUVersion) version;
       lastPreparedVersion = Math.max(commitVersion.getThisNodeVersionValue(), lastPreparedVersion);
       TransactionEntry entry = sortedTransactionQueue.commit(globalTransaction, commitVersion);
       if (entry == null) {

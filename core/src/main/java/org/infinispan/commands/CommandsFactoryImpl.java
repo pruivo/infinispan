@@ -25,6 +25,7 @@ package org.infinispan.commands;
 import org.infinispan.Cache;
 import org.infinispan.atomic.Delta;
 import org.infinispan.commands.control.LockControlCommand;
+import org.infinispan.commands.control.ShadowTransactionCommand;
 import org.infinispan.commands.module.ModuleCommandInitializer;
 import org.infinispan.commands.read.DistributedExecuteCommand;
 import org.infinispan.commands.read.EntrySetCommand;
@@ -440,7 +441,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
             break;
          case GMUClusteredGetCommand.COMMAND_ID:
             GMUClusteredGetCommand gmuClusteredGetCommand = (GMUClusteredGetCommand) c;
-            gmuClusteredGetCommand.initializeGMUComponents(commitLog, versionGenerator);
+            gmuClusteredGetCommand.initializeGMUComponents(commitLog, versionGenerator, stateConsumer);
          case ClusteredGetCommand.COMMAND_ID:
             ClusteredGetCommand clusteredGetCommand = (ClusteredGetCommand) c;
             clusteredGetCommand.initialize(icc, this, entryFactory, interceptorChain, distributionManager, txTable,
@@ -674,5 +675,10 @@ public class CommandsFactoryImpl implements CommandsFactory {
    @Override
    public ReconfigurableProtocolCommand buildReconfigurableProtocolCommand(ReconfigurableProtocolCommand.Type type, String protocolId) {
       return new ReconfigurableProtocolCommand(cacheName, type, protocolId);
+   }
+
+   @Override
+   public ShadowTransactionCommand buildShadowTransactionCommand() {
+      return new ShadowTransactionCommand();
    }
 }

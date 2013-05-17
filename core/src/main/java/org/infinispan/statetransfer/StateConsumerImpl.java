@@ -26,12 +26,17 @@ package org.infinispan.statetransfer;
 import org.infinispan.Cache;
 import org.infinispan.CacheException;
 import org.infinispan.commands.CommandsFactory;
+import org.infinispan.commands.control.ShadowTransactionCommand;
 import org.infinispan.commands.write.InvalidateCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.Configurations;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.container.versioning.EntryVersion;
+import org.infinispan.container.versioning.VersionGenerator;
+import org.infinispan.container.versioning.gmu.GMUCacheEntryVersion;
+import org.infinispan.container.versioning.gmu.GMUVersionGenerator;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextContainer;
@@ -61,6 +66,8 @@ import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.util.InfinispanCollections;
 import org.infinispan.util.ReadOnlyDataContainerBackedKeySet;
 import org.infinispan.util.concurrent.ConcurrentHashSet;
+import org.infinispan.util.concurrent.ConcurrentMapFactory;
+import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -150,6 +157,9 @@ public class StateConsumerImpl implements StateConsumer {
    private boolean isTransferThreadRunning;
 
    private volatile boolean ownsData = false;
+   private ConcurrentMap<Object, OwnersList> oldKeyOwners;
+   private VersionGenerator versionGenerator;
+   private final Map<Address, ShadowTransactionInfo> shadowTransactionInfoMap = new HashMap<Address, ShadowTransactionInfo>();
 
    public StateConsumerImpl() {
    }
@@ -175,6 +185,9 @@ public class StateConsumerImpl implements StateConsumer {
       final Set<Object> localUpdatedKeys = updatedKeys;
       if (localUpdatedKeys != null) {
          if (cacheTopology.getWriteConsistentHash().isKeyLocalToNode(rpcManager.getAddress(), key)) {
+            if (log.isTraceEnabled()) {
+               log.tracef("Mark key [%s] as updated", key);
+            }
             localUpdatedKeys.add(key);
          }
       }
@@ -190,7 +203,11 @@ public class StateConsumerImpl implements StateConsumer {
    public boolean isKeyUpdated(Object key) {
       // grab a copy of the reference to prevent issues if another thread calls stopApplyingState() between null check and actual usage
       final Set<Object> localUpdatedKeys = updatedKeys;
-      return localUpdatedKeys == null || localUpdatedKeys.contains(key);
+      boolean updated = localUpdatedKeys == null || localUpdatedKeys.contains(key);
+      if (log.isTraceEnabled()) {
+         log.tracef("Is key [%s] updated? %s (collection is null? %s)", key, updated, localUpdatedKeys == null);
+      }
+      return updated;
    }
 
    @Inject
@@ -208,7 +225,8 @@ public class StateConsumerImpl implements StateConsumer {
                     TransactionTable transactionTable,
                     StateTransferLock stateTransferLock,
                     CacheNotifier cacheNotifier,
-                    TotalOrderManager totalOrderManager) {
+                    TotalOrderManager totalOrderManager,
+                    VersionGenerator versionGenerator) {
       this.cacheName = cache.getName();
       this.executorService = executorService;
       this.stateTransferManager = stateTransferManager;
@@ -224,6 +242,7 @@ public class StateConsumerImpl implements StateConsumer {
       this.stateTransferLock = stateTransferLock;
       this.cacheNotifier = cacheNotifier;
       this.totalOrderManager = totalOrderManager;
+      this.versionGenerator = versionGenerator;
 
       isInvalidationMode = configuration.clustering().cacheMode().isInvalidation();
 
@@ -236,6 +255,9 @@ public class StateConsumerImpl implements StateConsumer {
             configuration.clustering().cacheMode().isClustered();
 
       timeout = configuration.clustering().stateTransfer().timeout();
+      if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
+         oldKeyOwners = ConcurrentMapFactory.makeConcurrentMap();
+      }
    }
 
    public boolean hasActiveTransfers() {
@@ -275,9 +297,19 @@ public class StateConsumerImpl implements StateConsumer {
    }
 
    @Override
+   public List<Address> oldOwners(Object key) {
+      if (oldKeyOwners == null) {
+         return InfinispanCollections.emptyList();
+      }
+      OwnersList list = oldKeyOwners.get(key);
+      return list == null ? InfinispanCollections.<Address>emptyList() : list.toList();
+   }
+
+   @Override
    public void onTopologyUpdate(final CacheTopology cacheTopology, final boolean isRebalance) {
       final boolean isMember = cacheTopology.getMembers().contains(rpcManager.getAddress());
-      if (trace) log.tracef("Received new topology for cache %s, isRebalance = %b, isMember = %b, topology = %s", cacheName, isRebalance, isMember, cacheTopology);
+      if (trace)
+         log.tracef("Received new topology for cache %s, isRebalance = %b, isMember = %b, topology = %s", cacheName, isRebalance, isMember, cacheTopology);
 
       if (isRebalance) {
          if (!ownsData && cacheTopology.getMembers().contains(rpcManager.getAddress())) {
@@ -285,7 +317,7 @@ public class StateConsumerImpl implements StateConsumer {
          }
          rebalanceInProgress.set(true);
          cacheNotifier.notifyDataRehashed(cacheTopology.getCurrentCH(), cacheTopology.getPendingCH(),
-               cacheTopology.getTopologyId(), true);
+                                          cacheTopology.getTopologyId(), true);
 
          //in total order, we should wait for remote transactions before proceeding
          if (configuration.transaction().transactionProtocol().isTotalOrder()) {
@@ -358,7 +390,7 @@ public class StateConsumerImpl implements StateConsumer {
 
                if (trace) {
                   log.tracef("On cache %s we have: removed segments: %s; new segments: %s; old segments: %s; added segments: %s",
-                        cacheName, removedSegments, newSegments, previousSegments, addedSegments);
+                             cacheName, removedSegments, newSegments, previousSegments, addedSegments);
                }
 
                // remove inbound transfers for segments we no longer own
@@ -383,7 +415,7 @@ public class StateConsumerImpl implements StateConsumer {
          }
 
          log.tracef("Topology update processed, rebalanceInProgress = %s, isRebalance = %s, pending CH = %s",
-               rebalanceInProgress.get(), isRebalance, cacheTopology.getPendingCH());
+                    rebalanceInProgress.get(), isRebalance, cacheTopology.getPendingCH());
          if (rebalanceInProgress.get()) {
             // there was a rebalance in progress
             if (!isRebalance && cacheTopology.getPendingCH() == null) {
@@ -393,7 +425,7 @@ public class StateConsumerImpl implements StateConsumer {
                   // if the coordinator changed, we might get two concurrent topology updates,
                   // but we only want to notify the @DataRehashed listeners once
                   cacheNotifier.notifyDataRehashed(previousReadCh, cacheTopology.getCurrentCH(),
-                        cacheTopology.getTopologyId(), false);
+                                                   cacheTopology.getTopologyId(), false);
                   if (log.isTraceEnabled()) {
                      log.tracef("Unlock State Transfer in Progress for topology ID %s", cacheTopology.getTopologyId());
                   }
@@ -442,7 +474,7 @@ public class StateConsumerImpl implements StateConsumer {
             : InfinispanCollections.<Integer>emptySet();
    }
 
-   public void applyState(Address sender, int topologyId, Collection<StateChunk> stateChunks) {
+   public void applyState(Address sender, int topologyId, Collection<StateChunk> stateChunks, EntryVersion txVersion) {
       ConsistentHash wCh = cacheTopology.getWriteConsistentHash();
       // ignore responses received after we are no longer a member
       if (!wCh.getMembers().contains(rpcManager.getAddress())) {
@@ -475,7 +507,7 @@ public class StateConsumerImpl implements StateConsumer {
                         inboundTransfer = transferTask;
                         break;
                      }
-                  }                  
+                  }
                }
             } else {
                inboundTransfer = transfersBySegment.get(stateChunk.getSegmentId());
@@ -483,7 +515,7 @@ public class StateConsumerImpl implements StateConsumer {
          }
          if (inboundTransfer != null) {
             if (stateChunk.getCacheEntries() != null) {
-               doApplyState(sender, stateChunk.getSegmentId(), stateChunk.getCacheEntries());
+               doApplyState(sender, stateChunk.getSegmentId(), stateChunk.getCacheEntries(), txVersion);
             }
 
             inboundTransfer.onStateReceived(stateChunk.getSegmentId(), stateChunk.isLastChunk());
@@ -500,7 +532,7 @@ public class StateConsumerImpl implements StateConsumer {
       }
    }
 
-   private void doApplyState(Address sender, int segmentId, Collection<InternalCacheEntry> cacheEntries) {
+   private void doApplyState(Address sender, int segmentId, Collection<InternalCacheEntry> cacheEntries, EntryVersion txVersion) {
       log.debugf("Applying new state for segment %d of cache %s from node %s: received %d cache entries", segmentId, cacheName, sender, cacheEntries.size());
       if (trace) {
          List<Object> keys = new ArrayList<Object>(cacheEntries.size());
@@ -513,66 +545,115 @@ public class StateConsumerImpl implements StateConsumer {
       // CACHE_MODE_LOCAL avoids handling by StateTransferInterceptor and any potential locks in StateTransferLock
       EnumSet<Flag> flags = EnumSet.of(PUT_FOR_STATE_TRANSFER, CACHE_MODE_LOCAL, IGNORE_RETURN_VALUES, SKIP_REMOTE_LOOKUP, SKIP_SHARED_CACHE_STORE, SKIP_OWNERSHIP_CHECK, SKIP_XSITE_BACKUP);
       for (InternalCacheEntry e : cacheEntries) {
-         try {
-            InvocationContext ctx;
-            if (transactionManager != null) {
-               // cache is transactional
-               transactionManager.begin();
-               Transaction transaction = transactionManager.getTransaction();
-               ctx = icc.createInvocationContext(transaction);
-               ((TxInvocationContext) ctx).setImplicitTransaction(true);
-            } else {
-               // non-tx cache
-               ctx = icc.createSingleKeyNonTxInvocationContext();
+         if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
+            OwnersList ownersList = new OwnersList();
+            OwnersList existing = oldKeyOwners.putIfAbsent(e.getKey(), ownersList);
+            if (existing != null) {
+               ownersList = existing;
+            }
+            ownersList.add(sender);
+            //Wait for the commit of the state-transfer transaction
+            ShadowTransactionInfo transactionInfo;
+            synchronized (this) {
+               transactionInfo = this.shadowTransactionInfoMap.get(sender);
             }
 
-            PutKeyValueCommand put = useVersionedPut ?
-                  commandsFactory.buildVersionedPutKeyValueCommand(e.getKey(), e.getValue(), e.getLifespan(), e.getMaxIdle(), e.getVersion(), flags)
-                  : commandsFactory.buildPutKeyValueCommand(e.getKey(), e.getValue(), e.getLifespan(), e.getMaxIdle(), flags);
-
-            boolean success = false;
-            try {
-               interceptorChain.invoke(ctx, put);
-               success = true;
-            } finally {
-               if (ctx.isInTxScope()) {
-                  if (success) {
-                     interceptorChain.invoke(ctx, commandsFactory.buildSetClassCommand("NBST_CLASS"));
-                     ((LocalTransaction)((TxInvocationContext)ctx).getCacheTransaction()).setFromStateTransfer(true);
-                     try {
-                        transactionManager.commit();
-                     } catch (Throwable ex) {
-                        log.errorf(ex, "Could not commit transaction created by state transfer of key %s", e.getKey());
-                        if (transactionManager.getTransaction() != null) {
-                           transactionManager.rollback();
-                        }
-                     }
-                  } else {
-                     transactionManager.rollback();
+            GMUCacheEntryVersion version = null;
+            if (transactionInfo == null) {
+               log.error("Unable to determine a commit version on state transfer");
+            } else {
+               boolean canAdvance = false;
+               while (!canAdvance) {
+                  try {
+                     transactionInfo.getTransactionEntry().awaitUntilCommitted();
+                     canAdvance = true;
+                  } catch (InterruptedException e1) {
+                     e1.printStackTrace();
                   }
                }
+
+               version = transactionInfo.getTransactionEntry().getNewVersionInDataContainer();
             }
-         } catch (Exception ex) {
-            log.problemApplyingStateForKey(ex.getMessage(), e.getKey(), ex);
+
+            //Then put in the GMUDataContainer the new data by using the version numbers of the state transfer transaction
+            dataContainer.put(e.getKey(), e.getValue(), version, e.getLifespan(), e.getMaxIdle(), true);
+
+
+         } else {
+
+            try {
+               InvocationContext ctx;
+               if (transactionManager != null) {
+                  // cache is transactional
+                  transactionManager.begin();
+                  Transaction transaction = transactionManager.getTransaction();
+                  ctx = icc.createInvocationContext(transaction);
+                  ((TxInvocationContext) ctx).setImplicitTransaction(true);
+               } else {
+                  // non-tx cache
+                  ctx = icc.createSingleKeyNonTxInvocationContext();
+               }
+
+               PutKeyValueCommand put = useVersionedPut ?
+                     commandsFactory.buildVersionedPutKeyValueCommand(e.getKey(), e.getValue(), e.getLifespan(), e.getMaxIdle(), e.getVersion(), flags)
+                     : commandsFactory.buildPutKeyValueCommand(e.getKey(), e.getValue(), e.getLifespan(), e.getMaxIdle(), flags);
+
+               boolean success = false;
+               try {
+                  interceptorChain.invoke(ctx, put);
+                  success = true;
+               } finally {
+                  if (ctx.isInTxScope()) {
+                     if (success) {
+                        interceptorChain.invoke(ctx, commandsFactory.buildSetClassCommand("NBST_CLASS"));
+                        ((LocalTransaction) ((TxInvocationContext) ctx).getCacheTransaction()).setFromStateTransfer(true);
+                        if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE &&
+                              versionGenerator != null && versionGenerator instanceof GMUVersionGenerator &&
+                              txVersion != null) {
+                           TxInvocationContext tctx = (TxInvocationContext) ctx;
+                           EntryVersion currentVersion = tctx.getTransactionVersion();
+                           tctx.setTransactionVersion(((GMUVersionGenerator) versionGenerator).mergeAndMax(currentVersion, txVersion));
+                        }
+                        try {
+                           transactionManager.commit();
+                        } catch (Throwable ex) {
+                           log.errorf(ex, "Could not commit transaction created by state transfer of key %s", e.getKey());
+                           if (transactionManager.getTransaction() != null) {
+                              transactionManager.rollback();
+                           }
+                        }
+                     } else {
+                        transactionManager.rollback();
+                     }
+                  }
+               }
+            } catch (Exception ex) {
+               log.problemApplyingStateForKey(ex.getMessage(), e.getKey(), ex);
+            }
          }
+         log.debugf("Finished applying state for segment %d of cache %s", segmentId, cacheName);
       }
-      log.debugf("Finished applying state for segment %d of cache %s", segmentId, cacheName);
    }
 
    protected void applyTransactions(Address sender, Collection<TransactionInfo> transactions) {
       log.debugf("Applying %d transactions for cache %s transferred from node %s", transactions.size(), cacheName, sender);
       if (isTransactional) {
          for (TransactionInfo transactionInfo : transactions) {
-            CacheTransaction tx = transactionTable.getLocalTransaction(transactionInfo.getGlobalTransaction());
-            if (tx == null) {
-               tx = transactionTable.getRemoteTransaction(transactionInfo.getGlobalTransaction());
+            if (transactionInfo instanceof ShadowTransactionInfo) {
+               //Try to commit the Shadow Transaction. IF successful it insert a new entry in the shadowTransactionInfoMap
+               applyShadowTransaction(sender, (ShadowTransactionInfo) transactionInfo);
+            } else {
+               CacheTransaction tx = transactionTable.getLocalTransaction(transactionInfo.getGlobalTransaction());
                if (tx == null) {
-                  tx = transactionTable.getOrCreateRemoteTransaction(transactionInfo.getGlobalTransaction(), transactionInfo.getModifications());
-                  ((RemoteTransaction) tx).setMissingLookedUpEntries(true);
+                  tx = transactionTable.getRemoteTransaction(transactionInfo.getGlobalTransaction());
+                  if (tx == null) {
+                     tx = transactionTable.getOrCreateRemoteTransaction(transactionInfo.getGlobalTransaction(), transactionInfo.getModifications());
+                     ((RemoteTransaction) tx).setMissingLookedUpEntries(true);
+                  }
                }
-            }
-            for (Object key : transactionInfo.getLockedKeys()) {
-               tx.addBackupLockForKey(key);
+               for (Object key : transactionInfo.getLockedKeys()) {
+                  tx.addBackupLockForKey(key);
+               }
             }
          }
       }
@@ -613,6 +694,63 @@ public class StateConsumerImpl implements StateConsumer {
    @Override
    public CacheTopology getCacheTopology() {
       return cacheTopology;
+   }
+
+   private void applyShadowTransaction(Address sender, ShadowTransactionInfo transactionInfo) {
+      try {
+         InvocationContext ctx = null;
+         if (transactionManager != null) {
+            // cache is transactional
+            transactionManager.begin();
+            Transaction transaction = transactionManager.getTransaction();
+            ctx = icc.createInvocationContext(transaction);
+            ((TxInvocationContext) ctx).setImplicitTransaction(true);
+         }
+
+         boolean success = false;
+
+         ShadowTransactionCommand shadowCommand = commandsFactory.buildShadowTransactionCommand();
+
+         try {
+            //This is a Shadow transaction for a state-transfer
+            interceptorChain.invoke(ctx, shadowCommand);
+            success = true;
+         } finally {
+            if (ctx != null && ctx.isInTxScope()) {
+               if (success) {
+                  ((LocalTransaction) ((TxInvocationContext) ctx).getCacheTransaction()).setFromStateTransfer(true);
+                  ((LocalTransaction) ((TxInvocationContext) ctx).getCacheTransaction()).setShadowTransactionInfo(transactionInfo);
+                  if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE &&
+                        versionGenerator != null && versionGenerator instanceof GMUVersionGenerator &&
+                        transactionInfo.getVersion() != null) {
+                     TxInvocationContext tctx = (TxInvocationContext) ctx;
+                     EntryVersion currentVersion = tctx.getTransactionVersion();
+                     tctx.setTransactionVersion(((GMUVersionGenerator) versionGenerator).mergeAndMax(currentVersion, transactionInfo.getVersion()));
+                  }
+                  try {
+                     transactionManager.commit();
+
+                     //Here we have committed the shadow transaction for the state transfer from that sender
+                     synchronized (this) {
+                        shadowTransactionInfoMap.put(sender, transactionInfo);
+                     }
+
+                  } catch (Throwable ex) {
+                     log.errorf(ex, "Could not commit transaction created by state transfer %s", transactionInfo);
+                     if (transactionManager.getTransaction() != null) {
+                        transactionManager.rollback();
+                     }
+                  }
+               } else {
+                  transactionManager.rollback();
+               }
+            }
+         }
+      } catch (Exception ex) {
+         log.problemApplyingShadowTransaction(ex.getMessage(), transactionInfo, ex);
+      }
+
+
    }
 
    private void addTransfers(Set<Integer> segments) {
@@ -834,6 +972,10 @@ public class StateConsumerImpl implements StateConsumer {
    }
 
    private void invalidateSegments(ConsistentHash consistentHash, Set<Integer> segmentsToL1) {
+      if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
+         return; //cannot remove the old value due to inconsistencies.
+      }
+
       // The actual owners keep track of the nodes that hold a key in L1 ("requestors") and
       // they invalidate the key on every requestor after a change.
       // But this information is only present on the owners where the ClusteredGetKeyValueCommand
@@ -968,7 +1110,7 @@ public class StateConsumerImpl implements StateConsumer {
          segmentsFromSource.removeAll(transfersBySegment.keySet());  // already in progress segments are excluded
          if (!segmentsFromSource.isEmpty()) {
             InboundTransferTask inboundTransfer = new InboundTransferTask(segmentsFromSource, source,
-                  cacheTopology.getTopologyId(), this, rpcManager, commandsFactory, timeout, cacheName);
+                                                                          cacheTopology.getTopologyId(), this, rpcManager, commandsFactory, timeout, cacheName);
             for (int segmentId : segmentsFromSource) {
                transfersBySegment.put(segmentId, inboundTransfer);
             }
@@ -989,13 +1131,14 @@ public class StateConsumerImpl implements StateConsumer {
    private boolean removeTransfer(InboundTransferTask inboundTransfer) {
       synchronized (this) {
          log.tracef("Removing inbound transfers for segments %s from source %s for cache %s",
-               inboundTransfer.getSegments(), inboundTransfer.getSource(), cacheName);
+                    inboundTransfer.getSegments(), inboundTransfer.getSource(), cacheName);
          taskQueue.remove(inboundTransfer);
          List<InboundTransferTask> transfers = transfersBySource.get(inboundTransfer.getSource());
          if (transfers != null) {
             if (transfers.remove(inboundTransfer)) {
                if (transfers.isEmpty()) {
                   transfersBySource.remove(inboundTransfer.getSource());
+                  shadowTransactionInfoMap.remove(inboundTransfer.getSource());
                }
                transfersBySegment.keySet().removeAll(inboundTransfer.getSegments());
                return true;
@@ -1010,5 +1153,25 @@ public class StateConsumerImpl implements StateConsumer {
       removeTransfer(inboundTransfer);
 
       notifyEndOfRebalanceIfNeeded(cacheTopology.getTopologyId());
+   }
+
+   private class OwnersList {
+      private final List<Address> owners;
+
+      public OwnersList() {
+         owners = new LinkedList<Address>();
+      }
+
+      public synchronized final void add(Address owner) {
+         owners.add(owner);
+      }
+
+      public synchronized final boolean contains(Address owner) {
+         return owners.contains(owner);
+      }
+
+      public synchronized final List<Address> toList() {
+         return Collections.unmodifiableList(owners);
+      }
    }
 }

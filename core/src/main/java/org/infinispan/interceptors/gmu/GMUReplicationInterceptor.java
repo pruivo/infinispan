@@ -37,7 +37,6 @@ import org.infinispan.util.logging.LogFactory;
 import java.util.Map;
 
 import static org.infinispan.transaction.gmu.GMUHelper.joinAndSetTransactionVersion;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 
 /**
  * @author Pedro Ruivo
@@ -51,7 +50,7 @@ public class GMUReplicationInterceptor extends ReplicationInterceptor {
 
    @Inject
    public void inject(VersionGenerator versionGenerator) {
-      this.versionGenerator = toGMUVersionGenerator(versionGenerator);
+      this.versionGenerator = (GMUVersionGenerator) versionGenerator;
    }
 
    @Override

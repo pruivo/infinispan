@@ -114,4 +114,6 @@ public interface InternalCacheEntry extends CacheEntry, Cloneable {
    InternalCacheValue toInternalCacheValue();
 
    InternalCacheEntry clone();
+
+   boolean isDonated();
 }

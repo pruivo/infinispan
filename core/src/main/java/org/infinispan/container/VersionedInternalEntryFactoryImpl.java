@@ -70,10 +70,19 @@ public class VersionedInternalEntryFactoryImpl extends InternalEntryFactoryImpl 
    @Override
    public InternalCacheEntry create(Object key, Object value, EntryVersion version, long lifespan, long maxIdle) {
       if (lifespan < 0 && maxIdle < 0) return new VersionedImmortalCacheEntry(key, value, version);
-      if (lifespan > -1 && maxIdle < 0) new VersionedMortalCacheEntry(key, value, version, lifespan);
-      if (lifespan < 0 && maxIdle > -1) new VersionedTransientCacheEntry(key, value, version, maxIdle);
+      if (lifespan > -1 && maxIdle < 0) return new VersionedMortalCacheEntry(key, value, version, lifespan);
+      if (lifespan < 0 && maxIdle > -1) return new VersionedTransientCacheEntry(key, value, version, maxIdle);
 
       return new VersionedTransientMortalCacheEntry(key, value, version, maxIdle, lifespan);
+   }
+
+   @Override
+   public InternalCacheEntry create(Object key, Object value, EntryVersion version, long lifespan, long maxIdle, boolean donated) {
+      if (lifespan < 0 && maxIdle < 0) return new VersionedImmortalCacheEntry(key, value, version, donated);
+      if (lifespan > -1 && maxIdle < 0) return new VersionedMortalCacheEntry(key, value, version, lifespan, donated);
+      if (lifespan < 0 && maxIdle > -1) return new VersionedTransientCacheEntry(key, value, version, maxIdle, donated);
+
+      return new VersionedTransientMortalCacheEntry(key, value, version, maxIdle, lifespan, donated);
    }
 
    @Override

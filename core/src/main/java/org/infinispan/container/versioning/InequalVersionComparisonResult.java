@@ -52,5 +52,8 @@ public enum InequalVersionComparisonResult {
    /**
     * Denotes a version that was created temporally <i>after</i> or <i>equal</i> than another version
     */
-   AFTER_OR_EQUAL
+   AFTER_OR_EQUAL,
+
+
+   UNSAFE_BEFORE_OR_EQUAL
 }

@@ -23,6 +23,7 @@
 package org.infinispan.commands;
 
 import org.infinispan.commands.control.LockControlCommand;
+import org.infinispan.commands.control.ShadowTransactionCommand;
 import org.infinispan.commands.read.DistributedExecuteCommand;
 import org.infinispan.commands.read.EntrySetCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
@@ -99,4 +100,7 @@ public interface Visitor {
    <V> Object visitDistributedExecuteCommand(InvocationContext ctx, DistributedExecuteCommand<V> command) throws Throwable;
 
    Object visitSetTransactionClassCommand(InvocationContext ctx, SetTransactionClassCommand command) throws Throwable;
+
+   // state transfer command
+   Object visitShadowTransactionCommand(InvocationContext ctx, ShadowTransactionCommand command) throws Throwable;
 }

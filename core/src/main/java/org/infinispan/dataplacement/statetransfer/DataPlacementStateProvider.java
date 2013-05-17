@@ -44,7 +44,8 @@ public class DataPlacementStateProvider extends StateProviderImpl {
       return new DataPlacementOutboundTransferTask(destination, segments, chunkSize, cacheTopology.getTopologyId(),
                                                    cacheTopology.getReadConsistentHash(), this,
                                                    cacheTopology.getWriteConsistentHash(), dataContainer,
-                                                   cacheLoaderManager, rpcManager, commandsFactory, timeout, cacheName);
+                                                   cacheLoaderManager, rpcManager, commandsFactory, timeout, cacheName,
+                                                   commitLog);
    }
 
    @Override

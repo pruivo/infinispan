@@ -82,6 +82,15 @@ public class InternalEntryFactoryImpl implements InternalEntryFactory {
       return new TransientMortalCacheEntry(key, value, maxIdle, lifespan);
    }
 
+   @Override
+   public InternalCacheEntry create(Object key, Object value, EntryVersion version, long lifespan, long maxIdle, boolean donated) {
+      if (lifespan < 0 && maxIdle < 0) return new ImmortalCacheEntry(key, value, donated);
+      if (lifespan > -1 && maxIdle < 0) return new MortalCacheEntry(key, value, lifespan, donated);
+      if (lifespan < 0 && maxIdle > -1) return new TransientCacheEntry(key, value, maxIdle, donated);
+
+      return new TransientMortalCacheEntry(key, value, maxIdle, lifespan, donated);
+   }
+
 
    @Override
    public InternalCacheEntry update(InternalCacheEntry ice, long lifespan, long maxIdle) {

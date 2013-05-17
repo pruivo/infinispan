@@ -39,6 +39,7 @@ import java.util.Set;
  * // TODO: Document this
  *
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class InternalGMUValueCacheEntry implements InternalGMUCacheEntry {
@@ -48,14 +49,16 @@ public class InternalGMUValueCacheEntry implements InternalGMUCacheEntry {
    private final EntryVersion maxTxVersion;
    private EntryVersion maxValidVersion;
    private final boolean mostRecent;
+   private final boolean unsafeToRead;
 
    public InternalGMUValueCacheEntry(InternalCacheEntry internalCacheEntry, EntryVersion maxTxVersion,
-                                     boolean mostRecent, EntryVersion creationVersion, EntryVersion maxValidVersion) {
+                                     boolean mostRecent, EntryVersion creationVersion, EntryVersion maxValidVersion, boolean unsafeToRead) {
       this.internalCacheEntry = internalCacheEntry;
       this.creationVersion = creationVersion;
       this.maxTxVersion = maxTxVersion;
       this.maxValidVersion = maxValidVersion;
       this.mostRecent = mostRecent;
+      this.unsafeToRead = unsafeToRead;
    }
 
    @Override
@@ -114,9 +117,14 @@ public class InternalGMUValueCacheEntry implements InternalGMUCacheEntry {
    }
 
    @Override
+   public boolean isUnsafeToRead() {
+      return unsafeToRead;
+   }
+
+   @Override
    public InternalCacheValue toInternalCacheValue() {
       return new InternalGMUValueCacheValue(internalCacheEntry.toInternalCacheValue(), maxTxVersion, mostRecent,
-                                            creationVersion, maxValidVersion);
+                                            creationVersion, maxValidVersion, unsafeToRead);
    }
 
    @Override
@@ -274,6 +282,11 @@ public class InternalGMUValueCacheEntry implements InternalGMUCacheEntry {
    }
 
    @Override
+   public boolean isDonated() {
+      return internalCacheEntry.isDonated();
+   }
+
+   @Override
    public InternalCacheEntry getInternalCacheEntry() {
       return internalCacheEntry;
    }
@@ -298,6 +311,7 @@ public class InternalGMUValueCacheEntry implements InternalGMUCacheEntry {
             ", maxTxVersion=" + maxTxVersion +
             ", maxValidVersion=" + maxValidVersion +
             ", mostRecent=" + mostRecent +
+            ", unsafeToRead=" + unsafeToRead +
             '}';
    }
 
@@ -315,6 +329,7 @@ public class InternalGMUValueCacheEntry implements InternalGMUCacheEntry {
          output.writeObject(object.maxTxVersion);
          output.writeObject(object.maxValidVersion);
          output.writeBoolean(object.mostRecent);
+         output.writeBoolean(object.unsafeToRead);
       }
 
       @Override
@@ -324,7 +339,8 @@ public class InternalGMUValueCacheEntry implements InternalGMUCacheEntry {
          EntryVersion maxTxVersion = (EntryVersion) input.readObject();
          EntryVersion maxValidVersion = (EntryVersion) input.readObject();
          boolean mostRecent = input.readBoolean();
-         return new InternalGMUValueCacheEntry(internalCacheEntry, maxTxVersion, mostRecent, creationVersion, maxValidVersion
+         boolean unsafeToRead = input.readBoolean();
+         return new InternalGMUValueCacheEntry(internalCacheEntry, maxTxVersion, mostRecent, creationVersion, maxValidVersion, unsafeToRead
          );
       }
 

@@ -194,7 +194,8 @@ public class StateConsumerTest extends AbstractInfinispanTest {
       // create state provider
       final StateConsumerImpl stateConsumer = new StateConsumerImpl();
       stateConsumer.init(cache, pooledExecutorService, stateTransferManager, interceptorChain, icc, configuration, rpcManager, null,
-            commandsFactory, cacheLoaderManager, dataContainer, transactionTable, stateTransferLock, cacheNotifier, totalOrderManager);
+            commandsFactory, cacheLoaderManager, dataContainer, transactionTable, stateTransferLock, cacheNotifier, totalOrderManager,
+            null);
       stateConsumer.start();
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();
@@ -252,7 +253,7 @@ public class StateConsumerTest extends AbstractInfinispanTest {
       for (Integer segment : newSegments) {
          stateChunks.add(new StateChunk(segment, InfinispanCollections.<InternalCacheEntry>emptyList(), true));
       }
-      stateConsumer.applyState(addresses[1], 2, stateChunks);
+      stateConsumer.applyState(addresses[1], 2, stateChunks, null);
 
       stateConsumer.stop();
       assertFalse(stateConsumer.hasActiveTransfers());

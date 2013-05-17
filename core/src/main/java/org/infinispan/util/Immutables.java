@@ -524,6 +524,11 @@ public class Immutables {
       }
 
       @Override
+      public boolean isDonated() {
+         return entry.isDonated();
+      }
+
+      @Override
       public void setLifespan(long lifespan) {
          throw new UnsupportedOperationException();
       }

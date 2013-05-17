@@ -54,4 +54,9 @@ public class SerializableEntry extends RepeatableReadEntry {
    public void setVersion(EntryVersion version) {
       this.version = version;
    }
+
+   @Override
+   public boolean isNull() {
+      return value == null;
+   }
 }

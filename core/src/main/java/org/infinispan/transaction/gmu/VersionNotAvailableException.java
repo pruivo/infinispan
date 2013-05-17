@@ -33,5 +33,7 @@ import org.infinispan.container.versioning.EntryVersion;
  */
 public class VersionNotAvailableException extends CacheException {
 
-   public VersionNotAvailableException() {}
+   public VersionNotAvailableException(Object key) {
+      super("Version not available for " + key);
+   }
 }

@@ -60,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.infinispan.commands.remote.GarbageCollectorControlCommand.Type.*;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 
 /**
  * // TODO: Document this
@@ -98,7 +97,7 @@ public class GarbageCollectorManager {
       this.commitLog = commitLog;
       this.commandsFactory = commandsFactory;
       this.rpcManager = rpcManager;
-      this.versionGenerator = toGMUVersionGenerator(versionGenerator);
+      this.versionGenerator = (GMUVersionGenerator) versionGenerator;
       this.dataContainer = dataContainer;
       this.transactionTable = transactionTable;
       this.l1GMUContainer = l1GMUContainer;

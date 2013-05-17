@@ -50,8 +50,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.infinispan.container.gmu.GMUEntryFactoryImpl.wrap;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersion;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 
 /**
  * // TODO: Document this
@@ -80,7 +78,7 @@ public class L1GMUContainer {
       this.configuration = configuration;
       this.distributionManager = distributionManager;
       if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
-         this.gmuVersionGenerator = toGMUVersionGenerator(versionGenerator);
+         this.gmuVersionGenerator = (GMUVersionGenerator) versionGenerator;
       }
    }
 
@@ -101,7 +99,7 @@ public class L1GMUContainer {
             if (isValid(l1Entry, txVersion, owner)) {
                updateStats(Stat.CACHE_HIT);
                EntryVersion updatedTxVersion = gmuVersionGenerator.mergeAndMax(txVersion, l1Entry.getCreationVersion());
-               return wrap(key, l1Entry.getValue(), versionEntry.isMostRecent(), updatedTxVersion, null, null);
+               return wrap(key, l1Entry.getValue(), versionEntry.isMostRecent(), updatedTxVersion, null, null, false);
             } else {
                updateStats(Stat.CACHE_MISS_OLD_VERSION);
             }
@@ -203,8 +201,8 @@ public class L1GMUContainer {
    }
 
    private boolean isValid(L1Entry entry, EntryVersion txVersion, Address owner) {
-      long entryVersionValue = toGMUVersion(entry.getReadVersion()).getVersionValue(owner);
-      long txEntryVersionValue = toGMUVersion(txVersion).getVersionValue(owner);
+      long entryVersionValue = ((GMUVersion) entry.getReadVersion()).getVersionValue(owner);
+      long txEntryVersionValue = ((GMUVersion) txVersion).getVersionValue(owner);
 
       return entryVersionValue == GMUVersion.NON_EXISTING || txEntryVersionValue == GMUVersion.NON_EXISTING ||
             entryVersionValue >= txEntryVersionValue;

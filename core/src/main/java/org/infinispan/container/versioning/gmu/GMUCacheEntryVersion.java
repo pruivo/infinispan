@@ -108,7 +108,7 @@ public class GMUCacheEntryVersion extends GMUVersion {
             return compare(viewId, replicatedVersion.getViewId());
          }
          return result;
-      }  else if (other instanceof GMUDistributedVersion) {
+      } else if (other instanceof GMUDistributedVersion) {
          GMUDistributedVersion distributedVersion = (GMUDistributedVersion) other;
          InequalVersionComparisonResult result = compare(version, distributedVersion.getThisNodeVersionValue());
          if (result == EQUAL) {
@@ -117,6 +117,11 @@ public class GMUCacheEntryVersion extends GMUVersion {
          return result;
       }
       throw new IllegalArgumentException("Cannot compare " + getClass() + " with " + other.getClass());
+   }
+
+   @Override
+   public InequalVersionComparisonResult compareToWithCheckUnsafeBeforeOrEqual(EntryVersion other) {
+      return this.compareTo(other);
    }
 
    @Override
@@ -152,14 +157,10 @@ public class GMUCacheEntryVersion extends GMUVersion {
       @Override
       public GMUCacheEntryVersion readObject(ObjectInput input) throws IOException, ClassNotFoundException {
          String cacheName = input.readUTF();
-         GMUVersionGenerator gmuVersionGenerator = getGMUVersionGenerator(globalComponentRegistry, cacheName);
          int viewId = input.readInt();
-         ClusterSnapshot clusterSnapshot = gmuVersionGenerator.getClusterSnapshot(viewId);
-         if (clusterSnapshot == null) {
-            throw new IllegalArgumentException("View Id " + viewId + " not found in this node");
-         }
          long version = input.readLong();
          int subVersion = input.readInt();
+         ClusterSnapshot clusterSnapshot = getClusterSnapshot(globalComponentRegistry, cacheName, viewId);
          return new GMUCacheEntryVersion(cacheName, viewId, clusterSnapshot, version, subVersion);
       }
 

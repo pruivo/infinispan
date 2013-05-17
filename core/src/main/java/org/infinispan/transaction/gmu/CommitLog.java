@@ -53,8 +53,6 @@ import java.util.Set;
 
 import static org.infinispan.container.versioning.InequalVersionComparisonResult.*;
 import static org.infinispan.container.versioning.gmu.GMUVersion.NON_EXISTING;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersion;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 
 /**
  * @author Pedro Ruivo
@@ -72,7 +70,7 @@ public class CommitLog {
    @Inject
    public void inject(VersionGenerator versionGenerator, Configuration configuration) {
       if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
-         this.versionGenerator = toGMUVersionGenerator(versionGenerator);
+         this.versionGenerator = (GMUVersionGenerator) versionGenerator;
       }
       enabled = this.versionGenerator != null;
    }
@@ -83,13 +81,17 @@ public class CommitLog {
       if (!enabled) {
          return;
       }
-      currentVersion = new VersionEntry(toGMUVersion(versionGenerator.generateNew()), Collections.emptySet(), 0, 0L);
-      mostRecentVersion = toGMUVersion(versionGenerator.generateNew());
+      currentVersion = new VersionEntry((GMUVersion) versionGenerator.generateNew(), Collections.emptySet(), 0, 0L);
+      mostRecentVersion = (GMUVersion) versionGenerator.generateNew();
    }
 
    @Stop
    public void stop() {
 
+   }
+
+   public final boolean isEnabled() {
+      return enabled;
    }
 
    public final void initLocalTransaction(LocalTransaction localTransaction) {
@@ -119,7 +121,7 @@ public class CommitLog {
    }
 
    public final EntryVersion getEntry(EntryVersion entryVersion) {
-      GMUVersion gmuEntryVersion = toGMUVersion(entryVersion);
+      GMUVersion gmuEntryVersion = (GMUVersion) entryVersion;
       VersionEntry versionEntry = currentVersion;
       while (versionEntry != null) {
          if (versionEntry.getVersion().getThisNodeVersionValue() == gmuEntryVersion.getThisNodeVersionValue()) {
@@ -136,7 +138,7 @@ public class CommitLog {
          return versionGenerator.updatedVersion(mostRecentVersion);
          //return versionGenerator.updatedVersion(currentVersion.getVersion());
       }
-      GMUVersion gmuVersion = toGMUVersion(other);
+      GMUVersion gmuVersion = (GMUVersion) other;
 
       if (gmuVersion.getThisNodeVersionValue() != NON_EXISTING) {
          return gmuVersion;
@@ -181,7 +183,7 @@ public class CommitLog {
       if (other == null) {
          return null;
       }
-      GMUVersion gmuVersion = toGMUVersion(other);
+      GMUVersion gmuVersion = (GMUVersion) other;
       GMUReadVersion gmuReadVersion = versionGenerator.convertVersionToRead(gmuVersion);
 
       VersionEntry firstFoundPossible = null; //These are used to optimize the search
@@ -199,9 +201,6 @@ public class CommitLog {
       while (iterator != null &&
             (firstFoundPossible == null ||
                    concurrentClockNumber < iterator.getVersion().getThisNodeVersionValue())) {
-         if (log.isTraceEnabled()) {
-            log.tracef("getReadVersion(...) ==> comparing %s and %s", iterator.getVersion(), gmuReadVersion);
-         }
          if (iterator.getVersion().getThisNodeVersionValue() <= gmuReadVersion.getThisNodeVersionValue()) {
             if (!isLessOrEquals(iterator.getVersion(), gmuVersion)) {
                if (log.isTraceEnabled()) {
@@ -229,9 +228,6 @@ public class CommitLog {
 
          }
          iterator = iterator.getPrevious();
-         if (log.isTraceEnabled()) {
-            log.tracef("getReadVersion(...) ==> next version: %s", iterator);
-         }
       }
       return gmuReadVersion;
    }
@@ -244,7 +240,7 @@ public class CommitLog {
          if (log.isTraceEnabled()) {
             log.tracef("insertNewCommittedVersions(...) ==> add %s", transaction.getCommitVersion());
          }
-         VersionEntry current = new VersionEntry(toGMUVersion(transaction.getCommitVersion()),
+         VersionEntry current = new VersionEntry((GMUVersion) transaction.getCommitVersion(),
                                                  getAffectedKeys(transaction.getModifications()),
                                                  transaction.getSubVersion(), transaction.getConcurrentClockNumber());
          current.setPrevious(oldCurrentVersion);
@@ -274,7 +270,7 @@ public class CommitLog {
 
    public final void waitForVersion(EntryVersion version, long timeout) throws InterruptedException {
       assertEnabled();
-      final long versionValue = toGMUVersion(version).getThisNodeVersionValue();
+      final long versionValue = ((GMUVersion) version).getThisNodeVersionValue();
       if (currentVersion.getVersion().getThisNodeVersionValue() >= versionValue) {
          return;
       }
@@ -295,7 +291,7 @@ public class CommitLog {
    public final boolean isMinVersionAvailable(EntryVersion version) {
       assertEnabled();
 
-      long versionValue = toGMUVersion(version).getThisNodeVersionValue();
+      long versionValue = ((GMUVersion) version).getThisNodeVersionValue();
       if (log.isTraceEnabled()) {
          log.tracef("isMinVersionAvailable(%s) and current version is %s", version, currentVersion.getVersion());
       }
@@ -390,7 +386,10 @@ public class CommitLog {
    }
 
    private boolean isLessOrEquals(EntryVersion version1, EntryVersion version2) {
-      InequalVersionComparisonResult comparisonResult = version1.compareTo(version2);
+      InequalVersionComparisonResult comparisonResult = version1.compareToWithCheckUnsafeBeforeOrEqual(version2);
+      if (comparisonResult == InequalVersionComparisonResult.UNSAFE_BEFORE_OR_EQUAL) {
+         throw new IllegalArgumentException("GMU entry version cannot compare BeforeOrEqual" + version1 + " " + version2);
+      }
       return comparisonResult == BEFORE_OR_EQUAL || comparisonResult == BEFORE || comparisonResult == EQUAL;
    }
 

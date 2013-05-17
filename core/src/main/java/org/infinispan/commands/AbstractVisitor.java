@@ -23,6 +23,7 @@
 package org.infinispan.commands;
 
 import org.infinispan.commands.control.LockControlCommand;
+import org.infinispan.commands.control.ShadowTransactionCommand;
 import org.infinispan.commands.read.DistributedExecuteCommand;
 import org.infinispan.commands.read.EntrySetCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
@@ -144,6 +145,11 @@ public abstract class AbstractVisitor implements Visitor {
    @Override
    public Object visitInvalidateL1Command(InvocationContext ctx, InvalidateL1Command invalidateL1Command) throws Throwable {
 	   return visitInvalidateCommand(ctx, invalidateL1Command);
+   }
+
+   @Override
+   public Object visitShadowTransactionCommand(InvocationContext ctx, ShadowTransactionCommand command) throws Throwable {
+      return handleDefault(ctx, command);
    }
 
    /**

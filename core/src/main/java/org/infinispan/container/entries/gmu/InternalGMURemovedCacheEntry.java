@@ -94,6 +94,16 @@ public class InternalGMURemovedCacheEntry implements InternalGMUCacheEntry {
    }
 
    @Override
+   public boolean isDonated() {
+      return false;
+   }
+
+   @Override
+   public boolean isUnsafeToRead(){
+      return false;
+   }
+
+   @Override
    public Object getKey() {
       return key;
    }

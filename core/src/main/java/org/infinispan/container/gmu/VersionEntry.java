@@ -28,21 +28,28 @@ import org.infinispan.container.versioning.EntryVersion;
  * // TODO: Document this
  *
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class VersionEntry<T> {
    private final T entry;
+   private final T nextEntry;
    private final EntryVersion nextVersion;
    private final boolean found;
 
-   public VersionEntry(T entry, EntryVersion nextVersion, boolean found) {
+   public VersionEntry(T entry, T nextEntry, EntryVersion nextVersion, boolean found) {
       this.entry = entry;
+      this.nextEntry = nextEntry;
       this.nextVersion = nextVersion;
       this.found = found;
    }
 
    public final T getEntry() {
       return entry;
+   }
+
+   public final T getNextEntry(){
+      return nextEntry;
    }
 
    public final boolean isMostRecent() {
@@ -61,6 +68,7 @@ public class VersionEntry<T> {
    public String toString() {
       return "VersionEntry{" +
             "entry=" + entry +
+            ", nextEntry=" + nextEntry +
             ", nextVersion=" + nextVersion +
             ", found=" + found +
             '}';

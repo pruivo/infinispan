@@ -30,7 +30,6 @@ import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.container.InternalEntryFactory;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
-import org.infinispan.container.entries.InternalCacheValue;
 import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
@@ -135,7 +134,7 @@ public class ClusteredGetCommand extends BaseRpcCommand implements FlagAffectedC
       return invoke(command, createInvocationContext(command));
    }
 
-   protected InternalCacheValue invoke(GetKeyValueCommand command, InvocationContext context) {
+   protected Object invoke(GetKeyValueCommand command, InvocationContext context) {
       CacheEntry cacheEntry = (CacheEntry) invoker.invoke(context, command);
       if (cacheEntry == null) {
          if (trace) log.trace("Did not find anything, returning null");

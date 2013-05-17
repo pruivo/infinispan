@@ -65,8 +65,8 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
    private static Log log = LogFactory.getLog(TxDistributionInterceptor.class);
    private static final boolean trace = log.isTraceEnabled();
 
-   private boolean isPessimisticCache;
-   private boolean useClusteredWriteSkewCheck;
+   protected boolean isPessimisticCache;
+   protected boolean useClusteredWriteSkewCheck;
 
    private L1Manager l1Manager;
    protected boolean isL1CacheEnabled;
@@ -296,7 +296,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
       return invokeNextInterceptor(ctx, command);
    }
 
-   private Object localGet(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
+   protected Object localGet(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
       InternalCacheEntry ice = dataContainer.get(key, null);
       if (ice != null) {
          if (isWrite && isPessimisticCache && ctx.isInTxScope()) {
@@ -327,7 +327,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
       }
    }
 
-   private boolean isNotInL1(Object key) {
+   protected boolean isNotInL1(Object key) {
       return !isL1CacheEnabled || !dataContainer.containsKey(key, null);
    }
 
@@ -345,7 +345,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
       }
    }
 
-   private Object remoteGetAndStoreInL1(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
+   protected Object remoteGetAndStoreInL1(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
       // todo [anistor] fix locality checks in StateTransferManager (ISPN-2401) and use them here
       DataLocality locality = dm.getReadConsistentHash().isKeyLocalToNode(rpcManager.getAddress(), key) ? DataLocality.LOCAL : DataLocality.NOT_LOCAL;
 

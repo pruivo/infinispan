@@ -88,6 +88,11 @@ public class GMUReadVersion extends GMUVersion {
    }
 
    @Override
+   public InequalVersionComparisonResult compareToWithCheckUnsafeBeforeOrEqual(EntryVersion other) {
+      return this.compareTo(other);
+   }
+
+   @Override
    public String toString() {
       return "GMUReadVersion{" +
             "version=" + version +

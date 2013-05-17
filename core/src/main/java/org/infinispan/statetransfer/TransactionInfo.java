@@ -44,13 +44,13 @@ import java.util.Set;
  */
 public class TransactionInfo {
 
-   private final GlobalTransaction globalTransaction;
+   protected final GlobalTransaction globalTransaction;
 
-   private final WriteCommand[] modifications;
+   protected final WriteCommand[] modifications;
 
-   private final Set<Object> lockedKeys;
+   protected final Set<Object> lockedKeys;
 
-   private final int topologyId;
+   protected final int topologyId;
 
    public TransactionInfo(GlobalTransaction globalTransaction, int topologyId, WriteCommand[] modifications, Set<Object> lockedKeys) {
       this.globalTransaction = globalTransaction;

@@ -66,6 +66,11 @@ public class SimpleClusteredVersion implements IncrementableEntryVersion, Serial
    }
 
    @Override
+   public InequalVersionComparisonResult compareToWithCheckUnsafeBeforeOrEqual(EntryVersion other){
+      return this.compareTo(other);
+   }
+
+   @Override
    public String toString() {
       return "SimpleClusteredVersion{" +
             "topologyId=" + topologyId +

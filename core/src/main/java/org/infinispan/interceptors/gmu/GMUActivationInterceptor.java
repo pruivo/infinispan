@@ -32,8 +32,6 @@ import org.infinispan.interceptors.ClusteredActivationInterceptor;
 import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.transaction.gmu.GMUHelper;
 
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
-
 /**
  * //TODO: document this!
  *
@@ -48,7 +46,7 @@ public class GMUActivationInterceptor extends ClusteredActivationInterceptor {
    @Inject
    public void setGMUComponents(CommitLog commitLog, VersionGenerator versionGenerator) {
       this.commitLog = commitLog;
-      this.versionGenerator = toGMUVersionGenerator(versionGenerator);
+      this.versionGenerator = (GMUVersionGenerator) versionGenerator;
    }
 
    @Override

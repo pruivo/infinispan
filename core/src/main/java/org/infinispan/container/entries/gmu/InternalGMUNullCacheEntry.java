@@ -45,14 +45,16 @@ public class InternalGMUNullCacheEntry extends InternalGMURemovedCacheEntry {
    private EntryVersion creationVersion;
    private EntryVersion maxValidVersion;
    private final EntryVersion maxTxVersion;
+   private final boolean unsafeToRead;
 
    public InternalGMUNullCacheEntry(Object key, EntryVersion version, EntryVersion maxTxVersion, boolean mostRecent,
-                                    EntryVersion creationVersion, EntryVersion maxValidVersion) {
+                                    EntryVersion creationVersion, EntryVersion maxValidVersion, boolean unsafeToRead) {
       super(key, version);
       this.creationVersion = creationVersion;
       this.maxValidVersion = maxValidVersion;
       this.maxTxVersion = maxTxVersion;
       this.mostRecent = mostRecent;
+      this.unsafeToRead = unsafeToRead;
    }
 
    public InternalGMUNullCacheEntry(InternalGMUCacheEntry expired) {
@@ -61,11 +63,12 @@ public class InternalGMUNullCacheEntry extends InternalGMURemovedCacheEntry {
       this.maxValidVersion = expired.getMaximumValidVersion();
       this.maxTxVersion = expired.getMaximumTransactionVersion();
       this.mostRecent = expired.isMostRecent();
+      this.unsafeToRead = expired.isUnsafeToRead();
    }
 
    @Override
    public InternalCacheValue toInternalCacheValue() {
-      return new InternalGMUNullCacheValue(getVersion(), maxTxVersion, mostRecent, creationVersion, maxValidVersion);
+      return new InternalGMUNullCacheValue(getVersion(), maxTxVersion, mostRecent, creationVersion, maxValidVersion, unsafeToRead);
    }
 
    @Override
@@ -99,6 +102,11 @@ public class InternalGMUNullCacheEntry extends InternalGMURemovedCacheEntry {
    }
 
    @Override
+   public boolean isUnsafeToRead() {
+      return unsafeToRead;
+   }
+
+   @Override
    public String toString() {
       return "InternalGMUNullCacheEntry{" +
             "key=" + getKey() +
@@ -108,6 +116,7 @@ public class InternalGMUNullCacheEntry extends InternalGMURemovedCacheEntry {
             ", maxValidVersion=" + maxValidVersion +
             ", maxTxVersion=" + maxTxVersion +
             ", mostRecent=" + mostRecent +
+            ", unsafeToRead=" + unsafeToRead +
             "}";
    }
 
@@ -126,6 +135,7 @@ public class InternalGMUNullCacheEntry extends InternalGMURemovedCacheEntry {
          output.writeObject(object.maxTxVersion);
          output.writeObject(object.maxValidVersion);
          output.writeBoolean(object.mostRecent);
+         output.writeBoolean(object.unsafeToRead);
       }
 
       @Override
@@ -136,7 +146,8 @@ public class InternalGMUNullCacheEntry extends InternalGMURemovedCacheEntry {
          EntryVersion maxTxVersion = (EntryVersion) input.readObject();
          EntryVersion maxValidVersion = (EntryVersion) input.readObject();
          boolean mostRecent = input.readBoolean();
-         return new InternalGMUNullCacheEntry(key, version, maxTxVersion, mostRecent, creationVersion, maxValidVersion);
+         boolean unsafeToRead = input.readBoolean();
+         return new InternalGMUNullCacheEntry(key, version, maxTxVersion, mostRecent, creationVersion, maxValidVersion, unsafeToRead);
       }
 
       @Override

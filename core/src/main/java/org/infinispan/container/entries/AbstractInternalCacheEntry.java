@@ -35,11 +35,20 @@ public abstract class AbstractInternalCacheEntry implements InternalCacheEntry {
 
    protected Object key;
 
+   protected boolean donated;
+
    protected AbstractInternalCacheEntry() {
+      donated = false;
    }
 
    protected AbstractInternalCacheEntry(Object key) {
       this.key = key;
+      donated = false;
+   }
+
+   protected AbstractInternalCacheEntry(Object key, boolean donated) {
+      this.key = key;
+      this.donated = donated;
    }
 
    @Override
@@ -148,6 +157,11 @@ public abstract class AbstractInternalCacheEntry implements InternalCacheEntry {
    @Override
    public final Object getKey() {
       return key;
+   }
+
+   @Override
+   public boolean isDonated() {
+      return donated;
    }
 
    @Override

@@ -43,11 +43,8 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.InfinispanCollections;
-import org.infinispan.util.concurrent.ConcurrentMapFactory;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
-
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 
 /**
  * Base class for local and remote transaction. Impl note: The aggregated modification list and lookedUpEntries are not
@@ -313,7 +310,7 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
    public void addReadKey(Object key) {
       // No-op
    }
-   
+
    @Override
    public boolean keyRead(Object key) {
       return false;
@@ -331,7 +328,7 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
 
    @Override
    public EntryVersion calculateVersionToRead(VersionGenerator versionGenerator) {
-      GMUVersionGenerator gmuVersionGenerator = toGMUVersionGenerator(versionGenerator);
+      GMUVersionGenerator gmuVersionGenerator = (GMUVersionGenerator) versionGenerator;
       return gmuVersionGenerator.calculateMaxVersionToRead(transactionVersion, getReadFrom());
    }
 
@@ -374,16 +371,6 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
    @Override
    public void setAlreadyReadOnThisNode(boolean value) {
       //no-op
-   }
-
-   protected final Map<Object, CacheEntry> createMapEntries(int size) {
-      return ConcurrentMapFactory.makeConcurrentMap(size);
-   }
-
-   protected final Map<Object, CacheEntry> createMapEntries(Map<Object, CacheEntry> map) {
-      Map<Object, CacheEntry> newMap = ConcurrentMapFactory.makeConcurrentMap(map.size());
-      newMap.putAll(map);
-      return newMap;
    }
 
 }

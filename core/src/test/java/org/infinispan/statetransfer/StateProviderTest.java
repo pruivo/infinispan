@@ -47,6 +47,7 @@ import org.infinispan.topology.CacheTopology;
 import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.TransactionTable;
+import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.concurrent.NotifyingNotifiableFuture;
 import org.infinispan.util.logging.Log;
@@ -174,7 +175,7 @@ public class StateProviderTest {
       StateProviderImpl stateProvider = new StateProviderImpl();
       stateProvider.init(cache, mockExecutorService,
             configuration, rpcManager, commandsFactory, cacheNotifier, cacheLoaderManager,
-            dataContainer, transactionTable, stateTransferLock, stateConsumer);
+            dataContainer, transactionTable, stateTransferLock, stateConsumer, null);
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();
       Object key1 = new TestKey("key1", 0, ch1);
@@ -273,7 +274,7 @@ public class StateProviderTest {
       StateProviderImpl stateProvider = new StateProviderImpl();
       stateProvider.init(cache, pooledExecutorService,
             configuration, rpcManager, commandsFactory, cacheNotifier, cacheLoaderManager,
-            dataContainer, transactionTable, stateTransferLock, stateConsumer);
+            dataContainer, transactionTable, stateTransferLock, stateConsumer, null);
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();
       Object key1 = new TestKey("key1", 0, ch1);

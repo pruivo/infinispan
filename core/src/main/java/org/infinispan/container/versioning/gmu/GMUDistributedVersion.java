@@ -139,8 +139,74 @@ public class GMUDistributedVersion extends GMUVersion {
       throw new IllegalArgumentException("GMU entry version cannot compare " + other.getClass().getSimpleName());
    }
 
-   private boolean validIndex(int index) {
-      return index >= 0 && index < versions.length;
+   @Override
+   public InequalVersionComparisonResult compareToWithCheckUnsafeBeforeOrEqual(EntryVersion other) {
+
+      if (other instanceof GMUReplicatedVersion) {
+         GMUReplicatedVersion cacheEntryVersion = (GMUReplicatedVersion) other;
+         InequalVersionComparisonResult versionComparisonResult = compare(getThisNodeVersionValue(),
+                                                                          cacheEntryVersion.getThisNodeVersionValue());
+
+         if (versionComparisonResult == InequalVersionComparisonResult.EQUAL) {
+            return compare(this.viewId, cacheEntryVersion.viewId);
+         }
+
+         return versionComparisonResult;
+      }
+
+      if (other instanceof GMUDistributedVersion) {
+         GMUDistributedVersion clusterEntryVersion = (GMUDistributedVersion) other;
+         ClusterSnapshot otherClusterSnapshot = clusterEntryVersion.getClusterSnapshot();
+         boolean before = false, equal = false, after = false;
+
+         for (int index = 0; index < otherClusterSnapshot.size(); ++index) {
+            long myVersion = getVersionValue(otherClusterSnapshot.get(index));
+            long otherVersion = clusterEntryVersion.getVersionValue(index);
+
+            if (myVersion == NON_EXISTING && otherVersion != NON_EXISTING) {
+               //This means that he other version has a version number for a node that is not determined in my version.
+               // I can miss a dependency here so I return an unsafe value if myVersion's viewId is greater than otherVersion's viewId
+               if (this.viewId > clusterEntryVersion.getViewId()) {
+                  return InequalVersionComparisonResult.UNSAFE_BEFORE_OR_EQUAL;
+               }
+            }
+
+            if (myVersion == NON_EXISTING || otherVersion == NON_EXISTING) {
+               continue;
+            }
+            switch (compare(myVersion, otherVersion)) {
+               case BEFORE:
+                  before = true;
+                  break;
+               case EQUAL:
+                  equal = true;
+                  break;
+               case AFTER:
+                  after = true;
+                  break;
+            }
+            if (before && after) {
+               return InequalVersionComparisonResult.CONFLICTING;
+            }
+         }
+         if (equal && after) {
+            return InequalVersionComparisonResult.AFTER_OR_EQUAL;
+         } else if (equal && before) {
+            return InequalVersionComparisonResult.BEFORE_OR_EQUAL;
+         } else if (equal) {
+            return InequalVersionComparisonResult.EQUAL;
+         } else if (before) {
+            return InequalVersionComparisonResult.BEFORE;
+         } else if (after) {
+            return InequalVersionComparisonResult.AFTER;
+         }
+         //is this safe?
+         return InequalVersionComparisonResult.BEFORE_OR_EQUAL;
+
+      }
+      throw new IllegalArgumentException("GMU entry version cannot compare " + other.getClass().getSimpleName());
+
+
    }
 
    @Override
@@ -148,6 +214,10 @@ public class GMUDistributedVersion extends GMUVersion {
       return "GMUDistributedVersion{" +
             "versions=" + versionsToString(versions, clusterSnapshot) +
             ", " + super.toString();
+   }
+
+   private boolean validIndex(int index) {
+      return index >= 0 && index < versions.length;
    }
 
    public static class Externalizer extends AbstractExternalizer<GMUDistributedVersion> {
@@ -168,6 +238,7 @@ public class GMUDistributedVersion extends GMUVersion {
       public void writeObject(ObjectOutput output, GMUDistributedVersion object) throws IOException {
          output.writeUTF(object.cacheName);
          output.writeInt(object.viewId);
+         output.writeInt(object.versions.length);
          for (long v : object.versions) {
             output.writeLong(v);
          }
@@ -176,17 +247,14 @@ public class GMUDistributedVersion extends GMUVersion {
       @Override
       public GMUDistributedVersion readObject(ObjectInput input) throws IOException, ClassNotFoundException {
          String cacheName = input.readUTF();
-         GMUVersionGenerator gmuVersionGenerator = getGMUVersionGenerator(globalComponentRegistry, cacheName);
          int viewId = input.readInt();
-         ClusterSnapshot clusterSnapshot = gmuVersionGenerator.getClusterSnapshot(viewId);
-         if (clusterSnapshot == null) {
-            throw new IllegalArgumentException("View Id " + viewId + " not found in this node");
-         }
-         long[] versions = new long[clusterSnapshot.size()];
+         long[] versions = new long[input.readInt()];
          for (int i = 0; i < versions.length; ++i) {
             versions[i] = input.readLong();
          }
-         return new GMUDistributedVersion(cacheName, viewId, clusterSnapshot, gmuVersionGenerator.getAddress(), versions);
+         ClusterSnapshot clusterSnapshot = getClusterSnapshot(globalComponentRegistry, cacheName, viewId);
+         return new GMUDistributedVersion(cacheName, viewId, clusterSnapshot, getLocalAddress(globalComponentRegistry),
+                                          versions);
       }
 
       @Override

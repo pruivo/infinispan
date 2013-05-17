@@ -33,6 +33,7 @@ import javax.transaction.Transaction;
 import org.infinispan.commands.SetTransactionClassCommand;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.control.LockControlCommand;
+import org.infinispan.commands.control.ShadowTransactionCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.commands.tx.AbstractTransactionBoundaryCommand;
 import org.infinispan.commands.tx.CommitCommand;
@@ -288,6 +289,11 @@ public class TxInterceptor extends CommandInterceptor {
 
    @Override
    public Object visitSetTransactionClassCommand(InvocationContext ctx, SetTransactionClassCommand command) throws Throwable {
+      return enlistReadAndInvokeNext(ctx, command);
+   }
+
+   @Override
+   public Object visitShadowTransactionCommand(InvocationContext ctx, ShadowTransactionCommand command) throws Throwable {
       return enlistReadAndInvokeNext(ctx, command);
    }
 

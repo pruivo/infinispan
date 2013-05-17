@@ -43,8 +43,16 @@ public class VersionedTransientCacheEntry extends TransientCacheEntry implements
       this(key, value, version, maxIdle, System.currentTimeMillis());
    }
 
+   public VersionedTransientCacheEntry(Object key, Object value, EntryVersion version, long maxIdle, boolean donated) {
+      this(key, value, version, maxIdle, System.currentTimeMillis(), donated);
+   }
+
    public VersionedTransientCacheEntry(Object key, Object value, EntryVersion version, long maxIdle, long lastUsed) {
       super(key, new VersionedTransientCacheValue(value, version, maxIdle, lastUsed));
+   }
+
+   public VersionedTransientCacheEntry(Object key, Object value, EntryVersion version, long maxIdle, long lastUsed, boolean donated) {
+      super(key, new VersionedTransientCacheValue(value, version, maxIdle, lastUsed), donated);
    }
 
    VersionedTransientCacheEntry(Object key, VersionedTransientCacheValue cacheValue) {

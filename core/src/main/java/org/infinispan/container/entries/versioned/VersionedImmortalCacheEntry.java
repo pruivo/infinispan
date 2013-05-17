@@ -42,6 +42,10 @@ public class VersionedImmortalCacheEntry extends ImmortalCacheEntry implements V
       super(key, new VersionedImmortalCacheValue(value, version));
    }
 
+   public VersionedImmortalCacheEntry(Object key, Object value, EntryVersion version, boolean donated) {
+      super(key, new VersionedImmortalCacheValue(value, version), donated);
+   }
+
    VersionedImmortalCacheEntry(Object key, VersionedImmortalCacheValue cacheValue) {
       super(key, cacheValue);
    }

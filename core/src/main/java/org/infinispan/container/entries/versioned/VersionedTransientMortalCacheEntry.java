@@ -44,6 +44,11 @@ public class VersionedTransientMortalCacheEntry extends TransientMortalCacheEntr
       touch(this.cacheValue.getCreated());
    }
 
+   public VersionedTransientMortalCacheEntry(Object key, Object value, EntryVersion version, long maxIdle, long lifespan, boolean donated) {
+      super(key, new VersionedTransientMortalCacheValue(value, version, System.currentTimeMillis(), lifespan, maxIdle), donated);
+      touch(this.cacheValue.getCreated());
+   }
+
    VersionedTransientMortalCacheEntry(Object key, Object value, EntryVersion version) {
       super(key, new VersionedTransientMortalCacheValue(value, version, System.currentTimeMillis()));
       touch(this.cacheValue.getCreated());

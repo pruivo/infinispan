@@ -62,4 +62,6 @@ public interface InternalGMUCacheEntry extends InternalCacheEntry {
     */
    InternalCacheEntry getInternalCacheEntry();
 
+   boolean isUnsafeToRead();
+
 }

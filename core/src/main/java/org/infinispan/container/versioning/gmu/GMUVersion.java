@@ -29,8 +29,8 @@ import org.infinispan.dataplacement.ClusterSnapshot;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.remoting.transport.Address;
-
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
+import org.infinispan.remoting.transport.Transport;
+import org.infinispan.util.InfinispanCollections;
 
 /**
  * // TODO: Document this
@@ -41,7 +41,8 @@ import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 public abstract class GMUVersion implements IncrementableEntryVersion {
 
    public static final long NON_EXISTING = -1;
-
+   protected static final ClusterSnapshot EMPTY_SNAPSHOT = new ClusterSnapshot(InfinispanCollections.<Address>emptyList(),
+                                                                               null);
    protected final int viewId;
    protected final String cacheName;
    protected transient ClusterSnapshot clusterSnapshot;
@@ -62,6 +63,10 @@ public abstract class GMUVersion implements IncrementableEntryVersion {
 
    public final int getViewId() {
       return viewId;
+   }
+
+   public ClusterSnapshot getClusterSnapshot() {
+      return clusterSnapshot;
    }
 
    public abstract long getVersionValue(Address address);
@@ -102,6 +107,13 @@ public abstract class GMUVersion implements IncrementableEntryVersion {
       }
    }
 
+   @Override
+   public String toString() {
+      return "viewId=" + viewId +
+            ", cacheName=" + cacheName +
+            '}';
+   }
+
    protected final void checkState() {
       if (clusterSnapshot == null) {
          throw new IllegalStateException("Cluster Snapshot in GMU entry version cannot be null");
@@ -124,17 +136,21 @@ public abstract class GMUVersion implements IncrementableEntryVersion {
       return InequalVersionComparisonResult.AFTER;
    }
 
-   protected static GMUVersionGenerator getGMUVersionGenerator(GlobalComponentRegistry globalComponentRegistry,
-                                                               String cacheName) {
+   protected static ClusterSnapshot getClusterSnapshot(GlobalComponentRegistry globalComponentRegistry,
+                                                       String cacheName, int viewId) {
       ComponentRegistry componentRegistry = globalComponentRegistry.getNamedComponentRegistry(cacheName);
-      VersionGenerator versionGenerator = componentRegistry.getComponent(VersionGenerator.class);
-      return toGMUVersionGenerator(versionGenerator);
+      if (componentRegistry == null) {
+         //the cache does not exists in this node or the cache is shutting down...
+         //create a empty cluster snapshot.
+         return EMPTY_SNAPSHOT;
+      }
+      GMUVersionGenerator gmuVersionGenerator = (GMUVersionGenerator) componentRegistry.getComponent(VersionGenerator.class);
+      ClusterSnapshot clusterSnapshot = gmuVersionGenerator.getClusterSnapshot(viewId);
+      return clusterSnapshot == null ? EMPTY_SNAPSHOT : clusterSnapshot;
    }
 
-   @Override
-   public String toString() {
-      return "viewId=" + viewId +
-            ", cacheName=" + cacheName +
-            '}';
+   protected static Address getLocalAddress(GlobalComponentRegistry globalComponentRegistry) {
+      Transport transport = globalComponentRegistry.getComponent(Transport.class);
+      return transport == null ? null : transport.getAddress();
    }
 }

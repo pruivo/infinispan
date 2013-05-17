@@ -29,7 +29,6 @@ import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.container.entries.gmu.InternalGMUCacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.InequalVersionComparisonResult;
-import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.container.versioning.gmu.GMUVersionGenerator;
 import org.infinispan.context.InvocationContext;
@@ -78,7 +77,7 @@ public class GMUHelper {
       for (Object key : prepareCommand.getReadSet()) {
          //if (keyLogic.localNodeIsOwner(key)) {
          if (keyLogic.localNodeIsPrimaryOwner(key)) {      //DIE: for now, hardcoded
-            final InternalGMUCacheEntry cacheEntry = toInternalGMUCacheEntry(dataContainer.get(key, readVersion));
+            final InternalGMUCacheEntry cacheEntry = (InternalGMUCacheEntry) dataContainer.get(key, readVersion);
             if (log.isDebugEnabled()) {
                log.debugf("[%s] Validate [%s]: checking %s", gtx.globalId(), key, cacheEntry);
             }
@@ -102,31 +101,6 @@ public class GMUHelper {
       return versionGenerator.calculateCommitVersion(mergedVersion, affectedOwners);
    }
 
-   public static InternalGMUCacheEntry toInternalGMUCacheEntry(InternalCacheEntry entry) {
-      return convert(entry, InternalGMUCacheEntry.class);
-   }
-
-   public static GMUVersion toGMUVersion(EntryVersion version) {
-      return convert(version, GMUVersion.class);
-   }
-
-   public static GMUVersionGenerator toGMUVersionGenerator(VersionGenerator versionGenerator) {
-      return convert(versionGenerator, GMUVersionGenerator.class);
-   }
-
-   public static <T> T convert(Object object, Class<T> clazz) {
-      if (log.isDebugEnabled()) {
-         log.debugf("Convert object %s to class %s", object, clazz.getCanonicalName());
-      }
-      try {
-         return clazz.cast(object);
-      } catch (ClassCastException cce) {
-         log.fatalf(cce, "Error converting object %s to class %s", object, clazz.getCanonicalName());
-         throw new IllegalArgumentException("Expected " + clazz.getSimpleName() +
-                                                  " and not " + object.getClass().getSimpleName());
-      }
-   }
-
    public static void joinAndSetTransactionVersion(Collection<Response> responses, TxInvocationContext ctx,
                                                    GMUVersionGenerator versionGenerator) {
       if (responses.isEmpty()) {
@@ -144,7 +118,7 @@ public class GMUHelper {
          if (r == null) {
             throw new IllegalStateException("Non-null response with new version is expected");
          } else if (r instanceof SuccessfulResponse) {
-            EntryVersion version = convert(((SuccessfulResponse) r).getResponseValue(), EntryVersion.class);
+            EntryVersion version = (EntryVersion) ((SuccessfulResponse) r).getResponseValue();
             allPreparedVersions.add(version);
          } else if (r instanceof ExceptionResponse) {
             throw new ValidationException(((ExceptionResponse) r).getException());
@@ -222,7 +196,7 @@ public class GMUHelper {
 
       //this is considered the most recent version.
       InternalGMUCacheEntry entry = wrap(key, loaded, true, maxVersionToRead,
-                                         loaded == null ? null : loaded.getVersion(), null);
+                                         loaded == null ? null : loaded.getVersion(), null, false);
 
       if (log.isTraceEnabled()) {
          log.tracef("Loaded %s from cache store. Created wrapped cache entry %s", loaded, entry);

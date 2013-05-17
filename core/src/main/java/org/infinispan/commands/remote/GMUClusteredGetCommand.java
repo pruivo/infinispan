@@ -23,7 +23,6 @@
 package org.infinispan.commands.remote;
 
 import org.infinispan.commands.read.GetKeyValueCommand;
-import org.infinispan.container.entries.InternalCacheValue;
 import org.infinispan.container.entries.gmu.InternalGMUCacheEntry;
 import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.container.versioning.gmu.GMUVersion;
@@ -31,8 +30,8 @@ import org.infinispan.container.versioning.gmu.GMUVersionGenerator;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.statetransfer.StateConsumer;
 import org.infinispan.transaction.gmu.CommitLog;
-import org.infinispan.transaction.gmu.VersionNotAvailableException;
 import org.infinispan.transaction.xa.GlobalTransaction;
 
 import java.util.BitSet;
@@ -40,7 +39,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.infinispan.transaction.gmu.GMUHelper.fromAlreadyReadFromMask;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
 
 /**
  * Issues a remote get call.  This is not a {@link org.infinispan.commands.VisitableCommand} and hence not passed up the
@@ -62,6 +60,7 @@ public class GMUClusteredGetCommand extends ClusteredGetCommand {
    private InvocationContext invocationContext;
    private GetKeyValueCommand command;
    private GMUVersion minGMUVersion;
+   private StateConsumer stateConsumer;
 
    public GMUClusteredGetCommand(String cacheName) {
       super(cacheName);
@@ -78,9 +77,10 @@ public class GMUClusteredGetCommand extends ClusteredGetCommand {
       super(null); //for ID uniqueness test
    }
 
-   public void initializeGMUComponents(CommitLog commitLog, VersionGenerator versionGenerator) {
+   public void initializeGMUComponents(CommitLog commitLog, VersionGenerator versionGenerator, StateConsumer stateConsumer) {
       this.commitLog = commitLog;
-      this.versionGenerator = toGMUVersionGenerator(versionGenerator);
+      this.versionGenerator = (GMUVersionGenerator) versionGenerator;
+      this.stateConsumer = stateConsumer;
    }
 
    @Override
@@ -154,12 +154,12 @@ public class GMUClusteredGetCommand extends ClusteredGetCommand {
    }
 
    @Override
-   protected InternalCacheValue invoke(GetKeyValueCommand command, InvocationContext context) {
+   protected Object invoke(GetKeyValueCommand command, InvocationContext context) {
       setMaxGMUVersionToRead(context);
       super.invoke(command, context);
       InternalGMUCacheEntry gmuCacheEntry = context.getKeysReadInCommand().get(getKey());
-      if (gmuCacheEntry == null) {
-         throw new VersionNotAvailableException();
+      if (gmuCacheEntry == null || gmuCacheEntry.getCreationVersion() == null || gmuCacheEntry.isUnsafeToRead()) {
+         return stateConsumer.oldOwners(getKey());
       }
       return gmuCacheEntry.toInternalCacheValue();
    }

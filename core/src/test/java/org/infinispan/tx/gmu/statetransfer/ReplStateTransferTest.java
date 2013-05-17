@@ -17,34 +17,27 @@
  * MA  02110-1301, USA.
  */
 
-package org.infinispan.container.versioning.gmu;
+package org.infinispan.tx.gmu.statetransfer;
 
-import org.infinispan.container.versioning.EntryVersion;
-import org.infinispan.container.versioning.InequalVersionComparisonResult;
+import org.infinispan.configuration.cache.CacheMode;
+import org.infinispan.configuration.cache.ConfigurationBuilder;
+import org.testng.annotations.Test;
 
 /**
+ * // TODO: Document this
+ *
  * @author Pedro Ruivo
  * @since 5.3
  */
-public final class EvictedVersion implements EntryVersion {
+@Test(groups = "functional", testName = "tx.gmu.statetransfer.ReplStateTransferTest")
+public class ReplStateTransferTest extends BaseSimpleStateTransferTest {
 
-   public static final EvictedVersion INSTANCE = new EvictedVersion();
-
-   private EvictedVersion() {
+   public ReplStateTransferTest() {
+      super(3, CacheMode.REPL_SYNC);
    }
 
    @Override
-   public final InequalVersionComparisonResult compareTo(EntryVersion other) {
-      throw new UnsupportedOperationException();
-   }
-
-   @Override
-   public InequalVersionComparisonResult compareToWithCheckUnsafeBeforeOrEqual(EntryVersion other) {
-      throw new UnsupportedOperationException();
-   }
-
-   @Override
-   public final String toString() {
-      return "EVICTION_VERSION";
+   protected void decorate(ConfigurationBuilder builder) {
+      //no-op
    }
 }

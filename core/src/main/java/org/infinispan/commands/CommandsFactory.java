@@ -24,6 +24,7 @@ package org.infinispan.commands;
 
 import org.infinispan.atomic.Delta;
 import org.infinispan.commands.control.LockControlCommand;
+import org.infinispan.commands.control.ShadowTransactionCommand;
 import org.infinispan.commands.read.DistributedExecuteCommand;
 import org.infinispan.commands.read.EntrySetCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
@@ -459,4 +460,6 @@ public interface CommandsFactory {
                                                                       int minimumVisibleViewId);
 
    ReconfigurableProtocolCommand buildReconfigurableProtocolCommand(ReconfigurableProtocolCommand.Type type, String protocolId);
+
+   ShadowTransactionCommand buildShadowTransactionCommand();
 }

@@ -28,6 +28,7 @@ import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
@@ -42,6 +43,7 @@ import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.transaction.TransactionTable;
+import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -77,6 +79,7 @@ public class StateProviderImpl implements StateProvider {
    protected int chunkSize;
 
    private StateConsumer stateConsumer;
+   protected CommitLog commitLog;
 
    /**
     * A map that keeps track of current outbound state transfers by destination address. There could be multiple transfers
@@ -98,7 +101,8 @@ public class StateProviderImpl implements StateProvider {
                     DataContainer dataContainer,
                     TransactionTable transactionTable,
                     StateTransferLock stateTransferLock,
-                    StateConsumer stateConsumer) {
+                    StateConsumer stateConsumer,
+                    CommitLog commitLog) {
       this.cacheName = cache.getName();
       this.executorService = executorService;
       this.configuration = configuration;
@@ -110,6 +114,7 @@ public class StateProviderImpl implements StateProvider {
       this.transactionTable = transactionTable;
       this.stateTransferLock = stateTransferLock;
       this.stateConsumer = stateConsumer;
+      this.commitLog = commitLog;
 
       timeout = configuration.clustering().stateTransfer().timeout();
 
@@ -195,6 +200,15 @@ public class StateProviderImpl implements StateProvider {
       }
 
       List<TransactionInfo> transactions = new ArrayList<TransactionInfo>();
+
+
+      //If we are adopting serializability and there is a valid commit log we have to send the current version
+      //of the most recent snapshot on this node so that we can commit a state-transfer shadow transaction on the acceptor of the state-transfer
+      EntryVersion version = commitLog != null && commitLog.isEnabled() ? commitLog.getCurrentVersion() : null;
+      if(version != null){
+         transactions.add(new ShadowTransactionInfo(requestTopologyId, version));
+      }
+
       //we migrate locks only if the cache is transactional and distributed
       if (configuration.transaction().transactionMode().isTransactional()) {
          collectTransactionsToTransfer(transactions, transactionTable.getRemoteTransactions(), segments, cacheTopology);
@@ -295,7 +309,7 @@ public class StateProviderImpl implements StateProvider {
    protected OutboundTransferTask createTask(Address destination, Set<Integer> segments, CacheTopology cacheTopology) {
       return new OutboundTransferTask(destination, segments, chunkSize, cacheTopology.getTopologyId(),
                                       cacheTopology.getReadConsistentHash(), this, cacheTopology.getWriteConsistentHash(), 
-                                      dataContainer, cacheLoaderManager, rpcManager, commandsFactory, timeout, cacheName);
+                                      dataContainer, cacheLoaderManager, rpcManager, commandsFactory, timeout, cacheName, commitLog);
    }
 
    private void addTransfer(OutboundTransferTask transferTask) {

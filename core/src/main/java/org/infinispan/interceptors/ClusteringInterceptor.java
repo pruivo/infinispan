@@ -39,6 +39,7 @@ import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.base.BaseRpcInterceptor;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.StateTransferManager;
+import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.concurrent.locks.LockManager;
 
 import java.util.Collection;
@@ -90,7 +91,8 @@ public abstract class ClusteringInterceptor extends BaseRpcInterceptor {
       if (entry == null || entry.isNull() || entry.isLockPlaceholder()) {
          Object key = command.getKey();
          ConsistentHash ch = stateTransferManager.getCacheTopology().getReadConsistentHash();
-         shouldFetchFromRemote = ctx.isOriginLocal() && !ch.isKeyLocalToNode(rpcManager.getAddress(), key) && !dataContainer.containsKey(key, null);
+         shouldFetchFromRemote = ctx.isOriginLocal() && !ch.isKeyLocalToNode(rpcManager.getAddress(), key) &&
+               (!dataContainer.containsKey(key, null) || cacheConfiguration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE);
          if (!shouldFetchFromRemote && getLog().isTraceEnabled()) {
             getLog().tracef("Not doing a remote get for key %s since entry is mapped to current node (%s) or is in L1. Owners are %s", key, rpcManager.getAddress(), ch.locateOwners(key));
          }

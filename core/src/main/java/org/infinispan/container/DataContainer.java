@@ -80,6 +80,17 @@ public interface DataContainer extends Iterable<InternalCacheEntry> {
    void put(Object k, Object v, EntryVersion version, long lifespan, long maxIdle);
 
    /**
+    * Puts an entry in the cache along with a lifespan and a maxIdle time
+    * @param k key under which to store entry
+    * @param v value to store
+    * @param version the snapshot version of the new value
+    * @param lifespan lifespan in milliseconds.  -1 means immortal.
+    * @param maxIdle max idle time for which to store entry.  -1 means forever.
+    * @param donated is true if this key has been donated in a state transfer. false otherwise.
+    */
+   void put(Object k, Object v, EntryVersion version, long lifespan, long maxIdle, boolean donated);
+
+   /**
     * Tests whether an entry exists in the container with a snapshot version less than the {@param version}
     *
     * @param k key to test

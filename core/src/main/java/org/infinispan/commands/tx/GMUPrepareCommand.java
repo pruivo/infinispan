@@ -121,7 +121,7 @@ public class GMUPrepareCommand extends PrepareCommand {
       copy.onePhaseCommit = onePhaseCommit;
       copy.readSet = readSet == null ? null : readSet.clone();
       copy.version = version;
-      copy.alreadyReadFrom = alreadyReadFrom;
+      copy.alreadyReadFrom = (BitSet) alreadyReadFrom.clone();
       return copy;
    }
 

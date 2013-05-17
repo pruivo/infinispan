@@ -75,7 +75,7 @@ public class ClusterSnapshot {
     * @return the index of the address, or -1 if this collection does not contain the address.
     */
    public final int indexOf(Address address) {
-      if (address == null) {
+      if (address == null || hashFunction == null) {
          return -1;
       }
       InternalAddress internalAddress = new InternalAddress(address);

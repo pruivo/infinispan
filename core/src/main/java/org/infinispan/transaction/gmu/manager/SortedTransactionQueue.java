@@ -22,6 +22,7 @@
  */
 package org.infinispan.transaction.gmu.manager;
 
+import org.infinispan.container.versioning.gmu.GMUCacheEntryVersion;
 import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
 import org.infinispan.transaction.xa.CacheTransaction;
@@ -36,8 +37,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersion;
-
 /**
  * @author Pedro Ruivo
  * @since 5.2
@@ -45,12 +44,12 @@ import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersion;
 public class SortedTransactionQueue {
 
    private static final Log log = LogFactory.getLog(SortedTransactionQueue.class);
-   private final ConcurrentHashMap<GlobalTransaction, Node> concurrentHashMap;
+   private final ConcurrentHashMap<GlobalTransaction, TransactionEntryImpl> concurrentHashMap;
    private final Node firstEntry;
    private final Node lastEntry;
 
    public SortedTransactionQueue() {
-      this.concurrentHashMap = new ConcurrentHashMap<GlobalTransaction, Node>();
+      this.concurrentHashMap = new ConcurrentHashMap<GlobalTransaction, TransactionEntryImpl>();
 
       this.firstEntry = new AbstractBoundaryNode() {
          private Node first;
@@ -63,6 +62,9 @@ public class SortedTransactionQueue {
          @Override
          public final void setNext(Node next) {
             this.first = next;
+            synchronized (SortedTransactionQueue.this) {
+               SortedTransactionQueue.this.notifyAll();
+            }
          }
 
          @Override
@@ -108,10 +110,10 @@ public class SortedTransactionQueue {
 
    public final void prepare(CacheTransaction cacheTransaction, long concurrentClockNumber) {
       GlobalTransaction globalTransaction = cacheTransaction.getGlobalTransaction();
-      if (concurrentHashMap.contains(globalTransaction)) {
+      if (concurrentHashMap.containsKey(globalTransaction)) {
          log.warnf("Duplicated prepare for %s", globalTransaction);
       }
-      Node entry = new TransactionEntryImpl(cacheTransaction, concurrentClockNumber);
+      TransactionEntryImpl entry = new TransactionEntryImpl(cacheTransaction, concurrentClockNumber);
       concurrentHashMap.put(globalTransaction, entry);
       insertNew(entry);
    }
@@ -477,6 +479,10 @@ public class SortedTransactionQueue {
       boolean hasWaited();
 
       boolean committing();
+
+      GMUCacheEntryVersion getNewVersionInDataContainer();
+
+      void setNewVersionInDataContainer(GMUCacheEntryVersion version);
    }
 
    private class TransactionEntryImpl implements Node {
@@ -489,13 +495,14 @@ public class SortedTransactionQueue {
       private volatile long commitReceivedTimestamp = -1;
       private volatile long firstInQueueTimestamp = -1;
       private volatile long readyToCommitTimestamp = -1;
+      private GMUCacheEntryVersion newVersionInDataContainer;
       private Node previous;
       private Node next;
 
       private TransactionEntryImpl(CacheTransaction cacheTransaction, long concurrentClockNumber) {
          this.state = 0;
          this.cacheTransaction = cacheTransaction;
-         this.entryVersion = toGMUVersion(cacheTransaction.getTransactionVersion());
+         this.entryVersion = (GMUVersion) cacheTransaction.getTransactionVersion();
          this.readyToCommit = new CountDownLatch(1);
          this.concurrentClockNumber = concurrentClockNumber;
       }
@@ -602,6 +609,14 @@ public class SortedTransactionQueue {
       public final CacheTransaction getCacheTransactionForCommit() {
          cacheTransaction.setTransactionVersion(entryVersion);
          return cacheTransaction;
+      }
+
+      public synchronized GMUCacheEntryVersion getNewVersionInDataContainer() {
+         return this.newVersionInDataContainer;
+      }
+
+      public synchronized void setNewVersionInDataContainer(GMUCacheEntryVersion version) {
+         this.newVersionInDataContainer = version;
       }
 
       @Override
@@ -796,6 +811,15 @@ public class SortedTransactionQueue {
       @Override
       public final boolean hasWaited() {
          return false;
+      }
+
+      @Override
+      public GMUCacheEntryVersion getNewVersionInDataContainer() {
+         throw new UnsupportedOperationException();
+      }
+
+      public void setNewVersionInDataContainer(GMUCacheEntryVersion version) {
+          /*no-op*/
       }
    }
 }

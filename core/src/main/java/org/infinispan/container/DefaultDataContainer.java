@@ -106,6 +106,26 @@ public class DefaultDataContainer extends AbstractDataContainer<InternalCacheEnt
    }
 
    @Override
+   public void put(Object k, Object v, EntryVersion version, long lifespan, long maxIdle, boolean donated){
+      InternalCacheEntry e = entries.get(k);
+      if (e != null) {
+         e.setValue(v);
+         InternalCacheEntry original = e;
+         e.setVersion(version);
+         e = entryFactory.update(e, lifespan, maxIdle);
+         // we have the same instance. So we need to reincarnate.
+         if(original == e) {
+            e.reincarnate();
+         }
+      } else {
+         // this is a brand-new entry
+         e = entryFactory.create(k, v, version, lifespan, maxIdle, donated);
+      }
+      entries.put(k, e);
+
+   }
+
+   @Override
    public boolean containsKey(Object k, EntryVersion version) {
       InternalCacheEntry ice = peek(k, null);
       if (ice != null && ice.canExpire() && ice.isExpired(System.currentTimeMillis())) {

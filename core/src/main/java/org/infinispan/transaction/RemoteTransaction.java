@@ -24,6 +24,7 @@ package org.infinispan.transaction;
 
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.transaction.gmu.GMURemoteTransactionState;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.transaction.xa.InvalidTransactionException;
 import org.infinispan.util.InfinispanCollections;
@@ -56,6 +57,9 @@ public class RemoteTransaction extends AbstractCacheTransaction implements Clone
 
    private volatile TotalOrderRemoteTransactionState transactionState;
    private final Object transactionStateLock = new Object();
+
+   private volatile GMURemoteTransactionState gmuTransactionState;
+   private final Object gmuTransactionStateLock = new Object();
 
    public RemoteTransaction(WriteCommand[] modifications, GlobalTransaction tx, int topologyId) {
       super(tx, topologyId);
@@ -156,5 +160,17 @@ public class RemoteTransaction extends AbstractCacheTransaction implements Clone
          }
          return transactionState;
       }
+   }
+
+   public final GMURemoteTransactionState getGMUTransactionState() {
+      if (gmuTransactionState != null) {
+         return gmuTransactionState;
+      }
+      synchronized (gmuTransactionStateLock) {
+         if (gmuTransactionState == null) {
+            gmuTransactionState = new GMURemoteTransactionState();
+         }
+      }
+      return gmuTransactionState;
    }
 }

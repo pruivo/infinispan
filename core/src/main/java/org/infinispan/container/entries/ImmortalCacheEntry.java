@@ -45,8 +45,18 @@ public class ImmortalCacheEntry extends AbstractInternalCacheEntry {
       this.cacheValue = value;
    }
 
+   protected ImmortalCacheEntry(Object key, ImmortalCacheValue value, boolean donated) {
+      super(key, donated);
+      this.cacheValue = value;
+   }
+
    public ImmortalCacheEntry(Object key, Object value) {
       super(key);
+      this.cacheValue = new ImmortalCacheValue(value);
+   }
+
+   public ImmortalCacheEntry(Object key, Object value, boolean donated) {
+      super(key, donated);
       this.cacheValue = new ImmortalCacheValue(value);
    }
 

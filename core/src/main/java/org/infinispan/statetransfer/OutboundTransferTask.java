@@ -26,6 +26,7 @@ package org.infinispan.statetransfer;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.loaders.CacheLoaderException;
 import org.infinispan.loaders.CacheLoaderManager;
@@ -34,6 +35,7 @@ import org.infinispan.remoting.rpc.ResponseMode;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.jgroups.SuspectException;
+import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.util.InfinispanCollections;
 import org.infinispan.util.ReadOnlyDataContainerBackedKeySet;
 import org.infinispan.util.concurrent.ConcurrentMapFactory;
@@ -85,6 +87,8 @@ public class OutboundTransferTask implements Runnable {
 
    private final String cacheName;
 
+   private final CommitLog commitLog;
+
    protected final Map<Integer, List<InternalCacheEntry>> entriesBySegment = ConcurrentMapFactory.makeConcurrentMap();
 
    /**
@@ -100,8 +104,9 @@ public class OutboundTransferTask implements Runnable {
    public OutboundTransferTask(Address destination, Set<Integer> segments, int stateTransferChunkSize,
                                int topologyId, ConsistentHash readCh, StateProviderImpl stateProvider, ConsistentHash writeCh, DataContainer dataContainer,
                                CacheLoaderManager cacheLoaderManager, RpcManager rpcManager,
-                               CommandsFactory commandsFactory, long timeout, String cacheName) {
+                               CommandsFactory commandsFactory, long timeout, String cacheName, CommitLog commitLog) {
       this.writeCh = writeCh;
+      this.commitLog = commitLog;
       /*if (segments == null || segments.isEmpty()) {
          throw new IllegalArgumentException("Segments must not be null or empty");
       }*/ //Pedro: is segments are null, it means that it is a data placement request
@@ -265,6 +270,8 @@ public class OutboundTransferTask implements Runnable {
          }
 
          StateResponseCommand cmd = commandsFactory.buildStateResponseCommand(rpcManager.getAddress(), topologyId, chunks);
+         EntryVersion version = commitLog != null && commitLog.isEnabled() ? commitLog.getCurrentVersion() : null;
+         cmd.setVersion(version);
          // send synchronously, in order. it is important that the last chunk is received last in order to correctly detect completion of the stream of chunks
          try {
             rpcManager.invokeRemotely(Collections.singleton(destination), cmd, ResponseMode.SYNCHRONOUS, timeout, false, false);

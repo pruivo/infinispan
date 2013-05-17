@@ -24,6 +24,7 @@
 package org.infinispan.statetransfer;
 
 import org.infinispan.commands.remote.BaseRpcCommand;
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
@@ -53,6 +54,8 @@ public class StateResponseCommand extends BaseRpcCommand {
     */
    private Collection<StateChunk> stateChunks;
 
+   private EntryVersion version;
+
    /**
     * This is injected on target node via init() method before the command is performed.
     */
@@ -77,12 +80,20 @@ public class StateResponseCommand extends BaseRpcCommand {
       this.stateConsumer = stateConsumer;
    }
 
+   public EntryVersion getVersion() {
+      return version;
+   }
+
+   public void setVersion(EntryVersion version) {
+      this.version = version;
+   }
+
    @Override
    public Object perform(InvocationContext ctx) throws Throwable {
       final boolean trace = log.isTraceEnabled();
       LogFactory.pushNDC(cacheName, trace);
       try {
-         stateConsumer.applyState(getOrigin(), topologyId, stateChunks);
+         stateConsumer.applyState(getOrigin(), topologyId, stateChunks, version);
          return null;
       } finally {
          LogFactory.popNDC(trace);
@@ -101,7 +112,7 @@ public class StateResponseCommand extends BaseRpcCommand {
 
    @Override
    public Object[] getParameters() {
-      return new Object[]{getOrigin(), topologyId, stateChunks};
+      return new Object[]{getOrigin(), topologyId, stateChunks, version};
    }
 
    @Override
@@ -109,7 +120,8 @@ public class StateResponseCommand extends BaseRpcCommand {
       int i = 0;
       setOrigin((Address) parameters[i++]);
       topologyId = (Integer) parameters[i++];
-      stateChunks = (Collection<StateChunk>) parameters[i];
+      stateChunks = (Collection<StateChunk>) parameters[i++];
+      version = (EntryVersion) parameters[i];
    }
 
    @Override

@@ -75,6 +75,18 @@ public interface InternalEntryFactory {
    InternalCacheEntry create(Object key, Object value, EntryVersion version, long lifespan, long maxIdle);
 
    /**
+    * Creates a new {@link InternalCacheEntry} instance
+    * @param key key to use
+    * @param value value to use
+    * @param version version to use
+    * @param lifespan lifespan to use
+    * @param maxIdle maxIdle to use
+    * @param donated is true if this key has been donated in a state transfer. false otherwise.
+    * @return a new InternalCacheEntry
+    */
+   InternalCacheEntry create(Object key, Object value, EntryVersion version, long lifespan, long maxIdle, boolean donated);
+
+   /**
     * Creates a new {@link InternalCacheEntry} instance 
     * @param key key to use
     * @param value value to use

@@ -39,7 +39,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.infinispan.container.versioning.gmu.GMUVersion.NON_EXISTING;
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersion;
 
 /**
  * // TODO: Document this
@@ -77,15 +76,15 @@ public class ReplGMUVersionGenerator implements GMUVersionGenerator {
 
    @Override
    public final IncrementableEntryVersion increment(IncrementableEntryVersion initialVersion) {
-      GMUVersion gmuEntryVersion = toGMUVersion(initialVersion);
-      return new GMUReplicatedVersion(cacheName, cacheTopologyId, this, gmuEntryVersion.getThisNodeVersionValue() + 1);
+      return new GMUReplicatedVersion(cacheName, cacheTopologyId, this,
+                                      ((GMUVersion) initialVersion).getThisNodeVersionValue() + 1);
    }
 
    @Override
    public final GMUVersion mergeAndMax(EntryVersion... entryVersions) {
       //validate the entry versions
       for (EntryVersion entryVersion : entryVersions) {
-         if (entryVersion instanceof GMUReplicatedVersion) {
+         if (entryVersion == null || entryVersion instanceof GMUReplicatedVersion) {
             continue;
          }
          throw new IllegalArgumentException("Expected an array of GMU entry version but it has " +
@@ -103,7 +102,7 @@ public class ReplGMUVersionGenerator implements GMUVersionGenerator {
       long minVersion = NON_EXISTING;
 
       for (EntryVersion entryVersion : entryVersions) {
-         long value = toGMUVersion(entryVersion).getThisNodeVersionValue();
+         long value = ((GMUVersion) entryVersion).getThisNodeVersionValue();
          if (minVersion == NON_EXISTING) {
             minVersion = value;
          } else if (value != NON_EXISTING) {
@@ -122,8 +121,8 @@ public class ReplGMUVersionGenerator implements GMUVersionGenerator {
 
    @Override
    public final GMUCacheEntryVersion convertVersionToWrite(EntryVersion version, int subVersion) {
-      GMUVersion gmuVersion = toGMUVersion(version);
-      return new GMUCacheEntryVersion(cacheName, cacheTopologyId, this, gmuVersion.getThisNodeVersionValue(), subVersion);
+      return new GMUCacheEntryVersion(cacheName, cacheTopologyId, this,
+                                      ((GMUVersion) version).getThisNodeVersionValue(), subVersion);
    }
 
    @Override
@@ -131,8 +130,7 @@ public class ReplGMUVersionGenerator implements GMUVersionGenerator {
       if (version == null) {
          return null;
       }
-      GMUVersion gmuVersion = toGMUVersion(version);
-      return new GMUReadVersion(cacheName, cacheTopologyId, this, gmuVersion.getThisNodeVersionValue());
+      return new GMUReadVersion(cacheName, cacheTopologyId, this, ((GMUVersion) version).getThisNodeVersionValue());
    }
 
    @Override
@@ -215,8 +213,7 @@ public class ReplGMUVersionGenerator implements GMUVersionGenerator {
          if (entryVersion == null) {
             continue;
          }
-         GMUVersion gmuVersion = toGMUVersion(entryVersion);
-         max = Math.max(max, gmuVersion.getThisNodeVersionValue());
+         max = Math.max(max, ((GMUVersion) entryVersion).getThisNodeVersionValue());
       }
       return max;
    }

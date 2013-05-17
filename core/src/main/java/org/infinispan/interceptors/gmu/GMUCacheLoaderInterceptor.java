@@ -32,8 +32,6 @@ import org.infinispan.interceptors.ClusteredCacheLoaderInterceptor;
 import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.transaction.gmu.GMUHelper;
 
-import static org.infinispan.transaction.gmu.GMUHelper.toGMUVersionGenerator;
-
 /**
  * @author Pedro Ruivo
  * @since 5.2
@@ -46,7 +44,7 @@ public class GMUCacheLoaderInterceptor extends ClusteredCacheLoaderInterceptor {
    @Inject
    public void setGMUComponents(CommitLog commitLog, VersionGenerator versionGenerator) {
       this.commitLog = commitLog;
-      this.versionGenerator = toGMUVersionGenerator(versionGenerator);
+      this.versionGenerator = (GMUVersionGenerator) versionGenerator;
    }
 
    @Override

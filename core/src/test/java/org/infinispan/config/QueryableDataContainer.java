@@ -81,6 +81,12 @@ public class QueryableDataContainer implements DataContainer {
 		delegate.put(k, v, ev, lifespan, maxIdle);
 	}
 
+    @Override
+    public void put(Object k, Object v, EntryVersion version, long lifespan, long maxIdle, boolean donated) {
+        loggedOperations.add("put(" + k + ", " + v + ", " + lifespan + ", " + maxIdle + ", "+donated+")");
+        delegate.put(k, v, version, lifespan, maxIdle, donated);
+    }
+
 	@Override
 	public boolean containsKey(Object k, EntryVersion version) {
 		loggedOperations.add("containsKey(" + k + ")" );

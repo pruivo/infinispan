@@ -23,12 +23,14 @@
 
 package org.infinispan.statetransfer;
 
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Handles inbound state transfers.
@@ -54,7 +56,7 @@ public interface StateConsumer {
     */
    void onTopologyUpdate(CacheTopology cacheTopology, boolean isRebalance);
 
-   void applyState(Address sender, int topologyId, Collection<StateChunk> stateChunks);
+   void applyState(Address sender, int topologyId, Collection<StateChunk> stateChunks, EntryVersion txVersion);
 
    /**
     * Cancels all incoming state transfers. The already received data is not discarded.
@@ -87,4 +89,6 @@ public interface StateConsumer {
     * @return  true if this node has already received the first rebalance command
     */
    boolean ownsData();
+
+   List<Address> oldOwners(Object key);
 }

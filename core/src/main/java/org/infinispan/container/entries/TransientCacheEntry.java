@@ -46,12 +46,26 @@ public class TransientCacheEntry extends AbstractInternalCacheEntry {
       this.cacheValue = value;
    }
 
+   protected TransientCacheEntry(Object key, TransientCacheValue value, boolean donated) {
+      super(key, donated);
+      this.cacheValue = value;
+   }
+
    public TransientCacheEntry(Object key, Object value, long maxIdle) {
       this(key, value, maxIdle, System.currentTimeMillis());
    }
 
+   public TransientCacheEntry(Object key, Object value, long maxIdle, boolean donated) {
+      this(key, value, maxIdle, System.currentTimeMillis(), donated);
+   }
+
    public TransientCacheEntry(Object key, Object value, long maxIdle, long lastUsed) {
       super(key);
+      cacheValue = new TransientCacheValue(value, maxIdle, lastUsed);
+   }
+
+   public TransientCacheEntry(Object key, Object value, long maxIdle, long lastUsed, boolean donated) {
+      super(key, donated);
       cacheValue = new TransientCacheValue(value, maxIdle, lastUsed);
    }
 

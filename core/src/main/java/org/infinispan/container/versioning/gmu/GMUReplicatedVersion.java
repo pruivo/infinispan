@@ -47,7 +47,6 @@ import java.util.Set;
 public class GMUReplicatedVersion extends GMUVersion {
 
    private static final Log log = LogFactory.getLog(GMUReplicatedVersion.class);
-
    private final long version;
 
    public GMUReplicatedVersion(String cacheName, int viewId, GMUVersionGenerator versionGenerator, long version) {
@@ -111,6 +110,11 @@ public class GMUReplicatedVersion extends GMUVersion {
    }
 
    @Override
+   public InequalVersionComparisonResult compareToWithCheckUnsafeBeforeOrEqual(EntryVersion other) {
+      return this.compareTo(other);
+   }
+
+   @Override
    public String toString() {
       return "GMUReplicatedVersion{" +
             "version=" + version +
@@ -141,13 +145,9 @@ public class GMUReplicatedVersion extends GMUVersion {
       @Override
       public GMUReplicatedVersion readObject(ObjectInput input) throws IOException, ClassNotFoundException {
          String cacheName = input.readUTF();
-         GMUVersionGenerator gmuVersionGenerator = getGMUVersionGenerator(globalComponentRegistry, cacheName);
          int viewId = input.readInt();
-         ClusterSnapshot clusterSnapshot = gmuVersionGenerator.getClusterSnapshot(viewId);
-         if (clusterSnapshot == null) {
-            throw new IllegalArgumentException("View Id " + viewId + " not found in this node");
-         }
          long version = input.readLong();
+         ClusterSnapshot clusterSnapshot = getClusterSnapshot(globalComponentRegistry, cacheName, viewId);
          return new GMUReplicatedVersion(cacheName, viewId, clusterSnapshot, version);
       }
 

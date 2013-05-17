@@ -46,6 +46,11 @@ public class MortalCacheEntry extends AbstractInternalCacheEntry {
       this.cacheValue = cacheValue;
    }
 
+   protected MortalCacheEntry(Object key, MortalCacheValue cacheValue, boolean donated) {
+      super(key, donated);
+      this.cacheValue = cacheValue;
+   }
+
    @Override
    public Object getValue() {
       return cacheValue.value;
@@ -60,8 +65,17 @@ public class MortalCacheEntry extends AbstractInternalCacheEntry {
       this(key, value, lifespan, System.currentTimeMillis());
    }
 
+   public MortalCacheEntry(Object key, Object value, long lifespan, boolean donated) {
+      this(key, value, lifespan, System.currentTimeMillis(), donated);
+   }
+
    public MortalCacheEntry(Object key, Object value, long lifespan, long created) {
       super(key);
+      cacheValue = new MortalCacheValue(value, created, lifespan);
+   }
+
+   public MortalCacheEntry(Object key, Object value, long lifespan, long created, boolean donated) {
+      super(key, donated);
       cacheValue = new MortalCacheValue(value, created, lifespan);
    }
 

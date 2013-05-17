@@ -43,8 +43,16 @@ public class VersionedMortalCacheEntry extends MortalCacheEntry implements Versi
       super(key, new VersionedMortalCacheValue(value, version, created, lifespan));
    }
 
+   public VersionedMortalCacheEntry(Object key, Object value, EntryVersion version, long lifespan, long created, boolean donated) {
+      super(key, new VersionedMortalCacheValue(value, version, created, lifespan), donated);
+   }
+
    public VersionedMortalCacheEntry(Object key, Object value, EntryVersion version, long lifespan) {
       this(key, value, version, lifespan, System.currentTimeMillis());
+   }
+
+   public VersionedMortalCacheEntry(Object key, Object value, EntryVersion version, long lifespan, boolean donated) {
+      this(key, value, version, lifespan, System.currentTimeMillis(), donated);
    }
 
    VersionedMortalCacheEntry(Object key, VersionedMortalCacheValue cacheValue) {

@@ -32,6 +32,7 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.OutboundTransferTask;
 import org.infinispan.statetransfer.StateChunk;
 import org.infinispan.statetransfer.StateProviderImpl;
+import org.infinispan.transaction.gmu.CommitLog;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -50,9 +51,9 @@ public class DataPlacementOutboundTransferTask extends OutboundTransferTask {
                                             int topologyId, ConsistentHash readCh, StateProviderImpl stateProvider,
                                             ConsistentHash writeCh, DataContainer dataContainer,
                                             CacheLoaderManager cacheLoaderManager, RpcManager rpcManager,
-                                            CommandsFactory commandsFactory, long timeout, String cacheName) {
+                                            CommandsFactory commandsFactory, long timeout, String cacheName, CommitLog commitLog) {
       super(destination, segments, stateTransferChunkSize, topologyId, readCh, stateProvider, writeCh, dataContainer,
-            cacheLoaderManager, rpcManager, commandsFactory, timeout, cacheName);
+            cacheLoaderManager, rpcManager, commandsFactory, timeout, cacheName, commitLog);
    }
 
    @Override

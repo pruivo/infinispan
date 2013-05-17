@@ -26,7 +26,6 @@ package org.infinispan.interceptors.locking;
 import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.context.impl.TxInvocationContext;
-import org.infinispan.transaction.gmu.GMUHelper;
 import org.infinispan.util.TimSort;
 
 /**
@@ -41,10 +40,15 @@ public class OptimisticReadWriteLockingInterceptor extends OptimisticLockingInte
          //transaction is read-only. don't acquire the locks because nothing will be validated.
          return;
       }
-      GMUPrepareCommand spc = GMUHelper.convert(command, GMUPrepareCommand.class);
+      final GMUPrepareCommand spc = (GMUPrepareCommand) command;
       Object[] readSet = ctx.isOriginLocal() ? ctx.getReadSet().toArray() : spc.getReadSet();
       TimSort.sort(readSet, PrepareCommand.KEY_COMPARATOR);
       acquireReadLocks(ctx, readSet);
+   }
+
+   @Override
+   protected boolean releaseLockOnTxCompletion(TxInvocationContext ctx) {
+      return true;
    }
 
    private void acquireReadLocks(TxInvocationContext ctx, Object[] readSet) throws InterruptedException {
@@ -53,10 +57,5 @@ public class OptimisticReadWriteLockingInterceptor extends OptimisticLockingInte
          lockAndRegisterShareBackupLock(ctx, key, lockTimeout, false);
          ctx.addAffectedKey(key);
       }
-   }
-
-   @Override
-   protected boolean releaseLockOnTxCompletion(TxInvocationContext ctx) {
-      return true;
    }
 }
