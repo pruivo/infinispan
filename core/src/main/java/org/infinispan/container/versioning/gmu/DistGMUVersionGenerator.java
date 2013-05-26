@@ -317,9 +317,9 @@ public class DistGMUVersionGenerator implements GMUVersionGenerator {
 
       Collection<Address> addresses = cacheTopology.getMembers();
       if (log.isTraceEnabled()) {
-         log.tracef("Update members to view Id %s. Members are %s", topologyId, addresses);
+         log.tracef("Update members to view Id %s [current view id is %s]. Members are %s", topologyId, currentViewId, addresses);
       }
-      currentViewId = topologyId;
+      currentViewId = Math.max(topologyId, currentViewId);
       viewIdClusterSnapshot.put(topologyId, new ClusterSnapshot(addresses, HASH));
       notifyAll();
    }
