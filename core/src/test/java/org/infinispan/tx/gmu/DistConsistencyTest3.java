@@ -545,14 +545,6 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
          commitReceived = new HashSet<GlobalTransaction>();
       }
 
-      @Override
-      public void handle(CacheRpcCommand command, Address origin, Response response) throws Throwable {
-         actual.handle(command, origin, response);
-         if (command instanceof CommitCommand) {
-            notifyGlobalTransaction(((CommitCommand) command).getGlobalTransaction());
-         }
-      }
-
       public void notifyGlobalTransaction(GlobalTransaction globalTransaction) {
          synchronized (commitReceived) {
             commitReceived.add(globalTransaction);
@@ -565,6 +557,14 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
             while (!commitReceived.remove(globalTransaction)) {
                commitReceived.wait();
             }
+         }
+      }
+
+      @Override
+      public void handle(CacheRpcCommand command, Address origin, Response response, boolean preserveOrder) throws Throwable {
+         actual.handle(command, origin, response, preserveOrder);
+         if (command instanceof CommitCommand) {
+            notifyGlobalTransaction(((CommitCommand) command).getGlobalTransaction());
          }
       }
    }
