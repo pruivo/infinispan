@@ -253,20 +253,25 @@ public abstract class AbstractGMUTest extends MultipleCacheManagersTest {
    }
 
    protected final GlobalTransaction globalTransaction(int cacheIndex) {
+      return globalTransaction(cacheIndex, tx(cacheIndex));
+   }
+
+   protected final GlobalTransaction globalTransaction(int cacheIndex, Transaction transaction) {
       TransactionTable transactionTable = advancedCache(cacheIndex).getComponentRegistry()
             .getComponent(TransactionTable.class);
-      LocalTransaction localTransaction = transactionTable.getLocalTransaction(tx(cacheIndex));
+      LocalTransaction localTransaction = transactionTable.getLocalTransaction(transaction);
       return localTransaction == null ? null : localTransaction.getGlobalTransaction();
    }
 
    protected final Thread prepareInAllNodes(final Transaction tx, final DelayCommit delayCommit, final int cacheIndex)
          throws InterruptedException {
-      Thread thread = new Thread("Prepare-Only-" + cacheIndex + "-" + tx) {
+      final GlobalTransaction globalTransaction = globalTransaction(cacheIndex, tx);
+      Thread thread = new Thread("PrepareOnly," + address(cacheIndex) + "," + globalTransaction.globalId()) {
          @Override
          public void run() {
             try {
                tm(cacheIndex).resume(tx);
-               delayCommit.blockTransaction(globalTransaction(cacheIndex));
+               delayCommit.blockTransaction(globalTransaction);
                tm(cacheIndex).commit();
             } catch (Exception e) {
                e.printStackTrace();

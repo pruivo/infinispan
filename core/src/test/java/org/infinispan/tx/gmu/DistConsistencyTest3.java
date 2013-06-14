@@ -12,6 +12,8 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.remoting.transport.jgroups.CommandAwareRpcDispatcher;
 import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
+import org.infinispan.test.TestingUtil;
+import org.infinispan.transaction.gmu.manager.TransactionCommitManager;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.jgroups.blocks.Response;
 import org.testng.Assert;
@@ -28,8 +30,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
- * // TODO: Document this
- *
  * @author Pedro Ruivo
  * @since 5.2
  */
@@ -490,6 +490,91 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
       Assert.assertEquals(value, initialValue + 200);
       tm(0).commit();
 
+      assertNoTransactions();
+   }
+
+   @Test(timeOut = 30000)
+   public void testNoCommitDeadlock() throws Exception {
+      assertAtLeastCaches(3);
+      final Object key0 = newKey(0);
+      final Object key0_1 = newKey(0); //to avoid conflicts
+      final Object key1 = newKey(1);
+      final Object key2 = newKey(2);
+      final DelayCommit delayCommit = addDelayCommit(0, -1);
+      final TransactionCommitManager transactionCommitManager = TestingUtil.extractComponent(cache(0),
+                                                                                             TransactionCommitManager.class);
+
+      final int initialValue = 1000;
+
+      tm(0).begin();
+      cache(0).put(key0, initialValue);
+      cache(0).put(key1, initialValue);
+      cache(0).put(key2, initialValue);
+      cache(0).put(key0_1, initialValue);
+      tm(0).commit();
+
+      //all nodes has [1,1,1]
+
+      tm(2).begin();
+      cache(2).put(key2, initialValue + 1000);
+      tm(2).commit();
+
+      //the node 0 and 1 has [1,1,1] and the node 2 has [1,1,2]
+
+      tm(2).begin();
+      cache(2).put(key2, initialValue + 1000);
+      tm(2).commit();
+
+      //the node 0 and 1 has [1,1,1] and the node 2 has [1,1,3]
+
+      tm(2).begin();
+      cache(2).put(key2, initialValue + 1000);
+      tm(2).commit();
+
+      //the node 0 and 1 has [1,1,1] and the node 2 has [1,1,4]
+
+      tm(0).begin();
+      cache(0).put(key0, initialValue + 100);
+      cache(0).put(key2, initialValue - 3000);
+      Transaction tx1 = tm(0).suspend();
+      //transaction is prepared with [2,1,1] and [1,1,5]
+      Thread threadTx1 = prepareInAllNodes(tx1, delayCommit, 0);
+
+      //after this step, we have a transaction prepared in cache(0) (tx1)
+      //queue is [2,1,1]
+      delayCommit.awaitUntilCommitIsBlocked();
+
+      tm(1).begin();
+      cache(1).put(key0_1, initialValue + 1000);
+      cache(1).put(key1, initialValue - 1000);
+      final Transaction tx2 = tm(1).suspend();
+      Future<Boolean> threadTx2 = fork(new Callable<Boolean>() {
+
+         @Override
+         public Boolean call() throws Exception {
+            tm(1).resume(tx2);
+            tm(1).commit();
+            return Boolean.TRUE;
+         }
+      });
+
+      eventually(new Condition() {
+         @Override
+         public boolean isSatisfied() throws Exception {
+            return transactionCommitManager.size() >= 2;
+         }
+      });
+
+      //after this step is going to have a ready transaction with [3,3,1]
+      //queue is [2,1,1] -> [3,3,1]
+
+      delayCommit.unblock();
+
+      //after this queue is [3,3,1] -> [5,1,5]
+      //the transaction commit manage should handle this case.
+
+      threadTx1.join();
+      Assert.assertTrue(threadTx2.get());
       assertNoTransactions();
    }
 

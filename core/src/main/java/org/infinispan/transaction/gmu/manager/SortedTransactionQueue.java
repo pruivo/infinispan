@@ -209,6 +209,16 @@ public class SortedTransactionQueue {
       return builder.toString();
    }
 
+   public final int size() {
+      Node node = firstEntry.getNext();
+      int count = 0;
+      while (node != lastEntry) {
+         count++;
+         node = node.getNext();
+      }
+      return count;
+   }
+
    private void commitUntil(Node exclusive, List<TransactionEntry> transactionEntryList) {
       Node transaction = firstEntry.getNext();
 
