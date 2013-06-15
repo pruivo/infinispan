@@ -578,6 +578,51 @@ public class DistConsistencyTest3 extends AbstractGMUTest {
       assertNoTransactions();
    }
 
+   public void testReadOnlyDoNotWaitForWrite() throws Exception {
+      assertAtLeastCaches(3);
+      final Object key0 = newKey(0);
+      final Object key1 = newKey(1);
+      final Object key2 = newKey(2);
+      final DelayCommit delayCommit = addDelayCommit(0, -1);
+
+      final int initialValue = 1000;
+
+      tm(0).begin();
+      cache(0).put(key0, initialValue);
+      cache(0).put(key1, initialValue);
+      cache(0).put(key2, initialValue);
+      tm(0).commit();
+
+      tm(0).begin();
+      cache(0).put(key0, initialValue + 100);
+      cache(0).put(key1, initialValue - 200);
+      cache(0).put(key2, initialValue + 100);
+      Transaction tx1 = tm(0).suspend();
+      Thread threadTx1 = prepareInAllNodes(tx1, delayCommit, 0);
+
+      //after this step, all the keys are locked. make a read-only transaction
+      delayCommit.awaitUntilCommitIsBlocked();
+
+      try {
+         tm(0).begin();
+         Assert.assertEquals(initialValue, cache(0).get(key0), "Wrong initial value for key0.");
+         Assert.assertEquals(initialValue, cache(0).get(key1), "Wrong initial value for key1.");
+         Assert.assertEquals(initialValue, cache(0).get(key2), "Wrong initial value for key2.");
+         tm(0).commit();
+      } finally {
+         delayCommit.unblock();
+      }
+
+      threadTx1.join();
+
+      tm(0).begin();
+      Assert.assertEquals(initialValue + 100, cache(0).get(key0), "Wrong final value for key0.");
+      Assert.assertEquals(initialValue - 200, cache(0).get(key1), "Wrong final value for key0.");
+      Assert.assertEquals(initialValue + 100, cache(0).get(key2), "Wrong final value for key0.");
+      tm(0).commit();
+      assertNoTransactions();
+   }
+
    @Override
    protected void decorate(ConfigurationBuilder builder) {
       builder.clustering().clustering().hash().numOwners(1);

@@ -32,6 +32,10 @@ public class OptimisticReadWriteLockingInterceptor extends OptimisticLockingInte
 
    @Override
    protected void afterWriteLocksAcquired(TxInvocationContext ctx, PrepareCommand command) throws InterruptedException {
+      if (ctx.isOriginLocal() && ctx.getCacheTransaction().getAllModifications().isEmpty()) {
+         //transaction is read-only. don't acquire the locks because nothing will be validated.
+         return;
+      }
       GMUPrepareCommand spc = GMUHelper.convert(command, GMUPrepareCommand.class);
       Object[] readSet = ctx.isOriginLocal() ? ctx.getReadSet().toArray() : spc.getReadSet();
       TimSort.sort(readSet, PrepareCommand.KEY_COMPARATOR);
