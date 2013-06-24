@@ -19,6 +19,8 @@
 
 package org.infinispan.interceptors;
 
+import org.infinispan.commands.DataCommand;
+import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.commands.AbstractVisitor;
 import org.infinispan.commands.CommandsFactory;
@@ -121,6 +123,9 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
          //needed because entries might be added in L1
          if (!ctx.isInTxScope())
             commitContextEntries(ctx, command, null);
+         else {
+            lockValueForCommand((TxInvocationContext) ctx, command);
+         }
       }
    }
 
@@ -287,12 +292,53 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    private Object invokeNextAndApplyChanges(InvocationContext ctx, FlagAffectedCommand command, Metadata metadata) throws Throwable {
+      TxInvocationContext tctx = null;
+      if (ctx.isInTxScope()) {
+         tctx = (TxInvocationContext) ctx;
+         if (tctx.getCacheTransaction().hasModification(ClearCommand.class)) {
+            lockValueForCommand(tctx, command);
+         }
+      }
+
       final Object result = invokeNextInterceptor(ctx, command);
       if (!ctx.isInTxScope())
          commitContextEntries(ctx, command, metadata);
 
+      if (tctx != null) {
+         lockValueForCommand(tctx, command);
+      }
+
       log.tracef("The return value is %s", result);
       return result;
+   }
+
+   /**
+    * Locks the value for the keys accessed by the command to avoid being override from data container or from a remote
+    * get.
+    *
+    * @param context
+    * @param command
+    */
+   private void lockValueForCommand(TxInvocationContext context, FlagAffectedCommand command) {
+      if (command instanceof ClearCommand) {
+         for (CacheEntry entry : context.getLookedUpEntries().values()) {
+            if (entry instanceof MVCCEntry) {
+               ((MVCCEntry) entry).setValueLock(true);
+            }
+         }
+      } else if (command instanceof PutMapCommand) {
+         for (Object key : ((PutMapCommand) command).getAffectedKeys()) {
+            CacheEntry entry = context.lookupEntry(key);
+            if (entry instanceof MVCCEntry) {
+               ((MVCCEntry) entry).setValueLock(true);
+            }
+         }
+      } else if (command instanceof DataCommand) {
+         CacheEntry entry = context.lookupEntry(((DataCommand) command).getKey());
+         if (entry instanceof MVCCEntry) {
+            ((MVCCEntry) entry).setValueLock(true);
+         }
+      }
    }
 
    private final class EntryWrappingVisitor extends AbstractVisitor {

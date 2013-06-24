@@ -42,4 +42,15 @@ public interface MVCCEntry extends CacheEntry, StateChangingEntry {
    void copyForUpdate(DataContainer container, boolean writeSkewCheck);
 
    void setChanged(boolean isChanged);
+
+   /**
+    * See {@link #isValueLock()}.
+    * @param lock
+    */
+   void setValueLock(boolean lock);
+
+   /**
+    * @return {@code true} if the value should not be fecth from data container or from a remote node.
+    */
+   boolean isValueLock();
 }

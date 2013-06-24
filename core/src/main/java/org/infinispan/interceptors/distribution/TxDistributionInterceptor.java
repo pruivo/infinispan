@@ -20,6 +20,8 @@
 package org.infinispan.interceptors.distribution;
 
 import org.infinispan.atomic.DeltaCompositeKey;
+import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.commands.FlagAffectedCommand;
 import org.infinispan.commands.control.LockControlCommand;
@@ -43,7 +45,6 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.remoting.rpc.ResponseMode;
 import org.infinispan.remoting.rpc.RpcOptions;
-import org.infinispan.remoting.rpc.RpcOptionsBuilder;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.jgroups.SuspectException;
 import org.infinispan.transaction.LocalTransaction;
@@ -177,10 +178,14 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
          if (returnValue != null && isL1CacheEnabled && !ctx.isOriginLocal())
             l1Manager.addRequestor(command.getKey(), ctx.getOrigin());
 
+         //if the cache entry has the value lock flag set, skip the remote get.
+         CacheEntry entry = ctx.lookupEntry(command.getKey());
+         boolean skipRemoteGet = entry != null && entry instanceof MVCCEntry && ((MVCCEntry) entry).isValueLock();
+
          // need to check in the context as well since a null retval is not necessarily an indication of the entry not being
          // available.  It could just have been removed in the same tx beforehand.  Also don't bother with a remote get if
          // the entry is mapped to the local node.
-         if (returnValue == null && ctx.isOriginLocal()) {
+         if (!skipRemoteGet && returnValue == null && ctx.isOriginLocal()) {
             Object key = command.getKey();
             if (needsRemoteGet(ctx, command)) {
                returnValue = remoteGetAndStoreInL1(ctx, key, false, command);
@@ -363,6 +368,11 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
       //   b) unsafeUnreliableReturnValues is true, we are in a TX and the command is conditional
       if (isNeedReliableReturnValues(command) || command.isConditional() || shouldFetchRemoteValuesForWriteSkewCheck(ctx, command)) {
          for (Object k : keygen.getKeys()) {
+            CacheEntry entry = ctx.lookupEntry(k);
+            boolean skipRemoteGet =  entry != null && entry instanceof MVCCEntry && ((MVCCEntry) entry).isValueLock();
+            if (skipRemoteGet) {
+               continue;
+            }
             Object returnValue = remoteGetAndStoreInL1(ctx, k, true, command);
             if (returnValue == null) {
                localGet(ctx, k, true, command, false);

@@ -23,8 +23,6 @@ import org.infinispan.metadata.Metadata;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.ClusteredRepeatableReadEntry;
 import org.infinispan.container.entries.MVCCEntry;
-import org.infinispan.container.entries.NullMarkerEntry;
-import org.infinispan.container.entries.NullMarkerEntryForRemoval;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.metadata.Metadatas;
 
@@ -63,10 +61,7 @@ public class IncrementalVersionableEntryFactoryImpl extends EntryFactoryImpl {
          metadata = providedMetadata;
       }
 
-      if (value == null && !isForInsert)
-         return forRemoval ? new NullMarkerEntryForRemoval(key, metadata)
-               : NullMarkerEntry.getInstance();
-
+      //only the ClusteredRepeatableReadEntry are used, even to represent the null values.
       return new ClusteredRepeatableReadEntry(key, value, metadata);
    }
 

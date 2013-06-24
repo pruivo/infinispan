@@ -76,10 +76,14 @@ public class RemoveCommand extends AbstractDataWriteCommand {
    @Override
    public Object perform(InvocationContext ctx) throws Throwable {
       CacheEntry e = ctx.lookupEntry(key);
-      if (e == null || e.isNull()) {
+      if (e == null || e.isNull() || e.isRemoved()) {
          nonExistent = true;
          log.trace("Nothing to remove since the entry is null or we have a null entry");
          if (value == null) {
+            if (e != null) {
+               e.setChanged(true);
+               e.setRemoved(true);
+            }
             return null;
          } else {
             successful = false;
@@ -91,7 +95,6 @@ public class RemoveCommand extends AbstractDataWriteCommand {
 
       if (!ignorePreviousValue && value != null && e.getValue() != null && !e.getValue().equals(value)) {
          successful = false;
-         e.rollback();
          return false;
       }
 
@@ -100,6 +103,7 @@ public class RemoveCommand extends AbstractDataWriteCommand {
 
       e.setRemoved(true);
       e.setValid(false);
+      e.setChanged(true);
 
 
       if (this instanceof EvictCommand) {

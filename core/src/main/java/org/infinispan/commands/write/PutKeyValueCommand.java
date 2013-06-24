@@ -96,8 +96,6 @@ public class PutKeyValueCommand extends AbstractDataWriteCommand implements Meta
 
       Object entryValue = e.getValue();
       if (entryValue != null && putIfAbsent && !e.isRemoved()) {
-         // Revert assumption that new value is to be committed
-         e.setChanged(false);
          successful = false;
          return entryValue;
       } else {
@@ -120,6 +118,7 @@ public class PutKeyValueCommand extends AbstractDataWriteCommand implements Meta
                o = null;
             }
          }
+         e.setChanged(true);
       }
       return o;
    }

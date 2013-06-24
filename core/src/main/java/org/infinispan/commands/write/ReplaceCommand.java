@@ -82,9 +82,7 @@ public class ReplaceCommand extends AbstractDataWriteCommand implements Metadata
       if (e != null) {
          if (ctx.isOriginLocal()) {
             //ISPN-514
-            if (e.isNull() || e.getValue() == null) {
-               // Revert assumption that new value is to be committed
-               e.setChanged(false);
+            if (e.isNull() || e.getValue() == null || e.isRemoved()) {
                return returnValue(null, false, ctx);
             }
          }
@@ -94,8 +92,6 @@ public class ReplaceCommand extends AbstractDataWriteCommand implements Metadata
             Object old = e.setValue(newValue);
             return returnValue(old, true, ctx);
          }
-         // Revert assumption that new value is to be committed
-         e.setChanged(false);
       }
 
       return returnValue(null, false, ctx);
