@@ -54,7 +54,7 @@ public class TotalOrderVersionedCommitContextEntries extends NonVersionedCommitC
    }
 
    @Override
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
+   public void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
       if (ctx.isInTxScope()) {
          ClusteredRepeatableReadEntry clusterMvccEntry = (ClusteredRepeatableReadEntry) entry;
          EntryVersion existingVersion = clusterMvccEntry.getVersion();

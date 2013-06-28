@@ -79,12 +79,12 @@ import static org.infinispan.context.Flag.SKIP_SHARED_CACHE_STORE;
 @MBean(objectName = "CacheStore", description = "Component that handles storing of entries to a CacheStore from memory.")
 public class CacheStoreInterceptor extends JmxStatsCommandInterceptor {
    CacheLoaderManagerConfig loaderConfig = null;
-   private Map<GlobalTransaction, Integer> txStores;
-   private Map<GlobalTransaction, Set<Object>> preparingTxs;
-   final AtomicLong cacheStores = new AtomicLong(0);
+   protected Map<GlobalTransaction, Integer> txStores;
+   protected Map<GlobalTransaction, Set<Object>> preparingTxs;
+   protected final AtomicLong cacheStores = new AtomicLong(0);
    CacheStore store;
    private CacheLoaderManager loaderManager;
-   private InternalEntryFactory entryFactory;
+   protected InternalEntryFactory entryFactory;
 
    private static final Log log = LogFactory.getLog(CacheStoreInterceptor.class);
 
@@ -258,7 +258,7 @@ public class CacheStoreInterceptor extends JmxStatsCommandInterceptor {
          return;
       }
       if (getLog().isTraceEnabled()) getLog().tracef("Cache loader modification list: %s", modifications);
-      StoreModificationsBuilder modsBuilder = new StoreModificationsBuilder(getStatisticsEnabled(), modifications.size());
+      StoreModificationsBuilder modsBuilder = createNewStoreModificationsBuilder(modifications.size());
       for (WriteCommand cacheCommand : modifications) cacheCommand.acceptVisitor(ctx, modsBuilder);
       int numMods = modsBuilder.modifications.size();
       if (getLog().isTraceEnabled()) getLog().tracef("Converted method calls to cache loader modifications.  List size: %s", numMods);
@@ -272,6 +272,10 @@ public class CacheStoreInterceptor extends JmxStatsCommandInterceptor {
             txStores.put(tx, modsBuilder.putCount);
          }
       }
+   }
+
+   protected StoreModificationsBuilder createNewStoreModificationsBuilder(int modificationSize) {
+      return new StoreModificationsBuilder(getStatisticsEnabled(), modificationSize);
    }
 
    protected boolean skipKey(Object key) {
@@ -331,13 +335,17 @@ public class CacheStoreInterceptor extends JmxStatsCommandInterceptor {
          return null;
       }
 
-      private Object visitSingleStore(InvocationContext ctx, Object key) throws Throwable {
+      protected Object visitSingleStore(InvocationContext ctx, Object key) throws Throwable {
          if (!skipKey(key)) {
             if (generateStatistics) putCount++;
-            modifications.add(new Store(getStoredEntry(key, ctx)));
+            modifications.add(createStoreModification(ctx, key));
             affectedKeys.add(key);
          }
          return null;
+      }
+
+      protected Store createStoreModification(InvocationContext ctx, Object key) {
+         return new Store(getStoredEntry(key, ctx));
       }
    }
 

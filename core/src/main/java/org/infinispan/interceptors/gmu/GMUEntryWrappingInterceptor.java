@@ -36,6 +36,8 @@ import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.container.DataContainer;
+import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.container.entries.gmu.InternalGMUCacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.VersionGenerator;
@@ -114,7 +116,7 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
          ctx.setTransactionVersion(gmuCommitCommand.getCommitVersion());
       }
 
-      transactionCommitManager.commitTransaction(ctx.getCacheTransaction(), gmuCommitCommand.getCommitVersion());
+      boolean readOnly = transactionCommitManager.commitTransaction(ctx.getCacheTransaction(), gmuCommitCommand.getCommitVersion());
 
       Object retVal = null;
       try {
@@ -124,6 +126,17 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
          //receives the rollback and don't applies the write set
       } finally {
          transactionCommitManager.awaitUntilCommitted(ctx.getCacheTransaction(), ctx.isOriginLocal() ? null : gmuCommitCommand);
+      }
+
+      if (log.isTraceEnabled()) {
+         log.tracef("Committing context entries if needed. Is read-only? %s", readOnly);
+      }
+      if (readOnly) {
+         for (CacheEntry entry : ctx.getLookedUpEntries().values()) {
+            if (entry instanceof MVCCEntry && ((MVCCEntry) entry).isLoaded()) {
+               commitContextEntries.commitContextEntry(entry, ctx, false);
+            }
+         }
       }
       return ctx.isOriginLocal() ? retVal : RequestHandler.DO_NOT_REPLY;
    }

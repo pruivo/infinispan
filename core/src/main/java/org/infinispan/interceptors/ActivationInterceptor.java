@@ -103,7 +103,7 @@ public class ActivationInterceptor extends CacheLoaderInterceptor {
       return retval;
    }
 
-   private void removeFromStore(Object... keys) throws CacheLoaderException {
+   protected void removeFromStore(Object... keys) throws CacheLoaderException {
       if (!clm.isShared()) {
          for (Object k : keys) {
             if (store.remove(k) && getStatisticsEnabled()) {

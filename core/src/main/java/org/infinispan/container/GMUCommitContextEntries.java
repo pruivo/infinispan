@@ -23,6 +23,7 @@
 package org.infinispan.container;
 
 import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.util.logging.Log;
@@ -44,8 +45,9 @@ public class GMUCommitContextEntries extends NonVersionedCommitContextEntries {
    }
 
    @Override
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
-      if (ctx.isInTxScope()) {
+   public void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
+      boolean isLoaded = entry instanceof MVCCEntry && ((MVCCEntry) entry).isLoaded();
+      if (ctx.isInTxScope() && !isLoaded) {
          commitEntry(entry, ((TxInvocationContext)ctx).getTransactionVersion(), skipOwnershipCheck);
       } else {
          commitEntry(entry, entry.getVersion(), skipOwnershipCheck);

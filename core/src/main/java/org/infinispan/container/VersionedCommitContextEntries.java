@@ -45,7 +45,7 @@ public class VersionedCommitContextEntries extends NonVersionedCommitContextEntr
    }
 
    @Override
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
+   public void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
       if (ctx.isInTxScope()) {
          EntryVersion version = ((TxInvocationContext) ctx).getCacheTransaction().getUpdatedEntryVersions().get(entry.getKey());
          commitEntry(entry, version, skipOwnershipCheck);

@@ -22,6 +22,7 @@
  */
 package org.infinispan.container;
 
+import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.context.InvocationContext;
 
 /**
@@ -33,5 +34,8 @@ import org.infinispan.context.InvocationContext;
 public interface CommitContextEntries {
 
    void commitContextEntries(InvocationContext context);
+
+   //for loaded entries
+   void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck);
 
 }

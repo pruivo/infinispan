@@ -106,6 +106,9 @@ public class RemoveCommand extends AbstractDataWriteCommand {
          e.setEvicted(true);
          notify(ctx, removedValue, false);
       } else {
+         if (e instanceof MVCCEntry) {
+            ((MVCCEntry) e).setLoaded(false);
+         }
          // FIXME: Do we really need to notify with null when a user can be given with more information?
          notify(ctx, null, false);
       }

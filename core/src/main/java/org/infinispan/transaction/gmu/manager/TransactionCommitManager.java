@@ -36,6 +36,9 @@ import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.factories.annotations.Stop;
+import org.infinispan.loaders.CacheLoaderException;
+import org.infinispan.loaders.CacheLoaderManager;
+import org.infinispan.loaders.CacheStore;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.RemoteTransaction;
@@ -72,6 +75,8 @@ public class TransactionCommitManager {
    private CommitContextEntries commitContextEntries;
    private GarbageCollectorManager garbageCollectorManager;
    private LockManager lm;
+   private CacheLoaderManager cacheLoaderManager;
+   private CacheStore store;
 
    public TransactionCommitManager() {
       sortedTransactionQueue = new SortedTransactionQueue();
@@ -80,7 +85,7 @@ public class TransactionCommitManager {
    @Inject
    public void inject(InvocationContextContainer icc, VersionGenerator versionGenerator, CommitLog commitLog,
                       Transport transport, Cache cache, CommitContextEntries commitContextEntries,
-                      GarbageCollectorManager garbageCollectorManager, LockManager lm) {
+                      GarbageCollectorManager garbageCollectorManager, LockManager lm, CacheLoaderManager cacheLoaderManager) {
       this.icc = icc;
       this.versionGenerator = toGMUVersionGenerator(versionGenerator);
       this.commitLog = commitLog;
@@ -89,6 +94,7 @@ public class TransactionCommitManager {
       this.commitContextEntries = commitContextEntries;
       this.garbageCollectorManager = garbageCollectorManager;
       this.lm = lm;
+      this.cacheLoaderManager = cacheLoaderManager;
    }
 
    //AFTER THE VersionGenerator
@@ -96,6 +102,8 @@ public class TransactionCommitManager {
    public void start() {
       commitThread = new CommitThread(transport.getAddress() + "-" + cache.getName() + "-GMU-Commit");
       commitThread.start();
+      store = cacheLoaderManager.isUsingPassivation() || cacheLoaderManager.isShared() ?
+            null : cacheLoaderManager.getCacheStore();
    }
 
    @Stop
@@ -116,19 +124,22 @@ public class TransactionCommitManager {
                                                                      ++lastPreparedVersion);
 
       cacheTransaction.setTransactionVersion(preparedVersion);
-      sortedTransactionQueue.prepare(cacheTransaction,concurrentClockNumber);
+      sortedTransactionQueue.prepare(cacheTransaction, concurrentClockNumber);
    }
 
    public void rollbackTransaction(CacheTransaction cacheTransaction) {
       sortedTransactionQueue.rollback(cacheTransaction);
    }
 
-   public synchronized void commitTransaction(CacheTransaction cacheTransaction, EntryVersion version) {
+   //return true if read-only
+   public synchronized boolean commitTransaction(CacheTransaction cacheTransaction, EntryVersion version) {
       GMUVersion commitVersion = toGMUVersion(version);
       lastPreparedVersion = Math.max(commitVersion.getThisNodeVersionValue(), lastPreparedVersion);
       if (!sortedTransactionQueue.commit(cacheTransaction, commitVersion)) {
          commitLog.updateMostRecentVersion(commitVersion);
+         return true;
       }
+      return false;
    }
 
    public void prepareReadOnlyTransaction(CacheTransaction cacheTransaction) {
@@ -150,6 +161,19 @@ public class TransactionCommitManager {
    //DEBUG ONLY!
    public final TransactionEntry getTransactionEntry(GlobalTransaction globalTransaction) {
       return sortedTransactionQueue.getTransactionEntry(globalTransaction);
+   }
+
+   private void store(GlobalTransaction globalTransaction) {
+      if (log.isTraceEnabled()) {
+         log.tracef("Trying to commit in cache store. Is available? %s", store != null);
+      }
+      if (store != null) {
+         try {
+            store.commit(globalTransaction);
+         } catch (CacheLoaderException e) {
+            //ignore
+         }
+      }
    }
 
    private class CommitThread extends Thread {
@@ -211,6 +235,7 @@ public class TransactionCommitManager {
                log.fatalf(throwable, "Exception caught in commit. This should not happen");
             } finally {
                for (TransactionEntry transactionEntry : commitList) {
+                  store(transactionEntry.getCacheTransactionForCommit().getGlobalTransaction());
                   lm.unlock(transactionEntry.getCacheTransactionForCommit().getLockedKeys(), transactionEntry.getCacheTransactionForCommit().getGlobalTransaction());
                   transactionEntry.committed();
                }

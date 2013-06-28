@@ -59,7 +59,7 @@ public class CacheLoaderInterceptor extends JmxStatsCommandInterceptor {
    protected CacheLoaderManager clm;
    protected CacheNotifier notifier;
    protected CacheLoader loader;
-   private EntryFactory entryFactory;
+   protected EntryFactory entryFactory;
 
    private static final Log log = LogFactory.getLog(CacheLoaderInterceptor.class);
 
@@ -132,7 +132,7 @@ public class CacheLoaderInterceptor extends JmxStatsCommandInterceptor {
       return false;
    }
 
-   private boolean loadIfNeeded(InvocationContext ctx, Object key, boolean isRetrieval, FlagAffectedCommand cmd) throws Throwable {
+   protected boolean loadIfNeeded(InvocationContext ctx, Object key, boolean isRetrieval, FlagAffectedCommand cmd) throws Throwable {
       if (cmd.hasFlag(Flag.SKIP_CACHE_STORE) || cmd.hasFlag(Flag.SKIP_CACHE_LOAD)) {
          return false; //skip operation
       }
@@ -169,7 +169,7 @@ public class CacheLoaderInterceptor extends JmxStatsCommandInterceptor {
     * @param entry       the appropriately locked entry in the caller's context
     * @param loadedEntry the internal entry loaded from the cache store.
     */
-   private MVCCEntry recordLoadedEntry(InvocationContext ctx, Object key, MVCCEntry entry, InternalCacheEntry loadedEntry) throws Exception {
+   protected MVCCEntry recordLoadedEntry(InvocationContext ctx, Object key, MVCCEntry entry, InternalCacheEntry loadedEntry) throws Exception {
       boolean entryExists = loadedEntry != null;
       if (log.isTraceEnabled()) {
          log.trace("Entry exists in loader? " + entryExists);

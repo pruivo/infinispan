@@ -23,6 +23,7 @@
 package org.infinispan.transaction.gmu;
 
 import org.infinispan.CacheException;
+import org.infinispan.commands.FlagAffectedCommand;
 import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -32,8 +33,11 @@ import org.infinispan.container.versioning.InequalVersionComparisonResult;
 import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.container.versioning.gmu.GMUVersionGenerator;
+import org.infinispan.context.InvocationContext;
+import org.infinispan.context.SingleKeyNonTxInvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
+import org.infinispan.loaders.CacheLoader;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.SuccessfulResponse;
@@ -45,6 +49,9 @@ import org.infinispan.util.logging.LogFactory;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+
+import static org.infinispan.container.gmu.GMUEntryFactoryImpl.wrap;
+import static org.infinispan.container.versioning.InequalVersionComparisonResult.*;
 
 /**
  * // TODO: Document this
@@ -143,9 +150,9 @@ public class GMUHelper {
          } else if (r instanceof SuccessfulResponse) {
             EntryVersion version = convert(((SuccessfulResponse) r).getResponseValue(), EntryVersion.class);
             allPreparedVersions.add(version);
-         } else if(r instanceof ExceptionResponse) {
+         } else if (r instanceof ExceptionResponse) {
             throw new ValidationException(((ExceptionResponse) r).getException());
-         } else if(!r.isSuccessful()) {
+         } else if (!r.isSuccessful()) {
             throw new CacheException("Unsuccessful response received... aborting transaction " + gtx.prettyPrint());
          }
       }
@@ -159,5 +166,86 @@ public class GMUHelper {
       }
 
       ctx.setTransactionVersion(commitVersion);
+   }
+
+   public static InternalCacheEntry loadFromCacheLoader(InvocationContext context, Object key, CacheLoader loader,
+                                                        CommitLog commitLog, GMUVersionGenerator versionGenerator)
+         throws Throwable {
+      //code copied from getFromContainer()
+      boolean singleRead = context instanceof SingleKeyNonTxInvocationContext;
+      boolean remotePrepare = !context.isOriginLocal() && context.isInTxScope();
+      boolean remoteRead = !context.isOriginLocal() && !context.isInTxScope();
+
+      EntryVersion versionToRead;
+      if (singleRead || remotePrepare) {
+         //read the most recent version
+         //in the prepare, the value does not matter (it will be written or it is not read)
+         //                and the version does not matter either (it will be overwritten)
+         versionToRead = null;
+      } else {
+         versionToRead = context.calculateVersionToRead(versionGenerator);
+      }
+
+      boolean hasAlreadyReadFromThisNode = context.hasAlreadyReadOnThisNode();
+
+      if (context.isInTxScope() && context.isOriginLocal() && !context.hasAlreadyReadOnThisNode()) {
+         //firs read on the local node for a transaction. ensure the min version
+         EntryVersion transactionVersion = ((TxInvocationContext) context).getTransactionVersion();
+         try {
+            commitLog.waitForVersion(transactionVersion, -1);
+         } catch (InterruptedException ex) {
+            //ignore...
+         }
+      }
+
+      EntryVersion maxVersionToRead = hasAlreadyReadFromThisNode ? versionToRead :
+            commitLog.getAvailableVersionLessThan(versionToRead);
+
+      EntryVersion mostRecentCommitLogVersion = commitLog.getCurrentVersion();
+
+      InternalCacheEntry loaded = loader.load(key);
+      boolean valid = true;
+      if (log.isTraceEnabled()) {
+         log.tracef("Loaded %s from cache store. Compare %s to %s", loaded, loaded == null ? "Not Loaded" : loaded.getVersion(),
+                    maxVersionToRead);
+      }
+      if (loaded != null && loaded.getVersion() == null) {
+         throw new IllegalStateException("Cache entry stored must have a version");
+      }
+      if (loaded != null && maxVersionToRead != null) {
+         InequalVersionComparisonResult result = loaded.getVersion().compareTo(maxVersionToRead);
+         valid = result == BEFORE || result == BEFORE_OR_EQUAL || result == EQUAL;
+      }
+
+      if (log.isTraceEnabled()) {
+         log.tracef("Loaded %s from cache store. Is valid? %s", loaded, valid);
+      }
+      if (!valid) {
+         throw new CacheException("No valid version available");
+      }
+
+      //this is considered the most recent version.
+      InternalGMUCacheEntry entry = wrap(key, loaded, true, maxVersionToRead,
+                                         loaded == null ? null : loaded.getVersion(), null);
+
+      if (log.isTraceEnabled()) {
+         log.tracef("Loaded %s from cache store. Created wrapped cache entry %s", loaded, entry);
+      }
+      if (remoteRead) {
+         if (entry.getMaximumValidVersion() == null) {
+            entry.setMaximumValidVersion(mostRecentCommitLogVersion);
+         } else {
+            entry.setMaximumValidVersion(commitLog.getEntry(entry.getMaximumValidVersion()));
+         }
+         if (entry.getCreationVersion() == null) {
+            entry.setCreationVersion(commitLog.getOldestVersion());
+         } else {
+            entry.setCreationVersion(commitLog.getEntry(entry.getCreationVersion()));
+         }
+      }
+
+      context.addKeyReadInCommand(key, entry);
+
+      return loaded;
    }
 }

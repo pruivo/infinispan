@@ -25,6 +25,7 @@ package org.infinispan.container.entries;
 import org.infinispan.atomic.AtomicHashMap;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.versioning.EntryVersion;
+import org.infinispan.container.versioning.gmu.EvictedVersion;
 import org.infinispan.util.Util;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -77,7 +78,8 @@ public class ReadCommittedEntry implements MVCCEntry {
       REMOVED(1 << 2),
       VALID(1 << 3),
       LOCK_PLACEHOLDER(1 << 4),
-      EVICTED(1 << 5);
+      EVICTED(1 << 5),
+      LOADED(1 << 6);
 
       final byte mask;
 
@@ -176,11 +178,25 @@ public class ReadCommittedEntry implements MVCCEntry {
    }
 
    @Override
+   public boolean isLoaded() {
+      return isFlagSet(LOADED);
+   }
+
+   @Override
+   public void setLoaded(boolean loaded) {
+      if (loaded) {
+         setFlag(LOADED);
+      } else {
+         unsetFlag(LOADED);
+      }
+   }
+
+   @Override
    public final void commit(DataContainer container, EntryVersion newVersion) {
       // TODO: No tombstones for now!!  I'll only need them for an eventually consistent cache
 
       // only do stuff if there are changes.
-      if (isChanged()) {
+      if (isChanged() || isLoaded()) {
          if (trace)
             log.tracef("Updating entry (key=%s removed=%s valid=%s changed=%s created=%s value=%s newVersion=%s]", getKey(),
                       isRemoved(), isValid(), isChanged(), isCreated(), value, newVersion);
@@ -192,11 +208,14 @@ public class ReadCommittedEntry implements MVCCEntry {
             if (isRemoved() && !isEvicted()) ahm.markRemoved(true);
          }
 
-         if (isRemoved()) {
+         if (isEvicted()) {
+            container.remove(key, EvictedVersion.INSTANCE);
+         } else if (isRemoved()) {
             container.remove(key, newVersion);
          } else if (value != null) {
             container.put(key, value, newVersion, lifespan, maxIdle);
          }
+         setVersion(newVersion);
          reset();
       }
    }
@@ -278,6 +297,8 @@ public class ReadCommittedEntry implements MVCCEntry {
    public boolean isEvicted() {
       return isFlagSet(EVICTED);
    }
+
+
 
    @Override
    public final void setRemoved(boolean removed) {

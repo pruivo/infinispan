@@ -32,12 +32,25 @@ import org.infinispan.container.versioning.EntryVersion;
  */
 public class SerializableEntry extends RepeatableReadEntry {
 
+   private EntryVersion version;
+
    public SerializableEntry(Object key, Object value, long lifespan, EntryVersion version) {
       super(key, value, version, lifespan);
+      setVersion(version);
    }
 
    @Override
    public void performLocalWriteSkewCheck(DataContainer container, boolean alreadyCopied) {
       //no-op
+   }
+
+   @Override
+   public EntryVersion getVersion() {
+      return version;
+   }
+
+   @Override
+   public void setVersion(EntryVersion version) {
+      this.version = version;
    }
 }

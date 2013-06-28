@@ -24,6 +24,7 @@ package org.infinispan.container;
 
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
@@ -88,7 +89,8 @@ public class NonVersionedCommitContextEntries implements CommitContextEntries {
       return log;
    }
 
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
+   @Override
+   public void commitContextEntry(CacheEntry entry, InvocationContext ctx, boolean skipOwnershipCheck) {
       commitEntry(entry, null, skipOwnershipCheck);
    }
 
@@ -102,7 +104,8 @@ public class NonVersionedCommitContextEntries implements CommitContextEntries {
 
    private boolean commitEntryIfNeeded(InvocationContext ctx, boolean skipOwnershipCheck, CacheEntry entry) {
       Log log = getLog();
-      if (entry != null && entry.isChanged()) {
+      boolean isLoaded = entry instanceof MVCCEntry && ((MVCCEntry) entry).isLoaded();
+      if (entry != null && (entry.isChanged() || isLoaded)) {
          if (log.isTraceEnabled()) {
             log.tracef("Entry has changed. Committing %s", entry);
          }

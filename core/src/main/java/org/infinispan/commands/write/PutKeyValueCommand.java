@@ -108,6 +108,7 @@ public class PutKeyValueCommand extends AbstractDataWriteCommand {
             e.setLifespan(lifespanMillis);
             e.setMaxIdle(maxIdleTimeMillis);
          }
+         e.setLoaded(false);
          notifier.notifyCacheEntryModified(key, e.getValue(), false, ctx);
       }
       return o;

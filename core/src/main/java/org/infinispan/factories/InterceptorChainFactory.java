@@ -27,13 +27,19 @@ import org.infinispan.CacheException;
 import org.infinispan.config.Configuration;
 import org.infinispan.config.ConfigurationException;
 import org.infinispan.config.CustomInterceptorConfig;
+import org.infinispan.configuration.cache.VersioningScheme;
 import org.infinispan.factories.annotations.DefaultFactoryFor;
 import org.infinispan.interceptors.*;
 import org.infinispan.interceptors.base.CommandInterceptor;
+import org.infinispan.interceptors.gmu.DistGMUCacheStoreInterceptor;
+import org.infinispan.interceptors.gmu.GMUActivationInterceptor;
+import org.infinispan.interceptors.gmu.GMUCacheLoaderInterceptor;
+import org.infinispan.interceptors.gmu.GMUCacheStoreInterceptor;
 import org.infinispan.loaders.CacheLoaderConfig;
 import org.infinispan.loaders.CacheStoreConfig;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.Util;
+import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -80,6 +86,8 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
    }
 
    public InterceptorChain buildInterceptorChain() {
+      final boolean isGMU = configuration.getIsolationLevel() == IsolationLevel.SERIALIZABLE &&
+            configuration.getVersioningScheme() == VersioningScheme.GMU;
       InterceptorChain interceptorChain = new InterceptorChain();
 
       // add the interceptor chain to the registry first, since some interceptors may ask for it.
@@ -135,23 +143,35 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
 
       if (configuration.isUsingCacheLoaders()) {
          if (configuration.getCacheLoaderManagerConfig().isPassivation()) {
-            if (configuration.getCacheMode().isClustered())
+            if (isGMU) {
+               interceptorChain.appendInterceptor(createInterceptor(new GMUActivationInterceptor(), GMUActivationInterceptor.class), false);
+            } else if (configuration.getCacheMode().isClustered())
                interceptorChain.appendInterceptor(createInterceptor(new ClusteredActivationInterceptor(), ClusteredActivationInterceptor.class), false);
             else
                interceptorChain.appendInterceptor(createInterceptor(new ActivationInterceptor(), ActivationInterceptor.class), false);
             interceptorChain.appendInterceptor(createInterceptor(new PassivationInterceptor(), PassivationInterceptor.class), false);
          } else {
-            if (configuration.getCacheMode().isClustered())
+            if (isGMU) {
+               interceptorChain.appendInterceptor(createInterceptor(new GMUCacheLoaderInterceptor(), GMUCacheLoaderInterceptor.class), false);
+            } else if (configuration.getCacheMode().isClustered())
                interceptorChain.appendInterceptor(createInterceptor(new ClusteredCacheLoaderInterceptor(), ClusteredCacheLoaderInterceptor.class), false);
             else
                interceptorChain.appendInterceptor(createInterceptor(new CacheLoaderInterceptor(), CacheLoaderInterceptor.class), false);
             switch (configuration.getCacheMode()) {
                case DIST_SYNC:
                case DIST_ASYNC:
-                  interceptorChain.appendInterceptor(createInterceptor(new DistCacheStoreInterceptor(), DistCacheStoreInterceptor.class), false);
+                  if (isGMU) {
+                     interceptorChain.appendInterceptor(createInterceptor(new DistGMUCacheStoreInterceptor(), DistGMUCacheStoreInterceptor.class), false);
+                  } else {
+                     interceptorChain.appendInterceptor(createInterceptor(new DistCacheStoreInterceptor(), DistCacheStoreInterceptor.class), false);
+                  }
                   break;
                default:
-                  interceptorChain.appendInterceptor(createInterceptor(new CacheStoreInterceptor(), CacheStoreInterceptor.class), false);
+                  if (isGMU) {
+                     interceptorChain.appendInterceptor(createInterceptor(new GMUCacheStoreInterceptor(), GMUCacheStoreInterceptor.class), false);
+                  } else {
+                     interceptorChain.appendInterceptor(createInterceptor(new CacheStoreInterceptor(), CacheStoreInterceptor.class), false);
+                  }
                   break;
             }
          }
