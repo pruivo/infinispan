@@ -104,7 +104,8 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
       try {
       return super.visitCommitCommand(ctx, command);
       } finally {
-         if (releaseLockOnTxCompletion(ctx) && IsolationLevel.SERIALIZABLE!=configuration.getIsolationLevel()) lockManager.unlockAll(ctx);
+         boolean skipLockRelease = IsolationLevel.SERIALIZABLE == configuration.getIsolationLevel() && !ctx.isOriginLocal();
+         if (!skipLockRelease && releaseLockOnTxCompletion(ctx)) lockManager.unlockAll(ctx);
       }
    }
 
