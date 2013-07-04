@@ -75,6 +75,7 @@ public abstract class TransactionStatistics implements InfinispanStat {
 
    public TransactionStatistics(int size, Configuration configuration) {
       this.initTime = System.nanoTime();
+      dumpStackTraceToLog(true);
       this.isReadOnly = true; //as far as it does not tries to perform a put operation
       this.takenLocks = new HashMap<Object, Long>();
       this.transactionalClass = TransactionsStatisticsRegistry.DEFAULT_ISPN_CLASS;
@@ -92,6 +93,21 @@ public abstract class TransactionStatistics implements InfinispanStat {
       }
    }
 
+   private void dumpStackTraceToLog(boolean begin) {
+      StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+      StringBuilder builder = new StringBuilder();
+      if (begin) {
+         builder.append("begin(");
+      } else {
+         builder.append("commit(");
+      }
+      builder.append(Integer.toHexString(System.identityHashCode(this))).append(") ");
+      builder.append("Stack Trace:").append(System.getProperty("line.separator"));
+      for (StackTraceElement stackTraceElement : stackTraceElements) {
+         builder.append("   ").append(stackTraceElement.toString()).append(System.getProperty("line.separator"));
+      }
+      log.fatal(builder.toString());
+   }
 
    public final String getTransactionalClass() {
       return this.transactionalClass;
@@ -152,8 +168,8 @@ public abstract class TransactionStatistics implements InfinispanStat {
          log.tracef("Terminating transaction. Is read only? %s. Is commit? %s", isReadOnly, isCommit);
       }
 
-
       double execTime = System.nanoTime() - this.initTime;
+      dumpStackTraceToLog(false);
       if (this.isReadOnly) {
          if (isCommit) {
             this.incrementValue(IspnStats.NUM_COMMITTED_RO_TX);
