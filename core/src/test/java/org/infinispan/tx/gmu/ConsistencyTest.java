@@ -217,6 +217,32 @@ public class ConsistencyTest extends AbstractGMUTest {
       assertNoTransactions();
       assertNoLocks();
    }
+   
+   public void testRemove() throws Exception {
+      assertAtLeastCaches(2);
+
+      Object key1 = newKey(1, 0);
+      
+      logKeysUsedInTest("testRemove", key1);
+
+      assertKeyOwners(key1, 1, 0);
+      assertCacheValuesNull(key1);
+
+      tm(0).begin();
+      txPut(0, key1, VALUE_1, null);
+      tm(0).commit();
+
+      assertCachesValue(0, key1, VALUE_1);
+      
+      tm(0).begin();
+      assert VALUE_1.equals(cache(0).get(key1));
+      remove(0, key1, VALUE_1);
+      assert null == cache(0).get(key1);
+      tm(0).commit();
+
+      assertNoTransactions();
+      printDataContainer();
+   }
 
    @Override
    protected void decorate(ConfigurationBuilder builder) {
