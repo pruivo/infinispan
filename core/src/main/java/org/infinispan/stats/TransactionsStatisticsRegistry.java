@@ -31,6 +31,7 @@ import org.infinispan.util.logging.LogFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -46,7 +47,7 @@ public final class TransactionsStatisticsRegistry {
    private static final Log log = LogFactory.getLog(TransactionsStatisticsRegistry.class);
 
    public static final String DEFAULT_ISPN_CLASS = "DEFAULT_ISPN_CLASS";
-   private static ConcurrentHashMap<Long, Map<Object, Long>> pendingLocks = new ConcurrentHashMap<Long, Map<Object, Long>>();
+   private static ConcurrentHashMap<String, Map<Object, Long>> pendingLocks = new ConcurrentHashMap<String, Map<Object, Long>>();
 
    //Now it is unbounded, we can define a MAX_NO_CLASSES
    private static final Map<String, NodeScopeStatisticCollector> transactionalClassesStatsMap
@@ -64,15 +65,52 @@ public final class TransactionsStatisticsRegistry {
 
    public static boolean active = false;
 
+   private static boolean sampleServiceTime = false;
+
    public static boolean isActive() {
       return active;
    }
+
+   public static boolean isSampleServiceTime() {
+      return active && sampleServiceTime;
+   }
+
 
    public static void init(Configuration configuration) {
       log.info("Initializing transactionalClassesMap");
       TransactionsStatisticsRegistry.configuration = configuration;
       transactionalClassesStatsMap.put(DEFAULT_ISPN_CLASS, new NodeScopeStatisticCollector(configuration));
       active = true;
+      sampleServiceTime = configuration.customStatsConfiguration().isSampleServiceTimes();
+      TransactionStatistics.init(configuration);
+   }
+
+
+   public static void markPrepareSent() {
+      TransactionStatistics txs = thread.get();
+      if (txs == null) {
+         log.debug("Trying to mark xact as prepared, but no transaction is associated to the thread");
+         return;
+      }
+      txs.markPrepareSent();
+   }
+
+   public static boolean isPrepareSent() {
+      TransactionStatistics txs = thread.get();
+      if (txs == null) {
+         log.debug("Trying to mark xact as prepared, but no transaction is associated to the thread");
+         return false;
+      }
+      return txs.isPrepareSent();
+   }
+
+   public static boolean stillLocalExecution() {
+      LocalTransactionStatistics txs = (LocalTransactionStatistics) thread.get();
+      if (txs == null) {
+         log.debug("Trying to mark xact as prepared, but no transaction is associated to the thread");
+         return false;
+      }
+      return txs.isStillLocalExecution();
    }
 
 
@@ -83,13 +121,28 @@ public final class TransactionsStatisticsRegistry {
                          " but no transaction is associated to the thread");
          return;
       }
-      thread.get().injectId(ctx.getGlobalTransaction());
+      txs.injectId(ctx.getGlobalTransaction());
    }
 
-   public static Map<Object, Long> getCurrentLocks() {
-      return thread.get().getTakenLocks();
+
+   public static void notifyRead() {
+      TransactionStatistics txs = thread.get();
+      if (txs == null) {
+         if (log.isDebugEnabled()) {
+            log.debug("Trying to invoke notifyRead() but no transaction is associated to the thread");
+         }
+         return;
+      }
+      txs.incrementNumGets();
    }
 
+
+   //MESSY WORKAROUND
+   public static long getCurrentThreadCpuTime() {
+      if (!active)
+         return 0;
+      return TransactionStatistics.getCurrentCpuTime();
+   }
 
    public static void addNTBCValue(long currtime) {
       TransactionStatistics txs = thread.get();
@@ -123,7 +176,7 @@ public final class TransactionsStatisticsRegistry {
       appendLocks(stats.getTakenLocks(), stats.id);
    }
 
-   private static void appendLocks(Map<Object, Long> locks, Long id) {
+   private static void appendLocks(Map<Object, Long> locks, String id) {
       if (locks != null && !locks.isEmpty()) {
          //log.trace("Appending locks for " + id);
          pendingLocks.put(id, locks);
@@ -167,7 +220,10 @@ public final class TransactionsStatisticsRegistry {
     * @param local
     */
    public static void addValueAndFlushIfNeeded(IspnStats param, double value, boolean local) {
-
+      if (log.isDebugEnabled()) {
+         log.debugf("Flushing value %s to parameter %s without attached xact",
+                    value, param);
+      }
       NodeScopeStatisticCollector nssc = transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS);
       if (local) {
          nssc.addLocalValue(param, value);
@@ -218,6 +274,7 @@ public final class TransactionsStatisticsRegistry {
          }
          return;
       }
+      long init = System.nanoTime();
       txs.terminateTransaction();
 
       NodeScopeStatisticCollector dest = transactionalClassesStatsMap.get(txs.getTransactionalClass());
@@ -226,11 +283,11 @@ public final class TransactionsStatisticsRegistry {
       } else {
          log.debug("Statistics not merged for transaction class not found on transactionalClassStatsMap");
       }
-
       thread.remove();
       TransactionTS lastTS = lastTransactionTS.get();
       if (lastTS != null)
          lastTS.setEndLastTxTs(System.nanoTime());
+      TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(IspnStats.TERMINATION_COST, System.nanoTime() - init, txs instanceof LocalTransactionStatistics);
    }
 
    public static Object getAttribute(IspnStats param, String className) {
@@ -251,7 +308,11 @@ public final class TransactionsStatisticsRegistry {
       if (configuration == null) {
          return null;
       }
-      return transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
+      Object ret = transactionalClassesStatsMap.get(DEFAULT_ISPN_CLASS).getAttribute(param);
+      if (log.isTraceEnabled()) {
+         log.tracef("Attribute %s == %s", param, ret);
+      }
+      return ret;
    }
 
    public static Object getPercentile(IspnStats param, int percentile, String className) {
@@ -268,18 +329,21 @@ public final class TransactionsStatisticsRegistry {
       }
    }
 
-   public static void flushPendingLocksIfNeeded(GlobalTransaction id) {
-      if (pendingLocks.containsKey(id.getId())) {
-         immediateLockingTimeSampling(pendingLocks.get(id.getId()));
-         pendingLocks.remove(id.getId());
+   public static void flushPendingRemoteLocksIfNeeded(GlobalTransaction id) {
+      if (pendingLocks.containsKey(id.globalId())) {
+         if(log.isTraceEnabled())
+            log.trace("Going to flush locks for " + (id.isRemote() ? "local " : "remote ") + "xact " + id.getId());
+         immediateRemoteLockingTimeSampling(pendingLocks.get(id.globalId()));
+         pendingLocks.remove(id.globalId());
       }
    }
 
 
    private static long computeCumulativeLockHoldTime(Map<Object, Long> takenLocks, int numLocks, long currentTime) {
       long ret = numLocks * currentTime;
-      for (Object o : takenLocks.keySet())
-         ret -= takenLocks.get(o);
+      Set<Map.Entry<Object, Long>> keySet = takenLocks.entrySet();
+      for (Map.Entry<Object, Long> e : keySet)
+         ret -= takenLocks.get(e.getValue());
       return ret;
    }
 
@@ -288,7 +352,7 @@ public final class TransactionsStatisticsRegistry {
     *
     * @param locks
     */
-   private static void immediateLockingTimeSampling(Map<Object, Long> locks) {
+   private static void immediateRemoteLockingTimeSampling(Map<Object, Long> locks) {
       int size = locks.size();
       double cumulativeLockHoldTime = computeCumulativeLockHoldTime(locks, size, System.nanoTime());
       addValueAndFlushIfNeeded(IspnStats.LOCK_HOLD_TIME, cumulativeLockHoldTime, false);
@@ -323,6 +387,7 @@ public final class TransactionsStatisticsRegistry {
          return;
       }
       txs.setUpdateTransaction();
+      txs.setReadsBeforeFirstWrite();
    }
 
    //This is synchronized because depending on the local/remote nature, a different object is created
@@ -334,7 +399,7 @@ public final class TransactionsStatisticsRegistry {
 
    }
 
-   public static void attachRemoteTransactionStatistic(GlobalTransaction globalTransaction, boolean createIfAbsent) {
+   public static boolean attachRemoteTransactionStatistic(GlobalTransaction globalTransaction, boolean createIfAbsent) {
       RemoteTransactionStatistics rts = remoteTransactionStatistics.get(globalTransaction);
       if (rts == null && createIfAbsent && configuration != null) {
          if (log.isTraceEnabled()) {
@@ -346,13 +411,14 @@ public final class TransactionsStatisticsRegistry {
          if (log.isDebugEnabled()) {
             log.debugf("Trying to create a remote transaction statistics in a not initialized Transaction Statistics Registry");
          }
-         return;
+         return false;
       } else {
          if (log.isTraceEnabled()) {
             log.tracef("Using the remote transaction statistic %s for transaction %s", rts, globalTransaction.globalId());
          }
       }
       thread.set(rts);
+      return true;
    }
 
    public static void detachRemoteTransactionStatistic(GlobalTransaction globalTransaction, boolean finished) {
@@ -411,7 +477,8 @@ public final class TransactionsStatisticsRegistry {
          //Here only when transaction starts
          TransactionTS lastTS = lastTransactionTS.get();
          if (lastTS == null) {
-            log.tracef("Init a new local transaction statistics for Timestamp");
+            if(log.isTraceEnabled())
+               log.tracef("Init a new local transaction statistics for Timestamp");
             lastTransactionTS.set(new TransactionTS());
          } else {
             addValue(IspnStats.NTBC_EXECUTION_TIME, System.nanoTime() - lastTS.getEndLastTxTs());

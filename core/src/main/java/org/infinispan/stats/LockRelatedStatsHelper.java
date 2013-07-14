@@ -21,24 +21,54 @@
 * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 */
 
-package org.infinispan.transaction.gmu;
+package org.infinispan.stats;
 
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.VersioningScheme;
 import org.infinispan.transaction.xa.GlobalTransaction;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 /**
  * @author Diego Didona, didona@gsd.inesc-id.pt Date: 21/03/13
  */
-public class GmuStatsHelper {
+public class LockRelatedStatsHelper {
 
+   private static boolean enabled = false;
+   private static final Log log = LogFactory.getLog(LockRelatedStatsHelper.class);
+
+   public static void enable() {
+      log.trace("Enabling the LockRelatedStatsHelper. Using GMU, then!");
+      enabled = true;
+   }
+
+   /**
+    * When collecting stats for locks, not always these can be taken upon visiting the Commit/RollbackCommand (or
+    * Prepare for 1PC) In some cases the locks are released when the relevant xact does not exist anymore (e.g., in GMU
+    * async commit or whenever the locks are released through the TxCompletionNotificationCommand, e.g., RR with sync
+    * Commit)
+    *
+    * @param conf     configuration of the cache
+    * @param isCommit true if the transaction relevant to the locks is committing
+    * @param isRemote true if the transaction relevant to the locks is remote
+    * @return true if locks statistics cannot be sampled right away
+    */
+   //TODO: consider also recovery=true/false             -->now only considering recovery =  false
    public static boolean shouldAppendLocks(Configuration conf, boolean isCommit, boolean isRemote) {
+      if (!enabled) {
+         if(log.isTraceEnabled())
+            log.trace("LockRelatedHelper not enabled. Returning FALSE");
+         return false;
+      }
       boolean isGmu = conf.versioning().scheme().equals(VersioningScheme.GMU);
       boolean isSyncCommit = conf.transaction().syncCommitPhase();
+      if(log.isTraceEnabled())
+         log.trace("LockRelatedHelper enabled. "+(isGmu?" GMU is on":"RR")+(isSyncCommit? " sync commit":" async commit")+(isRemote? "remote":"local"));
       return isRemote && isGmu && isCommit && !isSyncCommit;
    }
 
    public static boolean maybePendingLocks(GlobalTransaction lockOwner) {
-      return lockOwner.isRemote();
+      return enabled && lockOwner.isRemote();
    }
+
 }

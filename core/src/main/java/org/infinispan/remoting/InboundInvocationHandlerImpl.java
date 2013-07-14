@@ -26,6 +26,7 @@ import org.infinispan.CacheException;
 import org.infinispan.commands.CancellableCommand;
 import org.infinispan.commands.CancellationService;
 import org.infinispan.commands.CommandsFactory;
+import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.ConfigurationStateCommand;
 import org.infinispan.commands.remote.GMUClusteredGetCommand;
@@ -43,6 +44,8 @@ import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.interceptors.totalorder.RetryPrepareException;
 import org.infinispan.manager.NamedCacheNotFoundException;
+import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
@@ -59,6 +62,8 @@ import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.jgroups.blocks.RpcDispatcher;
+import org.jgroups.util.Buffer;
 
 /**
  * Sets the cache interceptor chain on an RPCCommand before calling it to perform
@@ -76,6 +81,9 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    private CancellationService cancelService;
    private BlockingTaskAwareExecutorService totalOrderExecutorService;
    private BlockingTaskAwareExecutorService gmuExecutorService;
+
+   private RpcDispatcher.Marshaller marshaller = null;
+
 
    @Inject
    public void inject(GlobalComponentRegistry gcr, Transport transport,
@@ -149,9 +157,9 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       }
 
       CommandsFactory commandsFactory = cr.getCommandsFactory();
-      final long arrivalTime = System.nanoTime();
       // initialize this command with components specific to the intended cache instance
       commandsFactory.initializeReplicableCommand(cmd, true);
+      final long arrivalTime = System.nanoTime();
       if (cmd instanceof TotalOrderPrepareCommand) {
          final TotalOrderRemoteTransactionState state = ((TotalOrderPrepareCommand) cmd).getOrCreateState();
          final TotalOrderManager totalOrderManager = cr.getTotalOrderManager();
@@ -190,6 +198,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       } else if (cmd instanceof GMUClusteredGetCommand) {
          final GMUClusteredGetCommand gmuClusteredGetCommand = (GMUClusteredGetCommand) cmd;
          gmuClusteredGetCommand.init();
+         final boolean hasWaited = !gmuClusteredGetCommand.isReady();
 
          gmuExecutorService.execute(new BlockingRunnable() {
             @Override
@@ -200,38 +209,55 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
             @Override
             public void run() {
                Response resp;
+               boolean sampleServiceTimes = TransactionsStatisticsRegistry.isSampleServiceTime();
                try {
-                  if (TransactionsStatisticsRegistry.isActive()) {
-                     TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(ExposedStatistics.IspnStats.REMOTE_GET_WAITING_TIME, System.nanoTime() - arrivalTime, false);
-                     TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(ExposedStatistics.IspnStats.NUM_SERVED_REMOTE_GETS, false);
+                  long cpuInitTime = 0, initTime = 0;
+                  if (sampleServiceTimes) {
+                     //No xact is associated to this command, so we do not attach a TransactionStatistics and rely on the flushes
+                     cpuInitTime = TransactionsStatisticsRegistry.getCurrentThreadCpuTime();
+                     initTime = System.nanoTime();
+                     if (hasWaited) {
+                        TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(ExposedStatistics.IspnStats.REMOTE_REMOTE_GET_WAITING_TIME, initTime - arrivalTime, false);
+                        TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(ExposedStatistics.IspnStats.NUM_WAITS_REMOTE_REMOTE_GETS, false);
+                     }
                   }
                   resp = handleInternal(cmd, cr);
+                  if (sampleServiceTimes) {
+                     TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(ExposedStatistics.IspnStats.NUM_REMOTE_REMOTE_GETS, false);
+                     TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(ExposedStatistics.IspnStats.REMOTE_REMOTE_GET_R, System.nanoTime() - initTime, false);
+                     TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(ExposedStatistics.IspnStats.REMOTE_REMOTE_GET_S, TransactionsStatisticsRegistry.getCurrentThreadCpuTime() - cpuInitTime, false);
+                  }
                } catch (Throwable throwable) {
                   log.exceptionHandlingCommand(cmd, throwable);
                   resp = new ExceptionResponse(new CacheException("Problems invoking command.", throwable));
                }
                //the ResponseGenerated is null in this case because the return value is a Response
                reply(response, resp);
+               if (sampleServiceTimes) {
+                  TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(ExposedStatistics.IspnStats.REMOTE_REMOTE_GET_REPLY_SIZE, getReplySize(resp), false);
+               }
             }
          });
          return;
       } else if (cmd instanceof GMUCommitCommand) {
          final GMUCommitCommand gmuCommitCommand = (GMUCommitCommand) cmd;
          gmuCommitCommand.init();
+         final boolean hasWaited = !gmuCommitCommand.isReady();
+
          gmuExecutorService.execute(new BlockingRunnable() {
             @Override
             public boolean isReady() {
                return gmuCommitCommand.isReady();
             }
-
+            //TODO service and response time of remote commits?
             @Override
             public void run() {
                Response resp;
                try {
-                  if (TransactionsStatisticsRegistry.isActive()) {
-                     boolean isLocal = cmd.getOrigin().equals(transport.getAddress());
-                     TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(ExposedStatistics.IspnStats.WAIT_TIME_IN_COMMIT_QUEUE, System.nanoTime() - arrivalTime, isLocal);
-                     TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(ExposedStatistics.IspnStats.NUM_WAITS_IN_COMMIT_QUEUE, isLocal);
+                  //RemoteTransactionStatistic has been attached and detached by the IIHW, so it has to be attached again to this thread
+                  if (TransactionsStatisticsRegistry.attachRemoteTransactionStatistic(gmuCommitCommand.getGlobalTransaction(),true) && hasWaited) {
+                     TransactionsStatisticsRegistry.addValue(ExposedStatistics.IspnStats.WAIT_TIME_IN_COMMIT_QUEUE, System.nanoTime() - arrivalTime);
+                     TransactionsStatisticsRegistry.incrementValue(ExposedStatistics.IspnStats.NUM_WAITS_IN_COMMIT_QUEUE);
                   }
                   resp = handleInternal(cmd, cr);
                } catch (Throwable throwable) {
@@ -240,6 +266,8 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
                }
                //the ResponseGenerated is null in this case because the return value is a Response
                reply(response, resp);
+               //Before the gmuExecutorService continues handling other stuff, we have to detach the current xact.
+               TransactionsStatisticsRegistry.detachRemoteTransactionStatistic(gmuCommitCommand.getGlobalTransaction(),true);
                gmuExecutorService.checkForReadyTasks();
             }
          });
@@ -263,6 +291,18 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
    private void reply(org.jgroups.blocks.Response response, Object retVal) {
       if (response != null) {
          response.send(retVal, false);
+      }
+   }
+
+   private int getReplySize(Response r) {
+      try {
+         if (marshaller == null && transport instanceof JGroupsTransport) {
+            marshaller = ((JGroupsTransport) transport).getCommandAwareRpcDispatcher().getMarshaller();
+         }
+         Buffer buffer = marshaller.objectToBuffer(r);
+         return buffer != null ? buffer.getLength() : 0;
+      } catch (Exception e) {
+         return 0;
       }
    }
 

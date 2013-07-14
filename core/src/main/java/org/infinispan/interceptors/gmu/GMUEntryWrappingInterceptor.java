@@ -55,6 +55,8 @@ import org.infinispan.interceptors.EntryWrappingInterceptor;
 import org.infinispan.loaders.CacheLoaderException;
 import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.loaders.CacheStore;
+import org.infinispan.stats.TransactionsStatisticsRegistry;
+import org.infinispan.stats.translations.ExposedStatistics;
 import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.gmu.CommitLog;
@@ -164,8 +166,17 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
       try {
          retVal = invokeNextInterceptor(ctx, command);
          //in remote context, the commit command will be enqueue, so it does not need to wait
-         if (transactionEntry != null) {
+         if (transactionEntry != null) {     //Only local
+            boolean waited = TransactionsStatisticsRegistry.hasStatisticCollector() && !transactionEntry.isReadyToCommit();
+            long waitTime = 0L;
+            if (waited) {
+               waitTime = System.nanoTime();
+            }
             transactionEntry.awaitUntilIsReadyToCommit();
+            if (waited) {
+               TransactionsStatisticsRegistry.incrementValue(ExposedStatistics.IspnStats.NUM_WAITS_IN_COMMIT_QUEUE);
+               TransactionsStatisticsRegistry.addValue(ExposedStatistics.IspnStats.WAIT_TIME_IN_COMMIT_QUEUE, System.nanoTime() - waitTime);
+            }
          } else if (!ctx.isOriginLocal()) {
             transactionEntry = gmuCommitCommand.getTransactionEntry();
          }

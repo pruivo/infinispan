@@ -80,14 +80,13 @@ public class LocalTransactionStatistics extends TransactionStatistics {
       if (!isCommit())
          return;
       if (!isReadOnly()) {
-         //log.fatal("Terminating xact. Going to sample times");
          long numPuts = this.getValue(IspnStats.NUM_PUT);
+         this.addValue(IspnStats.FIRST_WRITE_INDEX, this.readsBeforeFirstWrite);
          this.addValue(IspnStats.NUM_SUCCESSFUL_PUTS, numPuts);
          this.addValue(IspnStats.NUM_HELD_LOCKS_SUCCESS_TX, getValue(IspnStats.NUM_HELD_LOCKS));
          this.addValue(IspnStats.UPDATE_TX_LOCAL_R, this.endLocalTime - this.initTime);
          this.addValue(IspnStats.UPDATE_TX_TOTAL_R, now - this.initTime);
          if (sampleServiceTime) {
-            //log.fatal("Sampling service time: current is "+cpuTime+" endOfLocalExec was "+endLocalCpuTime);
             addValue(IspnStats.UPDATE_TX_LOCAL_S, this.endLocalCpuTime - this.initCpuTime);
             addValue(IspnStats.UPDATE_TX_TOTAL_S, cpuTime - this.initCpuTime);
          }
@@ -116,6 +115,27 @@ public class LocalTransactionStatistics extends TransactionStatistics {
       }
       return ret;
    }
+
+   protected void immediateLockingTimeSampling(int heldLocks, boolean isCommit) {
+         double cumulativeLockHoldTime = this.computeCumulativeLockHoldTime(heldLocks, System.nanoTime());
+         this.addValue(IspnStats.NUM_HELD_LOCKS, heldLocks);
+         this.addValue(IspnStats.LOCK_HOLD_TIME, cumulativeLockHoldTime);
+         IspnStats counter, type;
+         if (isCommit) {
+            counter = IspnStats.NUM_SUX_LOCKS;
+            type = IspnStats.SUX_LOCK_HOLD_TIME;
+         } else {
+            if (!isPrepareSent()) {
+               counter = IspnStats.NUM_LOCAL_ABORTED_LOCKS;
+               type = IspnStats.LOCAL_ABORT_LOCK_HOLD_TIME;
+            } else {
+               counter = IspnStats.NUM_REMOTE_ABORTED_LOCKS;
+               type = IspnStats.REMOTE_ABORT_LOCK_HOLD_TIME;
+            }
+         }
+         addValue(counter, heldLocks);
+         addValue(type, cumulativeLockHoldTime);
+      }
 
 
    @Override

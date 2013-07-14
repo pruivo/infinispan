@@ -30,16 +30,17 @@ import org.infinispan.stats.translations.RemoteStatistics;
 /**
  * Websiste: www.cloudtm.eu
  * Date: 20/04/12
+ *
  * @author Diego Didona <didona@gsd.inesc-id.pt>
  * @since 5.2
  */
-public class RemoteTransactionStatistics extends TransactionStatistics{
+public class RemoteTransactionStatistics extends TransactionStatistics {
 
-   public RemoteTransactionStatistics(Configuration configuration){
-      super(RemoteStatistics.getSize(),configuration);
+   public RemoteTransactionStatistics(Configuration configuration) {
+      super(RemoteStatistics.getSize(), configuration);
    }
 
-   protected final void onPrepareCommand(){
+   protected final void onPrepareCommand() {
       //nop
    }
 
@@ -48,10 +49,27 @@ public class RemoteTransactionStatistics extends TransactionStatistics{
       //nop
    }
 
-   protected final int getIndex(ExposedStatistics.IspnStats stat) throws NoIspnStatException{
+   protected void immediateLockingTimeSampling(int heldLocks, boolean isCommit) {
+      double cumulativeLockHoldTime = this.computeCumulativeLockHoldTime(heldLocks, System.nanoTime());
+      this.addValue(ExposedStatistics.IspnStats.NUM_HELD_LOCKS, heldLocks);
+      this.addValue(ExposedStatistics.IspnStats.LOCK_HOLD_TIME, cumulativeLockHoldTime);
+      ExposedStatistics.IspnStats counter, type;
+      if (isCommit) {
+         counter = ExposedStatistics.IspnStats.NUM_SUX_LOCKS;
+         type = ExposedStatistics.IspnStats.SUX_LOCK_HOLD_TIME;
+      } else {
+         counter = ExposedStatistics.IspnStats.NUM_REMOTE_ABORTED_LOCKS;
+         type = ExposedStatistics.IspnStats.REMOTE_ABORT_LOCK_HOLD_TIME;
+
+      }
+      addValue(counter, heldLocks);
+      addValue(type, cumulativeLockHoldTime);
+   }
+
+   protected final int getIndex(ExposedStatistics.IspnStats stat) throws NoIspnStatException {
       int ret = RemoteStatistics.getIndex(stat);
       if (ret == RemoteStatistics.NOT_FOUND) {
-         throw new NoIspnStatException("Statistic "+stat+" is not available!");
+         throw new NoIspnStatException("Statistic " + stat + " is not available!");
       }
       return ret;
    }
