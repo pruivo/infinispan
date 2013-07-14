@@ -26,6 +26,7 @@ import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
 import org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand;
 import org.infinispan.commands.tx.CommitCommand;
+import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
 import org.infinispan.remoting.RpcException;
@@ -58,6 +59,7 @@ public class RpcManagerWrapper implements RpcManager {
    private static final Log log = LogFactory.getLog(RpcManagerWrapper.class);
    private final RpcManager actual;
    private final RpcDispatcher.Marshaller marshaller;
+   private Address myAddress;
 
    public RpcManagerWrapper(RpcManager actual) {
       this.actual = actual;
@@ -67,6 +69,7 @@ public class RpcManagerWrapper implements RpcManager {
       } else {
          marshaller = null;
       }
+      myAddress = actual.getTransport().getAddress();
    }
 
    @Override
@@ -134,12 +137,29 @@ public class RpcManagerWrapper implements RpcManager {
    }
 
    @Override
+   //This should be the method invoked at prepareTime
    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpc, boolean sync,
                                                 boolean usePriorityQueue, boolean totalOrder) throws RpcException {
-      long currentTime = System.nanoTime();
-      Map<Address, Response> ret = actual.invokeRemotely(recipients, rpc, sync, usePriorityQueue, totalOrder);
-      updateStats(rpc, sync, currentTime, recipients);
-      return ret;
+      boolean isPrepareCmd = rpc instanceof PrepareCommand;
+      boolean sample = TransactionsStatisticsRegistry.isActive();
+      //try {
+         long currentTime = System.nanoTime();
+         if (isPrepareCmd && sample) {
+               TransactionsStatisticsRegistry.markPrepareSent();
+         }
+         Map<Address, Response> ret = actual.invokeRemotely(recipients, rpc, sync, usePriorityQueue, totalOrder);
+         if(sample){
+            updateStats(rpc, sync, currentTime, recipients);
+         }
+         return ret;
+      //}
+      /*catch (RpcException e) {
+         if (isPrepareCmd && sample) {
+            TransactionsStatisticsRegistry.incrementValue(IspnStats.NUM_REMOTELY_ABORTED);
+         }
+         throw e;
+      }
+      */
    }
 
    @Override
@@ -206,6 +226,8 @@ public class RpcManagerWrapper implements RpcManager {
       IspnStats counterStat;
       IspnStats recipientSizeStat;
       IspnStats commandSizeStat = null;
+      long contactedNodes = recipientListSize(recipients);
+      long contactedNodesMinusMe = recipientListSize(recipients) - (isCurrentNodeInvolved(recipients) ? 1 : 0);
       if (command instanceof PrepareCommand) {
          if (sync) {
             durationStat = IspnStats.RTT_PREPARE;
@@ -225,16 +247,21 @@ public class RpcManagerWrapper implements RpcManager {
             counterStat = IspnStats.NUM_ASYNC_ROLLBACK;
          }
          recipientSizeStat = IspnStats.NUM_NODES_ROLLBACK;
+         commandSizeStat = IspnStats.ROLLBACK_COMMAND_SIZE;
       } else if (command instanceof CommitCommand) {
          if (sync) {
             durationStat = IspnStats.RTT_COMMIT;
             counterStat = IspnStats.NUM_RTTS_COMMIT;
+            TransactionsStatisticsRegistry.addValue(IspnStats.SENT_SYNC_COMMIT, contactedNodesMinusMe);
          } else {
             durationStat = IspnStats.ASYNC_COMMIT;
             counterStat = IspnStats.NUM_ASYNC_COMMIT;
+            TransactionsStatisticsRegistry.addValue(IspnStats.SENT_ASYNC_COMMIT, contactedNodesMinusMe);
          }
          recipientSizeStat = IspnStats.NUM_NODES_COMMIT;
          commandSizeStat = IspnStats.COMMIT_COMMAND_SIZE;
+
+
       } else if (command instanceof ClusteredGetCommand) {
          durationStat = IspnStats.RTT_GET;
          counterStat = IspnStats.NUM_RTTS_GET;
@@ -252,7 +279,7 @@ public class RpcManagerWrapper implements RpcManager {
 
          TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(durationStat, System.nanoTime() - init, true);
          TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(counterStat, true);
-         TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(recipientSizeStat, recipientListSize(recipients), true);
+         TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(recipientSizeStat, contactedNodes, true);
 
          return;
       } else {
@@ -271,6 +298,11 @@ public class RpcManagerWrapper implements RpcManager {
 
    private int recipientListSize(Collection<Address> recipients) {
       return recipients == null ? actual.getTransport().getMembers().size() : recipients.size();
+   }
+
+   private boolean isCurrentNodeInvolved(Collection<Address> recipients) {
+      //If recipients is null it's either a BroadCast (or I am the only one in the cluster, which is a trivial broadcast)
+      return recipients == null || recipients.contains(myAddress);
    }
 
    private int getCommandSize(ReplicableCommand command) {

@@ -35,6 +35,12 @@ public class ExposedStatistics {
    public static enum IspnStats {
       LOCK_WAITING_TIME(true, true),         // C
       LOCK_HOLD_TIME(true, true),            // C
+      SUX_LOCK_HOLD_TIME(true, true),
+      LOCAL_ABORT_LOCK_HOLD_TIME(true, false),
+      REMOTE_ABORT_LOCK_HOLD_TIME(true, true),
+      NUM_SUX_LOCKS(true, true),
+      NUM_LOCAL_ABORTED_LOCKS(true, false),
+      NUM_REMOTE_ABORTED_LOCKS(true, true),
       NUM_HELD_LOCKS(true, true),            // C
       NUM_HELD_LOCKS_SUCCESS_TX(true, false),   // L
       WR_TX_LOCAL_EXECUTION_TIME(true, false),  // L
@@ -55,10 +61,12 @@ public class ExposedStatistics {
       LOCK_HOLD_TIME_REMOTE(false, false), //ONLY FOR QUERY
       LOCK_CONTENTION_TO_LOCAL(true, true),  // C
       LOCK_CONTENTION_TO_REMOTE(true, true), // C
+      REMOTE_LOCK_CONTENTION_TO_LOCAL(false,false), //just to query
+      REMOTE_LOCK_CONTENTION_TO_REMOTE(false,false), //just to query
       NUM_SUCCESSFUL_PUTS(true, false),   // L, this includes also repeated puts over the same item
       PUTS_PER_LOCAL_TX(false, false), // ONLY FOR QUERY, derived on the fly
       NUM_WAITED_FOR_LOCKS(true, true),   // C
-      NUM_REMOTE_GET(true, true),                  // C
+      NUM_LOCAL_REMOTE_GET(true, true),                  // C
       NUM_GET(true, true),                          // C
       NUM_SUCCESSFUL_GETS_RO_TX(true, true),        // C
       NUM_SUCCESSFUL_GETS_WR_TX(true, true),        // C
@@ -66,7 +74,6 @@ public class ExposedStatistics {
       NUM_SUCCESSFUL_REMOTE_GETS_RO_TX(true, true), // C
       LOCAL_GET_EXECUTION(true, true),
       ALL_GET_EXECUTION(true, true),
-      REMOTE_GET_EXECUTION(true, true),            // C
       REMOTE_PUT_EXECUTION(true, true),            // C
       NUM_REMOTE_PUT(true, true),                  // C
       NUM_PUT(true, true),                         // C
@@ -122,6 +129,8 @@ public class ExposedStatistics {
       PREPARE_COMMAND_SIZE(true, false),        // L
       COMMIT_COMMAND_SIZE(true, false),         // L
       CLUSTERED_GET_COMMAND_SIZE(true, false),  // L
+      REMOTE_REMOTE_GET_REPLY_SIZE(false, true), //R
+      ROLLBACK_COMMAND_SIZE(true, false),//L
 
       //Lock failed stuff
       NUM_LOCK_FAILED_TIMEOUT(true, false),  //L
@@ -138,7 +147,9 @@ public class ExposedStatistics {
       NUM_RTTS_GET(true, false),       // L
       RTT_GET(true, false),            // L
 
-      //SEND STUFF: everything is local && asynchronous communication
+      //SEND STUFF: everything is local && asynchronous communication .
+      //NUM refers to the number of nodes INVOLVED in the distributed synchronization phases
+      //SENT refers to the number of messages effectively sent (i.e., without the current node, if present in the recipient list)
       ASYNC_PREPARE(true, false),               // L
       NUM_ASYNC_PREPARE(true, false),           // L
       ASYNC_COMMIT(true, false),                // L
@@ -147,7 +158,8 @@ public class ExposedStatistics {
       NUM_ASYNC_ROLLBACK(true, false),          // L
       ASYNC_COMPLETE_NOTIFY(true, false),       // L
       NUM_ASYNC_COMPLETE_NOTIFY(true, false),   // L
-
+      SENT_SYNC_COMMIT(true, false), //Just for the commit, as this is the same also for prepares (which result eventually into a commit) and txCompletion, if present
+      SENT_ASYNC_COMMIT(true, false),
       //Number of nodes involved stuff
       NUM_NODES_PREPARE(true, false),           //L
       NUM_NODES_COMMIT(true, false),            //L
@@ -208,10 +220,17 @@ public class ExposedStatistics {
       READ_ONLY_TX_COMMIT_R(true, false),
       NUM_READ_ONLY_TX_COMMIT(true, true), // C
       //Cpu demand to perform the remote read of a datum
-      REMOTE_GET_S(true, false),
+      LOCAL_REMOTE_GET_S(true, false),
+      //WC time to perform the remote read of a datum
+      LOCAL_REMOTE_GET_R(true, true),            // C
+      //Cpu demand to serve an incoming remote read of a datum
+      REMOTE_REMOTE_GET_S(false, true),
+      //WC Time to serve an incoming remote read, without waiting time in the queue
+      REMOTE_REMOTE_GET_R(false, true),
       WAIT_TIME_IN_COMMIT_QUEUE(true, true),
       WAIT_TIME_IN_REMOTE_COMMIT_QUEUE(false, false), //used just for query     from customInterceptor
       NUM_WAITS_IN_COMMIT_QUEUE(true, true),
+      NUM_WAITS_IN_REMOTE_COMMIT_QUEUE(false,true), //just for query
       NUM_OWNED_RD_ITEMS_IN_OK_PREPARE(true, true),
       NUM_OWNED_WR_ITEMS_IN_OK_PREPARE(true, true),
       NUM_OWNED_RD_ITEMS_IN_LOCAL_PREPARE(true, false), //just for query
@@ -220,14 +239,19 @@ public class ExposedStatistics {
       NUM_OWNED_WR_ITEMS_IN_REMOTE_PREPARE(false, true), //just for query
       NUM_ABORTED_TX_DUE_TO_VALIDATION(true, false),
       NUM_KILLED_TX_DUE_TO_VALIDATION(true, true),
-      NUM_ABORTED_TX_DUE_TO_NOT_LAST_VALUE_ACCESSED(true, false),
+      NUM_REMOTELY_ABORTED(true, false),
+      NUM_EARLY_ABORTS(true,false),
+      NUM_LOCALPREPARE_ABORTS(true,false),
       GET_OPERATION_S(true, false),
-      NUM_SERVED_REMOTE_GETS(false, true),
-      REMOTE_GET_WAITING_TIME(false, true),
+      NUM_REMOTE_REMOTE_GETS(false, true),
+      NUM_WAITS_REMOTE_REMOTE_GETS(false, true),
+      REMOTE_REMOTE_GET_WAITING_TIME(false, true),
       UPDATE_TX_TOTAL_R(true, false),
       UPDATE_TX_TOTAL_S(true, false),
       READ_ONLY_TX_TOTAL_R(true, false),
-      READ_ONLY_TX_TOTAL_S(true, false);
+      READ_ONLY_TX_TOTAL_S(true, false),
+      TERMINATION_COST(true, true),
+      FIRST_WRITE_INDEX(true, false);
 
       private boolean local;
       private boolean remote;

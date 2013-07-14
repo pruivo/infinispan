@@ -75,14 +75,15 @@ public class GMUHelper {
       }
       EntryVersion prepareVersion = prepareCommand.getPrepareVersion();
       for (Object key : prepareCommand.getReadSet()) {
-         if (keyLogic.localNodeIsOwner(key)) {
+         //if (keyLogic.localNodeIsOwner(key)) {
+         if (keyLogic.localNodeIsPrimaryOwner(key)) {      //DIE: for now, hardcoded
             InternalCacheEntry cacheEntry = dataContainer.get(key, null); //get the most recent
             EntryVersion currentVersion = cacheEntry.getVersion();
             if (log.isDebugEnabled()) {
                log.debugf("[%s] Validate [%s]: Compare %s vs %s", gtx.globalId(), key, currentVersion, prepareVersion);
             }
             if (currentVersion == null) {
-               //this should only happens if the key does not exits. However, this can create some
+               //this should only happen if the key does not exits. However, this can create some
                //consistency issues when eviction is enabled
                continue;
             }
