@@ -24,6 +24,7 @@ import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.cache.VersioningScheme;
+import org.infinispan.context.Flag;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.interceptors.base.BaseCustomInterceptor;
@@ -31,9 +32,11 @@ import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.test.MultipleCacheManagersTest;
 import org.infinispan.test.TestingUtil;
 import org.infinispan.util.concurrent.IsolationLevel;
+import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
+import javax.transaction.Transaction;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +44,7 @@ import java.util.List;
  * @author Pedro Ruivo
  * @since 5.2
  */
+@Test(groups = "functional", testName = "tx.gmu.IgnoreReturnValueTest")
 public class IgnoreReturnValueTest extends MultipleCacheManagersTest {
 
    private static final int NUM_KEYS = 10;
@@ -54,10 +58,90 @@ public class IgnoreReturnValueTest extends MultipleCacheManagersTest {
       }
    }
 
-   public final void testNonConflict() {
-
+   public IgnoreReturnValueTest() {
+      this.cleanup = CleanupPhase.AFTER_METHOD;
    }
 
+   public final void testNotInReadSet() throws Exception {
+      populate();
+      GetReadSetInterceptor readSetInterceptor = injectInCache(cache(0));
+      advancedCache(0).withFlags(Flag.IGNORE_RETURN_VALUES).put(KEYS[0], VALUES[1]);
+      Assert.assertTrue(readSetInterceptor.lastReadSet.isEmpty());
+      assertInAllCaches(KEYS[0], VALUES[1]);
+
+      tm(0).begin();
+      advancedCache(0).withFlags(Flag.IGNORE_RETURN_VALUES).put(KEYS[0], VALUES[2]);
+      cache(0).get(KEYS[0]);
+      tm(0).commit();
+      Assert.assertTrue(readSetInterceptor.lastReadSet.contains(KEYS[0]));
+      assertInAllCaches(KEYS[0], VALUES[2]);
+
+      tm(0).begin();
+      cache(0).get(KEYS[0]);
+      advancedCache(0).withFlags(Flag.IGNORE_RETURN_VALUES).put(KEYS[0], VALUES[3]);
+      tm(0).commit();
+      Assert.assertTrue(readSetInterceptor.lastReadSet.contains(KEYS[0]));
+      assertInAllCaches(KEYS[0], VALUES[1]);
+   }
+
+   public final void testNotValidated() throws Exception {
+      populate();
+
+      tm(0).begin();
+      advancedCache(0).withFlags(Flag.IGNORE_RETURN_VALUES).put(KEYS[0], VALUES[1]);
+      final Transaction tx1 = tm(0).suspend();
+
+      tm(0).begin();
+      advancedCache(0).withFlags(Flag.IGNORE_RETURN_VALUES).put(KEYS[0], VALUES[2]);
+      final Transaction tx2 = tm(0).suspend();
+
+      //this originates a conflict.
+      cache(0).put(KEYS[0], VALUES[3]);
+
+      tm(0).resume(tx1);
+      //this tx has never keys[0]. So it should never be aborted
+      Assert.assertEquals(cache(0).get(KEYS[0]), VALUES[1]);
+      tm(0).commit();
+
+      tm(0).resume(tx2);
+      //this tx has never keys[0]. So it should never be aborted
+      Assert.assertEquals(cache(0).get(KEYS[0]), VALUES[2]);
+      tm(0).commit();
+
+      assertInAllCaches(KEYS[0], VALUES[2]);
+   }
+
+   public final void testMultiplePuts() throws Exception {
+      populate();
+
+      tm(0).begin();
+      advancedCache(0).withFlags(Flag.IGNORE_RETURN_VALUES).put(KEYS[0], VALUES[1]);
+      final Transaction tx1 = tm(0).suspend();
+
+      tm(0).begin();
+      advancedCache(0).withFlags(Flag.IGNORE_RETURN_VALUES).put(KEYS[0], VALUES[2]);
+      final Transaction tx2 = tm(0).suspend();
+
+      tm(0).begin();
+      advancedCache(0).withFlags(Flag.IGNORE_RETURN_VALUES).put(KEYS[0], VALUES[3]);
+      final Transaction tx3 = tm(0).suspend();
+
+      tm(0).resume(tx1);
+
+      tm(0).commit();
+
+      assertInAllCaches(KEYS[0], VALUES[1]);
+
+      tm(0).resume(tx2);
+      tm(0).commit();
+
+      assertInAllCaches(KEYS[0], VALUES[2]);
+
+      tm(0).resume(tx3);
+      tm(0).commit();
+
+      assertInAllCaches(KEYS[0], VALUES[3]);
+   }
 
    @Override
    protected void createCacheManagers() throws Throwable {
@@ -88,8 +172,18 @@ public class IgnoreReturnValueTest extends MultipleCacheManagersTest {
       }
    }
 
-   private void populate() {
+   private void populate() throws Exception {
+      tm(0).begin();
+      for (int i = 0; i < NUM_KEYS; ++i) {
+         cache(0).put(KEYS[i], VALUES[i]);
+      }
+      tm(0).commit();
+   }
 
+   private void assertInAllCaches(Object key, Object value) {
+      for (Cache cache : caches()) {
+         Assert.assertEquals(cache.get(key), value, "Wrong value for key [" + key + "] in cache [" + address(cache) + "]");
+      }
    }
 
    private class GetReadSetInterceptor extends BaseCustomInterceptor {
