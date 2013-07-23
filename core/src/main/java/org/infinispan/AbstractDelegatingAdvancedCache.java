@@ -204,4 +204,9 @@ public class AbstractDelegatingAdvancedCache<K, V> extends AbstractDelegatingCac
       AdvancedCache<K, V> wrap(AdvancedCache<K, V> cache);
    }
 
+   @Override
+   public TransactionTable getTxTable() {
+       return cache.getTxTable();
+   }
+
 }
