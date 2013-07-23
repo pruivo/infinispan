@@ -23,6 +23,7 @@
 package org.infinispan.interceptors.gmu;
 
 import org.infinispan.CacheException;
+import org.infinispan.commands.AbstractFlagAffectedCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.GMUCommitCommand;
@@ -273,7 +274,7 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
    public Object visitGetKeyValueCommand(InvocationContext ctx, GetKeyValueCommand command) throws Throwable {
       ctx.clearKeyReadInCommand();
       Object retVal = super.visitGetKeyValueCommand(ctx, command);
-      updateTransactionVersion(ctx);
+      updateTransactionVersion(ctx, command);
       return retVal;
    }
 
@@ -283,7 +284,7 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
       final boolean previousAccessed = ctx.getLookedUpEntries().containsKey(command.getKey());
       Object retVal = super.visitPutKeyValueCommand(ctx, command);
       checkWriteCommand(ctx, previousAccessed, command);
-      updateTransactionVersion(ctx);
+      updateTransactionVersion(ctx, command);
       return retVal;
    }
 
@@ -293,7 +294,7 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
       final boolean previousAccessed = ctx.getLookedUpEntries().containsKey(command.getKey());
       Object retVal = super.visitRemoveCommand(ctx, command);
       checkWriteCommand(ctx, previousAccessed, command);
-      updateTransactionVersion(ctx);
+      updateTransactionVersion(ctx, command);
       return retVal;
    }
 
@@ -303,7 +304,7 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
       final boolean previousAccessed = ctx.getLookedUpEntries().containsKey(command.getKey());
       Object retVal = super.visitReplaceCommand(ctx, command);
       checkWriteCommand(ctx, previousAccessed, command);
-      updateTransactionVersion(ctx);
+      updateTransactionVersion(ctx, command);
       return retVal;
    }
 
@@ -404,7 +405,7 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
       }
    }
 
-   private void updateTransactionVersion(InvocationContext context) {
+   private void updateTransactionVersion(InvocationContext context, AbstractFlagAffectedCommand command) {
       if (!context.isInTxScope() && !context.isOriginLocal()) {
          return;
       }
@@ -433,7 +434,9 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
          if (internalGMUCacheEntry.getMaximumTransactionVersion() != null) {
             entryVersionList.add(internalGMUCacheEntry.getMaximumTransactionVersion());
          }
-         txInvocationContext.getCacheTransaction().addReadKey(internalGMUCacheEntry.getKey());
+         if (!command.hasFlag(Flag.READ_WITHOUT_REGISTERING)) {
+            txInvocationContext.getCacheTransaction().addReadKey(internalGMUCacheEntry.getKey());
+         }  
          if (cdl.localNodeIsOwner(internalGMUCacheEntry.getKey())) {
             txInvocationContext.setAlreadyReadOnThisNode(true);
             txInvocationContext.addReadFrom(cdl.getAddress());
