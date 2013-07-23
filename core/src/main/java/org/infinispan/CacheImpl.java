@@ -1254,4 +1254,9 @@ public class CacheImpl<K, V> extends CacheSupport<K, V> implements AdvancedCache
       InvocationContext ctx = getInvocationContextForRead(null, null, 1);
       invoker.invoke(ctx, command);
    }
+   
+   @Override
+   public TransactionTable getTxTable() {
+      return this.txTable;
+   }
 }
