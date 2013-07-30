@@ -97,6 +97,7 @@ import org.infinispan.remoting.responses.UnsuccessfulResponse;
 import org.infinispan.remoting.responses.UnsureResponse;
 import org.infinispan.remoting.transport.jgroups.JGroupsAddress;
 import org.infinispan.remoting.transport.jgroups.JGroupsTopologyAwareAddress;
+import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.topology.CacheJoinInfo;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.transaction.xa.DldGlobalTransaction;
@@ -330,6 +331,8 @@ public class ExternalizerTable implements ObjectTable {
       addInternalExternalizer(new GMUReplicatedVersion.Externalizer(gcr));
       addInternalExternalizer(new GMUDistributedVersion.Externalizer(gcr));
       addInternalExternalizer(new GMUCacheEntryVersion.Externalizer(gcr));
+
+      addInternalExternalizer(new PiggyBackStat.Externalizer());
    }
 
    void addInternalExternalizer(AdvancedExternalizer<?> ext) {

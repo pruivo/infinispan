@@ -272,7 +272,21 @@ public enum ExposedStatistic {
    NUM_GMU_WAITING_IN_QUEUE_DUE_SLOW_COMMITS_REMOTE(false, false),
    NUM_GMU_WAITING_IN_QUEUE_DUE_CONFLICT_VERSION_LOCAL(false, false),
    NUM_GMU_WAITING_IN_QUEUE_DUE_CONFLICT_VERSION_REMOTE(false, false),
-   ;
+   //TO waiting times
+   TO_GMU_PREPARE_COMMAND_RTT_NO_WAIT(true,false),
+   TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED(true,false),
+   TO_GMU_PREPARE_COMMAND_NODES_WAITED(true, false),
+   TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT(true, false),
+   TO_GMU_PREPARE_COMMAND_RTT_MINUS_AVG(true, false),
+   TO_GMU_PREPARE_COMMAND_RTT_MINUS_MAX(true, false),
+   TO_GMU_PREPARE_COMMAND_MAX_WAIT_TIME(true, false),
+   TO_GMU_PREPARE_COMMAND_AVG_WAIT_TIME(true, false),
+   TO_GMU_PREPARE_COMMAND_RESPONSE_TIME(false, true),
+   TO_GMU_PREPARE_COMMAND_SERVICE_TIME(false, true),
+   TO_GMU_PREPARE_COMMAND_SERVED(false, true),
+   TO_GMU_PREPARE_COMMAND_REMOTE_WAIT(false, true),
+   TO_GMU_PREPARE_COMMAND_REMOTE_WAITED(false, true);
+
    public static final int NO_INDEX = -1;
    private static short localStatsSize = 0;
    private static short remoteStatsSize = 0;

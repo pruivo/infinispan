@@ -24,6 +24,7 @@ package org.infinispan.remoting.responses;
 
 import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
+import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.util.Util;
 
 import java.io.ObjectOutput;
@@ -39,7 +40,6 @@ import java.util.Set;
  * @since 4.0
  */
 public class UnsureResponse extends ValidResponse {
-   public static final UnsureResponse INSTANCE = new UnsureResponse();
    @Override
    public boolean isSuccessful() {
       return false;
@@ -48,11 +48,14 @@ public class UnsureResponse extends ValidResponse {
    public static class Externalizer extends AbstractExternalizer<UnsureResponse> {
       @Override
       public void writeObject(ObjectOutput output, UnsureResponse subject) throws IOException {
+         output.writeObject(subject.piggyBackStat);
       }
 
       @Override
       public UnsureResponse readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         return INSTANCE;
+         UnsureResponse ur = new UnsureResponse();
+         ur.setPiggyBackStat((PiggyBackStat) input.readObject());
+         return ur;
       }
 
       @Override

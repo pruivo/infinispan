@@ -28,7 +28,7 @@ package org.infinispan.remoting.responses;
  * @author Manik Surtani
  * @since 4.0
  */
-public abstract class InvalidResponse implements Response {
+public abstract class InvalidResponse extends AbstractResponse {
    @Override
    public boolean isValid() {
       return false;

@@ -29,6 +29,7 @@ import java.util.Set;
 
 import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
+import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.util.Util;
 
 /**
@@ -59,11 +60,14 @@ public class ExceptionResponse extends InvalidResponse {
       @Override
       public void writeObject(ObjectOutput output, ExceptionResponse response) throws IOException {
          output.writeObject(response.exception);
+         output.writeObject(response.piggyBackStat);
       }
 
       @Override
       public ExceptionResponse readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         return new ExceptionResponse((Exception) input.readObject());
+         ExceptionResponse er = new ExceptionResponse((Exception) input.readObject());
+         er.setPiggyBackStat((PiggyBackStat) input.readObject());
+         return er;
       }
 
       @Override

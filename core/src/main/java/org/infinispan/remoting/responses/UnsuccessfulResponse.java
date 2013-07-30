@@ -24,6 +24,7 @@ package org.infinispan.remoting.responses;
 
 import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
+import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.util.Util;
 
 import java.io.IOException;
@@ -38,9 +39,8 @@ import java.util.Set;
  * @since 4.0
  */
 public class UnsuccessfulResponse extends ValidResponse {
-   public static final UnsuccessfulResponse INSTANCE = new UnsuccessfulResponse();
 
-   private UnsuccessfulResponse() {
+   public UnsuccessfulResponse() {
    }
 
    @Override
@@ -62,12 +62,14 @@ public class UnsuccessfulResponse extends ValidResponse {
    public static class Externalizer extends AbstractExternalizer<UnsuccessfulResponse> {
       @Override
       public void writeObject(ObjectOutput output, UnsuccessfulResponse object) throws IOException {
-         // no-op
+         output.writeObject(object.piggyBackStat);
       }
       
       @Override
       public UnsuccessfulResponse readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         return INSTANCE;
+         UnsuccessfulResponse ur = new UnsuccessfulResponse();
+         ur.setPiggyBackStat((PiggyBackStat)input.readObject());
+         return ur;
       }
 
       @Override

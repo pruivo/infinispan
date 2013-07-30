@@ -1579,6 +1579,72 @@ public final class CustomStatsInterceptor extends BaseCustomInterceptor {
       TransactionsStatisticsRegistry.setGmuWaitingActive(enabled);
    }
 
+   @ManagedAttribute(description = "Avg Conditional Waiting time experience by TO-GMU prepare command",
+                     displayName = "Avg Conditional Waiting time experience by TO-GMU prepare command")
+   public final long getTOPrepareWaitTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_AVG_WAIT_TIME));
+   }
+
+   @ManagedAttribute(description = "Average TO-GMU conditional max replay time at cohorts",
+                     displayName = "Average TO-GMU conditional max replay time at cohorts")
+   public final long getTOMaxSuccessfulValidationWaitingTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_MAX_WAIT_TIME));
+   }
+
+   @ManagedAttribute(description = "Average TO-GMU validation conditional wait time on a single node",
+                     displayName = "Average TO-GMU validation conditional wait time on a single node")
+   public final long getTOAvgValidationConditionalWaitTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_REMOTE_WAIT));
+   }
+
+   @ManagedAttribute(description = "Average TO-GMU validations that waited on a node",
+                     displayName = "Average TO-GMU validations that waited on a node")
+   public final long getTONumValidationWaited() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_REMOTE_WAITED));
+   }
+
+   @ManagedAttribute(description = "Probability that a TO-GMU prepare experiences waiting time",
+                     displayName = "Probability that a TO-GMU prepare experiences waiting time")
+   public final long getTOGMUPrepareWaitProbability() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT));
+   }
+
+   @ManagedAttribute(description = "Average TO-GMU prepare Rtt minus avg replay time at cohorts for successful xact",
+                     displayName = "Average TO-GMU prepare Rtt minus avg replay time at cohorts for successful xact")
+   public final long getTOGMUPrepareRttMinusAvgValidationTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_RTT_MINUS_AVG));
+   }
+
+   @ManagedAttribute(description = "Average TO-GMU prepare Rtt minus max replay time at cohorts for successful xact",
+                     displayName = "Average TO-GMU prepare Rtt minus max replay time at cohorts for successful xact")
+   public final long getTOGMUPrepareRttMinusMaxValidationTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_RTT_MINUS_MAX));
+   }
+
+   @ManagedAttribute(description = "Average TO-GMU mean replay time at cohorts for successful xact",
+                     displayName = "Average TO-GMU mean replay time at cohorts for successful xact")
+   public final long getTOGMUAvgSuccessfulValidationResponseTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_RESPONSE_TIME));
+   }
+
+   @ManagedAttribute(description = "Average TO-GMU mean replay time at cohorts for successful xact",
+                     displayName = "Average TO-GMU mean replay time at cohorts for successful xact")
+   public final long getTOGMUAvgSuccessfulValidationServiceTime() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_SERVICE_TIME));
+   }
+
+   @ManagedAttribute(description = "Number of successful TO-GMU prepares that did not wait",
+                     displayName = "Number of successful TO-GMU prepares that did not wait")
+   public final long getNumTOGMUSuccessfulPrepareNoWait() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED));
+   }
+
+   @ManagedAttribute(description = "Avg rtt for TO-GMU prepares that did not wait",
+                     displayName = "Avg rtt for TO-GMU prepares that did not wait")
+   public final long getAvgTOGMUPrepareNoWaitRtt() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_RTT_NO_WAIT));
+   }
+
     /*
      "handleCommand" methods could have been more compact (since they do very similar stuff)
      But I wanted smaller, clear sub-methods

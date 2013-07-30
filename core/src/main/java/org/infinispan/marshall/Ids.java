@@ -23,8 +23,8 @@
 package org.infinispan.marshall;
 
 /**
- * Indexes for object types. These are currently limited to being unsigned ints, so valid values are considered those
- * in the range of 0 to 254. Please note that the use of 255 is forbidden since this is reserved for foreign, or user
+ * Indexes for object types. These are currently limited to being unsigned ints, so valid values are considered those in
+ * the range of 0 to 254. Please note that the use of 255 is forbidden since this is reserved for foreign, or user
  * defined, externalizers.
  *
  * @author Galder Zamarreño
@@ -140,4 +140,6 @@ public interface Ids {
    int GMU_REPLICATED_VERSION = 104;
    int GMU_DISTRIBUTED_VERSION = 105;
    int GMU_CACHE_VERSION = 106;
+
+   int PIGGY_BACK_RESPONSE = 107;
 }

@@ -138,7 +138,7 @@ public class CacheTopologyControlCommand implements ReplicableCommand {
          return SuccessfulResponse.create(responseValue);
       } catch (InterruptedException e) {
          log.tracef("Command execution %s was interrupted because the cache manager is shutting down", this);
-         return UnsuccessfulResponse.INSTANCE;
+         return new UnsuccessfulResponse();
       } catch (Exception t) {
          log.exceptionHandlingCommand(this, t);
          // todo [anistor] CommandAwareRequestDispatcher does not wrap our exceptions so we have to do it instead

@@ -183,7 +183,7 @@ public class StateConsumerTest extends AbstractInfinispanTest {
                flatRequestedSegments.addAll(segments);
             } else if (cmd.getType().equals(StateRequestCommand.Type.START_STATE_TRANSFER)
                   || cmd.getType().equals(StateRequestCommand.Type.CANCEL_STATE_TRANSFER)) {
-                  results.put(recipient, SuccessfulResponse.SUCCESSFUL_EMPTY_RESPONSE);
+                  results.put(recipient, new SuccessfulResponse(null));
             }
             return results;
          }

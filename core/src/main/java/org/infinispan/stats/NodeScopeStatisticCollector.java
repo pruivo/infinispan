@@ -602,6 +602,30 @@ public class NodeScopeStatisticCollector {
             return snapshot.getLocal(NUM_GMU_WAITING_IN_QUEUE_DUE_CONFLICT_VERSION);
          case NUM_GMU_WAITING_IN_QUEUE_DUE_CONFLICT_VERSION_REMOTE:
             return snapshot.getRemote(NUM_GMU_WAITING_IN_QUEUE_DUE_CONFLICT_VERSION);
+         case TO_GMU_PREPARE_COMMAND_NODES_WAITED:
+            return avgLocal(snapshot, NUM_RTTS_PREPARE, TO_GMU_PREPARE_COMMAND_NODES_WAITED);
+         case TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT:
+            return avgLocal(snapshot, NUM_RTTS_PREPARE, TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT);
+         case TO_GMU_PREPARE_COMMAND_RTT_MINUS_AVG:
+            return microAvgLocal(snapshot, NUM_RTTS_PREPARE, TO_GMU_PREPARE_COMMAND_RTT_MINUS_AVG);
+         case TO_GMU_PREPARE_COMMAND_RTT_MINUS_MAX:
+            return microAvgLocal(snapshot, NUM_RTTS_PREPARE, TO_GMU_PREPARE_COMMAND_RTT_MINUS_MAX);
+         case TO_GMU_PREPARE_COMMAND_MAX_WAIT_TIME:
+            return microAvgLocal(snapshot, TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT, TO_GMU_PREPARE_COMMAND_MAX_WAIT_TIME);
+         case TO_GMU_PREPARE_COMMAND_AVG_WAIT_TIME:
+            return microAvgLocal(snapshot, TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT, TO_GMU_PREPARE_COMMAND_AVG_WAIT_TIME);
+         case TO_GMU_PREPARE_COMMAND_RESPONSE_TIME:
+            return microAvgRemote(snapshot, TO_GMU_PREPARE_COMMAND_SERVED, TO_GMU_PREPARE_COMMAND_RESPONSE_TIME);
+         case TO_GMU_PREPARE_COMMAND_SERVICE_TIME:
+            return microAvgRemote(snapshot, TO_GMU_PREPARE_COMMAND_SERVED, TO_GMU_PREPARE_COMMAND_SERVICE_TIME);
+         case TO_GMU_PREPARE_COMMAND_REMOTE_WAIT:
+            return microAvgRemote(snapshot, TO_GMU_PREPARE_COMMAND_REMOTE_WAITED, TO_GMU_PREPARE_COMMAND_REMOTE_WAIT);
+         case TO_GMU_PREPARE_COMMAND_REMOTE_WAITED:
+            return snapshot.getRemote(TO_GMU_PREPARE_COMMAND_REMOTE_WAITED);
+         case TO_GMU_PREPARE_COMMAND_RTT_NO_WAIT:
+            return microAvgLocal(snapshot, TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED, TO_GMU_PREPARE_COMMAND_RTT_NO_WAIT);
+         case TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED:
+            return snapshot.getLocal(TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED);
          default:
             throw new NoIspnStatException("Invalid statistic " + param);
       }

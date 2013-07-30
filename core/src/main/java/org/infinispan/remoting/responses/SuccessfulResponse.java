@@ -29,6 +29,7 @@ import java.util.Set;
 
 import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
+import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.util.Util;
 
 /**
@@ -38,17 +39,16 @@ import org.infinispan.util.Util;
  * @since 4.0
  */
 public class SuccessfulResponse extends ValidResponse {
-   public static final SuccessfulResponse SUCCESSFUL_EMPTY_RESPONSE = new SuccessfulResponse(null);
 
    private final Object responseValue;
 
-   private SuccessfulResponse(Object responseValue) {
+   public SuccessfulResponse(Object responseValue) {
       this.responseValue = responseValue;
    }
 
    public static SuccessfulResponse create(Object responseValue) {
-      return responseValue == null ? SUCCESSFUL_EMPTY_RESPONSE : new SuccessfulResponse(responseValue);
-   }    
+      return new SuccessfulResponse(responseValue);
+   }
 
    @Override
    public boolean isSuccessful() {
@@ -88,20 +88,25 @@ public class SuccessfulResponse extends ValidResponse {
       public void writeObject(ObjectOutput output, SuccessfulResponse response) throws IOException {
          if (response.responseValue == null) {
             output.writeBoolean(false);
+            output.writeObject(response.piggyBackStat);
          } else {
             output.writeBoolean(true);
             output.writeObject(response.responseValue);
+            output.writeObject(response.piggyBackStat);
          }
       }
 
       @Override
       public SuccessfulResponse readObject(ObjectInput input) throws IOException, ClassNotFoundException {
          boolean nonNullResponse = input.readBoolean();
+         SuccessfulResponse sr;
          if (nonNullResponse) {
-            return new SuccessfulResponse(input.readObject());
+            sr = new SuccessfulResponse(input.readObject());
          } else {
-            return SuccessfulResponse.SUCCESSFUL_EMPTY_RESPONSE;
+            sr = new SuccessfulResponse(null);
          }
+         sr.setPiggyBackStat((PiggyBackStat) input.readObject());
+         return sr;
       }
 
       @Override
