@@ -368,7 +368,7 @@ public class RpcManagerWrapper implements RpcManager {
             }
          }
          long unAvg = (sum / set.size());
-         long coAvg = (sum / waited);
+         long coAvg = waited!=0? (sum / waited):0;
 
          this.maxConditionalWaitTime = max;
          this.avgUnconditionalWaitTime = unAvg;
