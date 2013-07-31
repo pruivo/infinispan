@@ -279,7 +279,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
                   resp = new ExceptionResponse(new CacheException("Problems invoking command.", throwable));
                }
                //Piggyback the waiting time to serve the remote read
-               if (stats) {
+               if (hasWaited && stats) {
                   PiggyBackStat pbs = new PiggyBackStat(waitTime);
                   ((AbstractResponse) resp).setPiggyBackStat(pbs);
                }

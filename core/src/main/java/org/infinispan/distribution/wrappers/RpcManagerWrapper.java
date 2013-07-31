@@ -40,6 +40,7 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.stats.ExposedStatistic;
+import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
 import org.infinispan.stats.container.TransactionStatistics;
 import org.infinispan.util.concurrent.NotifyingNotifiableFuture;
@@ -363,10 +364,14 @@ public class RpcManagerWrapper implements RpcManager {
       }
       AbstractResponse r;
       long w;
+      PiggyBackStat pbs;
       for (Map.Entry<Address, Response> e : map.entrySet()) {
          if (e != null && (r = (AbstractResponse) e.getValue()) != null) {
-            if ((w = r.getPiggyBackStat().getWaitTime()) > 0) {
-               return w;
+            pbs = r.getPiggyBackStat();
+            if (pbs != null) {
+               if ((w = pbs.getWaitTime()) > 0) {
+                  return w;
+               }
             }
          }
       }
