@@ -1619,13 +1619,13 @@ public final class CustomStatsInterceptor extends BaseCustomInterceptor {
    @ManagedAttribute(description = "Average TO-GMU validations that waited on a node",
                      displayName = "Average TO-GMU validations that waited on a node")
    public final long getTONumValidationWaited() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_REMOTE_WAITED));
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_TO_GMU_PREPARE_COMMAND_REMOTE_WAITED));
    }
 
    @ManagedAttribute(description = "Probability that a TO-GMU prepare experiences waiting time",
                      displayName = "Probability that a TO-GMU prepare experiences waiting time")
    public final long getTOGMUPrepareWaitProbability() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT));
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT));
    }
 
    @ManagedAttribute(description = "Average TO-GMU prepare Rtt minus avg replay time at cohorts for successful xact",
@@ -1655,13 +1655,19 @@ public final class CustomStatsInterceptor extends BaseCustomInterceptor {
    @ManagedAttribute(description = "Number of successful TO-GMU prepares that did not wait",
                      displayName = "Number of successful TO-GMU prepares that did not wait")
    public final long getNumTOGMUSuccessfulPrepareNoWait() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED));
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED));
    }
 
    @ManagedAttribute(description = "Avg rtt for TO-GMU prepares that did not wait",
                      displayName = "Avg rtt for TO-GMU prepares that did not wait")
    public final long getAvgTOGMUPrepareNoWaitRtt() {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(TO_GMU_PREPARE_COMMAND_RTT_NO_WAIT));
+   }
+
+   @ManagedAttribute(description = "Avg rtt for GMU remote get that do not wait",
+                     displayName = "Avg rtt for GMU remote get that do not wait")
+   public final long getAvgGmuClusteredGetCommandRttNoWait() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(RTT_GET_NO_WAIT));
    }
 
     /*
