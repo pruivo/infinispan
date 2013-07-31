@@ -39,24 +39,24 @@ import java.util.Set;
  */
 public class PiggyBackStat {
 
-   private long TOPrepareWaitingTime;
+   private long waitTime;
 
-   public long getTOPrepareWaitingTime() {
-      return TOPrepareWaitingTime;
+   public long getWaitTime() {
+      return waitTime;
    }
 
-   public void setTOPrepareWaitingTime(long TOPrepareWaitingTime) {
-      this.TOPrepareWaitingTime = TOPrepareWaitingTime;
+   public void setWaitTime(long waitTime) {
+      this.waitTime = waitTime;
    }
 
-   public PiggyBackStat(long TOPrepareWaitingTime) {
-      this.TOPrepareWaitingTime = TOPrepareWaitingTime;
+   public PiggyBackStat(long waitTime) {
+      this.waitTime = waitTime;
    }
 
    public static class Externalizer extends AbstractExternalizer<PiggyBackStat> {
       @Override
       public void writeObject(ObjectOutput output, PiggyBackStat piggyBackStat) throws IOException{
-         output.writeLong(piggyBackStat.TOPrepareWaitingTime);
+         output.writeLong(piggyBackStat.waitTime);
       }
 
       @Override
@@ -78,7 +78,7 @@ public class PiggyBackStat {
    @Override
    public String toString() {
       return "PiggyBackStat{" +
-            "TOPrepareWaitingTime=" + TOPrepareWaitingTime +
+            "waitTime=" + waitTime +
             '}';
    }
 }

@@ -144,6 +144,8 @@ public enum ExposedStatistic {
    RTT_ROLLBACK(true, false),       // L
    NUM_RTTS_GET(true, false),       // L
    RTT_GET(true, false),            // L
+   RTT_GET_NO_WAIT(true,false),
+   NUM_RTT_GET_NO_WAIT(true,false),
 
    //SEND STUFF: everything is local && asynchronous communication .
    //NUM refers to the number of nodes INVOLVED in the distributed synchronization phases
@@ -274,18 +276,18 @@ public enum ExposedStatistic {
    NUM_GMU_WAITING_IN_QUEUE_DUE_CONFLICT_VERSION_REMOTE(false, false),
    //TO waiting times
    TO_GMU_PREPARE_COMMAND_RTT_NO_WAIT(true,false),
-   TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED(true,false),
+   NUM_TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED(true,false),
    TO_GMU_PREPARE_COMMAND_NODES_WAITED(true, false),
-   TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT(true, false),
+   NUM_TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT(true, false),
    TO_GMU_PREPARE_COMMAND_RTT_MINUS_AVG(true, false),
    TO_GMU_PREPARE_COMMAND_RTT_MINUS_MAX(true, false),
    TO_GMU_PREPARE_COMMAND_MAX_WAIT_TIME(true, false),
    TO_GMU_PREPARE_COMMAND_AVG_WAIT_TIME(true, false),
    TO_GMU_PREPARE_COMMAND_RESPONSE_TIME(false, true),
    TO_GMU_PREPARE_COMMAND_SERVICE_TIME(false, true),
-   TO_GMU_PREPARE_COMMAND_SERVED(false, true),
+   NUM_TO_GMU_PREPARE_COMMAND_SERVED(false, true),
    TO_GMU_PREPARE_COMMAND_REMOTE_WAIT(false, true),
-   TO_GMU_PREPARE_COMMAND_REMOTE_WAITED(false, true);
+   NUM_TO_GMU_PREPARE_COMMAND_REMOTE_WAITED(false, true);
 
    public static final int NO_INDEX = -1;
    private static short localStatsSize = 0;

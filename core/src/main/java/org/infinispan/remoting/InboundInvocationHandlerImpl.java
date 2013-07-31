@@ -195,7 +195,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
 
                      if (hasWaited) {
                         waitTime = startR - arrivalTime;
-                        tx.incrementValue(TO_GMU_PREPARE_COMMAND_REMOTE_WAITED);
+                        tx.incrementValue(NUM_TO_GMU_PREPARE_COMMAND_REMOTE_WAITED);
                         tx.addValue(TO_GMU_PREPARE_COMMAND_REMOTE_WAIT, waitTime);
                      }
                   }
@@ -206,7 +206,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
                      if (isServiceTime) {
                         tx.addValue(TO_GMU_PREPARE_COMMAND_SERVICE_TIME, TransactionsStatisticsRegistry.getThreadCPUTime() - startS);
                      }
-                     tx.incrementValue(TO_GMU_PREPARE_COMMAND_SERVED);
+                     tx.incrementValue(NUM_TO_GMU_PREPARE_COMMAND_SERVED);
                   }
                } catch (RetryPrepareException retry) {
                   log.debugf(retry, "Prepare [%s] conflicted with state transfer", cmd);
@@ -250,31 +250,42 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
             @Override
             public void run() {
                Response resp;
-               boolean sampleServiceTimes = TransactionsStatisticsRegistry.isSampleServiceTime();
+               boolean stats = TransactionsStatisticsRegistry.isActive();
+               boolean serviceTime = TransactionsStatisticsRegistry.isSampleServiceTime();
+               long waitTime = 0;
                try {
-                  long cpuInitTime = 0, initTime = 0;
-                  if (sampleServiceTimes) {
+                  long cpuInitTime = 0, initTime = System.nanoTime();
+                  if (stats) {
                      //No xact is associated to this command, so we do not attach a TransactionStatistics and rely on the flushes
-                     cpuInitTime = TransactionsStatisticsRegistry.getThreadCPUTime();
-                     initTime = System.nanoTime();
+                     waitTime = initTime - arrivalTime;
+                     if (serviceTime) {
+                        cpuInitTime = TransactionsStatisticsRegistry.getThreadCPUTime();
+                     }
                      if (hasWaited) {
-                        TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(REMOTE_REMOTE_GET_WAITING_TIME, initTime - arrivalTime, false);
+                        TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(REMOTE_REMOTE_GET_WAITING_TIME, waitTime, false);
                         TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(NUM_WAITS_REMOTE_REMOTE_GETS, false);
                      }
                   }
                   resp = handleInternal(cmd, cr);
-                  if (sampleServiceTimes) {
+                  if (stats) {
                      TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(NUM_REMOTE_REMOTE_GETS, false);
                      TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(REMOTE_REMOTE_GET_R, System.nanoTime() - initTime, false);
-                     TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(REMOTE_REMOTE_GET_S, TransactionsStatisticsRegistry.getThreadCPUTime() - cpuInitTime, false);
+                     if (serviceTime) {
+                        TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(REMOTE_REMOTE_GET_S, TransactionsStatisticsRegistry.getThreadCPUTime() - cpuInitTime, false);
+                     }
                   }
                } catch (Throwable throwable) {
                   log.exceptionHandlingCommand(cmd, throwable);
                   resp = new ExceptionResponse(new CacheException("Problems invoking command.", throwable));
                }
+               //Piggyback the waiting time to serve the remote read
+               if (hasWaited && stats) {
+                  PiggyBackStat pbs = new PiggyBackStat(waitTime);
+                  ((AbstractResponse) resp).setPiggyBackStat(pbs);
+               }
                //the ResponseGenerated is null in this case because the return value is a Response
                reply(response, resp);
-               if (sampleServiceTimes) {
+               if (stats) {
                   TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(REMOTE_REMOTE_GET_REPLY_SIZE, getReplySize(resp), false);
                }
             }

@@ -24,6 +24,7 @@ package org.infinispan.distribution.wrappers;
 
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
+import org.infinispan.commands.remote.GMUClusteredGetCommand;
 import org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand;
 import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
@@ -39,6 +40,7 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.stats.ExposedStatistic;
+import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
 import org.infinispan.stats.container.TransactionStatistics;
 import org.infinispan.util.concurrent.NotifyingNotifiableFuture;
@@ -260,12 +262,12 @@ public class RpcManagerWrapper implements RpcManager {
             transactionStatistics.addValue(TO_GMU_PREPARE_COMMAND_RTT_MINUS_MAX, wallClockTimeTaken - maxW);
             transactionStatistics.addValue(TO_GMU_PREPARE_COMMAND_RTT_MINUS_AVG, wallClockTimeTaken - avgW);
             if (waits > 0) {
-               transactionStatistics.incrementValue(TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT);
+               transactionStatistics.incrementValue(NUM_TO_GMU_PREPARE_COMMAND_AT_LEAST_ONE_WAIT);
                transactionStatistics.addValue(TO_GMU_PREPARE_COMMAND_NODES_WAITED, waits);
                transactionStatistics.addValue(TO_GMU_PREPARE_COMMAND_AVG_WAIT_TIME, condAvg);
                transactionStatistics.addValue(TO_GMU_PREPARE_COMMAND_MAX_WAIT_TIME, maxW);
             } else {
-               transactionStatistics.incrementValue(TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED);//NB this could be obtained by taking the total number of prepare-the ones that waited
+               transactionStatistics.incrementValue(NUM_TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED);//NB this could be obtained by taking the total number of prepare-the ones that waited
                transactionStatistics.addValue(TO_GMU_PREPARE_COMMAND_RTT_NO_WAIT, wallClockTimeTaken);
             }
          }
@@ -296,6 +298,13 @@ public class RpcManagerWrapper implements RpcManager {
          counterStat = NUM_RTTS_GET;
          recipientSizeStat = NUM_NODES_GET;
          commandSizeStat = CLUSTERED_GET_COMMAND_SIZE;
+         //Take rtt sample if the remote read has not waited
+         if (command instanceof GMUClusteredGetCommand) {
+            if (pickGmuRemoteGetWaitingTime(responseMap) == 0) {
+               transactionStatistics.incrementValue(NUM_RTT_GET_NO_WAIT);
+               transactionStatistics.addValue(RTT_GET_NO_WAIT, wallClockTimeTaken);
+            }
+         }
       } else if (command instanceof TxCompletionNotificationCommand) {
          durationStat = ASYNC_COMPLETE_NOTIFY;
          counterStat = NUM_ASYNC_COMPLETE_NOTIFY;
@@ -347,6 +356,28 @@ public class RpcManagerWrapper implements RpcManager {
       }
    }
 
+   private long pickGmuRemoteGetWaitingTime(Map<Address, Response> map) {
+      if (map == null || map.size() == 0) {
+         if (log.isDebugEnabled())
+            log.debug("GmuClusteredGetCommand reply is empty");
+         return -1;
+      }
+      AbstractResponse r;
+      long w;
+      PiggyBackStat pbs;
+      for (Map.Entry<Address, Response> e : map.entrySet()) {
+         if (e != null && (r = (AbstractResponse) e.getValue()) != null) {
+            pbs = r.getPiggyBackStat();
+            if (pbs != null) {
+               if ((w = pbs.getWaitTime()) > 0) {
+                  return w;
+               }
+            }
+         }
+      }
+      return 0;
+   }
+
    private class WaitStats {
       private long numWaitedNodes;
       private long avgConditionalWaitTime;
@@ -363,7 +394,7 @@ public class RpcManagerWrapper implements RpcManager {
          Set<Map.Entry<Address, Response>> set = map.entrySet();
          for (Map.Entry<Address, Response> e : set) {
             r = (AbstractResponse) e.getValue();
-            temp = r.getPiggyBackStat().getTOPrepareWaitingTime();
+            temp = r.getPiggyBackStat().getWaitTime();
             if (temp > 0) {
                waited++;
                if (temp > max) {
@@ -373,7 +404,7 @@ public class RpcManagerWrapper implements RpcManager {
             }
          }
          long unAvg = (sum / set.size());
-         long coAvg = waited!=0? (sum / waited):0;
+         long coAvg = waited != 0 ? (sum / waited) : 0;
 
          this.maxConditionalWaitTime = max;
          this.avgUnconditionalWaitTime = unAvg;
