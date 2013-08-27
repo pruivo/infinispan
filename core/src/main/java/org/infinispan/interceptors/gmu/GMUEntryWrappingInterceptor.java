@@ -206,10 +206,11 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
             shadowTransactionInfo = ((LocalTransaction) ctx.getCacheTransaction()).getShadowTransactionInfo();
             if (transactionEntry != null && fromStateTransfer && shadowTransactionInfo != null) {
                shadowTransactionInfo.setTransactionEntry(transactionEntry);
+
             }
          }
 
-         if (transactionEntry != null && !fromStateTransfer) {
+         if (transactionEntry != null) {
             final TransactionStatistics transactionStatistics = TransactionsStatisticsRegistry.getTransactionStatistics();
             boolean waited = transactionStatistics != null && !transactionEntry.isReadyToCommit();
             long waitTime = 0L;
@@ -272,7 +273,7 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
             } else {
                context = createInvocationContext(cacheTransaction, subVersion);
             }
-            transactionEntry.setNewVersionInDataContainer((GMUCacheEntryVersion) context.getCacheTransaction()
+            toCommit.setNewVersionInDataContainer((GMUCacheEntryVersion) context.getCacheTransaction()
                   .getTransactionVersion());
             if (log.isTraceEnabled()) {
                log.tracef("Committing %s", toCommit);

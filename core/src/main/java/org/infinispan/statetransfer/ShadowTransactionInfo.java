@@ -11,6 +11,7 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * @author Sebastiano Peluso
@@ -19,10 +20,12 @@ public class ShadowTransactionInfo extends TransactionInfo {
 
    private EntryVersion version;
    private transient volatile SortedTransactionQueue.TransactionEntry transactionEntry;
+   private transient CountDownLatch accessTransactionEntry;
 
    public ShadowTransactionInfo(int topologyId, EntryVersion donorCurrentVersion) {
       super(null, topologyId, null, null);
       version = donorCurrentVersion;
+      accessTransactionEntry = new CountDownLatch(1);
       transactionEntry = null;
    }
 
@@ -30,18 +33,29 @@ public class ShadowTransactionInfo extends TransactionInfo {
       return this.version;
    }
 
-   public SortedTransactionQueue.TransactionEntry getTransactionEntry() {
-      return this.transactionEntry;
+   public SortedTransactionQueue.TransactionEntry waitForTransactionEntry() {
+      if(this.transactionEntry != null)
+         return this.transactionEntry;
+      else{
+         try {
+            this.accessTransactionEntry.await();
+         } catch (InterruptedException e) {
+            e.printStackTrace();
+         }
+
+         return this.transactionEntry;
+      }
    }
 
    public void setTransactionEntry(SortedTransactionQueue.TransactionEntry transactionEntry) {
       this.transactionEntry = transactionEntry;
+      this.accessTransactionEntry.countDown();
    }
 
    @Override
    public String toString() {
       return "TransactionInfo{" +
-            ", topologyId=" + topologyId +
+            " topologyId=" + topologyId +
             ", version=" + version +
             '}';
    }

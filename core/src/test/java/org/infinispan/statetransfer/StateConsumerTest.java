@@ -39,6 +39,7 @@ import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.distribution.TestAddress;
 import org.infinispan.distribution.ch.DefaultConsistentHash;
 import org.infinispan.distribution.ch.DefaultConsistentHashFactory;
+import org.infinispan.executors.BlockingTaskAwareExecutorServiceTest;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
@@ -55,6 +56,8 @@ import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.util.InfinispanCollections;
+import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
+import org.infinispan.util.concurrent.BlockingTaskAwareExecutorServiceImpl;
 import org.infinispan.util.concurrent.ConcurrentMapFactory;
 import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
@@ -77,6 +80,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -144,6 +148,8 @@ public class StateConsumerTest extends AbstractInfinispanTest {
       ExecutorService pooledExecutorService = new ThreadPoolExecutor(10, 20, 0L, TimeUnit.MILLISECONDS,
             new LinkedBlockingDeque<Runnable>(), threadFactory, new ThreadPoolExecutor.CallerRunsPolicy());
 
+      BlockingTaskAwareExecutorService blockingservice = new BlockingTaskAwareExecutorServiceImpl(new ThreadPoolExecutor(1, 2, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000), new BlockingTaskAwareExecutorServiceTest.DummyThreadFactory()));
+
       StateTransferManager stateTransferManager = mock(StateTransferManager.class);
       CacheNotifier cacheNotifier = mock(CacheNotifier.class);
       RpcManager rpcManager = mock(RpcManager.class);
@@ -195,7 +201,7 @@ public class StateConsumerTest extends AbstractInfinispanTest {
       final StateConsumerImpl stateConsumer = new StateConsumerImpl();
       stateConsumer.init(cache, pooledExecutorService, stateTransferManager, interceptorChain, icc, configuration, rpcManager, null,
             commandsFactory, cacheLoaderManager, dataContainer, transactionTable, stateTransferLock, cacheNotifier, totalOrderManager,
-            null);
+            null, blockingservice);
       stateConsumer.start();
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();
