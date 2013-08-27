@@ -143,4 +143,5 @@ public interface Ids {
 
    int PIGGY_BACK_RESPONSE = 107;
    int SHADOW_TRANSACTION_INFO = 108;
+   int DRD_CH = 109;
 }
