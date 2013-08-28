@@ -40,6 +40,10 @@ public class DRDConsistentHash implements ConsistentHash {
       this.clusters = clusters;
    }
 
+   public DRDConsistentHash(DRDConsistentHash baseCH, ConsistentHash updatedConsistentHash) {
+      this(updatedConsistentHash, baseCH.sortedTransactionClasses, baseCH.clusters);
+   }
+
    @Override
    public int getNumOwners() {
       return consistentHash.getNumOwners();
@@ -166,7 +170,7 @@ public class DRDConsistentHash implements ConsistentHash {
 
    private boolean isKeyOwnByAddress(Address address, Object key) {
       Address[] addresses = lookupKey(key);
-      return addresses != null && Arrays.binarySearch(addresses, address) >= 0;
+      return addresses != null && Arrays.asList(addresses).contains(address);
    }
 
    public static class Externalizer extends AbstractExternalizer<DRDConsistentHash> {
@@ -178,7 +182,7 @@ public class DRDConsistentHash implements ConsistentHash {
 
       @Override
       public Set<Class<? extends DRDConsistentHash>> getTypeClasses() {
-         return (Set<Class<? extends DRDConsistentHash>>) Util.asSet(DRDConsistentHash.class);
+         return Util.<Class<? extends DRDConsistentHash>>asSet(DRDConsistentHash.class);
       }
 
       @Override

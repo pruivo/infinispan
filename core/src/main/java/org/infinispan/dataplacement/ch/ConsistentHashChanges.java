@@ -24,6 +24,8 @@ package org.infinispan.dataplacement.ch;
 
 import org.infinispan.dataplacement.ClusterObjectLookup;
 
+import java.util.Map;
+
 /**
  * // TODO: Document this
  *
@@ -34,6 +36,8 @@ public class ConsistentHashChanges {
 
    private ClusterObjectLookup newMappings;
    private int newReplicationDegree;
+   private Map<String, Integer> transactionClassMap;
+   private Map<Integer, Float> clusterWeightMap;
 
    public ConsistentHashChanges() {
       newMappings = null;
@@ -57,6 +61,14 @@ public class ConsistentHashChanges {
    }
 
    public final boolean hasChanges() {
-      return newMappings != null || newReplicationDegree != -1;
+      return newMappings != null || newReplicationDegree != -1 || transactionClassMap != null;
+   }
+
+   public Map<String, Integer> getTransactionClassMap() {
+      return transactionClassMap;
+   }
+
+   public final Map<Integer, Float> getClusterWeightMap() {
+      return clusterWeightMap;
    }
 }
