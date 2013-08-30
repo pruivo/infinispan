@@ -11,12 +11,12 @@ import java.util.Arrays;
  * @author Pedro Ruivo
  * @since 5.2
  */
-public class DRDCluster {
+public class LCRDCluster {
    private final int id;
    private final float weight;
    private final Address[] members;
 
-   public DRDCluster(int id, float weight, Address[] members) {
+   public LCRDCluster(int id, float weight, Address[] members) {
       this.id = id;
       this.weight = weight;
       this.members = members;
@@ -43,14 +43,14 @@ public class DRDCluster {
       }
    }
 
-   public static DRDCluster readFrom(ObjectInput input) throws IOException, ClassNotFoundException {
+   public static LCRDCluster readFrom(ObjectInput input) throws IOException, ClassNotFoundException {
       final int id = input.readInt();
       final float weight = input.readFloat();
       final Address[] members = new Address[input.readInt()];
       for (int i = 0; i < members.length; ++i) {
          members[i] = (Address) input.readObject();
       }
-      return new DRDCluster(id, weight, members);
+      return new LCRDCluster(id, weight, members);
    }
 
    @Override
@@ -58,7 +58,7 @@ public class DRDCluster {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
 
-      DRDCluster that = (DRDCluster) o;
+      LCRDCluster that = (LCRDCluster) o;
 
       return id == that.id && Float.compare(that.weight, weight) == 0 && Arrays.equals(members, that.members);
 

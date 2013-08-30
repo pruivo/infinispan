@@ -22,25 +22,25 @@ import java.util.Set;
  * @author Pedro Ruivo
  * @since 5.2
  */
-public class DRDConsistentHash implements ConsistentHash {
+public class LCRDConsistentHash implements ConsistentHash {
 
    private static final String[] EMPTY_TRANSACTION_CLASS_ARRAY = new String[0];
-   private static final DRDCluster[] EMPTY_CLUSTER_ARRAY = new DRDCluster[0];
+   private static final LCRDCluster[] EMPTY_CLUSTER_ARRAY = new LCRDCluster[0];
    private final ConsistentHash consistentHash;
    private final String[] sortedTransactionClasses;
-   private final DRDCluster[] clusters;
+   private final LCRDCluster[] clusters;
 
-   public DRDConsistentHash(ConsistentHash consistentHash) {
+   public LCRDConsistentHash(ConsistentHash consistentHash) {
       this(consistentHash, EMPTY_TRANSACTION_CLASS_ARRAY, EMPTY_CLUSTER_ARRAY);
    }
 
-   public DRDConsistentHash(ConsistentHash consistentHash, String[] sortedTransactionClasses, DRDCluster[] clusters) {
+   public LCRDConsistentHash(ConsistentHash consistentHash, String[] sortedTransactionClasses, LCRDCluster[] clusters) {
       this.consistentHash = consistentHash;
       this.sortedTransactionClasses = sortedTransactionClasses;
       this.clusters = clusters;
    }
 
-   public DRDConsistentHash(DRDConsistentHash baseCH, ConsistentHash updatedConsistentHash) {
+   public LCRDConsistentHash(LCRDConsistentHash baseCH, ConsistentHash updatedConsistentHash) {
       this(updatedConsistentHash, baseCH.sortedTransactionClasses, baseCH.clusters);
    }
 
@@ -119,8 +119,8 @@ public class DRDConsistentHash implements ConsistentHash {
       return consistentHash;
    }
 
-   public Map<String, DRDCluster> getTransactionClassCluster() {
-      Map<String, DRDCluster> map = new HashMap<String, DRDCluster>(sortedTransactionClasses.length);
+   public Map<String, LCRDCluster> getTransactionClassCluster() {
+      Map<String, LCRDCluster> map = new HashMap<String, LCRDCluster>(sortedTransactionClasses.length);
       for (int i = 0; i < sortedTransactionClasses.length; ++i) {
          map.put(sortedTransactionClasses[i], clusters[i]);
       }
@@ -136,7 +136,7 @@ public class DRDConsistentHash implements ConsistentHash {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
 
-      DRDConsistentHash that = (DRDConsistentHash) o;
+      LCRDConsistentHash that = (LCRDConsistentHash) o;
 
       return Arrays.equals(clusters, that.clusters) &&
             consistentHash.equals(that.consistentHash) &&
@@ -152,7 +152,7 @@ public class DRDConsistentHash implements ConsistentHash {
       return result;
    }
 
-   private DRDCluster clusterOf(String transactionClass) {
+   private LCRDCluster clusterOf(String transactionClass) {
       if (sortedTransactionClasses.length == 0 || clusters.length == 0) {
          return null;
       }
@@ -162,7 +162,7 @@ public class DRDConsistentHash implements ConsistentHash {
 
    private Address[] lookupKey(Object key) {
       if (key instanceof String) {
-         DRDCluster cluster = clusterOf((String) key);
+         LCRDCluster cluster = clusterOf((String) key);
          return cluster == null ? null : cluster.getMembers();
       }
       return null;
@@ -173,45 +173,45 @@ public class DRDConsistentHash implements ConsistentHash {
       return addresses != null && Arrays.asList(addresses).contains(address);
    }
 
-   public static class Externalizer extends AbstractExternalizer<DRDConsistentHash> {
+   public static class Externalizer extends AbstractExternalizer<LCRDConsistentHash> {
 
       @Override
       public Integer getId() {
-         return Ids.DRD_CH;
+         return Ids.LCRD_CH;
       }
 
       @Override
-      public Set<Class<? extends DRDConsistentHash>> getTypeClasses() {
-         return Util.<Class<? extends DRDConsistentHash>>asSet(DRDConsistentHash.class);
+      public Set<Class<? extends LCRDConsistentHash>> getTypeClasses() {
+         return Util.<Class<? extends LCRDConsistentHash>>asSet(LCRDConsistentHash.class);
       }
 
       @Override
-      public void writeObject(ObjectOutput output, DRDConsistentHash object) throws IOException {
+      public void writeObject(ObjectOutput output, LCRDConsistentHash object) throws IOException {
          output.writeObject(object.consistentHash);
          output.writeInt(object.sortedTransactionClasses.length);
          output.writeInt(object.clusters.length);
          for (String s : object.sortedTransactionClasses) {
             output.writeUTF(s);
          }
-         for (DRDCluster cluster : object.clusters) {
+         for (LCRDCluster cluster : object.clusters) {
             cluster.writeTo(output);
          }
       }
 
       @Override
-      public DRDConsistentHash readObject(ObjectInput input) throws IOException, ClassNotFoundException {
+      public LCRDConsistentHash readObject(ObjectInput input) throws IOException, ClassNotFoundException {
          ConsistentHash consistentHash = (ConsistentHash) input.readObject();
          int size = input.readInt();
          final String[] txClasses = size == 0 ? EMPTY_TRANSACTION_CLASS_ARRAY : new String[size];
          size = input.readInt();
-         final DRDCluster[] clusters = size == 0 ? EMPTY_CLUSTER_ARRAY : new DRDCluster[size];
+         final LCRDCluster[] clusters = size == 0 ? EMPTY_CLUSTER_ARRAY : new LCRDCluster[size];
          for (int i = 0; i < txClasses.length; ++i) {
             txClasses[i] = input.readUTF();
          }
          for (int i = 0; i < clusters.length; ++i) {
-            clusters[i] = DRDCluster.readFrom(input);
+            clusters[i] = LCRDCluster.readFrom(input);
          }
-         return new DRDConsistentHash(consistentHash, txClasses, clusters);
+         return new LCRDConsistentHash(consistentHash, txClasses, clusters);
       }
    }
 

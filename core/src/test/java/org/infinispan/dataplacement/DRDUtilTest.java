@@ -1,6 +1,6 @@
 package org.infinispan.dataplacement;
 
-import org.infinispan.dataplacement.ch.DRDClusterUtil;
+import org.infinispan.dataplacement.ch.LCRDClusterUtil;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.testng.Assert;
@@ -55,9 +55,9 @@ public class DRDUtilTest {
       Assert.assertTrue(numOwners >= 1);
 
       for (int i = 0; i < startIndex.length; ++i) {
-         Assert.assertEquals(DRDClusterUtil.startIndex(weight, i, numNodes), startIndex[i],
+         Assert.assertEquals(LCRDClusterUtil.startIndex(weight, i, numNodes), startIndex[i],
                              "Wrong start index for " + i);
-         Assert.assertEquals(DRDClusterUtil.clusterSize(weight, i, numNodes, numOwners), clusterSize[i],
+         Assert.assertEquals(LCRDClusterUtil.clusterSize(weight, i, numNodes, numOwners), clusterSize[i],
                              "Wrong cluster size for " + i);
       }
    }

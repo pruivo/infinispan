@@ -60,9 +60,10 @@ import org.infinispan.container.versioning.gmu.GMUCacheEntryVersion;
 import org.infinispan.container.versioning.gmu.GMUDistributedVersion;
 import org.infinispan.container.versioning.gmu.GMUReplicatedVersion;
 import org.infinispan.context.Flag;
-import org.infinispan.dataplacement.ch.DRDConsistentHash;
+import org.infinispan.dataplacement.ch.LCRDConsistentHash;
 import org.infinispan.dataplacement.ch.DataPlacementConsistentHash;
 import org.infinispan.dataplacement.ch.DataPlacementConsistentHashFactory;
+import org.infinispan.dataplacement.ch.LCRDConsistentHashFactory;
 import org.infinispan.distribution.ch.DefaultConsistentHash;
 import org.infinispan.distribution.ch.DefaultConsistentHashFactory;
 import org.infinispan.distribution.ch.ReplicatedConsistentHash;
@@ -336,7 +337,8 @@ public class ExternalizerTable implements ObjectTable {
       addInternalExternalizer(new GMUCacheEntryVersion.Externalizer(gcr));
 
       addInternalExternalizer(new PiggyBackStat.Externalizer());
-      addInternalExternalizer(new DRDConsistentHash.Externalizer());
+      addInternalExternalizer(new LCRDConsistentHash.Externalizer());
+      addInternalExternalizer(new LCRDConsistentHashFactory.Externalizer());
    }
 
    void addInternalExternalizer(AdvancedExternalizer<?> ext) {

@@ -11,7 +11,7 @@ import java.util.Map;
  * @author Pedro Ruivo
  * @since 5.2
  */
-public class DRDClusterUtil {
+public class LCRDClusterUtil {
 
    public static Address[] createClusterMembers(int id, float[] clusterWeight, List<Address> members, int numOwners) {
       Address[] clusterMembers = new Address[clusterSize(clusterWeight, id, members.size(), numOwners)];
@@ -22,9 +22,9 @@ public class DRDClusterUtil {
       return clusterMembers;
    }
 
-   public static float[] calculateClustersWeight(Collection<DRDCluster> clusters) {
+   public static float[] calculateClustersWeight(Collection<LCRDCluster> clusters) {
       Map<Integer, Float> clusterWeightMap = new HashMap<Integer, Float>();
-      for (DRDCluster cluster : clusters) {
+      for (LCRDCluster cluster : clusters) {
          clusterWeightMap.put(cluster.getId(), cluster.getWeight());
       }
       return calculateClustersWeight(clusterWeightMap);
