@@ -12,15 +12,16 @@ import org.infinispan.util.Util;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.infinispan.dataplacement.ch.LCRDCluster.createLCRDCluster;
+import static org.infinispan.dataplacement.ch.LCRDCluster.updateClusterMembers;
 import static org.infinispan.dataplacement.ch.LCRDClusterUtil.calculateClustersWeight;
-import static org.infinispan.dataplacement.ch.LCRDClusterUtil.createClusterMembers;
 
 /**
  * @author Pedro Ruivo
@@ -90,8 +91,13 @@ public class LCRDConsistentHashFactory implements ConsistentHashFactory<LCRDCons
    }
 
    private LCRDConsistentHash unionMappings(LCRDConsistentHash ch1, LCRDConsistentHash ch2, ConsistentHash unionConsistentHash) {
-
-      return null;  //To change body of created methods use File | Settings | File Templates.
+      if (ch1.equals(ch2)) {
+         return new LCRDConsistentHash(ch1, unionConsistentHash);
+      }
+      List<ExternalLCRDMappingEntry> externalLCRDMappingEntryList =
+            new ArrayList<ExternalLCRDMappingEntry>(Arrays.asList(ch1.getTransactionClassCluster()));
+      externalLCRDMappingEntryList.addAll(Arrays.asList(ch2.getTransactionClassCluster()));
+      return new LCRDConsistentHash(unionConsistentHash, externalLCRDMappingEntryList.toArray(new ExternalLCRDMappingEntry[externalLCRDMappingEntryList.size()]));
    }
 
    private LCRDConsistentHash newRebalancedMappings(ConsistentHash rebalancedConsistentHash,
@@ -102,18 +108,28 @@ public class LCRDConsistentHashFactory implements ConsistentHashFactory<LCRDCons
       final int numOwners = rebalancedConsistentHash.getNumOwners();
       final Map<String, LCRDCluster> clusterMap = new HashMap<String, LCRDCluster>(transactionClassMap.size());
       for (Map.Entry<String, Integer> entry : transactionClassMap.entrySet()) {
-         clusterMap.put(entry.getKey(), createDRDCluster(entry.getValue(), clusterWeights, members, numOwners));
+         clusterMap.put(entry.getKey(), createLCRDCluster(entry.getValue(), clusterWeights, members, numOwners));
       }
       return createDRDConsistentHash(rebalancedConsistentHash, clusterMap);
    }
 
    private LCRDConsistentHash rebalanceMappings(LCRDConsistentHash baseCH, ConsistentHash rebalancedConsistentHash) {
-      final Map<String, LCRDCluster> clusterMap = baseCH.getTransactionClassCluster();
+      final ExternalLCRDMappingEntry[] externalLCRDMappingEntries = baseCH.getTransactionClassCluster();
+      if (externalLCRDMappingEntries.length == 0) {
+         return baseCH;
+      }
+      Map<String, LCRDCluster> clusterMap = new HashMap<String, LCRDCluster>();
+      for (ExternalLCRDMappingEntry entry : externalLCRDMappingEntries) {
+         LCRDCluster cluster = entry.getLastCluster();
+         if (cluster != null) {
+            clusterMap.put(entry.getTransactionClass(), cluster);
+         }
+      }
       final float[] clusterWeights = calculateClustersWeight(clusterMap.values());
       final List<Address> members = rebalancedConsistentHash.getMembers();
       final int numOwners = rebalancedConsistentHash.getNumOwners();
       for (Map.Entry<String, LCRDCluster> entry : clusterMap.entrySet()) {
-         entry.setValue(createDRDCluster(entry.getValue(), clusterWeights, members, numOwners));
+         entry.setValue(createLCRDCluster(entry.getValue(), clusterWeights, members, numOwners));
       }
       return createDRDConsistentHash(rebalancedConsistentHash, clusterMap);
    }
@@ -126,18 +142,43 @@ public class LCRDConsistentHashFactory implements ConsistentHashFactory<LCRDCons
    private LCRDConsistentHash removeLeavers(LCRDConsistentHash baseCH, ConsistentHash updatedConsistentHash,
                                             List<Address> newMembers) {
       boolean changed = false;
-      final Map<String, LCRDCluster> clusterMap = baseCH.getTransactionClassCluster();
-      final float[] clusterWeights = calculateClustersWeight(clusterMap.values());
-      for (Map.Entry<String, LCRDCluster> entry : clusterMap.entrySet()) {
-         LCRDCluster cluster = entry.getValue();
-         Set<Address> clusterMembers = new HashSet<Address>(Arrays.asList(cluster.getMembers()));
-         clusterMembers.retainAll(newMembers);
-         if (clusterMembers.isEmpty()) {
-            changed = true;
-            entry.setValue(createDRDCluster(cluster, clusterWeights, newMembers, baseCH.getNumOwners()));
+      ExternalLCRDMappingEntry[] externalLCRDMappingEntries = baseCH.getTransactionClassCluster();
+      if (externalLCRDMappingEntries.length == 0) {
+         return baseCH;
+      }
+      for (ExternalLCRDMappingEntry entry : externalLCRDMappingEntries) {
+         final LCRDCluster[] clusters = entry.getClusters();
+         final List<LCRDCluster> allClusters = new ArrayList<LCRDCluster>(clusters.length);
+         for (LCRDCluster cluster : clusters) {
+            if (cluster != null) {
+               allClusters.add(cluster);
+            }
+         }
+         final float[] clusterWeights = calculateClustersWeight(allClusters);
+
+         for (int i = 0; i < clusters.length; ++i) {
+            final LCRDCluster cluster = clusters[i];
+            if (cluster == null) {
+               continue;
+            }
+            List<Address> clusterMembers = new ArrayList<Address>(Arrays.asList(cluster.getMembers()));
+            int initialSize = clusterMembers.size();
+            clusterMembers.retainAll(newMembers);
+            if (clusterMembers.isEmpty()) {
+               changed = true;
+               boolean isLastCluster = i == clusters.length - 1;
+               if (isLastCluster) {
+                  clusters[i] = createLCRDCluster(clusters[i], clusterWeights, newMembers, baseCH.getNumOwners());
+               } else {
+                  clusters[i] = null;
+               }
+            } else if (initialSize != clusterMembers.size()) {
+               changed = true;
+               clusters[i] = updateClusterMembers(cluster, newMembers);
+            }
          }
       }
-      return changed ? createDRDConsistentHash(updatedConsistentHash, clusterMap) :
+      return changed ? new LCRDConsistentHash(baseCH, externalLCRDMappingEntries) :
             new LCRDConsistentHash(baseCH, updatedConsistentHash);
    }
 
@@ -154,16 +195,6 @@ public class LCRDConsistentHashFactory implements ConsistentHashFactory<LCRDCons
       }
       return new LCRDConsistentHash(consistentHash, transactionClasses, clusters);
    }
-
-   private LCRDCluster createDRDCluster(int id, float[] clusterWeights, List<Address> members, int numOwners) {
-      return new LCRDCluster(id, clusterWeights[id], createClusterMembers(id, clusterWeights, members, numOwners));
-   }
-
-   private LCRDCluster createDRDCluster(LCRDCluster base, float[] clusterWeights, List<Address> members, int numOwners) {
-      return createDRDCluster(base.getId(), clusterWeights, members, numOwners);
-   }
-
-   //private LCRDCluster
 
    public static class Externalizer extends AbstractExternalizer<LCRDConsistentHashFactory> {
 

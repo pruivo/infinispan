@@ -6,6 +6,9 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.Arrays;
+import java.util.List;
+
+import static org.infinispan.dataplacement.ch.LCRDClusterUtil.createClusterMembers;
 
 /**
  * @author Pedro Ruivo
@@ -70,5 +73,17 @@ public class LCRDCluster {
       result = 31 * result + (weight != +0.0f ? Float.floatToIntBits(weight) : 0);
       result = 31 * result + Arrays.hashCode(members);
       return result;
+   }
+
+   public static LCRDCluster createLCRDCluster(int id, float[] clusterWeights, List<Address> members, int numOwners) {
+      return new LCRDCluster(id, clusterWeights[id], createClusterMembers(id, clusterWeights, members, numOwners));
+   }
+
+   public static LCRDCluster createLCRDCluster(LCRDCluster base, float[] clusterWeights, List<Address> members, int numOwners) {
+      return createLCRDCluster(base.getId(), clusterWeights, members, numOwners);
+   }
+
+   public static LCRDCluster updateClusterMembers(LCRDCluster base, List<Address> members) {
+      return new LCRDCluster(base.getId(), base.getWeight(), members.toArray(new Address[members.size()]));
    }
 }

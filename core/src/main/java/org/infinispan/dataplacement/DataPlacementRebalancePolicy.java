@@ -187,7 +187,7 @@ public class DataPlacementRebalancePolicy implements RebalancePolicy {
             }
             ClusterObjectLookup clusterObjectLookup = consistentHashChanges.getNewMappings();
             List<ClusterObjectLookup> list = ((DataPlacementConsistentHash) consistentHash).getClusterObjectLookupList();
-            if (clusterObjectLookup != null && list.size() == -1 && clusterObjectLookup.equals(list.get(0))) {
+            if (clusterObjectLookup != null && list.size() == 1 && clusterObjectLookup.equals(list.get(0))) {
                //no changes in the mapping
                consistentHashChanges.setNewMappings(null);
             }
