@@ -73,6 +73,7 @@ public abstract class BaseConsistencyTest extends MultipleCacheManagersTest {
       assertQueuesEmpty();
    }
 
+
    public final void testLeave() throws Exception {
       populate();
       assertInitialValues();
@@ -107,6 +108,8 @@ public abstract class BaseConsistencyTest extends MultipleCacheManagersTest {
       assertNoTransactions();
       assertQueuesEmpty();
    }
+
+
 
    @Override
    protected final void createCacheManagers() throws Throwable {

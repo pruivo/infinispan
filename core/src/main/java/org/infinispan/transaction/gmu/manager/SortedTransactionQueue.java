@@ -25,6 +25,7 @@ package org.infinispan.transaction.gmu.manager;
 import org.infinispan.container.versioning.gmu.GMUCacheEntryVersion;
 import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
+import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.logging.Log;
@@ -819,7 +820,7 @@ public class SortedTransactionQueue {
       }
 
       public void setNewVersionInDataContainer(GMUCacheEntryVersion version) {
-          /*no-op*/
+         /*no-op*/
       }
    }
 }
