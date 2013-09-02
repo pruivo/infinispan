@@ -188,6 +188,14 @@ public class LCRDConsistentHash implements ConsistentHash {
       return result;
    }
 
+   @Override
+   public String toString() {
+      return "LCRDConsistentHash{" +
+            "consistentHash=" + consistentHash +
+            ", mappingEntries=" + Arrays.toString(mappingEntries) +
+            '}';
+   }
+
    private Address[] lookupKey(Object key) {
       if (mappingEntries.length == 0) {
          return null;
@@ -326,6 +334,13 @@ public class LCRDConsistentHash implements ConsistentHash {
             externalLCRDMappingEntry.set(index, clusters[i]);
          }
       }
-   }
 
+      @Override
+      public String toString() {
+         return "MappingEntry{" +
+               "sortedTransactionClasses=" + Arrays.toString(sortedTransactionClasses) +
+               ", clusters=" + Arrays.toString(clusters) +
+               '}';
+      }
+   }
 }
