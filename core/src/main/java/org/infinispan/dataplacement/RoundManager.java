@@ -124,6 +124,25 @@ public class RoundManager {
    }
 
    /**
+    * checks if LCRD mappings request can be performed and updates the new round timestamp
+    *
+    * @throws Exception if the last request happened recently or another request is in progress
+    */
+   public final synchronized void lcrdMappingsRequest() throws Exception {
+      if (System.currentTimeMillis() < nextRoundTimestamp) {
+         log.warn("Trying to change the replication degree but the last optimization happened recently");
+         throw new Exception("Cannot start the next round. The last optimization happened recently");
+      }
+
+      if (roundInProgress) {
+         log.warn("Trying to change the replication degree another optimization is already in progress");
+         throw new Exception("Cannot start the next round. Another optimization is in progress");
+      }
+
+      updateNextRoundTimestamp();
+   }
+
+   /**
     * it blocks the current thread until the current round is higher or equals to the round id
     *
     * @param roundId the round id

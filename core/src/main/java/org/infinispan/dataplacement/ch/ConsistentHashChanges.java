@@ -71,4 +71,9 @@ public class ConsistentHashChanges {
    public final Map<Integer, Float> getClusterWeightMap() {
       return clusterWeightMap;
    }
+
+   public final void setLCRDMappings(Map<String, Integer> transactionClassMap, Map<Integer, Float> clusterWeightMap) {
+      this.transactionClassMap = transactionClassMap;
+      this.clusterWeightMap = clusterWeightMap;
+   }
 }

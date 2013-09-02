@@ -51,6 +51,8 @@ public class DataPlacementCommand extends BaseRpcCommand {
    private ObjectRequest objectRequest;
    private Map<Integer, ObjectLookup> objectLookup;
    private Address[] members;
+   private Map<String, Integer> transactionClassMap;
+   private Map<Integer, Float> clusterWeightMap;
 
    public DataPlacementCommand(String cacheName, Type type, long roundId) {
       super(cacheName);
@@ -141,6 +143,8 @@ public class DataPlacementCommand extends BaseRpcCommand {
          case SET_COOL_DOWN_TIME:
          case REPLICATION_DEGREE:
             return new Object[]{(byte) type.ordinal(), intValue};
+         case LCRD_MAPPING:
+            return new Object[]{(byte) type.ordinal(), transactionClassMap, clusterWeightMap};
       }
       throw new IllegalStateException("This should never happen!");
    }
@@ -172,12 +176,21 @@ public class DataPlacementCommand extends BaseRpcCommand {
          case REPLICATION_DEGREE:
             intValue = (Integer) parameters[1];
             break;
+         case LCRD_MAPPING:
+            transactionClassMap = (Map<String, Integer>) parameters[1];
+            clusterWeightMap = (Map<Integer, Float>) parameters[2];
+            break;
       }
    }
 
    @Override
    public boolean isReturnValueExpected() {
       return false;
+   }
+
+   public void setLCRDMappings(Map<String, Integer> txClassMap, Map<Integer, Float> clusterWeightMap) {
+      this.transactionClassMap = txClassMap;
+      this.clusterWeightMap = clusterWeightMap;
    }
 
    public static enum Type {
@@ -209,6 +222,11 @@ public class DataPlacementCommand extends BaseRpcCommand {
       /**
        * sets the new replication degree
        */
-      REPLICATION_DEGREE
+      REPLICATION_DEGREE,
+
+      /**
+       * sets the new LCRd mappings
+       */
+      LCRD_MAPPING
    }
 }

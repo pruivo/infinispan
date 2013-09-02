@@ -24,6 +24,9 @@ package org.infinispan.dataplacement;
 
 import org.infinispan.dataplacement.ch.ConsistentHashChanges;
 import org.infinispan.dataplacement.ch.DataPlacementConsistentHash;
+import org.infinispan.dataplacement.ch.ExternalLCRDMappingEntry;
+import org.infinispan.dataplacement.ch.LCRDCluster;
+import org.infinispan.dataplacement.ch.LCRDConsistentHash;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.jmx.annotations.Parameter;
@@ -166,6 +169,19 @@ public class DataPlacementRebalancePolicy implements RebalancePolicy {
       clusterTopologyManager.updateCacheStatus(cacheName);
    }
 
+   public final void setNewLCRDMappings(String cacheName, Map<String, Integer> transactionClassMap,
+                                        Map<Integer, Float> clusterWeightMap) throws Exception {
+      synchronized (consistentHashChangesMap) {
+         ConsistentHashChanges consistentHashChanges = consistentHashChangesMap.get(cacheName);
+         if (consistentHashChanges == null) {
+            consistentHashChanges = new ConsistentHashChanges();
+            consistentHashChangesMap.put(cacheName, consistentHashChanges);
+         }
+         consistentHashChanges.setLCRDMappings(transactionClassMap, clusterWeightMap);
+      }
+      clusterTopologyManager.updateCacheStatus(cacheName);
+   }
+
    public boolean isBalanced(String cacheName, ConsistentHash ch) {
       int numSegments = ch.getNumSegments();
       for (int i = 0; i < numSegments; i++) {
@@ -178,31 +194,77 @@ public class DataPlacementRebalancePolicy implements RebalancePolicy {
    }
 
    private ConsistentHashChanges getConsistentHashChanges(String cacheName, ConsistentHash consistentHash) {
-      if (consistentHash instanceof DataPlacementConsistentHash) {
-         ConsistentHashChanges consistentHashChanges;
-         synchronized (consistentHashChangesMap) {
-            consistentHashChanges = consistentHashChangesMap.get(cacheName);
-            if (consistentHashChanges == null) {
-               return null;
-            }
-            ClusterObjectLookup clusterObjectLookup = consistentHashChanges.getNewMappings();
-            List<ClusterObjectLookup> list = ((DataPlacementConsistentHash) consistentHash).getClusterObjectLookupList();
-            if (clusterObjectLookup != null && list.size() == 1 && clusterObjectLookup.equals(list.get(0))) {
-               //no changes in the mapping
-               consistentHashChanges.setNewMappings(null);
-            }
-            int replicationDegree = consistentHashChanges.getNewReplicationDegree();
-            if (replicationDegree != -1 && replicationDegree == consistentHash.getNumOwners()) {
-               //no changes in replication degree
-               consistentHashChanges.setNewReplicationDegree(-1);
-            }
-            if (consistentHashChanges.hasChanges()) {
-               return consistentHashChanges;
-            }
-            consistentHashChangesMap.remove(cacheName);
+      synchronized (consistentHashChangesMap) {
+         ConsistentHashChanges consistentHashChanges = consistentHashChangesMap.get(cacheName);
+         if (consistentHashChanges == null) {
             return null;
          }
+         checkReplicationDegree(consistentHash, consistentHashChanges);
+         if (consistentHash instanceof DataPlacementConsistentHash) {
+            checkDataPlacementMappings((DataPlacementConsistentHash) consistentHash, consistentHashChanges);
+            ConsistentHash original = ((DataPlacementConsistentHash) consistentHash).getConsistentHash();
+            if (original instanceof LCRDConsistentHash) {
+               checkLCRDMappings((LCRDConsistentHash) original, consistentHashChanges);
+            }
+         } else if (consistentHash instanceof LCRDConsistentHash) {
+            checkLCRDMappings((LCRDConsistentHash) consistentHash, consistentHashChanges);
+         }
+         if (consistentHashChanges.hasChanges()) {
+            return consistentHashChanges;
+         }
+         consistentHashChangesMap.remove(cacheName);
+         return null;
       }
-      return null;
+   }
+
+   private void checkDataPlacementMappings(DataPlacementConsistentHash consistentHash,
+                                           ConsistentHashChanges consistentHashChanges) {
+      ClusterObjectLookup clusterObjectLookup = consistentHashChanges.getNewMappings();
+      List list = consistentHash.getClusterObjectLookupList();
+      if (clusterObjectLookup != null && list.size() == 1 && clusterObjectLookup.equals(list.get(0))) {
+         //no changes in the mapping
+         consistentHashChanges.setNewMappings(null);
+      }
+   }
+
+   private void checkReplicationDegree(ConsistentHash consistentHash, ConsistentHashChanges consistentHashChanges) {
+      int replicationDegree = consistentHashChanges.getNewReplicationDegree();
+      if (replicationDegree != -1 && replicationDegree == consistentHash.getNumOwners()) {
+         //no changes in replication degree
+         consistentHashChanges.setNewReplicationDegree(-1);
+      }
+   }
+
+   private void checkLCRDMappings(LCRDConsistentHash consistentHash, ConsistentHashChanges consistentHashChanges) {
+      Map<String, Integer> transactionClassMap = consistentHashChanges.getTransactionClassMap();
+      if (transactionClassMap == null) {
+         consistentHashChanges.setLCRDMappings(null, null);
+         return;
+      }
+      ExternalLCRDMappingEntry[] externalLCRDMappingEntries = consistentHash.getTransactionClassCluster();
+      if (externalLCRDMappingEntries.length == 0) {
+         //new mappings!
+         return;
+      }
+      Map<Integer, Float> clusterWeightMap = consistentHashChanges.getClusterWeightMap();
+      for (ExternalLCRDMappingEntry entry : externalLCRDMappingEntries) {
+         LCRDCluster[] clusters = entry.getClusters();
+         if (clusters.length == 0 || clusters.length > 1) {
+            //the mappings has changed!
+            return;
+         }
+         Integer clusterId = transactionClassMap.get(entry.getTransactionClass());
+         if (clusterId == null || clusterId != clusters[0].getId()) {
+            //the mappings has changed!
+            return;
+         }
+         Float clusterWeight = clusterWeightMap.get(clusterId);
+         if (clusterWeight == null || clusterWeight != clusters[0].getWeight()) {
+            //the cluster weight has changed
+            return;
+         }
+      }
+      //the mappings are the same
+      consistentHashChanges.setLCRDMappings(null, null);
    }
 }

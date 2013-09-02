@@ -463,6 +463,35 @@ public class DataPlacementManager {
       handleNewReplicationDegree(replicationDegree);
    }
 
+   @ManagedOperation(description = "Sets the new LCRD mappings",
+                     displayName = "Set LCRD Mapping")
+   public final void setLCRDMappings(@Parameter(name = "Transaction Class Mapping") Map<String, Integer> txClassMap,
+                                     @Parameter(name = "Clusters Weigh Mapping") Map<Integer, Float> clusterWeightMap)
+         throws Exception {
+      if (!rpcManager.getTransport().isCoordinator()) {
+         if (log.isTraceEnabled()) {
+            log.trace("Replication Degree request received. Sending request to coordinator");
+         }
+         DataPlacementCommand command = commandsFactory.buildDataPlacementCommand(DataPlacementCommand.Type.LCRD_MAPPING,
+                                                                                  -1);
+         command.setLCRDMappings(txClassMap, clusterWeightMap);
+         rpcManager.invokeRemotely(Collections.singleton(getCoordinator()), command, false,
+                                   false);
+         return;
+      }
+      roundManager.lcrdMappingsRequest();
+      handleNewLCRDMappings(txClassMap, clusterWeightMap);
+   }
+
+   public final void handleNewLCRDMappings(Map<String, Integer> txClassMap, Map<Integer, Float> clusterWeightMap)
+         throws Exception {
+      if (txClassMap != null && clusterWeightMap != null) {
+         rebalancePolicy.setNewLCRDMappings(cache.getName(), txClassMap, clusterWeightMap);
+         return;
+      }
+      throw new Exception("Replication Degree should be higher than 0");
+   }
+
    private Address getCoordinator() {
       return rpcManager.getTransport().getCoordinator();
    }
