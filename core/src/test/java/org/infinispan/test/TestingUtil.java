@@ -104,17 +104,17 @@ public class TestingUtil {
    private static final Random random = new Random();
    public static final String TEST_PATH = "infinispanTempFiles";
    public static final String INFINISPAN_START_TAG = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<infinispan\n" +
-         "      xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
-         "      xsi:schemaLocation=\"urn:infinispan:config:5.2 http://www.infinispan.org/schemas/infinispan-config-5.2.xsd\"\n" +
-         "      xmlns=\"urn:infinispan:config:5.2\">";
+           "      xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
+           "      xsi:schemaLocation=\"urn:infinispan:config:5.2 http://www.infinispan.org/schemas/infinispan-config-5.2.xsd\"\n" +
+           "      xmlns=\"urn:infinispan:config:5.2\">";
    public static final String INFINISPAN_START_TAG_51 = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<infinispan\n" +
          "      xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
          "      xsi:schemaLocation=\"urn:infinispan:config:5.1 http://www.infinispan.org/schemas/infinispan-config-5.1.xsd\"\n" +
          "      xmlns=\"urn:infinispan:config:5.1\">";
    public static final String INFINISPAN_START_TAG_40 = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<infinispan\n" +
-         "      xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
-         "      xsi:schemaLocation=\"urn:infinispan:config:4.0 http://www.infinispan.org/schemas/infinispan-config-4.0.xsd\"\n" +
-         "      xmlns=\"urn:infinispan:config:4.0\">";
+           "      xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
+           "      xsi:schemaLocation=\"urn:infinispan:config:4.0 http://www.infinispan.org/schemas/infinispan-config-4.0.xsd\"\n" +
+           "      xmlns=\"urn:infinispan:config:4.0\">";
    public static final String INFINISPAN_END_TAG = "</infinispan>";
    public static final String INFINISPAN_START_TAG_NO_SCHEMA = "<infinispan>";
 
@@ -200,11 +200,11 @@ public class TestingUtil {
                      addresses[i] = caches[i].getCacheManager().getAddress();
                   }
                   message = String.format("Timed out waiting for rebalancing to complete on node %s, " +
-                                                "expected member list is %s, current member list is %s!",
-                                          cacheAddress, Arrays.toString(addresses), cacheTopology.getCurrentCH().getMembers());
+                        "expected member list is %s, current member list is %s!",
+                        cacheAddress, Arrays.toString(addresses), cacheTopology.getCurrentCH().getMembers());
                } else {
                   message = String.format("Timed out waiting for rebalancing to complete on node %s, " +
-                                                "current topology is %s", c.getCacheManager().getAddress(), cacheTopology);
+                        "current topology is %s", c.getCacheManager().getAddress(), cacheTopology);
                }
                log.error(message);
                throw new RuntimeException(message);
@@ -259,8 +259,8 @@ public class TestingUtil {
       }
 
       throw new RuntimeException(String.format(
-            "Timed out before caches had complete views.  Expected %d members in each view.  Views are as follows: %s",
-            cacheContainers.length, allViews));
+         "Timed out before caches had complete views.  Expected %d members in each view.  Views are as follows: %s",
+         cacheContainers.length, allViews));
    }
 
    public static void blockUntilViewsReceivedInt(Cache[] caches, long timeout) throws InterruptedException {
@@ -383,8 +383,8 @@ public class TestingUtil {
       }
 
       throw new RuntimeException(String.format(
-            "Timed out before cache had %d members.  View is %s",
-            groupSize, cache.getCacheManager().getMembers()));
+         "Timed out before cache had %d members.  View is %s",
+         groupSize, cache.getCacheManager().getMembers()));
    }
 
    /**
@@ -1100,12 +1100,12 @@ public class TestingUtil {
 
    public static String k(Method method, int index) {
       return new StringBuilder().append("k").append(index).append('-')
-            .append(method.getName()).toString();
+              .append(method.getName()).toString();
    }
 
    public static String v(Method method, int index) {
       return new StringBuilder().append("v").append(index).append('-')
-            .append(method.getName()).toString();
+              .append(method.getName()).toString();
    }
 
    public static String k(Method method) {
@@ -1163,7 +1163,7 @@ public class TestingUtil {
    public static ObjectName getCacheObjectName(String jmxDomain, String cacheName, String component, String cacheManagerName) {
       try {
          return new ObjectName(jmxDomain + ":type=Cache,manager=" + ObjectName.quote(cacheManagerName)
-                                     + ",name=" + ObjectName.quote(cacheName) + ",component=" + component);
+               + ",name=" + ObjectName.quote(cacheName) + ",component=" + component);
       } catch (Exception e) {
          throw new RuntimeException(e);
       }

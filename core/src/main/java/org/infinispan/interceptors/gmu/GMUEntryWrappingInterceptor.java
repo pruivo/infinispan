@@ -199,14 +199,13 @@ public class GMUEntryWrappingInterceptor extends EntryWrappingInterceptor {
          retVal = invokeNextIgnoringTimeout(ctx, command);
          //in remote context, the commit command will be enqueue, so it does not need to wait
          //If this is a local shadow transaction created to exchange state transfer info, then we can unblock this thread
-         boolean fromStateTransfer = false;
+         boolean fromStateTransfer;
          ShadowTransactionInfo shadowTransactionInfo;
          if (ctx.isOriginLocal()) {
             fromStateTransfer = ((LocalTransaction) ctx.getCacheTransaction()).isFromStateTransfer();
             shadowTransactionInfo = ((LocalTransaction) ctx.getCacheTransaction()).getShadowTransactionInfo();
             if (transactionEntry != null && fromStateTransfer && shadowTransactionInfo != null) {
                shadowTransactionInfo.setTransactionEntry(transactionEntry);
-
             }
          }
 

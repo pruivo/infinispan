@@ -90,7 +90,6 @@ public class StateConsumerImpl implements StateConsumer {
 
    protected static final Log log = LogFactory.getLog(StateConsumerImpl.class);
    private static final boolean trace = log.isTraceEnabled();
-   private static final boolean info = log.isInfoEnabled();
 
    private ExecutorService executorService;
    private StateTransferManager stateTransferManager;
