@@ -30,6 +30,7 @@ import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.transaction.PassiveReplicationException;
 
 /**
  * This interceptor has the behavior needed for passive replication, namely, it now allow the processing of write 
@@ -104,7 +105,7 @@ public class PassiveReplicationInterceptor extends CommandInterceptor {
 
    private Object handleWriteCommand(InvocationContext ctx, WriteCommand command) throws Throwable {
       if (ctx.isOriginLocal() && !isMaster()) {
-         throw new IllegalStateException("Write operation not allowed in Passive Replication, in backup nodes");
+         throw new PassiveReplicationException("Write operation not allowed in Passive Replication, in backup nodes");
       }
       return invokeNextInterceptor(ctx, command);
    }

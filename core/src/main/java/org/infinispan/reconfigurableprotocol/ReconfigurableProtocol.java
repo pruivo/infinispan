@@ -62,6 +62,7 @@ import org.infinispan.util.logging.LogFactory;
 import javax.transaction.Status;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -117,36 +118,47 @@ public abstract class ReconfigurableProtocol {
    }
 
    public final boolean commitTransaction(GlobalTransaction globalTransaction, Object[] affectedKeys,
-                                       Transaction transaction) {
+                                          Transaction transaction, boolean isCurrentProtocol) {
+      if (transaction == null) {
+         throw new NullPointerException("Committing a null transaction! GlobalTransaction=" + globalTransaction.globalId());
+      }
       synchronized (localExecutionTransactions) {
          synchronized (localTransactions) {
-            boolean removed = transaction != null && localExecutionTransactions.remove(transaction);
-            localExecutionTransactions.notifyAll();
-            try {
-               if (transaction != null && transaction.getStatus() == Status.STATUS_MARKED_ROLLBACK) {
-                  throw new CacheException("Transaction " + globalTransaction.globalId() + " is marked for rollback.");
-               }
-            } catch (SystemException e) {
-               throw new CacheException(e);
+            //if the tx is removed, then it is starting the commit
+            boolean removed = localExecutionTransactions.remove(transaction);
+            if (removed) {
+               localExecutionTransactions.notifyAll();
             }
-            localTransactions.put(globalTransaction, affectedKeys == null ? InfinispanCollections.emptySet() : new HashSet<Object>(Arrays.asList(affectedKeys)));
+            abortIfNeeded(transaction, globalTransaction.globalId());
+
+            if (removed && isCurrentProtocol) {
+               localTransactions.put(globalTransaction, affectedKeys == null ?
+                     InfinispanCollections.emptySet() :
+                     new HashSet<Object>(Arrays.asList(affectedKeys)));
+            }
             return removed;
          }
       }
    }
 
-   public final boolean commitTransaction(Transaction transaction) {
-      synchronized (localExecutionTransactions) {
-         boolean removed = transaction != null && localExecutionTransactions.remove(transaction);
-         localExecutionTransactions.notifyAll();
-         try {
-            if (transaction != null && transaction.getStatus() == Status.STATUS_MARKED_ROLLBACK) {
-               throw new CacheException("Transaction " + transaction + " is marked for rollback.");
-            }
-         } catch (SystemException e) {
-            throw new CacheException(e);
+   private void abortIfNeeded(Transaction transaction, String id) {
+      try {
+         if (transaction.getStatus() == Status.STATUS_MARKED_ROLLBACK) {
+            throw new CacheException("Transaction " + id + " is marked for rollback.");
          }
-         return removed;
+      } catch (SystemException e) {
+         throw new CacheException("Error getting transaction status. id=" + id, e);
+      }
+   }
+
+   public final void rollbackTransaction(Transaction transaction) {
+      if (transaction == null) {
+         return;
+      }
+      synchronized (localExecutionTransactions) {
+         if (localExecutionTransactions.remove(transaction)) {
+            localExecutionTransactions.notifyAll();
+         }
       }
    }
 
@@ -163,14 +175,18 @@ public abstract class ReconfigurableProtocol {
    }
 
    /**
-    * Removes the global transaction to the list of local transactions finished by this protocol
+    * Removes the global transaction to the list of local and remote transactions finished by this protocol
     *
     * @param globalTransaction the global transaction
     */
-   public final void removeLocalTransaction(GlobalTransaction globalTransaction) {
+   public final void transactionFinished(GlobalTransaction globalTransaction) {
       synchronized (localTransactions) {
          localTransactions.remove(globalTransaction);
          localTransactions.notifyAll();
+      }
+      synchronized (remoteTransactions) {
+         remoteTransactions.remove(globalTransaction);
+         remoteTransactions.notifyAll();
       }
    }
 
@@ -189,18 +205,6 @@ public abstract class ReconfigurableProtocol {
          } else {
             remoteTransactions.put(globalTransaction, new HashSet<Object>(Arrays.asList(affectedKeys)));
          }
-      }
-   }
-
-   /**
-    * Removes the global transaction to the list of remote transactions finished by this protocol
-    *
-    * @param globalTransaction the global transaction
-    */
-   public final void removeRemoteTransaction(GlobalTransaction globalTransaction) {
-      synchronized (remoteTransactions) {
-         remoteTransactions.remove(globalTransaction);
-         remoteTransactions.notifyAll();
       }
    }
 
@@ -385,6 +389,27 @@ public abstract class ReconfigurableProtocol {
     * @return the map with the new interceptors
     */
    public abstract EnumMap<InterceptorType, CommandInterceptor> buildInterceptorChain();
+
+   /**
+    * TEST ONLY
+    */
+   public final Collection<GlobalTransaction> getLocalTransactions() {
+      return new ArrayList<GlobalTransaction>(localTransactions.keySet());
+   }
+
+   /**
+    * TEST ONLY
+    */
+   public final Collection<GlobalTransaction> getRemoteTransactions() {
+      return new ArrayList<GlobalTransaction>(remoteTransactions.keySet());
+   }
+
+   /**
+    * TEST ONLY
+    */
+   public final Collection<Transaction> getExecutingTransactions() {
+      return new ArrayList<Transaction>(localExecutionTransactions);
+   }
 
    /**
     * check is this local transaction can be committed via 1 phase, instead of 2 phases. In 1 phase, only the prepare

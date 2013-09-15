@@ -82,7 +82,7 @@ public class SingleNodeOnePhaseTotalOrderTest extends MultipleCacheManagersTest 
    }
 
    public void testSinglePhaseTotalOrder() {
-      assertFalse(Configurations.isOnePhaseTotalOrderCommit(cache(0).getCacheConfiguration()));
+      assertFalse(Configurations.isOnePhaseTotalOrderCommit(cache(0).getCacheConfiguration(), true));
    }
 
    public void testPut() {

@@ -27,6 +27,7 @@ import org.infinispan.reconfigurableprotocol.exception.AlreadyRegisterProtocolEx
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -103,5 +104,12 @@ public class ReconfigurableProtocolRegistry {
     */
    public final ReconfigurableProtocol getProtocolById(String protocolId) {
       return idsToProtocol.get(protocolId);
+   }
+
+   /**
+    * TEST ONLY
+    */
+   public final Collection<ReconfigurableProtocol> getReconfigurableProtocols() {
+      return new ArrayList<ReconfigurableProtocol>(idsToProtocol.values());
    }
 }

@@ -201,8 +201,9 @@ public class ReconfigurableReplicationManager {
       globalTransaction.setReconfigurableProtocol(actual);
 
       if (log.isDebugEnabled()) {
-         log.debugf("[%s] local transaction %s will use %s as commit protocol", Thread.currentThread().getName(),
-                    globalTransaction.globalId(), currentProtocolInfo);
+         log.debugf("[%s] local transaction %s was executed in %s and it will start commit with %s",
+                    Thread.currentThread().getName(), globalTransaction.globalId(), executionProtocolId,
+                    actual.getUniqueProtocolName());
       }
    }
 
@@ -227,7 +228,7 @@ public class ReconfigurableReplicationManager {
       }
 
       try {
-         globalTransaction.getReconfigurableProtocol().commitTransaction(localTransaction.getTransaction());
+         globalTransaction.getReconfigurableProtocol().rollbackTransaction(localTransaction.getTransaction());
       } catch (Exception e) {
          //ignore: this probably will throw an exception saying that the transaction is marked for rollback...
       }
@@ -292,7 +293,7 @@ public class ReconfigurableReplicationManager {
          if (log.isTraceEnabled()) {
             log.tracef("Local transaction %s is finished", globalTransaction.globalId());
          }
-         protocol.removeLocalTransaction(globalTransaction);
+         protocol.transactionFinished(globalTransaction);
       } else {
          log.fatalf("Local transaction %s is finished but the commit protocol %s does not exits",
                     globalTransaction.globalId(), globalTransaction.getProtocolId());
@@ -311,7 +312,7 @@ public class ReconfigurableReplicationManager {
          if (log.isTraceEnabled()) {
             log.tracef("Remote transaction %s is finished", globalTransaction.globalId());
          }
-         protocol.removeRemoteTransaction(globalTransaction);
+         protocol.transactionFinished(globalTransaction);
       } else {
          log.fatalf("Remote transaction %s is finished but the commit protocol %s does not exits",
                     globalTransaction.globalId(), globalTransaction.getProtocolId());
@@ -656,6 +657,26 @@ public class ReconfigurableReplicationManager {
       return allowSwitch;
    }
 
+   @ManagedAttribute(description = "Returns the state of the cool down time, returning true if it is expired",
+                     displayName = "Cool down time expired")
+   public final boolean isCoolDownTimeExpired() {
+      return coolDownTimeManager.check();
+   }
+
+   /**
+    * TEST ONLY
+    */
+   public final ProtocolManager.State getState() {
+      return protocolManager.getState();
+   }
+
+   /**
+    * TEST ONLY
+    */
+   public final Collection<ReconfigurableProtocol> getReconfigurableProtocols() {
+      return registry.getReconfigurableProtocols();
+   }
+
    private Address getCoordinator() {
       return rpcManager.getTransport().getCoordinator();
    }
@@ -743,6 +764,10 @@ public class ReconfigurableReplicationManager {
          } else {
             return false;
          }
+      }
+
+      public synchronized boolean check() {
+         return nextSwitchTime <= System.currentTimeMillis();
       }
 
       public synchronized int getCoolDownTimePeriod() {

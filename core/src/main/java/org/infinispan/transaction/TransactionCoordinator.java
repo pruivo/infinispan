@@ -273,7 +273,7 @@ public class TransactionCoordinator {
          log.errorProcessing2pcCommitCommand(e);
       }
       try {
-         if (!(onePhaseCommit && configuration.transaction().transactionProtocol().isTotalOrder())) {
+         if (!(onePhaseCommit || isTotalOrder(localTransaction))) {
             //we cannot send the rollback in Total Order because it will create a new remote transaction.
             //the rollback is not needed any way, because if one node aborts the transaction, then all the nodes will
             //abort too.
@@ -305,6 +305,10 @@ public class TransactionCoordinator {
          rollback(localTransaction);
          throw new XAException(XAException.XA_RBROLLBACK);
       }
+   }
+
+   private boolean isTotalOrder(LocalTransaction localTransaction) {
+      return localTransaction.getGlobalTransaction().getReconfigurableProtocol().useTotalOrder();
    }
 
    private static interface CommandCreator {

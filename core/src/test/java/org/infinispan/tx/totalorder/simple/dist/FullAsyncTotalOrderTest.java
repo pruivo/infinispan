@@ -88,7 +88,7 @@ public class FullAsyncTotalOrderTest extends MultipleCacheManagersTest {
    }
 
    public void testSinglePhaseTotalOrder() {
-      assertTrue(Configurations.isOnePhaseTotalOrderCommit(cache(0).getCacheConfiguration()));
+      assertTrue(Configurations.isOnePhaseTotalOrderCommit(cache(0).getCacheConfiguration(), true));
    }
 
    public void testPut() {

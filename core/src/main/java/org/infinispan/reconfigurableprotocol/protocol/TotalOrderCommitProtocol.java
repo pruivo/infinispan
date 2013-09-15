@@ -206,7 +206,7 @@ public class TotalOrderCommitProtocol extends ReconfigurableProtocol {
    @Override
    public final boolean use1PC(LocalTransaction localTransaction) {
       return Configurations.isOnePhaseCommit(configuration) || is1PcForAutoCommitTransaction(localTransaction) ||
-            Configurations.isOnePhaseTotalOrderCommit(configuration);
+            !Configurations.isOnePhaseTotalOrderCommit(configuration, true);
    }
 
    @Override

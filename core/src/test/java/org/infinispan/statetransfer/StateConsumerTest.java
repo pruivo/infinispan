@@ -43,6 +43,8 @@ import org.infinispan.executors.BlockingTaskAwareExecutorServiceTest;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
+import org.infinispan.reconfigurableprotocol.manager.ProtocolManager;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.rpc.ResponseMode;
@@ -162,6 +164,8 @@ public class StateConsumerTest extends AbstractInfinispanTest {
       InterceptorChain interceptorChain = mock(InterceptorChain.class);
       InvocationContextContainer icc = mock(InvocationContextContainer.class);
       TotalOrderManager totalOrderManager = mock(TotalOrderManager.class);
+      ReconfigurableReplicationManager reconfigurableReplicationManager = mock(ReconfigurableReplicationManager.class);
+      ProtocolManager protocolManager = mock(ProtocolManager.class);
 
       when(commandsFactory.buildStateRequestCommand(any(StateRequestCommand.Type.class), any(Address.class), anyInt(), any(Set.class))).thenAnswer(new Answer<StateRequestCommand>() {
          @Override
@@ -196,12 +200,14 @@ public class StateConsumerTest extends AbstractInfinispanTest {
          }
       });
 
+      when(reconfigurableReplicationManager.getProtocolManager()).thenReturn(protocolManager);
+      when(protocolManager.isTotalOrder()).thenReturn(false);
 
       // create state provider
       final StateConsumerImpl stateConsumer = new StateConsumerImpl();
       stateConsumer.init(cache, pooledExecutorService, stateTransferManager, interceptorChain, icc, configuration, rpcManager, null,
             commandsFactory, cacheLoaderManager, dataContainer, transactionTable, stateTransferLock, cacheNotifier, totalOrderManager,
-            null, blockingservice);
+            null, blockingservice, reconfigurableReplicationManager);
       stateConsumer.start();
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();

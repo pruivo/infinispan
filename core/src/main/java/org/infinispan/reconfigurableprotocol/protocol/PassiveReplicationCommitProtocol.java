@@ -155,7 +155,7 @@ public class PassiveReplicationCommitProtocol extends ReconfigurableProtocol {
       //return true;
       //original condition
       return Configurations.isOnePhaseCommit(configuration) || is1PcForAutoCommitTransaction(localTransaction) ||
-            Configurations.isOnePhasePassiveReplication(configuration);
+            Configurations.isOnePhasePassiveReplication(configuration, true);
    }
 
    @Override

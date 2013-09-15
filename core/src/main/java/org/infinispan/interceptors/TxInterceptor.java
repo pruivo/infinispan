@@ -60,7 +60,6 @@ import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.jmx.annotations.ManagedAttribute;
 import org.infinispan.jmx.annotations.ManagedOperation;
 import org.infinispan.jmx.annotations.MeasurementType;
-import org.infinispan.jmx.annotations.Parameter;
 import org.infinispan.jmx.annotations.Units;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.transaction.LocalTransaction;
@@ -104,7 +103,6 @@ public class TxInterceptor extends CommandInterceptor {
 
    private static final Log log = LogFactory.getLog(TxInterceptor.class);
    private RecoveryManager recoveryManager;
-   private boolean isTotalOrder;
 
    @Override
    protected Log getLog() {
@@ -119,8 +117,7 @@ public class TxInterceptor extends CommandInterceptor {
       this.txCoordinator = txCoordinator;
       this.rpcManager = rpcManager;
       this.recoveryManager = recoveryManager;
-      setStatisticsEnabled(cacheConfiguration.jmxStatistics().enabled());
-      this.isTotalOrder = c.transaction().transactionProtocol().isTotalOrder();
+      this.statisticsEnabled = cacheConfiguration.jmxStatistics().enabled();
    }
 
    @Override
@@ -193,7 +190,7 @@ public class TxInterceptor extends CommandInterceptor {
          commits.incrementAndGet();
       }
       Object result = invokeNextInterceptor(ctx, command);
-      if (!ctx.isOriginLocal() || isTotalOrder) {
+      if (!ctx.isOriginLocal() || isTotalOrder(ctx.getGlobalTransaction())) {
          txTable.remoteTransactionCommitted(ctx.getGlobalTransaction());
       }
 
@@ -212,7 +209,7 @@ public class TxInterceptor extends CommandInterceptor {
          rollbacks.incrementAndGet();
       }
       boolean forceRemoveRemoteTransaction = false;
-      if (ctx.isOriginLocal() && isTotalOrder) {
+      if (ctx.isOriginLocal() && isTotalOrder(ctx.getGlobalTransaction())) {
          RemoteTransaction remoteTransaction = txTable.getRemoteTransaction(ctx.getGlobalTransaction());
          if (remoteTransaction != null) {
             forceRemoveRemoteTransaction = remoteTransaction.getTransactionState().isFinished();
@@ -373,16 +370,6 @@ public class TxInterceptor extends CommandInterceptor {
       startPrepare.clear();
    }
 
-   /**
-    * @deprecated Use the statisticsEnabled attribute instead.
-    */
-   @ManagedOperation(
-         displayName = "Enable/disable statistics. Deprecated, use the statisticsEnabled attribute instead."
-   )
-   public void setStatisticsEnabled(@Parameter(name = "enabled", description = "Whether statistics should be enabled or disabled (true/false)") boolean enabled) {
-      this.statisticsEnabled = enabled;
-   }
-
    @ManagedAttribute(
          displayName = "Statistics enabled",
          dataType = DataType.TRAIT,
@@ -515,5 +502,9 @@ public class TxInterceptor extends CommandInterceptor {
       private double convertToMillis(double value) {
          return value / 1000000.0;
       }
+   }
+
+   private boolean isTotalOrder(GlobalTransaction globalTransaction) {
+      return globalTransaction.getReconfigurableProtocol().useTotalOrder();
    }
 }

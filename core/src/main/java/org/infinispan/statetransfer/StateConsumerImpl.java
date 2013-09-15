@@ -52,6 +52,8 @@ import org.infinispan.loaders.CacheLoaderException;
 import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.loaders.CacheStore;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
+import org.infinispan.reconfigurableprotocol.manager.ProtocolManager;
+import org.infinispan.reconfigurableprotocol.manager.ReconfigurableReplicationManager;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.rpc.ResponseMode;
@@ -106,11 +108,11 @@ public class StateConsumerImpl implements StateConsumer {
    private StateTransferLock stateTransferLock;
    private CacheNotifier cacheNotifier;
    private TotalOrderManager totalOrderManager;
+   private ProtocolManager protocolManager;
    protected long timeout;
    private boolean useVersionedPut;
    protected boolean isFetchEnabled;
    protected boolean isTransactional;
-   private boolean isTotalOrder;
    private boolean isInvalidationMode;
 
    private BlockingTaskAwareExecutorService gmuExecutorService;
@@ -229,7 +231,8 @@ public class StateConsumerImpl implements StateConsumer {
                     CacheNotifier cacheNotifier,
                     TotalOrderManager totalOrderManager,
                     VersionGenerator versionGenerator,
-                    @ComponentName(KnownComponentNames.GMU_EXECUTOR) BlockingTaskAwareExecutorService gmuExecutorService) {
+                    @ComponentName(KnownComponentNames.GMU_EXECUTOR) BlockingTaskAwareExecutorService gmuExecutorService,
+                    ReconfigurableReplicationManager reconfigurableReplicationManager) {
       this.cacheName = cache.getName();
       this.executorService = executorService;
       this.stateTransferManager = stateTransferManager;
@@ -247,11 +250,11 @@ public class StateConsumerImpl implements StateConsumer {
       this.totalOrderManager = totalOrderManager;
       this.versionGenerator = versionGenerator;
       this.gmuExecutorService = gmuExecutorService;
+      this.protocolManager = reconfigurableReplicationManager.getProtocolManager();
 
       isInvalidationMode = configuration.clustering().cacheMode().isInvalidation();
 
       isTransactional = configuration.transaction().transactionMode().isTransactional();
-      isTotalOrder = configuration.transaction().transactionProtocol().isTotalOrder();
 
       // we need to use a special form of PutKeyValueCommand that can apply versions too
       useVersionedPut = isTransactional &&
@@ -324,7 +327,7 @@ public class StateConsumerImpl implements StateConsumer {
                                           cacheTopology.getTopologyId(), true);
 
          //in total order, we should wait for remote transactions before proceeding
-         if (configuration.transaction().transactionProtocol().isTotalOrder()) {
+         if (isTotalOrder()) {
             if (log.isTraceEnabled()) {
                log.trace("State Transfer in Total Order cache. Waiting for remote transactions to finish");
             }
@@ -433,7 +436,7 @@ public class StateConsumerImpl implements StateConsumer {
                   if (log.isTraceEnabled()) {
                      log.tracef("Unlock State Transfer in Progress for topology ID %s", cacheTopology.getTopologyId());
                   }
-                  if (isTotalOrder) {
+                  if (isTotalOrder()) {
                      totalOrderManager.notifyStateTransferEnd();
                   }
                }
@@ -794,7 +797,7 @@ public class StateConsumerImpl implements StateConsumer {
       // the sources and segments we are going to get from each source
       Map<Address, Set<Integer>> sources = new HashMap<Address, Set<Integer>>();
 
-      if (isTransactional && !isTotalOrder) {
+      if (isTransactional && !isTotalOrder()) {
          requestTransactions(segments, sources, excludedSources);
       }
 
@@ -1205,5 +1208,9 @@ public class StateConsumerImpl implements StateConsumer {
       public synchronized final List<Address> toList() {
          return Collections.unmodifiableList(owners);
       }
+   }
+
+   private boolean isTotalOrder() {
+      return protocolManager.isTotalOrder();
    }
 }

@@ -184,13 +184,14 @@ public class ProtocolManager {
       }
    }
 
-   public final synchronized CurrentProtocolInfo startCommitTransaction(GlobalTransaction globalTransaction, Object[] affectedKeys,
-                                                                        ReconfigurableProtocol execProtocol, Transaction transaction) {
-      boolean hasStartToCommit;
-      if (isCurrentProtocol(execProtocol)) {
-         hasStartToCommit = execProtocol.commitTransaction(globalTransaction, affectedKeys, transaction);
-      } else {
-         hasStartToCommit = execProtocol.commitTransaction(transaction);
+   public final synchronized CurrentProtocolInfo startCommitTransaction(GlobalTransaction globalTransaction,
+                                                                        Object[] affectedKeys,
+                                                                        ReconfigurableProtocol execProtocol,
+                                                                        Transaction transaction) {
+      final boolean isSameProtocol = isCurrentProtocol(execProtocol);
+      boolean hasStartToCommit = execProtocol.commitTransaction(globalTransaction, affectedKeys, transaction,
+                                                                isSameProtocol);
+      if (hasStartToCommit && !isSameProtocol) {
          current.addLocalTransaction(globalTransaction, affectedKeys);
       }
       return hasStartToCommit ? getCurrentProtocolInfo() : null;
@@ -206,10 +207,14 @@ public class ProtocolManager {
       return epoch;
    }
 
+   public final synchronized boolean isTotalOrder() {
+      return current.useTotalOrder();
+   }
+
    /**
     * the possible states
     */
-   static enum State {
+   public static enum State {
       SAFE,
       UNSAFE,
       IN_PROGRESS

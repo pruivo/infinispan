@@ -52,7 +52,6 @@ public abstract class AbstractEnlistmentAdapter {
    private final int hashCode;
    private final boolean isSecondPhaseAsync;
    private final boolean isPessimisticLocking;
-   private final boolean isTotalOrder;
    protected final boolean isGMU;
 
    public AbstractEnlistmentAdapter(CacheTransaction cacheTransaction,
@@ -65,7 +64,6 @@ public abstract class AbstractEnlistmentAdapter {
       this.clusteringLogic = clusteringLogic;
       this.isSecondPhaseAsync = Configurations.isSecondPhaseAsync(configuration);
       this.isPessimisticLocking = configuration.transaction().lockingMode() == LockingMode.PESSIMISTIC;
-      this.isTotalOrder = configuration.transaction().transactionProtocol().isTotalOrder();
       this.isGMU = configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE &&
             configuration.versioning().scheme() == VersioningScheme.GMU;
       hashCode = preComputeHashCode(cacheTransaction);
@@ -80,7 +78,6 @@ public abstract class AbstractEnlistmentAdapter {
       this.clusteringLogic = clusteringLogic;
       this.isSecondPhaseAsync = Configurations.isSecondPhaseAsync(configuration);
       this.isPessimisticLocking = configuration.transaction().lockingMode() == LockingMode.PESSIMISTIC;
-      this.isTotalOrder = configuration.transaction().transactionProtocol().isTotalOrder();
       this.isGMU = configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE &&
             configuration.versioning().scheme() == VersioningScheme.GMU;
       hashCode = 31;
@@ -106,7 +103,7 @@ public abstract class AbstractEnlistmentAdapter {
    }
 
    private boolean mayHaveRemoteLocks(LocalTransaction lt) {
-      return !isTotalOrder && (lt.getRemoteLocksAcquired() != null && !lt.getRemoteLocksAcquired().isEmpty() ||
+      return !isTotalOrder(lt) && (lt.getRemoteLocksAcquired() != null && !lt.getRemoteLocksAcquired().isEmpty() ||
             !lt.getModifications().isEmpty() ||
             isPessimisticLocking && lt.getTopologyId() != rpcManager.getTopologyId());
    }
@@ -126,5 +123,9 @@ public abstract class AbstractEnlistmentAdapter {
 
    private boolean isClustered() {
       return rpcManager != null;
+   }
+
+   private boolean isTotalOrder(LocalTransaction localTransaction) {
+      return localTransaction.getGlobalTransaction().getReconfigurableProtocol().useTotalOrder();
    }
 }

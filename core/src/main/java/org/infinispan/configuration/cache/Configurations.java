@@ -52,8 +52,8 @@ public class Configurations {
             || (cfg.loaders().fetchPersistentState());
    }
 
-   public static boolean isOnePhaseTotalOrderCommit(Configuration cfg) {
-      return cfg.transaction().transactionProtocol().isTotalOrder() && !isVersioningEnabled(cfg);
+   public static boolean isOnePhaseTotalOrderCommit(Configuration cfg, boolean isTotalOrder) {
+      return isTotalOrder && !isVersioningEnabled(cfg);
    }
 
    public static boolean isVersioningEnabled(Configuration cfg) {
@@ -62,9 +62,8 @@ public class Configurations {
             cfg.versioning().enabled()) || cfg.locking().isolationLevel() == IsolationLevel.SERIALIZABLE;
    }
 
-   public static boolean isOnePhasePassiveReplication(Configuration cfg) {
-      return cfg.transaction().transactionProtocol().isPassiveReplication() &&
-            !cfg.clustering().cacheMode().isDistributed() &&
+   public static boolean isOnePhasePassiveReplication(Configuration cfg, boolean isPassiveReplication) {
+      return isPassiveReplication &&  !cfg.clustering().cacheMode().isDistributed() &&
             (!isVersioningEnabled(cfg) || cfg.transaction().useSynchronization());
    }
 }

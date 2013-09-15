@@ -18,7 +18,6 @@
 
 package org.infinispan.interceptors.totalorder;
 
-import org.infinispan.CacheException;
 import org.infinispan.commands.FlagAffectedCommand;
 import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
@@ -61,7 +60,7 @@ public class TotalOrderVersionedDistributionInterceptor extends VersionedDistrib
 
    @Override
    public Object visitRollbackCommand(TxInvocationContext ctx, RollbackCommand command) throws Throwable {
-      if (Configurations.isOnePhaseTotalOrderCommit(cacheConfiguration) || !ctx.hasModifications() ||
+      if (Configurations.isOnePhaseTotalOrderCommit(cacheConfiguration, true) || !ctx.hasModifications() ||
             !shouldTotalOrderRollbackBeInvokedRemotely(ctx)) {
          return invokeNextInterceptor(ctx, command);
       }
@@ -71,7 +70,7 @@ public class TotalOrderVersionedDistributionInterceptor extends VersionedDistrib
 
    @Override
    public Object visitCommitCommand(TxInvocationContext ctx, CommitCommand command) throws Throwable {
-      if (Configurations.isOnePhaseTotalOrderCommit(cacheConfiguration) || !ctx.hasModifications()) {
+      if (Configurations.isOnePhaseTotalOrderCommit(cacheConfiguration, true) || !ctx.hasModifications()) {
          return invokeNextInterceptor(ctx, command);
       }
       totalOrderTxCommit(ctx);

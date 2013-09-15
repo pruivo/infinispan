@@ -45,7 +45,7 @@ public class SyncPrepareWriteSkewUseSynchronizationTotalOrderTest extends FullAs
 
    @Override
    public void testSinglePhaseTotalOrder() {
-      assertFalse(Configurations.isOnePhaseTotalOrderCommit(cache(0).getCacheConfiguration()));
+      assertFalse(Configurations.isOnePhaseTotalOrderCommit(cache(0).getCacheConfiguration(), true));
    }
 
    @Override

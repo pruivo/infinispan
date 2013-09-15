@@ -27,7 +27,6 @@ import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.reconfigurableprotocol.ReconfigurableProtocol;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.LocalTransaction;
-import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.xa.GlobalTransaction;
 
 import java.util.EnumMap;
@@ -47,7 +46,6 @@ public class TwoPhaseCommitProtocol extends ReconfigurableProtocol {
    private static final String PB_UID = PassiveReplicationCommitProtocol.UID;
    private static final String ACK = "_ACK_";
    private final AckCollector ackCollector = new AckCollector();
-   private TransactionTable transactionTable;
 
    @Override
    public final String getUniqueProtocolName() {
@@ -127,7 +125,7 @@ public class TwoPhaseCommitProtocol extends ReconfigurableProtocol {
 
    @Override
    public final void bootstrapProtocol() {
-      this.transactionTable = getComponent(TransactionTable.class);
+      //no-op
    }
 
    @Override
