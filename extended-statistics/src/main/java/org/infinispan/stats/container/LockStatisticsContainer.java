@@ -8,7 +8,7 @@ package org.infinispan.stats.container;
  */
 public interface LockStatisticsContainer {
 
-   void markLocksAcquired();
+   void notifyLockAcquired();
 
    void addLockTimeout(long waitingTime);
 

@@ -9,7 +9,7 @@ package org.infinispan.stats.container;
 public class NonTxLockStatistcsContainer implements LockStatisticsContainer {
 
    @Override
-   public void markLocksAcquired() {
+   public void notifyLockAcquired() {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 
