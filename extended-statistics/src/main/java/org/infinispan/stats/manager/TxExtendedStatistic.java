@@ -1,0 +1,91 @@
+package org.infinispan.stats.manager;
+
+/**
+ * //TODO: document this!
+ *
+ * @author Pedro Ruivo
+ * @since 6.0
+ */
+public enum TxExtendedStatistic {
+   TIME_SINCE_RESET,
+
+   //Transaction Accesses (local successfull transaction only)
+   //WRITE
+   NUM_WRITE_WRT_TX,
+   WRITE_DUR_WRT_TX,
+   //READ
+   NUM_READ_WRT_TX,
+   READ_DUR_WRT_TX,
+   NUM_READ_RD_TX,
+   READ_DUR_RD_TX,
+
+   //Lock accesses (successfull transaction)
+   //local + write transaction
+   NUM_LOCK_LOCAL_WRT_TX,
+   LOCK_HOLD_TIME_LOCAL_WRT_TX,
+   NUM_LOCK_WAITING_LOCAL_WRT_TX,
+   LOCK_HOLDING_TIME_LOCAL_WRT_TX,
+   //local + read transaction
+   NUM_LOCK_LOCAL_RD_TX,
+   LOCK_HOLD_TIME_LOCAL_RD_TX,
+   NUM_LOCK_WAITING_LOCAL_RD_TX,
+   LOCK_HOLDING_TIME_LOCAL_RD_TX,
+   //remote + write transaction
+   NUM_LOCK_REMOTE_WRT_TX,
+   LOCK_HOLD_TIME_REMOTE_WRT_TX,
+   NUM_LOCK_WAITING_REMOTE_WRT_TX,
+   LOCK_HOLDING_TIME_REMOTE_WRT_TX,
+   //remote + read transaction
+   NUM_LOCK_REMOTE_RD_TX,
+   LOCK_HOLD_TIME_REMOTE_RD_TX,
+   NUM_LOCK_WAITING_REMOTE_RD_TX,
+   LOCK_HOLDING_TIME_REMOTE_RD_TX,
+   
+   //Network
+   //write transaction
+   NUM_REMOTE_GET_WRT_TX,
+   REMOTE_GET_RTT_WRT_TX,
+   REMOTE_GET_SIZE_WRT_TX,
+   NUM_PREPARE_SENT_WRT_TX,
+   PREPARE_SENT_RTT_WRT_TX,
+   PREPARE_SENT_SIZE_WRT_TX,
+   NUM_COMMIT_SENT_WRT_TX,
+   COMMIT_SENT_RTT_WRT_TX,
+   COMMIT_SENT_SIZE_WRT_TX,
+   NUM_ROLLBACK_SENT_WRT_TX,
+   ROLLBACK_SENT_RTT_WRT_TX,
+   ROLLBACK_SENT_SIZE_WRT_TX,
+   //read transaction
+   NUM_REMOTE_GET_RD_TX,
+   REMOTE_GET_RTT_RD_TX,
+   REMOTE_GET_SIZE_RD_TX,
+   NUM_ROLLBACK_SENT_RD_TX,
+   ROLLBACK_SENT_RTT_RD_TX,
+   ROLLBACK_SENT_SIZE_RD_TX,
+   
+   //Transaction boundary duration
+   //local
+   NUM_PREPARE_LOCAL,
+   PREPARE_LOCAL_DUR,
+   NUM_COMMIT_LOCAL,
+   COMMIT_LOCAL_DUR,
+   NUM_ROLLBACK_LOCAL,
+   ROLLBACK_LOCAL_DUR,
+   //remote
+   NUM_PREPARE_REMOTE,
+   PREPARE_REMOTE_DUR,
+   NUM_COMMIT_REMOTE,
+   COMMIT_REMOTE_DUR,
+   NUM_ROLLBACK_REMOTE,
+   ROLLBACK_REMOTE_DUR,
+
+   //Transactions
+   NUM_LOCAL_WRT_TX,
+   EXEC_DUR_LOCAL_WRT_TX,
+   COMMIT_DUR_LOCAL_WRT_TX,
+   NUM_LOCAL_RD_TX,
+   EXEC_DUR_LOCAL_RD_TX,
+   COMMIT_DUR_LOCAL_RD_TX
+
+
+}
