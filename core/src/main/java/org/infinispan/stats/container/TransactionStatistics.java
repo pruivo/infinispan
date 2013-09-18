@@ -24,11 +24,7 @@ package org.infinispan.stats.container;
 
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.VersioningScheme;
-import org.infinispan.stats.ExposedStatistic;
-import org.infinispan.stats.InfinispanStat;
-import org.infinispan.stats.LockRelatedStatsHelper;
-import org.infinispan.stats.NoIspnStatException;
-import org.infinispan.stats.TransactionsStatisticsRegistry;
+import org.infinispan.stats.*;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.logging.Log;
 
@@ -54,15 +50,31 @@ public abstract class TransactionStatistics implements InfinispanStat {
    protected long endLocalCpuTime;
    protected Configuration configuration;
    protected String id;
+   protected long readsBeforeFirstWrite = -1;
    private boolean isReadOnly;
    private boolean isCommit;
    private String transactionalClass;
    private Map<Object, Long> takenLocks = new HashMap<Object, Long>();
    private long lastOpTimestamp;
    private long performedReads;
-   protected long readsBeforeFirstWrite = -1;
    private boolean prepareSent = false;
 
+   public TransactionStatistics(int size, Configuration configuration) {
+      this.initTime = System.nanoTime();
+      this.isReadOnly = true; //as far as it does not tries to perform a put operation
+      this.takenLocks = new HashMap<Object, Long>();
+      this.transactionalClass = TransactionsStatisticsRegistry.DEFAULT_ISPN_CLASS;
+      this.statisticsContainer = new StatisticsContainerImpl(size);
+      this.configuration = configuration;
+      if (getLog().isTraceEnabled()) {
+         getLog().tracef("Created transaction statistics. Class is %s. Start time is %s",
+                 transactionalClass, initTime);
+      }
+      if (TransactionsStatisticsRegistry.isSampleServiceTime()) {
+         getLog().tracef("Transaction statistics is sampling cpuTime");
+         this.initCpuTime = TransactionsStatisticsRegistry.getThreadCPUTime();
+      }
+   }
 
    public void setReadsBeforeFirstWrite() {
       //I do not use isReadOnly just in case, in the future, we'll be able to tag as update a xact upon start
@@ -84,23 +96,6 @@ public abstract class TransactionStatistics implements InfinispanStat {
 
    public void notifyRead() {
       performedReads++;
-   }
-
-   public TransactionStatistics(int size, Configuration configuration) {
-      this.initTime = System.nanoTime();
-      this.isReadOnly = true; //as far as it does not tries to perform a put operation
-      this.takenLocks = new HashMap<Object, Long>();
-      this.transactionalClass = TransactionsStatisticsRegistry.DEFAULT_ISPN_CLASS;
-      this.statisticsContainer = new StatisticsContainerImpl(size);
-      this.configuration = configuration;
-      if (getLog().isTraceEnabled()) {
-         getLog().tracef("Created transaction statistics. Class is %s. Start time is %s",
-                         transactionalClass, initTime);
-      }
-      if (TransactionsStatisticsRegistry.isSampleServiceTime()) {
-         getLog().tracef("Transaction statistics is sampling cpuTime");
-         this.initCpuTime = TransactionsStatisticsRegistry.getThreadCPUTime();
-      }
    }
 
    public final Map<Object, Long> getTakenLocks() {
@@ -253,10 +248,10 @@ public abstract class TransactionStatistics implements InfinispanStat {
    @Override
    public String toString() {
       return "initTime=" + initTime +
-            ", isReadOnly=" + isReadOnly +
-            ", isCommit=" + isCommit +
-            ", transactionalClass=" + transactionalClass +
-            '}';
+              ", isReadOnly=" + isReadOnly +
+              ", isCommit=" + isCommit +
+              ", transactionalClass=" + transactionalClass +
+              '}';
    }
 
    public abstract void onPrepareCommand();
@@ -315,10 +310,11 @@ public abstract class TransactionStatistics implements InfinispanStat {
    protected long computeCumulativeLockHoldTime(int numLocks, long currentTime) {
       Set<Map.Entry<Object, Long>> keySet = this.takenLocks.entrySet();
       final boolean trace = (getLog().isTraceEnabled());
-      if (trace)
-         getLog().trace("Held locks from param " + numLocks + "numLocks in entryset " + keySet.size());      long ret = numLocks * currentTime;
-      if (trace)
+      long ret = numLocks * currentTime;
+      if (trace) {
+         getLog().trace("Held locks from param " + numLocks + "numLocks in entryset " + keySet.size());
          getLog().trace("Now is " + currentTime + "total is " + ret);
+      }
       for (Map.Entry<Object, Long> e : keySet) {
          ret -= e.getValue();
          if (trace)

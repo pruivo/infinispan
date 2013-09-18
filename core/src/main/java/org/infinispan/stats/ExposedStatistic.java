@@ -166,6 +166,9 @@ public enum ExposedStatistic {
    NUM_NODES_ROLLBACK(true, false),          //L
    NUM_NODES_COMPLETE_NOTIFY(true, false),   //L
    NUM_NODES_GET(true, false),               //L
+   NUM_REMOTE_NODES_READ_RO_TX(true,false),
+   NUM_REMOTE_NODES_READ_WR_TX(true,false),
+
 
    //Additional Stats
    TBC_EXECUTION_TIME(true, false),

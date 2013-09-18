@@ -181,7 +181,6 @@ public final class CustomStatsInterceptor extends BaseCustomInterceptor {
       if (TransactionsStatisticsRegistry.isActive() && ctx.isInTxScope()) {
 
          final TransactionStatistics transactionStatistics = initStatsIfNecessary(ctx);
-         //transactionStatistics.addNTBCValue(currTimeForAllGetCommand);         
          transactionStatistics.notifyRead();
          long currCpuTime = 0;
          boolean isRemoteKey = isRemote(command.getKey());
@@ -189,6 +188,7 @@ public final class CustomStatsInterceptor extends BaseCustomInterceptor {
             currCpuTime = TransactionsStatisticsRegistry.getThreadCPUTime();
          }
          long currTimeForAllGetCommand = System.nanoTime();
+         transactionStatistics.addNTBCValue(currTimeForAllGetCommand);
          ret = invokeNextInterceptor(ctx, command);
          long lastTimeOp = System.nanoTime();
          if (isRemoteKey) {
@@ -2175,6 +2175,30 @@ public final class CustomStatsInterceptor extends BaseCustomInterceptor {
                      displayName = "Avg response time of the commit of a read only tx per tx class")
    public final long getLocalReadOnlyTxCommitResponseTimeForTxClass(@Parameter(name = "Transaction Class") String txClass) {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(READ_ONLY_TX_COMMIT_R, txClass));
+   }
+
+   @ManagedOperation(description = "Remote nodes from which a read-only transaction reads from per tx class",
+                     displayName = "Remote nodes read by update xacts per tx class")
+   public final long getLocalReadOnlyTxRemoteNodesReadForTxClass(@Parameter(name = "Transaction Class") String txClass) {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_RO_TX, txClass));
+   }
+
+   @ManagedOperation(description = "Remote nodes from which an update transaction reads from per tx class",
+                     displayName = "Remote nodes read by read-only xacts per tx class")
+   public final long getLocalUpdateTxRemoteNodesReadForTxClass(@Parameter(name = "Transaction Class") String txClass) {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_WR_TX, txClass));
+   }
+
+   @ManagedOperation(description = "Remote nodes from which a read-only transaction reads from",
+                     displayName = "Remote nodes read by read-only xacts")
+   public final long getLocalReadOnlyTxRemoteNodesRead() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_RO_TX, null));
+   }
+
+   @ManagedOperation(description = "Remote nodes from which an update transaction reads from",
+                     displayName = "Remote nodes read by update xacts")
+   public final long getLocalUpdateTxRemoteNodesRead() {
+      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_WR_TX, null));
    }
 
    //NB: readOnly transactions are never aborted (RC, RR, GMU)

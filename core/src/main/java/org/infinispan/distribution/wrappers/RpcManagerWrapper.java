@@ -42,6 +42,7 @@ import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.stats.ExposedStatistic;
 import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
+import org.infinispan.stats.container.LocalTransactionStatistics;
 import org.infinispan.stats.container.TransactionStatistics;
 import org.infinispan.util.concurrent.NotifyingNotifiableFuture;
 import org.infinispan.util.concurrent.ResponseFuture;
@@ -305,6 +306,9 @@ public class RpcManagerWrapper implements RpcManager {
                transactionStatistics.addValue(RTT_GET_NO_WAIT, wallClockTimeTaken);
             }
          }
+         //Remote gets are routed to a *single* remote node
+         Address recipient = recipients.iterator().next();
+         ((LocalTransactionStatistics)transactionStatistics).addReadNodeIfAbsent(recipient);
       } else if (command instanceof TxCompletionNotificationCommand) {
          durationStat = ASYNC_COMPLETE_NOTIFY;
          counterStat = NUM_ASYNC_COMPLETE_NOTIFY;
@@ -377,6 +381,8 @@ public class RpcManagerWrapper implements RpcManager {
       }
       return 0;
    }
+
+
 
    private class WaitStats {
       private long numWaitedNodes;

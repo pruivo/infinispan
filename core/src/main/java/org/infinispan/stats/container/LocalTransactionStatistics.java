@@ -23,12 +23,15 @@
 package org.infinispan.stats.container;
 
 import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.remoting.transport.Address;
 import org.infinispan.stats.ExposedStatistic;
 import org.infinispan.stats.NoIspnStatException;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+
+import java.util.HashSet;
 
 import static org.infinispan.stats.ExposedStatistic.*;
 
@@ -44,10 +47,16 @@ public class LocalTransactionStatistics extends TransactionStatistics {
    private static final Log log = LogFactory.getLog(LocalTransactionStatistics.class);
    private static final int SIZE = getLocalStatsSize();
    private boolean stillLocalExecution;
+   private HashSet<Address> nodesReadFrom;
 
    public LocalTransactionStatistics(Configuration configuration) {
       super(SIZE, configuration);
       this.stillLocalExecution = true;
+      this.nodesReadFrom = new HashSet<Address>();
+   }
+
+   public final void addReadNodeIfAbsent(Address a) {
+      this.nodesReadFrom.add(a);
    }
 
    @Override
@@ -63,8 +72,8 @@ public class LocalTransactionStatistics extends TransactionStatistics {
    @Override
    public final String toString() {
       return "LocalTransactionStatistics{" +
-            "stillLocalExecution=" + stillLocalExecution +
-            ", " + super.toString();
+              "stillLocalExecution=" + stillLocalExecution +
+              ", " + super.toString();
    }
 
    /*
@@ -78,6 +87,7 @@ public class LocalTransactionStatistics extends TransactionStatistics {
       final boolean sampleServiceTime = TransactionsStatisticsRegistry.isSampleServiceTime();
       long cpuTime = sampleServiceTime ? TransactionsStatisticsRegistry.getThreadCPUTime() : 0;
       long now = System.nanoTime();
+      long readNodes = this.nodesReadFrom.size();
       if (!isReadOnly()) {
          long numPuts = this.getValue(NUM_PUT);
          this.addValue(FIRST_WRITE_INDEX, this.readsBeforeFirstWrite);
@@ -85,6 +95,7 @@ public class LocalTransactionStatistics extends TransactionStatistics {
          this.addValue(NUM_HELD_LOCKS_SUCCESS_TX, getValue(NUM_HELD_LOCKS));
          this.addValue(UPDATE_TX_LOCAL_R, this.endLocalTime - this.initTime);
          this.addValue(UPDATE_TX_TOTAL_R, now - this.initTime);
+         this.addValue(NUM_REMOTE_NODES_READ_WR_TX,readNodes);
          if (sampleServiceTime) {
             addValue(UPDATE_TX_LOCAL_S, this.endLocalCpuTime - this.initCpuTime);
             addValue(UPDATE_TX_TOTAL_S, cpuTime - this.initCpuTime);
@@ -98,6 +109,7 @@ public class LocalTransactionStatistics extends TransactionStatistics {
          }
       } else {
          addValue(READ_ONLY_TX_TOTAL_R, now - initTime);
+         this.addValue(NUM_REMOTE_NODES_READ_RO_TX,readNodes);
          if (sampleServiceTime)
             addValue(READ_ONLY_TX_TOTAL_S, cpuTime - initCpuTime);
       }

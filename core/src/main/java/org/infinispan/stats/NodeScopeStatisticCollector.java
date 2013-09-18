@@ -384,9 +384,9 @@ public class NodeScopeStatisticCollector {
          }
          case TX_WRITE_PERCENTAGE: {     //computed on the locally born txs
             long readTx = snapshot.getLocal(NUM_READ_ONLY_TX_COMMIT) +
-                  snapshot.getLocal(NUM_ABORTED_RO_TX);
+                    snapshot.getLocal(NUM_ABORTED_RO_TX);
             long writeTx = snapshot.getLocal(NUM_COMMITTED_WR_TX) +
-                  snapshot.getLocal(NUM_ABORTED_WR_TX);
+                    snapshot.getLocal(NUM_ABORTED_WR_TX);
             long total = readTx + writeTx;
             if (total != 0)
                return new Double(writeTx * 1.0 / total);
@@ -469,9 +469,9 @@ public class NodeScopeStatisticCollector {
          }
          case ABORT_RATE:
             long totalAbort = snapshot.getLocal(NUM_ABORTED_RO_TX) +
-                  snapshot.getLocal(NUM_ABORTED_WR_TX);
+                    snapshot.getLocal(NUM_ABORTED_WR_TX);
             long totalCommitAndAbort = snapshot.getLocal(NUM_READ_ONLY_TX_COMMIT) +
-                  snapshot.getLocal(NUM_COMMITTED_WR_TX) + totalAbort;
+                    snapshot.getLocal(NUM_COMMITTED_WR_TX) + totalAbort;
             if (totalCommitAndAbort != 0) {
                return new Double(totalAbort * 1.0 / totalCommitAndAbort);
             }
@@ -481,18 +481,18 @@ public class NodeScopeStatisticCollector {
          }
          case ARRIVAL_RATE:
             long localCommittedTx = snapshot.getLocal(NUM_READ_ONLY_TX_COMMIT) +
-                  snapshot.getLocal(NUM_COMMITTED_WR_TX);
+                    snapshot.getLocal(NUM_COMMITTED_WR_TX);
             long localAbortedTx = snapshot.getLocal(NUM_ABORTED_RO_TX) +
-                  snapshot.getLocal(NUM_ABORTED_WR_TX);
+                    snapshot.getLocal(NUM_ABORTED_WR_TX);
             long remoteCommittedTx = snapshot.getRemote(NUM_READ_ONLY_TX_COMMIT) +
-                  snapshot.getRemote(NUM_COMMITTED_WR_TX);
+                    snapshot.getRemote(NUM_COMMITTED_WR_TX);
             long remoteAbortedTx = snapshot.getRemote(NUM_ABORTED_RO_TX) +
-                  snapshot.getRemote(NUM_ABORTED_WR_TX);
+                    snapshot.getRemote(NUM_ABORTED_WR_TX);
             long totalBornTx = localAbortedTx + localCommittedTx + remoteAbortedTx + remoteCommittedTx;
             return new Double(totalBornTx * 1.0 / convertNanosToSeconds(System.nanoTime() - snapshot.getLastResetTime()));
          case THROUGHPUT:
             long totalLocalBornTx = snapshot.getLocal(NUM_READ_ONLY_TX_COMMIT) +
-                  snapshot.getLocal(NUM_COMMITTED_WR_TX);
+                    snapshot.getLocal(NUM_COMMITTED_WR_TX);
             return new Double(totalLocalBornTx * 1.0 / convertNanosToSeconds(System.nanoTime() - snapshot.getLastResetTime()));
          case LOCK_HOLD_TIME_LOCAL:
             return microAvgLocal(snapshot, NUM_HELD_LOCKS, LOCK_HOLD_TIME);
@@ -500,17 +500,17 @@ public class NodeScopeStatisticCollector {
             return microAvgRemote(snapshot, NUM_HELD_LOCKS, LOCK_HOLD_TIME);
          case NUM_COMMITS:
             return new Long(snapshot.getLocal(NUM_READ_ONLY_TX_COMMIT) +
-                                  snapshot.getLocal(NUM_COMMITTED_WR_TX) +
-                                  snapshot.getRemote(NUM_READ_ONLY_TX_COMMIT) +
-                                  snapshot.getRemote(NUM_COMMITTED_WR_TX));
+                    snapshot.getLocal(NUM_COMMITTED_WR_TX) +
+                    snapshot.getRemote(NUM_READ_ONLY_TX_COMMIT) +
+                    snapshot.getRemote(NUM_COMMITTED_WR_TX));
          case NUM_LOCAL_COMMITS:
             return new Long(snapshot.getLocal(NUM_READ_ONLY_TX_COMMIT) +
-                                  snapshot.getLocal(NUM_COMMITTED_WR_TX));
+                    snapshot.getLocal(NUM_COMMITTED_WR_TX));
          case WRITE_SKEW_PROBABILITY:
             long totalTxs = snapshot.getLocal(NUM_READ_ONLY_TX_COMMIT) +
-                  snapshot.getLocal(NUM_COMMITTED_WR_TX) +
-                  snapshot.getLocal(NUM_ABORTED_RO_TX) +
-                  snapshot.getLocal(NUM_ABORTED_WR_TX);
+                    snapshot.getLocal(NUM_COMMITTED_WR_TX) +
+                    snapshot.getLocal(NUM_ABORTED_RO_TX) +
+                    snapshot.getLocal(NUM_ABORTED_WR_TX);
             if (totalTxs != 0) {
                long writeSkew = snapshot.getLocal(NUM_WRITE_SKEW);
                return new Double(writeSkew * 1.0 / totalTxs);
@@ -518,10 +518,10 @@ public class NodeScopeStatisticCollector {
             return new Double(0);
          case NUM_GET:
             return snapshot.getLocal(NUM_SUCCESSFUL_GETS_WR_TX) +
-                  snapshot.getLocal(NUM_SUCCESSFUL_GETS_RO_TX);
+                    snapshot.getLocal(NUM_SUCCESSFUL_GETS_RO_TX);
          case NUM_LOCAL_REMOTE_GET:
             return snapshot.getLocal(NUM_SUCCESSFUL_REMOTE_GETS_WR_TX) +
-                  snapshot.getLocal(NUM_SUCCESSFUL_REMOTE_GETS_RO_TX);
+                    snapshot.getLocal(NUM_SUCCESSFUL_REMOTE_GETS_RO_TX);
          case NUM_PUT:
             return snapshot.getLocal(NUM_SUCCESSFUL_PUTS_WR_TX);
          case NUM_REMOTE_PUT:
@@ -532,7 +532,7 @@ public class NodeScopeStatisticCollector {
                return new Long(0L);
             } else {
                long local_get_time = snapshot.getLocal(ALL_GET_EXECUTION) -
-                     snapshot.getLocal(LOCAL_REMOTE_GET_R);
+                       snapshot.getLocal(LOCAL_REMOTE_GET_R);
 
                return new Long(convertNanosToMicro(local_get_time) / num);
             }
@@ -628,6 +628,10 @@ public class NodeScopeStatisticCollector {
             return snapshot.getLocal(NUM_TO_GMU_PREPARE_COMMAND_RTT_NO_WAITED);
          case RTT_GET_NO_WAIT:
             return microAvgLocal(snapshot, NUM_RTT_GET_NO_WAIT, RTT_GET_NO_WAIT);
+         case NUM_REMOTE_NODES_READ_RO_TX:
+            return avgDoubleLocal(snapshot, NUM_COMMITTED_RO_TX, NUM_REMOTE_NODES_READ_RO_TX);
+         case NUM_REMOTE_NODES_READ_WR_TX:
+            return avgDoubleLocal(snapshot, NUM_COMMITTED_WR_TX, NUM_REMOTE_NODES_READ_WR_TX);
          default:
             throw new NoIspnStatException("Invalid statistic " + param);
       }
