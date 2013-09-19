@@ -149,23 +149,23 @@ public class ExtendedStatisticInterceptorV2 extends BaseCustomInterceptor {
          if (stats.throwable != null) {
             switch (stats.cause) {
                case LOCK_TIMEOUT:
-                  container.prepareLockTimeout(stats.duration, command.isOnePhaseCommit());
+                  container.prepareLockTimeout(stats.duration);
                   break;
                case NETWORK_TIMEOUT:
-                  container.prepareNetworkTimeout(stats.duration, command.isOnePhaseCommit());
+                  container.prepareNetworkTimeout(stats.duration);
                   break;
                case DEADLOCK_DETECTED:
-                  container.prepareDeadlockError(stats.duration, command.isOnePhaseCommit());
+                  container.prepareDeadlockError(stats.duration);
                   break;
                case VALIDATION_FAILED:
-                  container.prepareValidationError(stats.duration, command.isOnePhaseCommit());
+                  container.prepareValidationError(stats.duration);
                   break;
                default:
-                  container.prepareUnknownError(stats.duration, command.isOnePhaseCommit());
+                  container.prepareUnknownError(stats.duration);
             }
             throw stats.throwable;
          }
-         container.prepare(stats.duration, command.isOnePhaseCommit());
+         container.prepare(stats.duration);
          return stats.returnValue;
       }
       return invokeNextInterceptor(ctx, command);

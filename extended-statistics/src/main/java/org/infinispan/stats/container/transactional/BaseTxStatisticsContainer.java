@@ -1,8 +1,12 @@
 package org.infinispan.stats.container.transactional;
 
-import org.infinispan.stats.container.EnumStatisticsContainer;
 import org.infinispan.stats.container.LockStatisticsContainer;
 import org.infinispan.util.TimeService;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.infinispan.stats.container.transactional.TxOutcome.*;
 
 /**
  * //TODO: document this!
@@ -12,168 +16,198 @@ import org.infinispan.util.TimeService;
  */
 public abstract class BaseTxStatisticsContainer implements LockStatisticsContainer, TransactionStatisticsContainer {
 
-   protected final EnumStatisticsContainer<LockStatistics> lockStatistics;
-   protected final EnumStatisticsContainer<TransactionStatistics> transactionStatistics;
-   private final TimeService timeService;
-   private final long startRunning;
-   private long endRunning;
-   private long endTransaction;
+   protected final LockStats lockStats;
+   protected final TxStats txStats;
+   protected final TimeService timeService;
+   private final Map<Object, LockInfo> lockInfoMap;
    private State state;
-   private boolean hasLocks;
 
    protected BaseTxStatisticsContainer(TimeService timeService, long startRunning) {
       this.timeService = timeService;
-      this.lockStatistics = new EnumStatisticsContainer<LockStatistics>(LockStatistics.class);
-      this.transactionStatistics = new EnumStatisticsContainer<TransactionStatistics>(TransactionStatistics.class);
       this.state = State.RUNNING;
-      this.hasLocks = false;
-      this.startRunning = startRunning;
+      lockInfoMap = new HashMap<Object, LockInfo>();
+      lockStats = new LockStats();
+      txStats = new TxStats(startRunning);
    }
 
    @Override
-   public final void notifyLockAcquired() {
-      this.hasLocks = true;
+   public void keyLocked(Object key, long waitingTime) {
+      if (lockInfoMap.containsKey(key)) {
+         return;
+      }
+      LockInfo info = new LockInfo();
+      info.waitingTime = waitingTime;
+      lockInfoMap.put(key, info);
    }
 
    @Override
-   public final void addLockTimeout(long waitingTime) {
+   public void keyUnlocked(Object key) {
+      LockInfo info = lockInfoMap.remove(key);
+      addLockAcquired(info);
+   }
+
+   @Override
+   public void lockTimeout(long waitingTime) {
       addLockWaitingTime(waitingTime);
-      lockStatistics.increment(LockStatistics.NUM_LOCK_FAIL_TIMEOUT);
+      lockStats.lockTimeout++;
    }
 
    @Override
-   public final void addDeadlock(long waitingTime) {
+   public void deadlock(long waitingTime) {
       addLockWaitingTime(waitingTime);
-      lockStatistics.increment(LockStatistics.NUM_LOCK_FAIL_DEADLOCK);
+      lockStats.lockDeadlock++;
    }
 
    @Override
-   public final void addLock(long waitingTime, long holdTime) {
-      addLockWaitingTime(waitingTime);
-      lockStatistics.increment(LockStatistics.NUM_LOCK);
-      lockStatistics.add(LockStatistics.LOCK_HOLD_DUR, holdTime);
+   public void markFinished() {
+      if (txStats.endCommittingTimeStamp <= 0) {
+         txStats.endCommittingTimeStamp = timeService.time();
+      }
+      state = State.FINISHED;
    }
 
    @Override
-   public final void endExecution() {
+   public final boolean isFinished() {
+      return state == State.FINISHED && lockInfoMap.isEmpty();
+   }
+
+   @Override
+   public final void prepare(long duration) {
+      prepared(SUCCESS, duration);
+   }
+
+   @Override
+   public final void prepareLockTimeout(long duration) {
+      prepared(TxOutcome.LOCK_TIMEOUT, duration);
+   }
+
+   @Override
+   public final void prepareNetworkTimeout(long duration) {
+      prepared(NETWORK_TIMEOUT, duration);
+   }
+
+   @Override
+   public final void prepareDeadlockError(long duration) {
+      prepared(TxOutcome.DEADLOCK, duration);
+   }
+
+   @Override
+   public final void prepareValidationError(long duration) {
+      prepared(TxOutcome.VALIDATION, duration);
+   }
+
+   @Override
+   public final void prepareUnknownError(long duration) {
+      prepared(UNKNOWN_ERROR, duration);
+   }
+
+   @Override
+   public final void commit(long duration) {
+      terminate(true, duration, SUCCESS);
+   }
+
+   @Override
+   public final void commitNetworkTimeout(long duration) {
+      terminate(true, duration, NETWORK_TIMEOUT);
+   }
+
+   @Override
+   public final void commitUnknownError(long duration) {
+      terminate(true, duration, UNKNOWN_ERROR);
+   }
+
+   @Override
+   public final void rollback(long duration) {
+      terminate(false, duration, UNKNOWN_ERROR);
+   }
+
+   @Override
+   public final void rollbackNetworkTimeout(long duration) {
+      terminate(false, duration, NETWORK_TIMEOUT);
+   }
+
+   @Override
+   public final void rollbackUnknownError(long duration) {
+      terminate(false, duration, UNKNOWN_ERROR);
+   }
+
+   private void endExecution() {
       if (state == State.RUNNING) {
-         if (endRunning <= 0) {
-            endRunning = timeService.time();
-         }
-         if (startRunning > 0) {
-            transactionStatistics.add(TransactionStatistics.TX_EXECUTION_DUR, startRunning - endRunning);
+         if (txStats.endRunningTimeStamp <= 0) {
+            txStats.endRunningTimeStamp = timeService.time();
          }
          state = State.COMMITTING;
       }
    }
 
-   @Override
-   public final boolean isFinished() {
-      return state == State.FINISHED && !hasLocks;
+   private void addLockAcquired(LockInfo info) {
+      addLockWaitingTime(info.waitingTime);
+      lockStats.locksAcquired++;
+      lockStats.holdTime += (timeService.time() - info.lockTimeStamp);
    }
 
-   @Override
-   public final void prepare(long duration, boolean onePhaseCommit) {
-      prepared(TransactionStatistics.NUM_PREPARE, TransactionStatistics.PREPARE_DUR, duration, onePhaseCommit);
+   private synchronized void prepared(TxOutcome outcome, long duration) {
+      endExecution();
+      txStats.prepareCommandDuration = duration;
+      txStats.updateOutcome(outcome);
    }
 
-   @Override
-   public final void prepareLockTimeout(long duration, boolean onePhaseCommit) {
-      prepared(TransactionStatistics.NUM_PREPARE_FAIL_LOCK_TIMEOUT, TransactionStatistics.PREPARE_DUR_FAIL_LOCK_TIMEOUT,
-               duration, onePhaseCommit);
-   }
-
-   @Override
-   public final void prepareNetworkTimeout(long duration, boolean onePhaseCommit) {
-      prepared(TransactionStatistics.NUM_PREPARE_FAIL_NETWORK_TIMEOUT,
-               TransactionStatistics.PREPARE_DUR_FAIL_NETWORK_TIMEOUT, duration, onePhaseCommit);
-   }
-
-   @Override
-   public final void prepareDeadlockError(long duration, boolean onePhaseCommit) {
-      prepared(TransactionStatistics.NUM_PREPARE_FAIL_DEADLOCK, TransactionStatistics.PREPARE_DUR_FAIL_DEADLOCK,
-               duration, onePhaseCommit);
-   }
-
-   @Override
-   public final void prepareValidationError(long duration, boolean onePhaseCommit) {
-      prepared(TransactionStatistics.NUM_PREPARE_FAIL_VALIDATION, TransactionStatistics.PREPARE_DUR_FAIL_VALIDATION,
-               duration, onePhaseCommit);
-   }
-
-   @Override
-   public final void prepareUnknownError(long duration, boolean onePhaseCommit) {
-      prepared(TransactionStatistics.NUM_PREPARE_FAIL_UNKNOWN, TransactionStatistics.PREPARE_DUR_FAIL_UNKNOWN, duration,
-               onePhaseCommit);
-   }
-
-   @Override
-   public final void commit(long duration) {
-      committedOrRollbacked(TransactionStatistics.NUM_COMMIT, TransactionStatistics.COMMIT_DUR, duration);
-   }
-
-   @Override
-   public final void commitNetworkTimeout(long duration) {
-      committedOrRollbacked(TransactionStatistics.NUM_COMMIT_FAIL_NETWORK_TIMEOUT,
-                            TransactionStatistics.COMMIT_DUR_FAIL_NETWORK_TIMEOUT, duration);
-   }
-
-   @Override
-   public final void commitUnknownError(long duration) {
-      committedOrRollbacked(TransactionStatistics.NUM_COMMIT_FAIL_UNKNOWN, TransactionStatistics.COMMIT_DUR_FAIL_UNKNOWN,
-                            duration);
-   }
-
-   @Override
-   public final void rollback(long duration) {
-      committedOrRollbacked(TransactionStatistics.NUM_ROLLBACK, TransactionStatistics.ROLLBACK_DUR, duration);
-   }
-
-   @Override
-   public final void rollbackNetworkTimeout(long duration) {
-      committedOrRollbacked(TransactionStatistics.NUM_ROLLBACK_FAIL_NETWORK_TIMEOUT,
-                            TransactionStatistics.ROLLBACK_DUR_FAIL_NETWORK_TIMEOUT, duration);
-   }
-
-   @Override
-   public final void rollbackUnknownError(long duration) {
-      committedOrRollbacked(TransactionStatistics.NUM_ROLLBACK_FAIL_UNKNOWN,
-                            TransactionStatistics.ROLLBACK_DUR_FAIL_UNKNOWN, duration);
-   }
-
-   private void prepared(TransactionStatistics counterStats, TransactionStatistics durationStats, long duration,
-                         boolean onePhaseCommit) {
-      state = onePhaseCommit ? State.FINISHED : State.COMMITTING;
-      transactionStatistics.add(durationStats, duration);
-      transactionStatistics.increment(counterStats);
-      if (onePhaseCommit) {
-         checkFinished();
+   private synchronized void terminate(boolean commit, long duration, TxOutcome outcome) {
+      endExecution();
+      if (commit) {
+         txStats.commitCommandDuration = duration;
+      } else {
+         txStats.rollbackCommandDuration = duration;
       }
-   }
-
-   private void committedOrRollbacked(TransactionStatistics counterStats, TransactionStatistics durationStats,
-                                      long duration) {
-      state = State.FINISHED;
-      transactionStatistics.add(durationStats, duration);
-      transactionStatistics.increment(counterStats);
-      checkFinished();
-   }
-
-   private void checkFinished() {
-      if (isFinished() && endTransaction <= 0) {
-         endTransaction = timeService.time();
-         transactionStatistics.add(TransactionStatistics.TX_TERMINATION_DUR, endTransaction - endRunning);
-      }
+      txStats.updateOutcome(outcome);
    }
 
    private void addLockWaitingTime(long waiting) {
-      lockStatistics.add(LockStatistics.LOCK_WAIT_DUR, waiting);
-      lockStatistics.increment(LockStatistics.NUM_LOCK_WAIT);
+      if (waiting > 0) {
+         lockStats.lockWaited++;
+         lockStats.waitingTime += waiting;
+      }
    }
 
    private enum State {
-      RUNNING,
-      COMMITTING,
-      FINISHED
+      RUNNING, COMMITTING, FINISHED
+   }
+
+   protected class LockStats {
+      protected int locksAcquired;
+      protected long holdTime;
+      protected int lockWaited;
+      protected long waitingTime;
+      protected int lockTimeout;
+      protected int lockDeadlock;
+   }
+
+   protected class TxStats {
+      protected final long startRunningTimeStamp;
+      protected TxOutcome outcome;
+      protected long endRunningTimeStamp;
+      protected long endCommittingTimeStamp;
+      protected long prepareCommandDuration;
+      protected long commitCommandDuration;
+      protected long rollbackCommandDuration;
+
+      private TxStats(long startRunningTimeStamp) {
+         this.startRunningTimeStamp = startRunningTimeStamp;
+      }
+
+      private void updateOutcome(TxOutcome outcome) {
+         if (this.outcome == null) {
+            this.outcome = outcome;
+         } else if (this.outcome == SUCCESS && outcome != SUCCESS) {
+            this.outcome = outcome;
+         } else if (this.outcome == UNKNOWN_ERROR && outcome != SUCCESS) {
+            this.outcome = outcome;
+         }
+      }
+   }
+
+   private class LockInfo {
+      private final long lockTimeStamp = timeService.time();
+      private long waitingTime = -1;
    }
 }

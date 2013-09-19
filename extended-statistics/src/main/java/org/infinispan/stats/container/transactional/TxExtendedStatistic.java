@@ -1,4 +1,4 @@
-package org.infinispan.stats.manager;
+package org.infinispan.stats.container.transactional;
 
 /**
  * //TODO: document this!
@@ -40,7 +40,7 @@ public enum TxExtendedStatistic {
    LOCK_HOLD_TIME_REMOTE_RD_TX,
    NUM_LOCK_WAITING_REMOTE_RD_TX,
    LOCK_HOLDING_TIME_REMOTE_RD_TX,
-   
+
    //Network
    //write transaction
    NUM_REMOTE_GET_WRT_TX,
@@ -62,7 +62,7 @@ public enum TxExtendedStatistic {
    NUM_ROLLBACK_SENT_RD_TX,
    ROLLBACK_SENT_RTT_RD_TX,
    ROLLBACK_SENT_SIZE_RD_TX,
-   
+
    //Transaction boundary duration
    //local
    NUM_PREPARE_LOCAL,
@@ -83,9 +83,15 @@ public enum TxExtendedStatistic {
    NUM_LOCAL_WRT_TX,
    EXEC_DUR_LOCAL_WRT_TX,
    COMMIT_DUR_LOCAL_WRT_TX,
+
    NUM_LOCAL_RD_TX,
    EXEC_DUR_LOCAL_RD_TX,
-   COMMIT_DUR_LOCAL_RD_TX
+   COMMIT_DUR_LOCAL_RD_TX,
 
+   //for remote transactions
+   NUM_REMOTE_WRT_TX,
+   COMMIT_DUR_REMOTE_WRT_TX,
 
+   NUM_REMOTE_RD_TX,
+   COMMIT_DUR_REMOTE_RD_TX
 }

@@ -8,21 +8,21 @@ package org.infinispan.stats.container.transactional;
  */
 public interface TransactionStatisticsContainer {
 
-   void endExecution();
+   void markFinished();
 
    boolean isFinished();
 
-   void prepare(long duration, boolean onePhaseCommit);
+   void prepare(long duration);
 
-   void prepareLockTimeout(long duration, boolean onePhaseCommit);
+   void prepareLockTimeout(long duration);
 
-   void prepareNetworkTimeout(long duration, boolean onePhaseCommit);
+   void prepareNetworkTimeout(long duration);
 
-   void prepareDeadlockError(long duration, boolean onePhaseCommit);
+   void prepareDeadlockError(long duration);
 
-   void prepareValidationError(long duration, boolean onePhaseCommit);
+   void prepareValidationError(long duration);
 
-   void prepareUnknownError(long duration, boolean onePhaseCommit);
+   void prepareUnknownError(long duration);
 
    void commit(long duration);
 

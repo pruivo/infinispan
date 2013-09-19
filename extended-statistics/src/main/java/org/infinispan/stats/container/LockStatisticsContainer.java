@@ -8,12 +8,12 @@ package org.infinispan.stats.container;
  */
 public interface LockStatisticsContainer {
 
-   void notifyLockAcquired();
+   void keyLocked(Object key, long waitingTime);
 
-   void addLockTimeout(long waitingTime);
+   void keyUnlocked(Object key);
 
-   void addDeadlock(long waitingTime);
+   void lockTimeout(long waitingTime);
 
-   void addLock(long waitingTime, long holdTime);
+   void deadlock(long waitingTime);
 
 }
