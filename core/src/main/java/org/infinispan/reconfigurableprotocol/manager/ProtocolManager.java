@@ -207,7 +207,7 @@ public class ProtocolManager {
       return epoch;
    }
 
-   public final synchronized boolean isTotalOrder() {
+   public synchronized boolean isTotalOrder() {
       return current.useTotalOrder();
    }
 

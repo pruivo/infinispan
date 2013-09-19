@@ -119,13 +119,10 @@ public abstract class ReconfigurableProtocol {
 
    public final boolean commitTransaction(GlobalTransaction globalTransaction, Object[] affectedKeys,
                                           Transaction transaction, boolean isCurrentProtocol) {
-      if (transaction == null) {
-         throw new NullPointerException("Committing a null transaction! GlobalTransaction=" + globalTransaction.globalId());
-      }
       synchronized (localExecutionTransactions) {
          synchronized (localTransactions) {
             //if the tx is removed, then it is starting the commit
-            boolean removed = localExecutionTransactions.remove(transaction);
+            boolean removed = transaction != null && localExecutionTransactions.remove(transaction);
             if (removed) {
                localExecutionTransactions.notifyAll();
             }
@@ -142,6 +139,9 @@ public abstract class ReconfigurableProtocol {
    }
 
    private void abortIfNeeded(Transaction transaction, String id) {
+      if (transaction == null) {
+         return;
+      }
       try {
          if (transaction.getStatus() == Status.STATUS_MARKED_ROLLBACK) {
             throw new CacheException("Transaction " + id + " is marked for rollback.");

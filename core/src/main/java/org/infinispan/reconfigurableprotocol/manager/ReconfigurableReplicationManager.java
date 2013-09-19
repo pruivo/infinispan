@@ -427,7 +427,7 @@ public class ReconfigurableReplicationManager {
       protocolManager.init(protocol, 0);
    }
 
-   public final ProtocolManager getProtocolManager() {
+   public ProtocolManager getProtocolManager() {
       return protocolManager;
    }
 
