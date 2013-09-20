@@ -1,10 +1,10 @@
 package org.infinispan.stats.manager;
 
-import org.infinispan.context.InvocationContext;
 import org.infinispan.stats.container.DataAccessStatisticsContainer;
 import org.infinispan.stats.container.LockStatisticsContainer;
 import org.infinispan.stats.container.NetworkStatisticsContainer;
 import org.infinispan.stats.container.transactional.TransactionStatisticsContainer;
+import org.infinispan.transaction.xa.GlobalTransaction;
 
 /**
  * //TODO: document this!
@@ -14,12 +14,12 @@ import org.infinispan.stats.container.transactional.TransactionStatisticsContain
  */
 public interface StatisticsManager {
 
-   DataAccessStatisticsContainer getDataAccessStatisticsContainer(InvocationContext context);
+   DataAccessStatisticsContainer getDataAccessStatisticsContainer(GlobalTransaction globalTransaction, boolean local);
 
    LockStatisticsContainer getLockStatisticsContainer(Object owner);
 
-   NetworkStatisticsContainer getNetworkStatisticsContainer(InvocationContext context);
+   NetworkStatisticsContainer getNetworkStatisticsContainer(GlobalTransaction globalTransaction);
 
-   TransactionStatisticsContainer getTransactionStatisticsContainer(InvocationContext context);
+   TransactionStatisticsContainer getTransactionStatisticsContainer(GlobalTransaction globalTransaction, boolean local);
 
 }

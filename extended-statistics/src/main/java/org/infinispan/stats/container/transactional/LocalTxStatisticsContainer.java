@@ -10,6 +10,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.infinispan.stats.container.transactional.NetworkStatistics.*;
 import static org.infinispan.stats.container.transactional.TxExtendedStatistic.*;
 import static org.infinispan.stats.container.transactional.TxOutcome.*;
 
@@ -91,24 +92,23 @@ public class LocalTxStatisticsContainer extends BaseTxStatisticsContainer implem
    }
 
    @Override
-   public void remoteGet(long rtt, int size) {
-      addNetwork(NetworkStatistics.GET_RTT, NetworkStatistics.GET_SIZE, NetworkStatistics.NUM_GET, rtt, size);
+   public void remoteGet(long rtt, int size, int nrInvolvedNodes) {
+      addNetwork(GET_RTT, GET_SIZE, NUM_GET, GET_NUM_NODES, rtt, size, nrInvolvedNodes);
    }
 
    @Override
-   public void prepare(long rtt, int size) {
-      addNetwork(NetworkStatistics.PREPARE_RTT, NetworkStatistics.PREPARE_SIZE, NetworkStatistics.NUM_PREPARE, rtt, size);
+   public void prepare(long rtt, int size, int nrInvolvedNodes) {
+      addNetwork(PREPARE_RTT, PREPARE_SIZE, NUM_PREPARE, PREPARE_NUM_NODES, rtt, size, nrInvolvedNodes);
    }
 
    @Override
-   public void commit(long rtt, int size) {
-      addNetwork(NetworkStatistics.COMMIT_RTT, NetworkStatistics.COMMIT_SIZE, NetworkStatistics.NUM_COMMIT, rtt, size);
+   public void commit(long rtt, int size, int nrInvolvedNodes) {
+      addNetwork(COMMIT_RTT, COMMIT_SIZE, NUM_COMMIT, COMMIT_NUM_NODES, rtt, size, nrInvolvedNodes);
    }
 
    @Override
-   public void rollback(long rtt, int size) {
-      addNetwork(NetworkStatistics.ROLLBACK_RTT, NetworkStatistics.ROLLBACK_SIZE, NetworkStatistics.NUM_ROLLBACK, rtt,
-                 size);
+   public void rollback(long rtt, int size, int nrInvolvedNodes) {
+      addNetwork(ROLLBACK_RTT, ROLLBACK_SIZE, NUM_ROLLBACK, ROLLBACK_NUM_NODES, rtt, size, nrInvolvedNodes);
    }
 
    public final Map<TxExtendedStatistic, Long> merge() {
@@ -166,6 +166,7 @@ public class LocalTxStatisticsContainer extends BaseTxStatisticsContainer implem
    }
 
    private void mergeLocks(Map<TxExtendedStatistic, Long> map, boolean readOnly) {
+      //TODO missing timeout and deadlock
       if (readOnly) {
          map.put(NUM_LOCK_LOCAL_RD_TX, (long) lockStats.locksAcquired);
          map.put(LOCK_HOLD_TIME_LOCAL_RD_TX, lockStats.holdTime);
@@ -181,25 +182,31 @@ public class LocalTxStatisticsContainer extends BaseTxStatisticsContainer implem
 
    private void mergeNetwork(Map<TxExtendedStatistic, Long> map, boolean readOnly) {
       if (readOnly) {
-         map.put(NUM_REMOTE_GET_RD_TX, networkStatistics.get(NetworkStatistics.NUM_GET));
-         map.put(REMOTE_GET_RTT_RD_TX, networkStatistics.get(NetworkStatistics.GET_RTT));
-         map.put(REMOTE_GET_SIZE_RD_TX, networkStatistics.get(NetworkStatistics.GET_SIZE));
-         map.put(NUM_ROLLBACK_SENT_RD_TX, networkStatistics.get(NetworkStatistics.NUM_ROLLBACK));
-         map.put(ROLLBACK_SENT_RTT_RD_TX, networkStatistics.get(NetworkStatistics.ROLLBACK_RTT));
-         map.put(ROLLBACK_SENT_SIZE_RD_TX, networkStatistics.get(NetworkStatistics.ROLLBACK_SIZE));
+         map.put(NUM_REMOTE_GET_RD_TX, networkStatistics.get(NUM_GET));
+         map.put(REMOTE_GET_RTT_RD_TX, networkStatistics.get(GET_RTT));
+         map.put(REMOTE_GET_SIZE_RD_TX, networkStatistics.get(GET_SIZE));
+         map.put(REMOTE_GET_NODES_RD_TX, networkStatistics.get(GET_NUM_NODES));
+         map.put(NUM_ROLLBACK_SENT_RD_TX, networkStatistics.get(NUM_ROLLBACK));
+         map.put(ROLLBACK_SENT_RTT_RD_TX, networkStatistics.get(ROLLBACK_RTT));
+         map.put(ROLLBACK_SENT_SIZE_RD_TX, networkStatistics.get(ROLLBACK_SIZE));
+         map.put(ROLLBACK_NODES_RD_TX, networkStatistics.get(ROLLBACK_NUM_NODES));
       } else {
-         map.put(NUM_REMOTE_GET_WRT_TX, networkStatistics.get(NetworkStatistics.NUM_GET));
-         map.put(REMOTE_GET_RTT_WRT_TX, networkStatistics.get(NetworkStatistics.GET_RTT));
-         map.put(REMOTE_GET_SIZE_WRT_TX, networkStatistics.get(NetworkStatistics.GET_SIZE));
-         map.put(NUM_PREPARE_SENT_WRT_TX, networkStatistics.get(NetworkStatistics.NUM_PREPARE));
-         map.put(PREPARE_SENT_RTT_WRT_TX, networkStatistics.get(NetworkStatistics.PREPARE_RTT));
-         map.put(PREPARE_SENT_SIZE_WRT_TX, networkStatistics.get(NetworkStatistics.PREPARE_SIZE));
-         map.put(NUM_COMMIT_SENT_WRT_TX, networkStatistics.get(NetworkStatistics.NUM_COMMIT));
-         map.put(COMMIT_SENT_RTT_WRT_TX, networkStatistics.get(NetworkStatistics.COMMIT_RTT));
-         map.put(COMMIT_SENT_SIZE_WRT_TX, networkStatistics.get(NetworkStatistics.COMMIT_SIZE));
-         map.put(NUM_ROLLBACK_SENT_WRT_TX, networkStatistics.get(NetworkStatistics.NUM_ROLLBACK));
-         map.put(ROLLBACK_SENT_RTT_WRT_TX, networkStatistics.get(NetworkStatistics.ROLLBACK_RTT));
-         map.put(ROLLBACK_SENT_SIZE_WRT_TX, networkStatistics.get(NetworkStatistics.ROLLBACK_SIZE));
+         map.put(NUM_REMOTE_GET_WRT_TX, networkStatistics.get(NUM_GET));
+         map.put(REMOTE_GET_RTT_WRT_TX, networkStatistics.get(GET_RTT));
+         map.put(REMOTE_GET_SIZE_WRT_TX, networkStatistics.get(GET_SIZE));
+         map.put(REMOTE_GET_NODES_WRT_TX, networkStatistics.get(GET_NUM_NODES));
+         map.put(NUM_PREPARE_SENT_WRT_TX, networkStatistics.get(NUM_PREPARE));
+         map.put(PREPARE_SENT_RTT_WRT_TX, networkStatistics.get(PREPARE_RTT));
+         map.put(PREPARE_SENT_SIZE_WRT_TX, networkStatistics.get(PREPARE_SIZE));
+         map.put(PREPARE_NODES_WRT_TX, networkStatistics.get(PREPARE_NUM_NODES));
+         map.put(NUM_COMMIT_SENT_WRT_TX, networkStatistics.get(NUM_COMMIT));
+         map.put(COMMIT_SENT_RTT_WRT_TX, networkStatistics.get(COMMIT_RTT));
+         map.put(COMMIT_SENT_SIZE_WRT_TX, networkStatistics.get(COMMIT_SIZE));
+         map.put(COMMIT_NODES_WRT_TX, networkStatistics.get(COMMIT_NUM_NODES));
+         map.put(NUM_ROLLBACK_SENT_WRT_TX, networkStatistics.get(NUM_ROLLBACK));
+         map.put(ROLLBACK_SENT_RTT_WRT_TX, networkStatistics.get(ROLLBACK_RTT));
+         map.put(ROLLBACK_SENT_SIZE_WRT_TX, networkStatistics.get(ROLLBACK_SIZE));
+         map.put(ROLLBACK_NODES_WRT_TX, networkStatistics.get(ROLLBACK_NUM_NODES));
       }
    }
 
@@ -234,9 +241,10 @@ public class LocalTxStatisticsContainer extends BaseTxStatisticsContainer implem
    }
 
    private void addNetwork(NetworkStatistics rttStat, NetworkStatistics sizeStat, NetworkStatistics counterStat,
-                           long rtt, long size) {
+                           NetworkStatistics nodesStats, long rtt, int size, int nodes) {
       networkStatistics.add(rttStat, rtt);
       networkStatistics.add(sizeStat, size);
+      networkStatistics.add(nodesStats, nodes);
       networkStatistics.increment(counterStat);
    }
 

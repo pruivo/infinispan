@@ -10,6 +10,6 @@ public interface StatisticsSnapshot {
 
    public long getLastResetTimeStamp();
 
-   public long getStats(TxOutcome outcome, TxExtendedStatistic statistic);
+   public float getStats(TxOutcome outcome, TxExtendedStatistic statistic);
 
 }

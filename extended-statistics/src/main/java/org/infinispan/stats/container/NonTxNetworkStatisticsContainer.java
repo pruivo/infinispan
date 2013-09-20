@@ -8,22 +8,22 @@ package org.infinispan.stats.container;
  */
 public class NonTxNetworkStatisticsContainer implements NetworkStatisticsContainer {
    @Override
-   public void remoteGet(long rtt, int size) {
+   public void remoteGet(long rtt, int size, int nrInvolvedNodes) {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 
    @Override
-   public void prepare(long rtt, int size) {
+   public void prepare(long rtt, int size, int nrInvolvedNodes) {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 
    @Override
-   public void commit(long rtt, int size) {
+   public void commit(long rtt, int size, int nrInvolvedNodes) {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 
    @Override
-   public void rollback(long rtt, int size) {
+   public void rollback(long rtt, int size, int nrInvolvedNodes) {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 }

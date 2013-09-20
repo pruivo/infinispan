@@ -21,7 +21,7 @@ public class TransactionalCacheStatisticsContainer {
       }
 
       @Override
-      public long getStats(TxOutcome outcome, TxExtendedStatistic statistic) {
+      public float getStats(TxOutcome outcome, TxExtendedStatistic statistic) {
          return 0;
       }
    };
@@ -130,7 +130,7 @@ public class TransactionalCacheStatisticsContainer {
       }
 
       @Override
-      public long getStats(TxOutcome outcome, TxExtendedStatistic statistic) {
+      public float getStats(TxOutcome outcome, TxExtendedStatistic statistic) {
          if (outcome == null || statistic == null) {
             return 0;
          }

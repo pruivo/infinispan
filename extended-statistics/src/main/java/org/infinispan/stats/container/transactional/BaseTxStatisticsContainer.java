@@ -3,6 +3,7 @@ package org.infinispan.stats.container.transactional;
 import org.infinispan.stats.container.LockStatisticsContainer;
 import org.infinispan.util.TimeService;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,6 +39,16 @@ public abstract class BaseTxStatisticsContainer implements LockStatisticsContain
       LockInfo info = new LockInfo();
       info.waitingTime = waitingTime;
       lockInfoMap.put(key, info);
+   }
+
+   @Override
+   public void keysUnlocked(Collection<Object> keys) {
+      if (keys == null || keys.isEmpty()) {
+         return;
+      }
+      for (Object key : keys) {
+         keyUnlocked(key);
+      }
    }
 
    @Override
@@ -141,6 +152,9 @@ public abstract class BaseTxStatisticsContainer implements LockStatisticsContain
    }
 
    private void addLockAcquired(LockInfo info) {
+      if (info == null) {
+         return;
+      }
       addLockWaitingTime(info.waitingTime);
       lockStats.locksAcquired++;
       lockStats.holdTime += (timeService.time() - info.lockTimeStamp);

@@ -7,8 +7,6 @@ package org.infinispan.stats.container.transactional;
  * @since 6.0
  */
 public enum TxExtendedStatistic {
-   TIME_SINCE_RESET,
-
    //Transaction Accesses (local successfull transaction only)
    //WRITE
    NUM_WRITE_WRT_TX,
@@ -46,22 +44,28 @@ public enum TxExtendedStatistic {
    NUM_REMOTE_GET_WRT_TX,
    REMOTE_GET_RTT_WRT_TX,
    REMOTE_GET_SIZE_WRT_TX,
+   REMOTE_GET_NODES_WRT_TX,
    NUM_PREPARE_SENT_WRT_TX,
    PREPARE_SENT_RTT_WRT_TX,
    PREPARE_SENT_SIZE_WRT_TX,
+   PREPARE_NODES_WRT_TX,
    NUM_COMMIT_SENT_WRT_TX,
    COMMIT_SENT_RTT_WRT_TX,
    COMMIT_SENT_SIZE_WRT_TX,
+   COMMIT_NODES_WRT_TX,
    NUM_ROLLBACK_SENT_WRT_TX,
    ROLLBACK_SENT_RTT_WRT_TX,
    ROLLBACK_SENT_SIZE_WRT_TX,
+   ROLLBACK_NODES_WRT_TX,
    //read transaction
    NUM_REMOTE_GET_RD_TX,
    REMOTE_GET_RTT_RD_TX,
    REMOTE_GET_SIZE_RD_TX,
+   REMOTE_GET_NODES_RD_TX,
    NUM_ROLLBACK_SENT_RD_TX,
    ROLLBACK_SENT_RTT_RD_TX,
    ROLLBACK_SENT_SIZE_RD_TX,
+   ROLLBACK_NODES_RD_TX,
 
    //Transaction boundary duration
    //local

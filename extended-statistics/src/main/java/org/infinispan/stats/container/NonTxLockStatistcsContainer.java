@@ -1,5 +1,7 @@
 package org.infinispan.stats.container;
 
+import java.util.Collection;
+
 /**
  * //TODO: document this!
  *
@@ -8,23 +10,29 @@ package org.infinispan.stats.container;
  */
 public class NonTxLockStatistcsContainer implements LockStatisticsContainer {
 
+
    @Override
-   public void notifyLockAcquired() {
+   public void keyLocked(Object key, long waitingTime) {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 
    @Override
-   public void addLockTimeout(long waitingTime) {
+   public void keyUnlocked(Object key) {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 
    @Override
-   public void addDeadlock(long waitingTime) {
+   public void keysUnlocked(Collection<Object> key) {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 
    @Override
-   public void addLock(long waitingTime, long holdTime) {
+   public void lockTimeout(long waitingTime) {
+      //To change body of implemented methods use File | Settings | File Templates.
+   }
+
+   @Override
+   public void deadlock(long waitingTime) {
       //To change body of implemented methods use File | Settings | File Templates.
    }
 }

@@ -8,12 +8,12 @@ package org.infinispan.stats.container;
  */
 public interface NetworkStatisticsContainer {
 
-   void remoteGet(long rtt, int size);
+   void remoteGet(long rtt, int size, int nrInvolvedNodes);
 
-   void prepare(long rtt, int size);
+   void prepare(long rtt, int size, int nrInvolvedNodes);
 
-   void commit(long rtt, int size);
+   void commit(long rtt, int size, int nrInvolvedNodes);
 
-   void rollback(long rtt, int size);
+   void rollback(long rtt, int size, int nrInvolvedNodes);
 
 }
