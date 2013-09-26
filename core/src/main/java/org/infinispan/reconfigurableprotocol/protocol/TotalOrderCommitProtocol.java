@@ -55,12 +55,18 @@ import static org.infinispan.interceptors.InterceptorChain.InterceptorType;
 public class TotalOrderCommitProtocol extends ReconfigurableProtocol {
 
    public static final String UID = "TO";
+   public static final int IID = 2;
    private static final String TWO_PC_UID = TwoPhaseCommitProtocol.UID;
    private TransactionTable transactionTable;
 
    @Override
    public final String getUniqueProtocolName() {
       return UID;
+   }
+
+   @Override
+   public final int getProtocolIID() {
+      return IID;
    }
 
    @Override

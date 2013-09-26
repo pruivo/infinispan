@@ -43,6 +43,7 @@ import static org.infinispan.interceptors.InterceptorChain.InterceptorType;
 public class PassiveReplicationCommitProtocol extends ReconfigurableProtocol {
 
    public static final String UID = "PB";
+   public static final int IID = 1;
    private static final String MASTER_ACK = "_MASTER_ACK_";
    private static final String SWITCH_TO_MASTER_ACK = "_MASTER_ACK_2_";
    private static final String TWO_PC_UID = TwoPhaseCommitProtocol.UID;
@@ -51,6 +52,11 @@ public class PassiveReplicationCommitProtocol extends ReconfigurableProtocol {
    @Override
    public final String getUniqueProtocolName() {
       return UID;
+   }
+
+   @Override
+   public final int getProtocolIID() {
+      return IID;
    }
 
    @Override

@@ -846,4 +846,6 @@ public abstract class ReconfigurableProtocol {
          }
       }
    }
+
+   public abstract int getProtocolIID();
 }
