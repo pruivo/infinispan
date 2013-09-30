@@ -53,6 +53,18 @@ public class NodeScopeStatisticCollector {
       reset();
    }
 
+   private static long convertNanosToMicro(long nanos) {
+      return nanos / 1000;
+   }
+
+   private static long convertNanosToMillis(long nanos) {
+      return nanos / 1000000;
+   }
+
+   private static long convertNanosToSeconds(long nanos) {
+      return nanos / 1000000000;
+   }
+
    public final synchronized void reset() {
       if (log.isTraceEnabled()) {
          log.tracef("Resetting Node Scope Statistics");
@@ -101,6 +113,10 @@ public class NodeScopeStatisticCollector {
       }
    }
 
+   /*
+   Can I invoke this synchronized method from inside itself??
+    */
+
    public final void addLocalValue(ExposedStatistic stat, double value) {
       globalContainer.add(stat, (long) value, true);
    }
@@ -127,10 +143,6 @@ public class NodeScopeStatisticCollector {
       }
    }
 
-   /*
-   Can I invoke this synchronized method from inside itself??
-    */
-
    @SuppressWarnings("UnnecessaryBoxing")
    public final Object getAttribute(ExposedStatistic param) throws NoIspnStatException {
       if (log.isTraceEnabled()) {
@@ -139,6 +151,12 @@ public class NodeScopeStatisticCollector {
       StatisticsSnapshot snapshot = globalContainer.getSnapshot();
 
       switch (param) {
+         case NUM_COMMITTED_WR_TX: {
+            return snapshot.getLocal(param);
+         }
+         case NUM_COMMITTED_RO_TX: {
+            return snapshot.getLocal(param);
+         }
          case NUM_EARLY_ABORTS: {
             return snapshot.getLocal(param);
          }
@@ -701,18 +719,6 @@ public class NodeScopeStatisticCollector {
          return new Long(dur / num);
       }
       return new Long(0);
-   }
-
-   private static long convertNanosToMicro(long nanos) {
-      return nanos / 1000;
-   }
-
-   private static long convertNanosToMillis(long nanos) {
-      return nanos / 1000000;
-   }
-
-   private static long convertNanosToSeconds(long nanos) {
-      return nanos / 1000000000;
    }
 
    private Long microAvgLocal(StatisticsSnapshot snapshot, ExposedStatistic counter, ExposedStatistic duration) {
