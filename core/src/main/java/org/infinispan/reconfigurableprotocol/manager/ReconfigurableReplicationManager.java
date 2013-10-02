@@ -517,12 +517,6 @@ public class ReconfigurableReplicationManager {
       return protocolManager.getCurrent().getUniqueProtocolName();
    }
 
-   @ManagedAttribute(description = "Returns the current replication protocol ID: TPC=0;PB=1;TO=2", writable = false,
-                        displayName = "Current protocol ID (as an int)")
-   public final Integer getCurrentProtocolAsInt() {
-      return protocolManager.getCurrent().getProtocolIID();
-   }
-
    @ManagedAttribute(description = "Returns the current replication protocol state", writable = false,
                      displayName = "Current state")
    public final String getCurrentState() {
@@ -667,6 +661,12 @@ public class ReconfigurableReplicationManager {
                      displayName = "Cool down time expired")
    public final boolean isCoolDownTimeExpired() {
       return coolDownTimeManager.check();
+   }
+
+   @ManagedAttribute(description = "Returns the current replication protocol ID: TPC=0;PB=1;TO=2", writable = false,
+                     displayName = "Current protocol ID (as an int)")
+   public final int getCurrentProtocolAsInt() {
+      return protocolManager.getCurrent().getProtocolIID();
    }
 
    /**

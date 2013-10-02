@@ -2177,35 +2177,35 @@ public final class CustomStatsInterceptor extends BaseCustomInterceptor {
 
    @ManagedOperation(description = "Remote nodes from which a read-only transaction reads from per tx class",
                      displayName = "Remote nodes read by update xacts per tx class")
-   public final long getLocalReadOnlyTxRemoteNodesReadForTxClass(@Parameter(name = "Transaction Class") String txClass) {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_RO_TX, txClass));
+   public final double getLocalReadOnlyTxRemoteNodesReadForTxClass(@Parameter(name = "Transaction Class") String txClass) {
+      return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_RO_TX, txClass));
    }
 
    @ManagedOperation(description = "Remote nodes from which an update transaction reads from per tx class",
                      displayName = "Remote nodes read by read-only xacts per tx class")
-   public final long getLocalUpdateTxRemoteNodesReadForTxClass(@Parameter(name = "Transaction Class") String txClass) {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_WR_TX, txClass));
+   public final double getLocalUpdateTxRemoteNodesReadForTxClass(@Parameter(name = "Transaction Class") String txClass) {
+      return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_WR_TX, txClass));
    }
 
-   @ManagedOperation(description = "Remote nodes from which a read-only transaction reads from",
+   @ManagedAttribute(description = "Remote nodes from which a read-only transaction reads from",
                      displayName = "Remote nodes read by read-only xacts")
-   public final long getLocalReadOnlyTxRemoteNodesRead() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_RO_TX, null));
+   public final double getLocalReadOnlyTxRemoteNodesRead() {
+      return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_RO_TX, null));
    }
 
-   @ManagedOperation(description = "Remote nodes from which an update transaction reads from",
+   @ManagedAttribute(description = "Remote nodes from which an update transaction reads from",
                      displayName = "Remote nodes read by update xacts")
-   public final long getLocalUpdateTxRemoteNodesRead() {
-      return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_WR_TX, null));
+   public final double getLocalUpdateTxRemoteNodesRead() {
+      return handleDouble((Double) TransactionsStatisticsRegistry.getAttribute(NUM_REMOTE_NODES_READ_WR_TX, null));
    }
 
-   @ManagedOperation(description = "Number of local Update xact committed",
+   @ManagedAttribute(description = "Number of local Update xact committed",
                      displayName = "Num of local committed update xact")
    public final long getLocalUpdateCommittedXact() {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_COMMITTED_WR_TX, null));
    }
 
-   @ManagedOperation(description = "Number of local ReadOnly xact committed",
+   @ManagedAttribute(description = "Number of local ReadOnly xact committed",
                      displayName = "Num of local committed readonly xact")
    public final long getLocalReadOnlyCommittedXact() {
       return handleLong((Long) TransactionsStatisticsRegistry.getAttribute(NUM_COMMITTED_RO_TX, null));
