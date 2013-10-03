@@ -148,7 +148,7 @@ public class InboundTransferTask {
          }
          // start transfer of cache entries
          try {
-            StateRequestCommand cmd = commandsFactory.buildStateRequestCommand(StateRequestCommand.Type.START_STATE_TRANSFER, rpcManager.getAddress(), topologyId, segments);
+            StateRequestCommand cmd = commandsFactory.buildStateRequestCommand(StateRequestCommand.Type.START_STATE_TRANSFER, rpcManager.getAddress(), topologyId, segments, null);
             Map<Address, Response> responses = rpcManager.invokeRemotely(Collections.singleton(source), cmd, ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS, timeout, false);
             Response response = responses.get(source);
             if (response instanceof SuccessfulResponse) {
@@ -191,7 +191,7 @@ public class InboundTransferTask {
          isCancelled = true;
       }
 
-      StateRequestCommand cmd = commandsFactory.buildStateRequestCommand(StateRequestCommand.Type.CANCEL_STATE_TRANSFER, rpcManager.getAddress(), topologyId, cancelledSegments);
+      StateRequestCommand cmd = commandsFactory.buildStateRequestCommand(StateRequestCommand.Type.CANCEL_STATE_TRANSFER, rpcManager.getAddress(), topologyId, cancelledSegments, null);
       rpcManager.invokeRemotely(Collections.singleton(source), cmd, ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS, timeout, false);
 
       if (isCancelled) {
@@ -207,7 +207,7 @@ public class InboundTransferTask {
             log.tracef("Cancelling inbound state transfer of segments %s of cache %s", segments, cacheName);
          }
 
-         StateRequestCommand cmd = commandsFactory.buildStateRequestCommand(StateRequestCommand.Type.CANCEL_STATE_TRANSFER, rpcManager.getAddress(), topologyId, segments);
+         StateRequestCommand cmd = commandsFactory.buildStateRequestCommand(StateRequestCommand.Type.CANCEL_STATE_TRANSFER, rpcManager.getAddress(), topologyId, segments, null);
          rpcManager.invokeRemotely(Collections.singleton(source), cmd, ResponseMode.ASYNCHRONOUS, timeout, true, false);
 
          notifyCompletion();

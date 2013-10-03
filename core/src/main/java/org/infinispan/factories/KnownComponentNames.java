@@ -46,28 +46,34 @@ public class KnownComponentNames {
    public static final String CLASS_LOADER = "java.lang.ClassLoader";
    public static final String TOTAL_ORDER_EXECUTOR = "org.infinispan.executors.totalOrderExecutor";
    public static final String GMU_EXECUTOR = "org.infinispan.executors.gmuExecutor";
+   public static final String TOPOLOGY_EXECUTOR = "org.infinispan.executors.topologyExecutor";
+   public static final String ABSTRACT_TX_BOUNDARY_EXECUTOR = "org.infinispan.executors.abstractTransactionBoundaryExecutor";
 
    // Please make sure this is kept up to date
    public static final Collection<String> ALL_KNOWN_COMPONENT_NAMES = Arrays.asList(
       ASYNC_TRANSPORT_EXECUTOR, ASYNC_NOTIFICATION_EXECUTOR, EVICTION_SCHEDULED_EXECUTOR, ASYNC_REPLICATION_QUEUE_EXECUTOR,
       MODULE_COMMAND_INITIALIZERS, MODULE_COMMAND_FACTORIES, GLOBAL_MARSHALLER, CACHE_MARSHALLER, CLASS_LOADER, TOTAL_ORDER_EXECUTOR,
-      GMU_EXECUTOR
+      GMU_EXECUTOR, TOPOLOGY_EXECUTOR, ABSTRACT_TX_BOUNDARY_EXECUTOR
    );
 
-   private static final Map<String, Integer> DEFAULT_THREADCOUNTS = new HashMap<String, Integer>(4);
-   private static final Map<String, Integer> DEFAULT_QUEUE_SIZE = new HashMap<String, Integer>(4);
-   private static final Map<String, Integer> DEFAULT_THREADPRIO = new HashMap<String, Integer>(6);
+   private static final Map<String, Integer> DEFAULT_THREADCOUNTS = new HashMap<String, Integer>(5);
+   private static final Map<String, Integer> DEFAULT_QUEUE_SIZE = new HashMap<String, Integer>(5);
+   private static final Map<String, Integer> DEFAULT_THREADPRIO = new HashMap<String, Integer>(7);
 
    static {
       DEFAULT_THREADCOUNTS.put(ASYNC_NOTIFICATION_EXECUTOR, 1);
       DEFAULT_THREADCOUNTS.put(ASYNC_TRANSPORT_EXECUTOR, 25);
       DEFAULT_THREADCOUNTS.put(TOTAL_ORDER_EXECUTOR, 32);
       DEFAULT_THREADCOUNTS.put(GMU_EXECUTOR, 32);
+      DEFAULT_THREADCOUNTS.put(TOPOLOGY_EXECUTOR, 64);
+      DEFAULT_THREADCOUNTS.put(ABSTRACT_TX_BOUNDARY_EXECUTOR, 32);
 
       DEFAULT_QUEUE_SIZE.put(ASYNC_NOTIFICATION_EXECUTOR, 100000);
       DEFAULT_QUEUE_SIZE.put(ASYNC_TRANSPORT_EXECUTOR, 100000);
       DEFAULT_QUEUE_SIZE.put(TOTAL_ORDER_EXECUTOR, 0);
       DEFAULT_QUEUE_SIZE.put(GMU_EXECUTOR, 0);
+      DEFAULT_QUEUE_SIZE.put(TOPOLOGY_EXECUTOR, 0);
+      DEFAULT_QUEUE_SIZE.put(ABSTRACT_TX_BOUNDARY_EXECUTOR, 0);
 
       DEFAULT_THREADPRIO.put(ASYNC_NOTIFICATION_EXECUTOR, Thread.MIN_PRIORITY);
       DEFAULT_THREADPRIO.put(ASYNC_TRANSPORT_EXECUTOR, Thread.NORM_PRIORITY);
@@ -75,6 +81,8 @@ public class KnownComponentNames {
       DEFAULT_THREADPRIO.put(ASYNC_REPLICATION_QUEUE_EXECUTOR, Thread.NORM_PRIORITY);
       DEFAULT_THREADPRIO.put(TOTAL_ORDER_EXECUTOR, Thread.NORM_PRIORITY);
       DEFAULT_THREADPRIO.put(GMU_EXECUTOR, Thread.NORM_PRIORITY);
+      DEFAULT_THREADPRIO.put(TOPOLOGY_EXECUTOR, Thread.MAX_PRIORITY);
+      DEFAULT_THREADPRIO.put(ABSTRACT_TX_BOUNDARY_EXECUTOR, Thread.NORM_PRIORITY);
 
    }
 

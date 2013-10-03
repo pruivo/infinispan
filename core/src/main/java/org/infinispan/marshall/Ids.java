@@ -142,7 +142,6 @@ public interface Ids {
    int GMU_CACHE_VERSION = 106;
 
    int PIGGY_BACK_RESPONSE = 107;
-   int SHADOW_TRANSACTION_INFO = 108;
-   int LCRD_CH = 109;
-   int LCRD_CH_FACTORY = 110;
+   int LCRD_CH = 108;
+   int LCRD_CH_FACTORY = 109;
 }

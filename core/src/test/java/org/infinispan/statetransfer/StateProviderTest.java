@@ -48,6 +48,7 @@ import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.gmu.CommitLog;
+import org.infinispan.transaction.gmu.manager.TransactionCommitManager;
 import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.concurrent.NotifyingNotifiableFuture;
 import org.infinispan.util.logging.Log;
@@ -99,6 +100,7 @@ public class StateProviderTest {
    private StateTransferLock stateTransferLock;
    private StateConsumer stateConsumer;
    private CacheTopology cacheTopology;
+   private TransactionCommitManager transactionCommitManager;
 
    @BeforeTest
    public void setUp() {
@@ -133,6 +135,7 @@ public class StateProviderTest {
       transactionTable = mock(TransactionTable.class);
       stateTransferLock = mock(StateTransferLock.class);
       stateConsumer = mock(StateConsumer.class);
+      transactionCommitManager = mock(TransactionCommitManager.class);
       when(stateConsumer.getCacheTopology()).thenAnswer(new Answer<CacheTopology>() {
          @Override
          public CacheTopology answer(InvocationOnMock invocation) {
@@ -175,7 +178,7 @@ public class StateProviderTest {
       StateProviderImpl stateProvider = new StateProviderImpl();
       stateProvider.init(cache, mockExecutorService,
             configuration, rpcManager, commandsFactory, cacheNotifier, cacheLoaderManager,
-            dataContainer, transactionTable, stateTransferLock, stateConsumer, null);
+            dataContainer, transactionTable, stateTransferLock, stateConsumer, null, null, null, null);
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();
       Object key1 = new TestKey("key1", 0, ch1);
@@ -196,11 +199,11 @@ public class StateProviderTest {
 
       log.debug("ch1: " + ch1);
       Set<Integer> segmentsToRequest = ch1.getSegmentsForOwner(members1.get(0));
-      List<TransactionInfo> transactions = stateProvider.getTransactionsForSegments(members1.get(0), 1, segmentsToRequest);
+      List<TransactionInfo> transactions = stateProvider.getTransactionsForSegments(members1.get(0), 1, segmentsToRequest, null);
       assertEquals(0, transactions.size());
 
       try {
-         stateProvider.getTransactionsForSegments(members1.get(0), 1, new HashSet<Integer>(Arrays.asList(2, numSegments)));
+         stateProvider.getTransactionsForSegments(members1.get(0), 1, new HashSet<Integer>(Arrays.asList(2, numSegments)), null);
          fail("IllegalArgumentException expected");
       } catch (IllegalArgumentException e) {
          // expected
@@ -274,7 +277,7 @@ public class StateProviderTest {
       StateProviderImpl stateProvider = new StateProviderImpl();
       stateProvider.init(cache, pooledExecutorService,
             configuration, rpcManager, commandsFactory, cacheNotifier, cacheLoaderManager,
-            dataContainer, transactionTable, stateTransferLock, stateConsumer, null);
+            dataContainer, transactionTable, stateTransferLock, stateConsumer, null, transactionCommitManager, null, null);
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();
       Object key1 = new TestKey("key1", 0, ch1);
@@ -299,11 +302,11 @@ public class StateProviderTest {
 
       log.debug("ch1: " + ch1);
       Set<Integer> segmentsToRequest = ch1.getSegmentsForOwner(members1.get(0));
-      List<TransactionInfo> transactions = stateProvider.getTransactionsForSegments(members1.get(0), 1, segmentsToRequest);
+      List<TransactionInfo> transactions = stateProvider.getTransactionsForSegments(members1.get(0), 1, segmentsToRequest, null);
       assertEquals(0, transactions.size());
 
       try {
-         stateProvider.getTransactionsForSegments(members1.get(0), 1, new HashSet<Integer>(Arrays.asList(2, numSegments)));
+         stateProvider.getTransactionsForSegments(members1.get(0), 1, new HashSet<Integer>(Arrays.asList(2, numSegments)), null);
          fail("IllegalArgumentException expected");
       } catch (IllegalArgumentException e) {
          // expected

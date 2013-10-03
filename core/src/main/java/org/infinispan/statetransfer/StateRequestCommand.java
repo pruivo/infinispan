@@ -25,6 +25,7 @@ package org.infinispan.statetransfer;
 
 import org.infinispan.CacheException;
 import org.infinispan.commands.remote.BaseRpcCommand;
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
@@ -36,6 +37,7 @@ import java.util.Set;
  * This command is used by a StateConsumer to request transactions and cache entries from a StateProvider.
  *
  * @author anistor@redhat.com
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class StateRequestCommand extends BaseRpcCommand {
@@ -58,6 +60,8 @@ public class StateRequestCommand extends BaseRpcCommand {
 
    private StateProvider stateProvider;
 
+   private EntryVersion version;  //Used under SERIALIZABILITY
+
    private StateRequestCommand() {
       super(null);  // for command id uniqueness test
    }
@@ -66,12 +70,13 @@ public class StateRequestCommand extends BaseRpcCommand {
       super(cacheName);
    }
 
-   public StateRequestCommand(String cacheName, Type type, Address origin, int topologyId, Set<Integer> segments) {
+   public StateRequestCommand(String cacheName, Type type, Address origin, int topologyId, Set<Integer> segments, EntryVersion version) {
       super(cacheName);
       this.type = type;
       setOrigin(origin);
       this.topologyId = topologyId;
       this.segments = segments;
+      this.version = version;
    }
 
    public void init(StateProvider stateProvider) {
@@ -85,7 +90,7 @@ public class StateRequestCommand extends BaseRpcCommand {
       try {
          switch (type) {
             case GET_TRANSACTIONS:
-               return stateProvider.getTransactionsForSegments(getOrigin(), topologyId, segments);
+               return stateProvider.getTransactionsForSegments(getOrigin(), topologyId, segments, version);
 
             case START_STATE_TRANSFER:
                stateProvider.startOutboundTransfer(getOrigin(), topologyId, segments);
@@ -121,13 +126,17 @@ public class StateRequestCommand extends BaseRpcCommand {
 
    @Override
    public Object[] getParameters() {
-      return new Object[]{(byte) type.ordinal(), getOrigin(), topologyId, segments};
+      if(version != null)
+         return new Object[]{(byte) type.ordinal(), getOrigin(), topologyId, version, segments};
+      else
+         return new Object[]{(byte) type.ordinal(), getOrigin(), topologyId, segments};
    }
 
    @Override
    @SuppressWarnings("unchecked")
    public void setParameters(int commandId, Object[] parameters) {
       int i = 0;
+      int numParameters = parameters.length;
       type = Type.values()[(Byte) parameters[i++]];
       setOrigin((Address) parameters[i++]);
       topologyId = (Integer) parameters[i++];
@@ -141,6 +150,7 @@ public class StateRequestCommand extends BaseRpcCommand {
             ", origin=" + getOrigin() +
             ", type=" + type +
             ", topologyId=" + topologyId +
+            ", version=" + version +
             ", segments=" + segments +
             '}';
    }

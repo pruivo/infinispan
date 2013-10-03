@@ -334,7 +334,7 @@ public class VersionAwareMarshallerTest extends AbstractInfinispanTest {
       newAddresses.add(a2);
       newAddresses.add(a3);
       DefaultConsistentHash newCh = chf.create(new MurmurHash3(), 2, 3, newAddresses);
-      StateRequestCommand c14 = new StateRequestCommand(cacheName, StateRequestCommand.Type.START_STATE_TRANSFER, a1, 99, null);
+      StateRequestCommand c14 = new StateRequestCommand(cacheName, StateRequestCommand.Type.START_STATE_TRANSFER, a1, 99, null, null);
       byte[] bytes = marshaller.objectToByteBuffer(c14);
       marshaller.objectFromByteBuffer(bytes);
 

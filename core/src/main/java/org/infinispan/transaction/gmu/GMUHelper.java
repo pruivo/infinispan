@@ -138,6 +138,14 @@ public class GMUHelper {
       ctx.setTransactionVersion(commitVersion);
    }
 
+   public static EntryVersion joinVersions(EntryVersion[] versions, GMUVersionGenerator versionGenerator){
+      if(versions!=null && versions.length>0){
+         EntryVersion mergedVersion = versionGenerator.mergeAndMax(versions);
+         return mergedVersion;
+      }
+      return null;
+   }
+
    public static InternalCacheEntry loadFromCacheLoader(InvocationContext context, Object key, CacheLoader loader,
                                                         CommitLog commitLog, GMUVersionGenerator versionGenerator)
          throws Throwable {

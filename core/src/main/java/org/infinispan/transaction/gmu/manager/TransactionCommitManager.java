@@ -25,17 +25,23 @@ package org.infinispan.transaction.gmu.manager;
 import org.infinispan.Cache;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.VersionGenerator;
+import org.infinispan.container.versioning.gmu.GMUCacheEntryVersion;
 import org.infinispan.container.versioning.gmu.GMUVersion;
 import org.infinispan.container.versioning.gmu.GMUVersionGenerator;
 import org.infinispan.context.InvocationContextContainer;
+import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.interceptors.gmu.GMUEntryWrappingInterceptor;
+import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.transaction.gmu.CommitLog;
+import org.infinispan.transaction.gmu.GMUHelper;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 
 import static org.infinispan.transaction.gmu.manager.SortedTransactionQueue.TransactionEntry;
@@ -86,8 +92,42 @@ public class TransactionCommitManager {
       sortedTransactionQueue.prepare(cacheTransaction, concurrentClockNumber);
    }
 
+   /**
+    * add a sender state transfer (shadow) transaction to the queue.
+    *
+    * @param other The other node for this state transfer
+    */
+   public synchronized EntryVersion prepareSenderStateTransferTransaction(Address other) {
+      long concurrentClockNumber = commitLog.getCurrentVersion().getThisNodeVersionValue();
+      EntryVersion txVersion = commitLog.getCurrentVersion();
+      EntryVersion preparedVersion = versionGenerator.setNodeVersion(txVersion, ++lastPreparedVersion);
+      sortedTransactionQueue.prepareSenderOnStateTransfer(other, preparedVersion, concurrentClockNumber);
+      return preparedVersion;
+   }
+
+   /**
+    * add a receiver state transfer (shadow) transaction to the queue.
+    *
+    * @param other The other node for this state transfer
+    */
+   public synchronized EntryVersion prepareReceiverStateTransferTransaction(Address other) {
+      long concurrentClockNumber = commitLog.getCurrentVersion().getThisNodeVersionValue();
+      EntryVersion txVersion = commitLog.getCurrentVersion();
+      EntryVersion preparedVersion = versionGenerator.setNodeVersion(txVersion, ++lastPreparedVersion);
+      sortedTransactionQueue.prepareReceiverOnStateTransfer(other, preparedVersion, concurrentClockNumber);
+      return preparedVersion;
+   }
+
    public void rollbackTransaction(CacheTransaction cacheTransaction) {
       sortedTransactionQueue.rollback(cacheTransaction);
+   }
+
+   public void rollbackReceiverStateTransferTransaction(Address other) {
+      sortedTransactionQueue.rollbackReceiverOnStateTransfer(other);
+   }
+
+   public void rollbackSenderStateTransferTransaction(Address other) {
+      sortedTransactionQueue.rollbackSenderOnStateTransfer(other);
    }
 
    public synchronized TransactionEntry commitTransaction(GlobalTransaction globalTransaction, EntryVersion version) {
@@ -98,6 +138,39 @@ public class TransactionCommitManager {
          commitLog.updateMostRecentVersion(commitVersion);
       }
       return entry;
+   }
+
+   public synchronized TransactionEntry commitReceiverStateTransferTransaction(Address other, EntryVersion version) {
+      final GMUVersion commitVersion = (GMUVersion) version;
+      lastPreparedVersion = Math.max(commitVersion.getThisNodeVersionValue(), lastPreparedVersion);
+      TransactionEntry entry = sortedTransactionQueue.commitReceiverOnStateTransfer(other, commitVersion);
+      if (entry == null) {
+         commitLog.updateMostRecentVersion(commitVersion);
+      }
+      return entry;
+   }
+
+   public synchronized TransactionEntry commitSenderStateTransferTransaction(Address other, EntryVersion version) {
+      final GMUVersion commitVersion = (GMUVersion) version;
+      lastPreparedVersion = Math.max(commitVersion.getThisNodeVersionValue(), lastPreparedVersion);
+      TransactionEntry entry = sortedTransactionQueue.commitSenderOnStateTransfer(other, commitVersion);
+      if (entry == null) {
+         commitLog.updateMostRecentVersion(commitVersion);
+      }
+      return entry;
+   }
+
+   public EntryVersion computeFinalCommitVersionOnStateTransfer(EntryVersion preparedVersion, EntryVersion proposal, Address sender, Address destination){
+
+      EntryVersion[] versions = new EntryVersion[2];
+      versions[0] = preparedVersion;
+      versions[1] = proposal;
+
+      EntryVersion merged = GMUHelper.joinVersions(versions, versionGenerator);
+      List<Address> participants = new LinkedList<Address>();
+      participants.add(sender);
+      participants.add(destination);
+      return GMUHelper.calculateCommitVersion(merged, versionGenerator, participants);
    }
 
    public void prepareReadOnlyTransaction(CacheTransaction cacheTransaction) {
@@ -121,6 +194,68 @@ public class TransactionCommitManager {
       //then we can remove them from the transaction queue.
       sortedTransactionQueue.notifyTransactionsCommitted();
    }
+
+   public void executeCommit(SortedTransactionQueue.TransactionEntry currentEntry, Collection<SortedTransactionQueue.TransactionEntry> transactionsToCommit, TxInvocationContext ctx, GMUEntryWrappingInterceptor GMUInterceptor) throws InterruptedException {
+
+      if (!transactionsToCommit.isEmpty()) {
+
+         List<CommittedTransaction> committedTransactions = new ArrayList<CommittedTransaction>(transactionsToCommit.size());
+         List<SortedTransactionQueue.TransactionEntry> committedTransactionEntries = new ArrayList<SortedTransactionQueue.TransactionEntry>(transactionsToCommit.size());
+         int subVersion = 0;
+
+         //in case of transaction has the same version... should be rare...
+         for (SortedTransactionQueue.TransactionEntry toCommit : transactionsToCommit) {
+            if (!toCommit.committing()) {
+               toCommit.awaitUntilCommitted();
+               continue;
+            }
+            CacheTransaction cacheTransaction = toCommit.getCacheTransactionForCommit();
+            CommittedTransaction committedTransaction = null;
+            if(cacheTransaction == null){
+               //This entry is not associated to a CacheTransaction. This one is associated to a shadow transaction.
+               committedTransaction = new CommittedTransaction(toCommit.getVersion(), subVersion, toCommit.getConcurrentClockNumber());
+            }
+            else{
+               committedTransaction = new CommittedTransaction(cacheTransaction, subVersion, toCommit.getConcurrentClockNumber());
+            }
+
+            TxInvocationContext context = null;
+
+            if(cacheTransaction != null){
+               if (ctx != null && currentEntry.getGlobalTransaction() != null && currentEntry.getGlobalTransaction().equals(toCommit.getGlobalTransaction())) {
+                  GMUInterceptor.updateCommitVersion(ctx, cacheTransaction, subVersion);
+                  context = ctx;
+               } else {
+                  context = GMUInterceptor.createInvocationContext(cacheTransaction, subVersion);
+               }
+
+               toCommit.setNewVersionInDataContainer((GMUCacheEntryVersion) context.getCacheTransaction().getTransactionVersion());
+
+               GMUInterceptor.commitContextEntries(context, false, false);
+            }
+            else{
+               toCommit.setNewVersionInDataContainer(GMUInterceptor.inferCommitVersion(toCommit.getVersion(), subVersion));
+            }
+
+
+
+            committedTransactions.add(committedTransaction);
+            committedTransactionEntries.add(toCommit);
+            GMUInterceptor.updateWaitingTime(toCommit);
+            subVersion++;
+         }
+         for (SortedTransactionQueue.TransactionEntry txEntry : committedTransactionEntries) {
+            if(txEntry.getGlobalTransaction() != null)
+               GMUInterceptor.store(txEntry.getGlobalTransaction());
+         }
+         transactionCommitted(committedTransactions, committedTransactionEntries);
+
+
+      }
+
+
+   }
+
 
    //DEBUG ONLY!
    public final TransactionEntry getTransactionEntry(GlobalTransaction globalTransaction) {

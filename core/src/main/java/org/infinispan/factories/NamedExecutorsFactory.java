@@ -44,6 +44,7 @@ import static org.infinispan.factories.KnownComponentNames.*;
  *
  * @author Manik Surtani
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 @DefaultFactoryFor(classes = {ExecutorService.class, Executor.class, ScheduledExecutorService.class,
@@ -56,6 +57,8 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
    private ScheduledExecutorService asyncReplicationExecutor;
    private BlockingTaskAwareExecutorService totalOrderExecutor;
    private BlockingTaskAwareExecutorService gmuExecutor;
+   private BlockingTaskAwareExecutorService topologyExecutor;
+   private BlockingTaskAwareExecutorService abstractTrasactionBoundaryExecutor;
 
    @Override
    @SuppressWarnings("unchecked")
@@ -120,6 +123,24 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
                }
             }
             return (T) gmuExecutor;
+         } else if (componentName.equals(TOPOLOGY_EXECUTOR)) {
+            synchronized (this) {
+               if (topologyExecutor == null) {
+                  topologyExecutor = buildAndConfigureBlockingTaskAwareExecutorService(
+                        globalConfiguration.gmuExecutor().factory(),
+                        globalConfiguration.gmuExecutor().properties(), componentName, nodeName);
+               }
+            }
+            return (T) topologyExecutor;
+         } else if (componentName.equals(ABSTRACT_TX_BOUNDARY_EXECUTOR)) {
+            synchronized (this) {
+               if (abstractTrasactionBoundaryExecutor == null) {
+                  abstractTrasactionBoundaryExecutor = buildAndConfigureBlockingTaskAwareExecutorService(
+                        globalConfiguration.gmuExecutor().factory(),
+                        globalConfiguration.gmuExecutor().properties(), componentName, nodeName);
+               }
+            }
+            return (T) abstractTrasactionBoundaryExecutor;
          } else {
             throw new ConfigurationException("Unknown named executor " + componentName);
          }

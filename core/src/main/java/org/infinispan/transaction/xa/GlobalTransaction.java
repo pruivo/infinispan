@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author <a href="mailto:bela@jboss.org">Bela Ban</a> Apr 12, 2003
  * @author <a href="mailto:manik@jboss.org">Manik Surtani (manik@jboss.org)</a>
  * @author Mircea.Markus@jboss.com
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 public class GlobalTransaction implements Cloneable {
@@ -56,10 +57,10 @@ public class GlobalTransaction implements Cloneable {
    private int hash_code = -1;  // in the worst case, hashCode() returns 0, then increases, so we're safe here
    private boolean remote = false;
 
-   private String protocolId;
-   private String transactionClass;
-   private long epochId;
-   private transient ReconfigurableProtocol reconfigurableProtocol;
+   private String protocolId = null;
+   private String transactionClass = null;
+   private long epochId = -1L;
+   private transient ReconfigurableProtocol reconfigurableProtocol = null;
 
    /**
     * empty ctor used by externalization.
@@ -160,7 +161,13 @@ public class GlobalTransaction implements Cloneable {
          output.writeLong(gtx.id);
          output.writeObject(gtx.addr);
          output.writeLong(gtx.epochId);
-         output.writeUTF(gtx.protocolId);
+         if(gtx.protocolId == null){
+            output.writeBoolean(false);
+         }
+         else{
+            output.writeBoolean(true);
+            output.writeUTF(gtx.protocolId);
+         }
          if (gtx.transactionClass == null) {
             output.writeBoolean(false);
          } else {
@@ -181,7 +188,9 @@ public class GlobalTransaction implements Cloneable {
          gtx.id = input.readLong();
          gtx.addr = (Address) input.readObject();
          gtx.epochId = input.readLong();
-         gtx.protocolId = input.readUTF();
+         if(input.readBoolean()){
+            gtx.protocolId = input.readUTF();
+         }
          if (input.readBoolean()) {
             gtx.transactionClass = input.readUTF();
          }

@@ -48,6 +48,8 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.factories.annotations.Stop;
 import org.infinispan.interceptors.InterceptorChain;
+import org.infinispan.interceptors.base.CommandInterceptor;
+import org.infinispan.interceptors.gmu.GMUEntryWrappingInterceptor;
 import org.infinispan.loaders.CacheLoaderException;
 import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.loaders.CacheStore;
@@ -64,6 +66,7 @@ import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.gmu.manager.SortedTransactionQueue;
+import org.infinispan.transaction.gmu.manager.TransactionCommitManager;
 import org.infinispan.transaction.totalorder.TotalOrderLatch;
 import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.transaction.xa.CacheTransaction;
@@ -86,6 +89,7 @@ import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECU
  * {@link StateConsumer} implementation.
  *
  * @author anistor@redhat.com
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class StateConsumerImpl implements StateConsumer {
@@ -163,7 +167,8 @@ public class StateConsumerImpl implements StateConsumer {
    private volatile boolean ownsData = false;
    private ConcurrentMap<Object, OwnersList> oldKeyOwners;
    private VersionGenerator versionGenerator;
-   private final Map<Address, ShadowTransactionInfo> shadowTransactionInfoMap = new HashMap<Address, ShadowTransactionInfo>();
+   private final Map<Address, TransactionInfo> shadowTransactionInfoReceiverMap = new HashMap<Address, TransactionInfo>();
+   private TransactionCommitManager transactionCommitManager;
 
    public StateConsumerImpl() {
    }
@@ -216,7 +221,7 @@ public class StateConsumerImpl implements StateConsumer {
 
    @Inject
    public void init(Cache cache,
-                    @ComponentName(ASYNC_TRANSPORT_EXECUTOR) ExecutorService executorService, //TODO Use a dedicated ExecutorService
+                    @ComponentName(KnownComponentNames.TOPOLOGY_EXECUTOR) BlockingTaskAwareExecutorService executorService,
                     StateTransferManager stateTransferManager,
                     InterceptorChain interceptorChain,
                     InvocationContextContainer icc,
@@ -232,7 +237,8 @@ public class StateConsumerImpl implements StateConsumer {
                     TotalOrderManager totalOrderManager,
                     VersionGenerator versionGenerator,
                     @ComponentName(KnownComponentNames.GMU_EXECUTOR) BlockingTaskAwareExecutorService gmuExecutorService,
-                    ReconfigurableReplicationManager reconfigurableReplicationManager) {
+                    ReconfigurableReplicationManager reconfigurableReplicationManager,
+                    TransactionCommitManager transactionCommitManager) {
       this.cacheName = cache.getName();
       this.executorService = executorService;
       this.stateTransferManager = stateTransferManager;
@@ -251,6 +257,7 @@ public class StateConsumerImpl implements StateConsumer {
       this.versionGenerator = versionGenerator;
       this.gmuExecutorService = gmuExecutorService;
       this.protocolManager = reconfigurableReplicationManager.getProtocolManager();
+      this.transactionCommitManager = transactionCommitManager;
 
       isInvalidationMode = configuration.clustering().cacheMode().isInvalidation();
 
@@ -540,7 +547,6 @@ public class StateConsumerImpl implements StateConsumer {
    }
 
    private void doApplyState(Address sender, int segmentId, Collection<InternalCacheEntry> cacheEntries, EntryVersion txVersion) {
-      log.debugf("Applying new state for segment %d of cache %s from node %s: received %d cache entries", segmentId, cacheName, sender, cacheEntries.size());
       if (trace) {
          List<Object> keys = new ArrayList<Object>(cacheEntries.size());
          for (InternalCacheEntry e : cacheEntries) {
@@ -560,9 +566,9 @@ public class StateConsumerImpl implements StateConsumer {
             }
             ownersList.add(sender);
             //Wait for the commit of the state-transfer transaction
-            ShadowTransactionInfo transactionInfo;
+            TransactionInfo transactionInfo;
             synchronized (this) {
-               transactionInfo = this.shadowTransactionInfoMap.get(sender);
+               transactionInfo = this.shadowTransactionInfoReceiverMap.get(sender);
             }
 
             GMUCacheEntryVersion version = null;
@@ -649,12 +655,13 @@ public class StateConsumerImpl implements StateConsumer {
    }
 
    protected void applyTransactions(Address sender, Collection<TransactionInfo> transactions) {
-      log.debugf("Applying %d transactions for cache %s transferred from node %s", transactions.size(), cacheName, sender);
       if (isTransactional) {
+         boolean shadowApplied = false;
          for (TransactionInfo transactionInfo : transactions) {
-            if (transactionInfo instanceof ShadowTransactionInfo) {
-               //Try to commit the Shadow Transaction. IF successful it insert a new entry in the shadowTransactionInfoMap
-               applyShadowTransaction(sender, (ShadowTransactionInfo) transactionInfo);
+            if (transactionInfo.isShadow()) {
+               //Try to commit the Receiver Shadow Transaction. If successful it inserts a new entry in the shadowTransactionInfoReceiverMap
+               applyShadowTransaction(sender, transactionInfo);
+               shadowApplied = true;
             } else {
                CacheTransaction tx = transactionTable.getLocalTransaction(transactionInfo.getGlobalTransaction());
                if (tx == null) {
@@ -668,6 +675,9 @@ public class StateConsumerImpl implements StateConsumer {
                   tx.addBackupLockForKey(key);
                }
             }
+         }
+         if(configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE && !shadowApplied){
+            transactionCommitManager.rollbackReceiverStateTransferTransaction(sender);
          }
       }
    }
@@ -709,14 +719,14 @@ public class StateConsumerImpl implements StateConsumer {
       return cacheTopology;
    }
 
-   private void applyShadowTransaction(final Address sender, final ShadowTransactionInfo transactionInfo) {
+   private void applyShadowTransaction(final Address sender, final TransactionInfo transactionInfo) {
 
       synchronized (this) {
-         ShadowTransactionInfo info = shadowTransactionInfoMap.get(sender);
+         TransactionInfo info = shadowTransactionInfoReceiverMap.get(sender);
          if(info != null){
-            log.error("Shadow Transaction Info "+transactionInfo+" already in shadowTransactionInfoMap for sender "+sender+". Old entry is "+info);
+            log.warn("Shadow Transaction Info "+transactionInfo+" already in shadowTransactionInfoReceiverMap for sender "+sender+". Old entry is "+info);
          }
-         shadowTransactionInfoMap.put(sender, transactionInfo);
+         shadowTransactionInfoReceiverMap.put(sender, transactionInfo);
       }
 
       this.gmuExecutorService.execute(new BlockingRunnable() {
@@ -728,53 +738,43 @@ public class StateConsumerImpl implements StateConsumer {
          public void run() {
 
             try {
-               InvocationContext ctx = null;
-               if (transactionManager != null) {
-                  // cache is transactional
-                  transactionManager.begin();
-                  Transaction transaction = transactionManager.getTransaction();
-                  ctx = icc.createInvocationContext(transaction);
-                  ((TxInvocationContext) ctx).setImplicitTransaction(true);
+               SortedTransactionQueue.TransactionEntry transactionEntry = transactionCommitManager.commitReceiverStateTransferTransaction(sender, transactionInfo.getVersion());
+               //see org.infinispan.tx.gmu.DistConsistencyTest3.testNoCommitDeadlock
+               //the commitTransaction() can re-order the queue. we need to check for pending commit commands.
+               //if not, the queue can be blocked forever.
+               gmuExecutorService.checkForReadyTasks();
+
+               if (transactionEntry != null && transactionInfo != null) {
+                  //Attach the entry in the commit queue to the transaction info
+                  transactionInfo.setTransactionEntry(transactionEntry);
                }
 
-               boolean success = false;
+               if(transactionEntry != null){
+                  //Wait for this transaction is ready to be committed.
+                  transactionEntry.awaitUntilIsReadyToCommit();
+               }
 
-               ShadowTransactionCommand shadowCommand = commandsFactory.buildShadowTransactionCommand();
+               if(transactionEntry != null && !transactionEntry.isCommitted()){
+                  //If this transaction is not committed try to commit transactions from the commit queue
+                  Collection<SortedTransactionQueue.TransactionEntry> transactionsToCommit = transactionCommitManager.getTransactionsToCommit();
 
-               try {
-                  //This is a Shadow transaction for a state-transfer
-                  interceptorChain.invoke(ctx, shadowCommand);
-                  success = true;
-               } finally {
-                  if (ctx != null && ctx.isInTxScope()) {
-                     if (success) {
-                        ((LocalTransaction) ((TxInvocationContext) ctx).getCacheTransaction()).setFromStateTransfer(true);
-                        ((LocalTransaction) ((TxInvocationContext) ctx).getCacheTransaction()).setShadowTransactionInfo(transactionInfo);
-                        if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE &&
-                              versionGenerator != null && versionGenerator instanceof GMUVersionGenerator &&
-                              transactionInfo.getVersion() != null) {
-                           TxInvocationContext tctx = (TxInvocationContext) ctx;
-                           EntryVersion currentVersion = tctx.getTransactionVersion();
-                           tctx.setTransactionVersion(((GMUVersionGenerator) versionGenerator).mergeAndMax(currentVersion, transactionInfo.getVersion()));
-                        }
-                        try {
-                           //This commit will attach the transaction entry in the commit queue to the transaction info. See GMUEntryWrappingInterceptor.visitCommitCommand()
-                           transactionManager.commit();
-
-
-                        } catch (Throwable ex) {
-                           log.errorf(ex, "Could not commit transaction created by state transfer %s", transactionInfo);
-                           if (transactionManager.getTransaction() != null) {
-                              transactionManager.rollback();
-                           }
-                        }
-                     } else {
-                        transactionManager.rollback();
-                     }
+                  List<CommandInterceptor> interceptors = interceptorChain.getInterceptorsWithClass(GMUEntryWrappingInterceptor.class);
+                  GMUEntryWrappingInterceptor GMUInterceptor = null;
+                  if(interceptors == null || interceptors.isEmpty()){
+                     log.fatal("No GMUEntryWrappingInterceptor found");
+                     return;
                   }
+                  else{
+                     GMUInterceptor = ((GMUEntryWrappingInterceptor)(interceptors.get(0)));
+                  }
+                  transactionCommitManager.executeCommit(transactionEntry, transactionsToCommit, null, GMUInterceptor);
+
                }
-            } catch (Exception ex) {
-               log.problemApplyingShadowTransaction(ex.getMessage(), transactionInfo, ex);
+
+            } catch (Throwable throwable) {
+               log.fatal("Error while committing transaction", throwable);
+               shadowTransactionInfoReceiverMap.remove(sender);
+               transactionCommitManager.rollbackReceiverStateTransferTransaction(sender);
             }
 
          }
@@ -789,7 +789,7 @@ public class StateConsumerImpl implements StateConsumer {
    }
 
    private void addTransfers(Set<Integer> segments) {
-      log.debugf("Adding inbound state transfer for segments %s of cache %s", segments, cacheName);
+      if(trace)log.tracef("Adding inbound state transfer for segments %s of cache %s", segments, cacheName);
 
       // the set of nodes that reported errors when fetching data from them - these will not be retried in this topology
       Set<Address> excludedSources = new HashSet<Address>();
@@ -805,7 +805,7 @@ public class StateConsumerImpl implements StateConsumer {
          requestSegments(segments, sources, excludedSources);
       }
 
-      log.debugf("Finished adding inbound state transfer for segments %s of cache %s", segments, cacheName);
+      if(trace)log.tracef("Finished adding inbound state transfer for segments %s of cache %s", segments, cacheName);
    }
 
    private void findSources(Set<Integer> segments, Map<Address, Set<Integer>> sources, Set<Address> excludedSources) {
@@ -855,6 +855,9 @@ public class StateConsumerImpl implements StateConsumer {
                // if requesting the transactions failed we need to retry from another source
                failedSegments.addAll(segmentsFromSource);
                excludedSources.add(source);
+               if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
+                  transactionCommitManager.rollbackReceiverStateTransferTransaction(source);
+               }
             }
          }
 
@@ -880,7 +883,12 @@ public class StateConsumerImpl implements StateConsumer {
       }
       // get transactions and locks
       try {
-         StateRequestCommand cmd = commandsFactory.buildStateRequestCommand(StateRequestCommand.Type.GET_TRANSACTIONS, rpcManager.getAddress(), topologyId, segments);
+         EntryVersion preparedVersion = null;
+         if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
+            //Prepare a shadow transaction for this state transfer from sender.
+            preparedVersion = transactionCommitManager.prepareReceiverStateTransferTransaction(source);
+         }
+         StateRequestCommand cmd = commandsFactory.buildStateRequestCommand(StateRequestCommand.Type.GET_TRANSACTIONS, rpcManager.getAddress(), topologyId, segments, preparedVersion);
          Map<Address, Response> responses = rpcManager.invokeRemotely(Collections.singleton(source), cmd, ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS, timeout, false);
          Response response = responses.get(source);
          if (response instanceof SuccessfulResponse) {
@@ -889,6 +897,9 @@ public class StateConsumerImpl implements StateConsumer {
          log.failedToRetrieveTransactionsForSegments(segments, cacheName, source, null);
       } catch (CacheException e) {
          log.failedToRetrieveTransactionsForSegments(segments, cacheName, source, e);
+      }
+      if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
+         transactionCommitManager.rollbackReceiverStateTransferTransaction(source);
       }
       return null;
    }
@@ -913,7 +924,12 @@ public class StateConsumerImpl implements StateConsumer {
          isTransferThreadRunning = true;
       }
 
-      executorService.submit(new Runnable() {
+      executorService.submit(new BlockingRunnable() {
+
+         @Override
+         public boolean isReady() {
+            return true;
+         }
          @Override
          public void run() {
             try {
@@ -950,7 +966,7 @@ public class StateConsumerImpl implements StateConsumer {
                      break;
                   }
 
-                  log.tracef("Retrying %d failed tasks", failedTasks.size());
+                  if(trace)log.tracef("Retrying %d failed tasks", failedTasks.size());
 
                   // look for other sources for the failed segments and replace all failed tasks with new tasks to be retried
                   // remove+add needs to be atomic
@@ -979,6 +995,11 @@ public class StateConsumerImpl implements StateConsumer {
                   isTransferThreadRunning = false;
                }
             }
+         }
+
+         @Override
+         public final String toString() {
+            return "Topology Executor Thread";
          }
       });
    }
@@ -1141,7 +1162,7 @@ public class StateConsumerImpl implements StateConsumer {
 
    private InboundTransferTask addTransfer(Address source, Set<Integer> segmentsFromSource) {
       synchronized (this) {
-         log.tracef("Adding transfer from %s for segments %s", source, segmentsFromSource);
+         if(trace)log.tracef("Adding transfer from %s for segments %s", source, segmentsFromSource);
          segmentsFromSource.removeAll(transfersBySegment.keySet());  // already in progress segments are excluded
          if (!segmentsFromSource.isEmpty()) {
             InboundTransferTask inboundTransfer = new InboundTransferTask(segmentsFromSource, source,
@@ -1165,7 +1186,7 @@ public class StateConsumerImpl implements StateConsumer {
 
    private boolean removeTransfer(InboundTransferTask inboundTransfer) {
       synchronized (this) {
-         log.tracef("Removing inbound transfers for segments %s from source %s for cache %s",
+         if(trace)log.tracef("Removing inbound transfers for segments %s from source %s for cache %s",
                     inboundTransfer.getSegments(), inboundTransfer.getSource(), cacheName);
          taskQueue.remove(inboundTransfer);
          List<InboundTransferTask> transfers = transfersBySource.get(inboundTransfer.getSource());
@@ -1173,7 +1194,7 @@ public class StateConsumerImpl implements StateConsumer {
             if (transfers.remove(inboundTransfer)) {
                if (transfers.isEmpty()) {
                   transfersBySource.remove(inboundTransfer.getSource());
-                  shadowTransactionInfoMap.remove(inboundTransfer.getSource());
+                  shadowTransactionInfoReceiverMap.remove(inboundTransfer.getSource());
                }
                transfersBySegment.keySet().removeAll(inboundTransfer.getSegments());
                return true;
@@ -1184,7 +1205,7 @@ public class StateConsumerImpl implements StateConsumer {
    }
 
    void onTaskCompletion(InboundTransferTask inboundTransfer) {
-      log.tracef("Completion of inbound transfer task: %s ", inboundTransfer);
+      if(trace)log.tracef("Completion of inbound transfer task: %s ", inboundTransfer);
       removeTransfer(inboundTransfer);
 
       notifyEndOfRebalanceIfNeeded(cacheTopology.getTopologyId());

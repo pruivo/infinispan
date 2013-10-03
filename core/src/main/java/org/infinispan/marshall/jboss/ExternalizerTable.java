@@ -91,7 +91,6 @@ import org.infinispan.marshall.exts.MapExternalizer;
 import org.infinispan.marshall.exts.ReplicableCommandExternalizer;
 import org.infinispan.marshall.exts.SetExternalizer;
 import org.infinispan.marshall.exts.SingletonListExternalizer;
-import org.infinispan.statetransfer.ShadowTransactionInfo;
 import org.infinispan.statetransfer.StateChunk;
 import org.infinispan.statetransfer.TransactionInfo;
 import org.infinispan.remoting.responses.ExceptionResponse;
@@ -316,7 +315,6 @@ public class ExternalizerTable implements ObjectTable {
       addInternalExternalizer(new CacheTopology.Externalizer());
       addInternalExternalizer(new CacheJoinInfo.Externalizer());
       addInternalExternalizer(new TransactionInfo.Externalizer());
-      addInternalExternalizer(new ShadowTransactionInfo.Externalizer());
       addInternalExternalizer(new StateChunk.Externalizer());
 
       addInternalExternalizer(new Flag.Externalizer());

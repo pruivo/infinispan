@@ -30,6 +30,7 @@ import org.infinispan.config.ConfigurationException;
 import org.infinispan.config.parsing.XmlConfigHelper;
 import org.infinispan.configuration.global.TransportConfiguration;
 import org.infinispan.factories.GlobalComponentRegistry;
+import org.infinispan.factories.KnownComponentNames;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.jmx.JmxUtil;
@@ -46,6 +47,7 @@ import org.infinispan.util.FileLookupFactory;
 import org.infinispan.util.InfinispanCollections;
 import org.infinispan.util.TypedProperties;
 import org.infinispan.util.Util;
+import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.concurrent.NoOpFuture;
 import org.infinispan.util.concurrent.ResponseFuture;
 import org.infinispan.util.concurrent.TimeoutException;
@@ -143,6 +145,8 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    protected volatile boolean isCoordinator = false;
    protected CountDownLatch channelConnectedLatch = new CountDownLatch(1);
 
+   protected BlockingTaskAwareExecutorService topologyExecutorService;
+
    /**
     * This form is used when the transport is created by an external source and passed in to the
     * GlobalConfiguration.
@@ -183,13 +187,15 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    public void initialize(@ComponentName(GLOBAL_MARSHALLER) StreamingMarshaller marshaller,
                           @ComponentName(ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncExecutor,
                           InboundInvocationHandler inboundInvocationHandler, CacheManagerNotifier notifier,
-                          GlobalComponentRegistry gcr, BackupReceiverRepository backupReceiverRepository) {
+                          GlobalComponentRegistry gcr, BackupReceiverRepository backupReceiverRepository,
+                          @ComponentName(KnownComponentNames.TOPOLOGY_EXECUTOR) BlockingTaskAwareExecutorService topologyExecutorService) {
       this.marshaller = marshaller;
       this.asyncExecutor = asyncExecutor;
       this.inboundInvocationHandler = inboundInvocationHandler;
       this.notifier = notifier;
       this.gcr = gcr;
       this.backupReceiverRepository = backupReceiverRepository;
+      this.topologyExecutorService = topologyExecutorService;
    }
 
    @Override
@@ -333,7 +339,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
 
    private void initChannelAndRPCDispatcher() throws CacheException {
       initChannel();
-      dispatcher = new CommandAwareRpcDispatcher(channel, this, asyncExecutor, inboundInvocationHandler, gcr, backupReceiverRepository);
+      dispatcher = new CommandAwareRpcDispatcher(channel, this, asyncExecutor, inboundInvocationHandler, gcr, backupReceiverRepository, topologyExecutorService);
       MarshallerAdapter adapter = new MarshallerAdapter(marshaller);
       dispatcher.setRequestMarshaller(adapter);
       dispatcher.setResponseMarshaller(adapter);

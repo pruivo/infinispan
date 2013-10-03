@@ -34,10 +34,12 @@ import org.infinispan.remoting.InboundInvocationHandler;
 import org.infinispan.remoting.RpcException;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
+import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.topology.CacheTopologyControlCommand;
 import org.infinispan.util.Util;
+import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -79,6 +81,7 @@ import static org.infinispan.util.Util.*;
  * A JGroups RPC dispatcher that knows how to deal with {@link ReplicableCommand}s.
  *
  * @author Manik Surtani (<a href="mailto:manik@jboss.org">manik@jboss.org</a>)
+ * @author Sebastiano Peluso
  * @since 4.0
  */
 public class CommandAwareRpcDispatcher extends RpcDispatcher {
@@ -91,18 +94,21 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
    private final JGroupsTransport transport;
    private final GlobalComponentRegistry gcr;
    private final BackupReceiverRepository backupReceiverRepository;
+   private ExecutorService topologyExecutorService;
 
    public CommandAwareRpcDispatcher(Channel channel,
                                     JGroupsTransport transport,
                                     ExecutorService asyncExecutor,
                                     InboundInvocationHandler inboundInvocationHandler,
-                                    GlobalComponentRegistry gcr, BackupReceiverRepository backupReceiverRepository) {
+                                    GlobalComponentRegistry gcr, BackupReceiverRepository backupReceiverRepository,
+                                    ExecutorService topologyExecutorService) {
       this.server_obj = transport;
       this.asyncExecutor = asyncExecutor;
       this.inboundInvocationHandler = inboundInvocationHandler;
       this.transport = transport;
       this.gcr = gcr;
       this.backupReceiverRepository = backupReceiverRepository;
+      this.topologyExecutorService = topologyExecutorService;
 
       // MessageDispatcher superclass constructors will call start() so perform all init here
       this.setMembershipListener(transport);
@@ -269,16 +275,53 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       reply(response, backupReceiverRepository.handleRemoteCommand((SingleRpcCommand) cmd, src));
    }
 
-   private void executeCommandFromLocalCluster(ReplicableCommand cmd, Message req, org.jgroups.blocks.Response response) throws Throwable {
+   private void executeCommandFromLocalCluster(final ReplicableCommand cmd, Message req, final org.jgroups.blocks.Response response) throws Throwable {
       if (cmd instanceof CacheRpcCommand) {
          if (trace) log.tracef("Attempting to execute command: %s [sender=%s]", cmd, req.getSrc());
          inboundInvocationHandler.handle((CacheRpcCommand) cmd, fromJGroupsAddress(req.getSrc()), response);
       } else {
          if (trace) log.tracef("Attempting to execute non-CacheRpcCommand command: %s [sender=%s]", cmd, req.getSrc());
+
+         if (cmd instanceof CacheTopologyControlCommand) {
+
+            topologyExecutorService.execute(new BlockingRunnable() {
+               @Override
+               public boolean isReady() {
+                  return true;
+               }
+               @Override
+               public void run() {
+
+                  try{
+                     gcr.wireDependencies(cmd);
+                     Object retVal = cmd.perform(null);
+                     if (retVal != null && !(retVal instanceof Response)) {
+                        retVal = SuccessfulResponse.create(retVal);
+                     }
+                     reply(response, retVal);
+                  } catch (InterruptedException e) {
+                     log.shutdownHandlingCommand(cmd);
+                     reply(response, new ExceptionResponse(new CacheException("Cache is shutting down")));
+                  } catch (Throwable throwable) {
+                     log.exceptionHandlingCommand(cmd, throwable);
+                     reply(response, new ExceptionResponse(new CacheException("Problems invoking command.", throwable)));
+                  }
+               }
+
+               @Override
+               public final String toString() {
+                  return "Topology Executor Thread - "+cmd.toString();
+               }
+            });
+
+            return;
+         }
          gcr.wireDependencies(cmd);
 
-         //todo [anistor] the call to perform() should be wrapped in try/catch and any exception should be wrapped in an ExceptionResponse, as it happens for commands that go through InboundInvocationHandler
-         Object retVal = cmd.perform(null);  //todo [anistor] here we should provide an InvocationContext that at least is able to provide the Address of the origin
+         Object retVal = cmd.perform(null);
+         if (retVal != null && !(retVal instanceof Response)) {
+            retVal = SuccessfulResponse.create(retVal);
+         }
          reply(response, retVal);
       }
    }

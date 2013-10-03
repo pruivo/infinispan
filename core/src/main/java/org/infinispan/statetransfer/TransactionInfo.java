@@ -24,9 +24,13 @@
 package org.infinispan.statetransfer;
 
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
+import org.infinispan.transaction.gmu.manager.SortedTransactionQueue;
 import org.infinispan.transaction.xa.GlobalTransaction;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -34,15 +38,19 @@ import java.io.ObjectOutput;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * A representation of a transaction that is suitable for transferring between a StateProvider and a StateConsumer
  * running on different members of the same cache.
  *
  * @author anistor@redhat.com
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class TransactionInfo {
+
+   private static final Log log = LogFactory.getLog(TransactionInfo.class);
 
    protected final GlobalTransaction globalTransaction;
 
@@ -52,11 +60,34 @@ public class TransactionInfo {
 
    protected final int topologyId;
 
+   protected final boolean isShadow;
+
+   protected final EntryVersion version;
+
+   protected transient volatile SortedTransactionQueue.TransactionEntry transactionEntry;
+
+   protected transient CountDownLatch accessTransactionEntry;
+
    public TransactionInfo(GlobalTransaction globalTransaction, int topologyId, WriteCommand[] modifications, Set<Object> lockedKeys) {
       this.globalTransaction = globalTransaction;
       this.topologyId = topologyId;
       this.modifications = modifications;
       this.lockedKeys = lockedKeys;
+      this.isShadow = false;
+      this.version = null;
+      this.accessTransactionEntry = new CountDownLatch(1);
+      this.transactionEntry = null;
+   }
+
+   public TransactionInfo(int topologyId, EntryVersion transferVersion) {
+      this.globalTransaction = null;
+      this.topologyId = topologyId;
+      this.modifications = null;
+      this.lockedKeys = null;
+      this.isShadow = true;
+      this.version = transferVersion;
+      this.accessTransactionEntry = new CountDownLatch(1);
+      this.transactionEntry = null;
    }
 
    public GlobalTransaction getGlobalTransaction() {
@@ -75,13 +106,42 @@ public class TransactionInfo {
       return topologyId;
    }
 
+   public boolean isShadow() {
+      return isShadow;
+   }
+
+   public EntryVersion getVersion() {
+      return this.version;
+   }
+
+   public SortedTransactionQueue.TransactionEntry waitForTransactionEntry() {
+      if(this.transactionEntry != null)
+         return this.transactionEntry;
+      else{
+         try {
+            this.accessTransactionEntry.await();
+         } catch (InterruptedException e) {
+            e.printStackTrace();
+         }
+
+         return this.transactionEntry;
+      }
+   }
+
+   public void setTransactionEntry(SortedTransactionQueue.TransactionEntry transactionEntry) {
+      this.transactionEntry = transactionEntry;
+      this.accessTransactionEntry.countDown();
+   }
+
    @Override
    public String toString() {
       return "TransactionInfo{" +
             "globalTransaction=" + globalTransaction +
             ", topologyId=" + topologyId +
-            ", modifications=" + Arrays.asList(modifications) +
+            ", modifications=" + ((modifications==null)?null:Arrays.asList(modifications)) +
             ", lockedKeys=" + lockedKeys +
+            ", isShadow=" + isShadow +
+            ", version=" + version +
             '}';
    }
 
@@ -99,20 +159,41 @@ public class TransactionInfo {
 
       @Override
       public void writeObject(ObjectOutput output, TransactionInfo object) throws IOException {
-         output.writeObject(object.globalTransaction);
+         output.writeBoolean(object.isShadow);
          output.writeInt(object.topologyId);
-         output.writeObject(object.modifications);
-         output.writeObject(object.lockedKeys);
+         if(!object.isShadow){
+            output.writeObject(object.globalTransaction);
+            output.writeObject(object.modifications);
+            output.writeObject(object.lockedKeys);
+         }
+         else{
+            if (object.version == null) {
+               output.writeBoolean(false);
+            } else {
+               output.writeBoolean(true);
+               output.writeObject(object.version);
+            }
+         }
       }
 
       @Override
       @SuppressWarnings("unchecked")
       public TransactionInfo readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         GlobalTransaction globalTransaction = (GlobalTransaction) input.readObject();
+         Boolean isShadow = input.readBoolean();
          int topologyId = input.readInt();
-         WriteCommand[] modifications = (WriteCommand[]) input.readObject();
-         Set<Object> lockedKeys = (Set<Object>) input.readObject();
-         return new TransactionInfo(globalTransaction, topologyId, modifications, lockedKeys);
+         if(!isShadow) {
+            GlobalTransaction globalTransaction = (GlobalTransaction) input.readObject();
+            WriteCommand[] modifications = (WriteCommand[]) input.readObject();
+            Set<Object> lockedKeys = (Set<Object>) input.readObject();
+            return new TransactionInfo(globalTransaction, topologyId, modifications, lockedKeys);
+         }
+         else{
+            EntryVersion version = null;
+            if(input.readBoolean()){
+               version = (EntryVersion) input.readObject();
+            }
+            return new TransactionInfo(topologyId, version);
+         }
       }
    }
 }

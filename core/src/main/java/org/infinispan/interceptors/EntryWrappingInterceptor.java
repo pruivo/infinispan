@@ -238,7 +238,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       return command.hasFlag(Flag.PUT_FOR_STATE_TRANSFER);
    }
 
-   protected final void commitContextEntries(InvocationContext ctx, boolean skipOwnershipCheck, boolean isPutForStateTransfer) {
+   public final void commitContextEntries(InvocationContext ctx, boolean skipOwnershipCheck, boolean isPutForStateTransfer) {
       if (!isPutForStateTransfer && stateConsumer != null
             && ctx instanceof TxInvocationContext
             && ((TxInvocationContext) ctx).getCacheTransaction().hasModification(ClearCommand.class)) {

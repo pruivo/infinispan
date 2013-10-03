@@ -367,7 +367,7 @@ public class ClusterTopologyManagerTest extends MultipleCacheManagersTest {
             checkpoint.awaitStrict("LEAVE", 10, TimeUnit.SECONDS);
             return invocation.callRealMethod();
          }
-      }).when(spyStateProvider).getTransactionsForSegments(any(Address.class), anyInt(), anySet());
+      }).when(spyStateProvider).getTransactionsForSegments(any(Address.class), anyInt(), anySet(), null);
 
       long startTime = System.currentTimeMillis();
       manager(2).stop();

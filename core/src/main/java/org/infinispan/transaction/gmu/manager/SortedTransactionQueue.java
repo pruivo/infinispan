@@ -22,8 +22,10 @@
  */
 package org.infinispan.transaction.gmu.manager;
 
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.gmu.GMUCacheEntryVersion;
 import org.infinispan.container.versioning.gmu.GMUVersion;
+import org.infinispan.remoting.transport.Address;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
@@ -39,17 +41,23 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class SortedTransactionQueue {
 
    private static final Log log = LogFactory.getLog(SortedTransactionQueue.class);
    private final ConcurrentHashMap<GlobalTransaction, TransactionEntryImpl> concurrentHashMap;
+   private final ConcurrentHashMap<Address, TransactionEntryImpl> senderStateTransferMap;
+   private final ConcurrentHashMap<Address, TransactionEntryImpl> receiverStateTransferMap;
    private final Node firstEntry;
    private final Node lastEntry;
 
+
    public SortedTransactionQueue() {
       this.concurrentHashMap = new ConcurrentHashMap<GlobalTransaction, TransactionEntryImpl>();
+      this.senderStateTransferMap = new ConcurrentHashMap<Address, TransactionEntryImpl>();
+      this.receiverStateTransferMap = new ConcurrentHashMap<Address, TransactionEntryImpl>();
 
       this.firstEntry = new AbstractBoundaryNode() {
          private Node first;
@@ -118,8 +126,43 @@ public class SortedTransactionQueue {
       insertNew(entry);
    }
 
+   public final void prepareSenderOnStateTransfer(Address other, EntryVersion preparedVersion, long concurrentClockNumber) {
+     //other is the receiver of this state transfer
+      if (senderStateTransferMap.containsKey(other)) {
+         log.warnf("Duplicated prepare for state transfer shadow transaction. Other node %s", other);
+      }
+      TransactionEntryImpl entry = new TransactionEntryImpl(preparedVersion, concurrentClockNumber, true, other);
+      senderStateTransferMap.put(other, entry);
+      insertNew(entry);
+   }
+
+   public final void prepareReceiverOnStateTransfer(Address other, EntryVersion preparedVersion, long concurrentClockNumber) {
+      //other is the sender of this state transfer
+      if (receiverStateTransferMap.containsKey(other)) {
+         log.warnf("Duplicated prepare for state transfer shadow transaction. Other node %s", other);
+      }
+      TransactionEntryImpl entry = new TransactionEntryImpl(preparedVersion, concurrentClockNumber,false, other);
+      receiverStateTransferMap.put(other, entry);
+      insertNew(entry);
+   }
+
    public final void rollback(CacheTransaction cacheTransaction) {
       remove(concurrentHashMap.remove(cacheTransaction.getGlobalTransaction()));
+   }
+
+   public final void rollbackSenderOnStateTransfer(Address other) {
+      //other is the receiver of this state transfer
+      internalRollbackOnStateTransfer(other, senderStateTransferMap);
+   }
+
+   public final void rollbackReceiverOnStateTransfer(Address other) {
+      //other is the sender of this state transfer
+      internalRollbackOnStateTransfer(other, receiverStateTransferMap);
+   }
+
+   private void internalRollbackOnStateTransfer(Address other, ConcurrentHashMap<Address, TransactionEntryImpl> map) {
+
+      remove(map.remove(other));
    }
 
    //return true if it is a read-write transaction
@@ -129,6 +172,28 @@ public class SortedTransactionQueue {
          if (log.isDebugEnabled()) {
             log.debugf("Cannot commit transaction %s. Maybe it is a read-only on this node",
                        globalTransaction.globalId());
+         }
+         return null;
+      }
+      update(entry, commitVersion);
+      return entry;
+   }
+
+   public final TransactionEntry commitSenderOnStateTransfer(Address other, GMUVersion commitVersion) {
+      //other is the receiver of this state transfer
+      return internalCommitOnStateTransfer(other, commitVersion, senderStateTransferMap);
+   }
+
+   public final TransactionEntry commitReceiverOnStateTransfer(Address other, GMUVersion commitVersion) {
+      //other is the receiver of this state transfer
+      return internalCommitOnStateTransfer(other, commitVersion, receiverStateTransferMap);
+   }
+
+   private TransactionEntry internalCommitOnStateTransfer(Address other, GMUVersion commitVersion, ConcurrentHashMap<Address, TransactionEntryImpl> map){
+      Node entry = map.get(other);
+      if (entry == null) {
+         if (log.isDebugEnabled()) {
+            log.debugf("Cannot commit shadow transaction with version %s.\n",commitVersion);
          }
          return null;
       }
@@ -158,7 +223,16 @@ public class SortedTransactionQueue {
          internalCheckTransactionsReady();
       }
       for (Node node : toRemove) {
-         concurrentHashMap.remove(node.getGlobalTransaction());
+         if(node.getGlobalTransaction() != null)
+            concurrentHashMap.remove(node.getGlobalTransaction());
+         else{
+            if(node.isSenderOnStateTransfer()){
+               senderStateTransferMap.remove(node.getOtherOnStateTransfer());
+            }
+            if(node.isReceiverOnStateTransfer()){
+               receiverStateTransferMap.remove(node.getOtherOnStateTransfer());
+            }
+         }
          node.markReadyToCommit();
       }
    }
@@ -404,11 +478,6 @@ public class SortedTransactionQueue {
       void commitVersion(GMUVersion commitCommand);
 
       /**
-       * @return the current version
-       */
-      GMUVersion getVersion();
-
-      /**
        * @return {@code true} if the transaction has already received the commit command
        */
       boolean hasReceiveCommitCommand();
@@ -432,9 +501,20 @@ public class SortedTransactionQueue {
       void setWaitingType(boolean pendingFound);
 
       void setWaiting(boolean waiting);
+
+      boolean isSenderOnStateTransfer();
+
+      boolean isReceiverOnStateTransfer();
+
+      Address getOtherOnStateTransfer();
    }
 
    public static interface TransactionEntry {
+      /**
+       * @return the current version
+       */
+      GMUVersion getVersion();
+
       /**
        * waits until this entry if the first in the queue
        *
@@ -498,6 +578,8 @@ public class SortedTransactionQueue {
       private GMUCacheEntryVersion newVersionInDataContainer;
       private Node previous;
       private Node next;
+      private boolean isSenderOnStateTransfer;
+      private Address otherOnStateTransfer;
 
       private TransactionEntryImpl(CacheTransaction cacheTransaction, long concurrentClockNumber) {
          this.state = 0;
@@ -505,6 +587,18 @@ public class SortedTransactionQueue {
          this.entryVersion = (GMUVersion) cacheTransaction.getTransactionVersion();
          this.readyToCommit = new CountDownLatch(1);
          this.concurrentClockNumber = concurrentClockNumber;
+         this.isSenderOnStateTransfer = false;
+         this.otherOnStateTransfer = null;
+      }
+
+      private TransactionEntryImpl(EntryVersion entryVersion, long concurrentClockNumber, boolean isSenderOnStateTransfer, Address otherOnStateTransfer) {
+         this.state = 0;
+         this.cacheTransaction = null;
+         this.entryVersion = (GMUVersion) entryVersion;
+         this.readyToCommit = new CountDownLatch(1);
+         this.concurrentClockNumber = concurrentClockNumber;
+         this.isSenderOnStateTransfer = isSenderOnStateTransfer;
+         this.otherOnStateTransfer = otherOnStateTransfer;
       }
 
       public synchronized void commitVersion(GMUVersion commitVersion) {
@@ -516,6 +610,18 @@ public class SortedTransactionQueue {
          if (TransactionsStatisticsRegistry.isActive()) {
             commitReceivedTimestamp = System.nanoTime();
          }
+      }
+
+      public boolean isSenderOnStateTransfer(){
+         return cacheTransaction == null && isSenderOnStateTransfer;
+      }
+
+      public boolean isReceiverOnStateTransfer(){
+         return  cacheTransaction == null && !isSenderOnStateTransfer;
+      }
+
+      public Address getOtherOnStateTransfer(){
+         return otherOnStateTransfer;
       }
 
       @Override
@@ -568,7 +674,10 @@ public class SortedTransactionQueue {
       }
 
       public final GlobalTransaction getGlobalTransaction() {
-         return cacheTransaction.getGlobalTransaction();
+         if(cacheTransaction != null)
+            return cacheTransaction.getGlobalTransaction();
+         else
+            return null;
       }
 
       @Override
@@ -607,7 +716,8 @@ public class SortedTransactionQueue {
 
       @Override
       public final CacheTransaction getCacheTransactionForCommit() {
-         cacheTransaction.setTransactionVersion(entryVersion);
+         if(cacheTransaction != null)
+            cacheTransaction.setTransactionVersion(entryVersion);
          return cacheTransaction;
       }
 
@@ -624,7 +734,7 @@ public class SortedTransactionQueue {
          return "TransactionEntry{" +
                "version=" + getVersion() +
                ", state=" + TxState.stateToString(state) +
-               ", gtx=" + cacheTransaction.getGlobalTransaction().globalId() +
+               ", gtx=" + ((cacheTransaction==null)?null:cacheTransaction.getGlobalTransaction().globalId()) +
                '}';
       }
 
@@ -820,6 +930,18 @@ public class SortedTransactionQueue {
 
       public void setNewVersionInDataContainer(GMUCacheEntryVersion version) {
          /*no-op*/
+      }
+
+      public boolean isSenderOnStateTransfer(){
+         return false;
+      }
+
+      public boolean isReceiverOnStateTransfer(){
+         return  false;
+      }
+
+      public Address getOtherOnStateTransfer(){
+         return null;
       }
    }
 }

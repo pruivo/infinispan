@@ -50,6 +50,7 @@ import static org.infinispan.container.versioning.gmu.GMUVersion.NON_EXISTING;
  * // TODO: Document this
  *
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class DistGMUVersionGenerator implements GMUVersionGenerator {
@@ -297,6 +298,10 @@ public class DistGMUVersionGenerator implements GMUVersionGenerator {
    public synchronized final ClusterSnapshot getClusterSnapshot(int viewId) {
       if (viewId < viewIdClusterSnapshot.firstKey()) {
          //we don't have this view id anymore
+         return null;
+      }
+      if(!viewIdClusterSnapshot.containsKey(viewId) && viewId < viewIdClusterSnapshot.lastKey()){
+         //we have not ever seen this id
          return null;
       }
       while (!viewIdClusterSnapshot.containsKey(viewId)) {

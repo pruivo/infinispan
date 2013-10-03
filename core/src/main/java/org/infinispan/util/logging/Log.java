@@ -31,7 +31,6 @@ import org.infinispan.loaders.decorators.SingletonStore;
 import org.infinispan.remoting.RemoteException;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.transport.Address;
-import org.infinispan.statetransfer.ShadowTransactionInfo;
 import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.transaction.xa.recovery.RecoveryAwareRemoteTransaction;
@@ -868,9 +867,5 @@ public interface Log extends BasicLogger {
    @LogMessage(level = ERROR)
    @Message(value = "Failed to start rebalance for cache %s", id = 230)
    void rebalanceStartError(String cacheName, @Cause Throwable cause);
-
-   @LogMessage(level = WARN)
-   @Message(value = "Problem %s encountered when applying shadow transaction %s!", id = 223)
-   void problemApplyingShadowTransaction(String msg, ShadowTransactionInfo key, @Cause Throwable t);
 }
 

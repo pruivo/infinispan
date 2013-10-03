@@ -557,8 +557,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
    }
 
    @Override
-   public StateRequestCommand buildStateRequestCommand(StateRequestCommand.Type subtype, Address sender, int viewId, Set<Integer> segments) {
-      return new StateRequestCommand(cacheName, subtype, sender, viewId, segments);
+   public StateRequestCommand buildStateRequestCommand(StateRequestCommand.Type subtype, Address sender, int viewId, Set<Integer> segments, EntryVersion version) {
+      return new StateRequestCommand(cacheName, subtype, sender, viewId, segments, version);
    }
 
    @Override

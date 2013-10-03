@@ -23,6 +23,7 @@
 
 package org.infinispan.statetransfer;
 
+import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.remoting.transport.Address;
@@ -60,7 +61,7 @@ public interface StateProvider {
     * @param segments
     * @return list transactions and locks for the given segments
     */
-   List<TransactionInfo> getTransactionsForSegments(Address destination, int topologyId, Set<Integer> segments) throws InterruptedException;
+   List<TransactionInfo> getTransactionsForSegments(Address destination, int topologyId, Set<Integer> segments, EntryVersion version) throws InterruptedException;
 
    /**
     * Start to send cache entries that belong to the given set of segments. This is invoked in response to a

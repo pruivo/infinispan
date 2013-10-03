@@ -281,8 +281,8 @@ public class ControlledCommandFactory implements CommandsFactory {
    }
 
    @Override
-   public StateRequestCommand buildStateRequestCommand(StateRequestCommand.Type subtype, Address sender, int viewId, Set<Integer> segments) {
-      return actual.buildStateRequestCommand(subtype, sender, viewId, segments);
+   public StateRequestCommand buildStateRequestCommand(StateRequestCommand.Type subtype, Address sender, int viewId, Set<Integer> segments, EntryVersion version) {
+      return actual.buildStateRequestCommand(subtype, sender, viewId, segments, version);
    }
 
    @Override

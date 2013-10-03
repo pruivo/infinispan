@@ -33,6 +33,7 @@ import java.util.LinkedList;
  * // TODO: Document this
  *
  * @author Pedro Ruivo
+ * @author Sebastiano Peluso
  * @since 5.2
  */
 public class CommittedTransaction {
@@ -47,6 +48,14 @@ public class CommittedTransaction {
       this.concurrentClockNumber = concurrentClockNumber;
       commitVersion = cacheTransaction.getTransactionVersion();
       modifications = new LinkedList<WriteCommand>(cacheTransaction.getModifications());
+   }
+
+   public CommittedTransaction(EntryVersion version, int subVersion, long concurrentClockNumber) {
+      //This is not associated to a CacheTransaction. This is a shadow transaction.
+      this.subVersion = subVersion;
+      this.concurrentClockNumber = concurrentClockNumber;
+      commitVersion = version;
+      modifications = new LinkedList<WriteCommand>();
    }
 
    public final EntryVersion getCommitVersion() {
