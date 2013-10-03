@@ -1,5 +1,6 @@
 package org.infinispan.lucene.impl;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import org.infinispan.AdvancedCache;

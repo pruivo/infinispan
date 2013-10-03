@@ -92,29 +92,37 @@ public class TestHelper {
       File indexDir = new File(rootDir, indexName);
       FSDirectory directory = FSDirectory.open(indexDir);
       try {
-         CacheTestSupport.initializeDirectory(directory);
-         IndexWriter iwriter = LuceneSettings.openWriter(directory, 100000);
-         try {
-            for (int i = 0; i <= termsToAdd; i++) {
-               Document doc = new Document();
-               String term = String.valueOf(i);
-               //For even values of i we add to "main" field
-               if (i % 2 == 0 ^ invert) {
-                  doc.add(new Field("main", term, Field.Store.NO, Field.Index.NOT_ANALYZED));
-               }
-               else {
-                  doc.add(new Field("secondaryField", term, Field.Store.YES, Field.Index.NOT_ANALYZED));
-               }
-               iwriter.addDocument(doc);
+         createIndex(directory, termsToAdd, invert);
+      } finally {
+         directory.close();
+      }
+   }
+
+   /**
+    * see {@link #createIndex(java.io.File, String, int, boolean)}
+    *
+    * Note: the directory is not closed!
+    */
+   public static void createIndex(Directory directory, int termsToAdd, boolean invert) throws IOException {
+      CacheTestSupport.initializeDirectory(directory);
+      IndexWriter iWriter = LuceneSettings.openWriter(directory, 100000);
+      try {
+         for (int i = 0; i <= termsToAdd; i++) {
+            Document doc = new Document();
+            String term = String.valueOf(i);
+            //For even values of i we add to "main" field
+            if (i % 2 == 0 ^ invert) {
+               doc.add(new Field("main", term, Field.Store.NO, Field.Index.NOT_ANALYZED));
             }
-            iwriter.commit();
+            else {
+               doc.add(new Field("secondaryField", term, Field.Store.YES, Field.Index.NOT_ANALYZED));
+            }
+            iWriter.addDocument(doc);
          }
-         finally {
-            iwriter.close();
-         }
+         iWriter.commit();
       }
       finally {
-         directory.close();
+         iWriter.close();
       }
    }
 
