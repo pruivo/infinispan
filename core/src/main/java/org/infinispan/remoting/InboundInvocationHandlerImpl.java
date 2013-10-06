@@ -395,7 +395,10 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
                   resp = new ExceptionResponse(new CacheException("Problems invoking command.", throwable));
                }
                reply(response, resp);
-
+               if (cr.getComponent(Configuration.class).locking().isolationLevel() == IsolationLevel.SERIALIZABLE &&
+                     cmd instanceof RollbackCommand) {
+                  gmuExecutorService.checkForReadyTasks();
+               }
             }
 
             @Override
@@ -403,7 +406,10 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
                return "AbstractTransactionBoundaryCommand Executor Thread - " + cmd.toString();
             }
          });
-
+         if (cr.getComponent(Configuration.class).locking().isolationLevel() == IsolationLevel.SERIALIZABLE &&
+               cmd instanceof RollbackCommand) {
+            gmuExecutorService.checkForReadyTasks();
+         }
          return;
        }
       Response resp = handleInternal(cmd, cr);

@@ -678,6 +678,7 @@ public class StateConsumerImpl implements StateConsumer {
          }
          if(configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE && !shadowApplied){
             transactionCommitManager.rollbackReceiverStateTransferTransaction(sender);
+            gmuExecutorService.checkForReadyTasks();
          }
       }
    }
@@ -775,6 +776,9 @@ public class StateConsumerImpl implements StateConsumer {
                log.fatal("Error while committing transaction", throwable);
                shadowTransactionInfoReceiverMap.remove(sender);
                transactionCommitManager.rollbackReceiverStateTransferTransaction(sender);
+            }
+            finally{
+               gmuExecutorService.checkForReadyTasks();
             }
 
          }
@@ -900,6 +904,7 @@ public class StateConsumerImpl implements StateConsumer {
       }
       if (configuration.locking().isolationLevel() == IsolationLevel.SERIALIZABLE) {
          transactionCommitManager.rollbackReceiverStateTransferTransaction(source);
+         gmuExecutorService.checkForReadyTasks();
       }
       return null;
    }
