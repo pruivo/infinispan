@@ -140,6 +140,10 @@ public class StateRequestCommand extends BaseRpcCommand {
       type = Type.values()[(Byte) parameters[i++]];
       setOrigin((Address) parameters[i++]);
       topologyId = (Integer) parameters[i++];
+      if(numParameters > 4)
+         version = (EntryVersion) parameters[i++];
+      else
+         version = null;
       segments = (Set<Integer>) parameters[i];
    }
 
