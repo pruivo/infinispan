@@ -212,7 +212,7 @@ public class TransactionalStatisticsManager implements StatisticsManager {
    @ManagedAttribute(description = "Returns the average number of reads per write transaction, for transactions that has " +
          "failed due to network timeout",
                      displayName = "Avg no of reads per failed write transaction - network")
-   public final float getAvgNumReadForNetworkTimeoutFailedWriteTx() {
+   public final float getAvgNumReadForNetworkTimeoutFailedWriteWriteTx() {
       return average(NETWORK_TIMEOUT, NUM_READ_WRT_TX, NUM_LOCAL_WRT_TX);
    }
 
@@ -220,7 +220,7 @@ public class TransactionalStatisticsManager implements StatisticsManager {
          " write transactions",
                      displayName = "Avg read duration in failed write transaction - network",
                      units = Units.MILLISECONDS)
-   public final float getAvgReadDurationForNetworkTimeoutFailedTx() {
+   public final float getAvgReadDurationForNetworkTimeoutFailedWriteTx() {
       return nanosToMillis(average(NETWORK_TIMEOUT, READ_DUR_WRT_TX, NUM_READ_WRT_TX));
    }
 
@@ -267,6 +267,95 @@ public class TransactionalStatisticsManager implements StatisticsManager {
                      units = Units.MILLISECONDS)
    public final float getAvgReadDurationForUnknownFailedWriteTx() {
       return nanosToMillis(average(UNKNOWN_ERROR, READ_DUR_WRT_TX, NUM_READ_WRT_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per read-only transaction, for successful " +
+         "transactions",
+                     displayName = "Avg no of reads per successful read-only transaction")
+   public final float getAvgNumReadsForSuccessReadOnlyTx() {
+      return average(SUCCESS, NUM_READ_RD_TX, NUM_LOCAL_RD_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in successful read-only transactions",
+                     displayName = "Avg read duration in successful read-only transaction",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForSuccessReadOnlyTx() {
+      return nanosToMillis(average(SUCCESS, READ_DUR_RD_TX, NUM_READ_RD_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per read-only transaction, for transactions " +
+         "that has failed due to lock timeout",
+                     displayName = "Avg no of reads per failed read-only transaction - lock")
+   public final float getAvgNumReadsForLockTimeoutFailedReadOnlyTx() {
+      return average(LOCK_TIMEOUT, NUM_READ_RD_TX, NUM_LOCAL_RD_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in lock timeout failed" +
+         " read-only transactions",
+                     displayName = "Avg read duration in failed read-only transaction - lock",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForLockTimeoutFailedReadOnlyTx() {
+      return nanosToMillis(average(LOCK_TIMEOUT, READ_DUR_RD_TX, NUM_READ_RD_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per read-only transaction, for transactions " +
+         "that has failed due to network timeout",
+                     displayName = "Avg no of reads per failed read-only transaction - network")
+   public final float getAvgNumReadForNetworkTimeoutFailedReadOnlyTx() {
+      return average(NETWORK_TIMEOUT, NUM_READ_RD_TX, NUM_LOCAL_RD_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in network timeout failed" +
+         " read-only transactions",
+                     displayName = "Avg read duration in failed read-only transaction - network",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForNetworkTimeoutFailedReadOnlyTx() {
+      return nanosToMillis(average(NETWORK_TIMEOUT, READ_DUR_RD_TX, NUM_READ_RD_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per read-only transaction, for transactions " +
+         "that has failed due to deadlocks",
+                     displayName = "Avg no of reads per failed read-only transaction - deadlock")
+   public final float getAvgNumReadsForDeadlockFailedReadOnlyTx() {
+      return average(DEADLOCK, NUM_READ_RD_TX, NUM_LOCAL_RD_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in deadlock failed" +
+         " read-only transactions",
+                     displayName = "Avg read duration in failed read-only transaction - deadlock",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForDeadlockFailedReadOnlyTx() {
+      return nanosToMillis(average(DEADLOCK, READ_DUR_RD_TX, NUM_READ_RD_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per read-only transaction, for transactions " +
+         "that has failed due to validation",
+                     displayName = "Avg no of reads per failed read-only transaction - validation")
+   public final float getAvgNumReadsForValidationFailedReadOnlyTx() {
+      return average(VALIDATION, NUM_READ_RD_TX, NUM_LOCAL_RD_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in validation failed" +
+         " read-only transactions",
+                     displayName = "Avg read duration in failed read-only transaction - validation",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForValidationFailedReadOnlyTx() {
+      return nanosToMillis(average(VALIDATION, READ_DUR_RD_TX, NUM_READ_RD_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per read-only transaction, for transactions " +
+         "that has failed due to an unknown error",
+                     displayName = "Avg no of reads per failed read-only transaction - unknown")
+   public final float getAvgNumReadsForUnknownFailedReadOnlyTx() {
+      return average(UNKNOWN_ERROR, NUM_READ_RD_TX, NUM_LOCAL_RD_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in unknown error failed" +
+         " read-only transactions",
+                     displayName = "Avg read duration in failed read-only transaction - unknown",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForUnknownFailedReadOnlyTx() {
+      return nanosToMillis(average(UNKNOWN_ERROR, READ_DUR_RD_TX, NUM_READ_RD_TX));
    }
 
    private boolean isLocal(GlobalTransaction globalTransaction) {
