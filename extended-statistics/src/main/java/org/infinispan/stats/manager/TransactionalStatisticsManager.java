@@ -93,7 +93,7 @@ public class TransactionalStatisticsManager implements StatisticsManager {
       return null;
    }
 
-   @ManagedAttribute(description = "Returns the average number of write per transaction, for successful transactions",
+   @ManagedAttribute(description = "Returns the average number of writes per transaction, for successful transactions",
                      displayName = "Avg no of writes per success transaction")
    public final float getAvgNumWritesForSuccessTx() {
       return average(SUCCESS, NUM_WRITE_WRT_TX, NUM_LOCAL_WRT_TX);
@@ -106,7 +106,7 @@ public class TransactionalStatisticsManager implements StatisticsManager {
       return nanosToMillis(average(SUCCESS, WRITE_DUR_WRT_TX, NUM_WRITE_WRT_TX));
    }
 
-   @ManagedAttribute(description = "Returns the average number of write per transaction, for transactions that has " +
+   @ManagedAttribute(description = "Returns the average number of writes per transaction, for transactions that has " +
          "failed due to lock timeout",
                      displayName = "Avg no of writes per failed transaction - lock")
    public final float getAvgNumWritesForLockTimeoutFailedTx() {
@@ -121,7 +121,7 @@ public class TransactionalStatisticsManager implements StatisticsManager {
       return nanosToMillis(average(LOCK_TIMEOUT, WRITE_DUR_WRT_TX, NUM_WRITE_WRT_TX));
    }
 
-   @ManagedAttribute(description = "Returns the average number of write per transaction, for transactions that has " +
+   @ManagedAttribute(description = "Returns the average number of writes per transaction, for transactions that has " +
          "failed due to network timeout",
                      displayName = "Avg no of writes per failed transaction - network")
    public final float getAvgNumWritesForNetworkTimeoutFailedTx() {
@@ -136,7 +136,7 @@ public class TransactionalStatisticsManager implements StatisticsManager {
       return nanosToMillis(average(NETWORK_TIMEOUT, WRITE_DUR_WRT_TX, NUM_WRITE_WRT_TX));
    }
 
-   @ManagedAttribute(description = "Returns the average number of write per transaction, for transactions that has " +
+   @ManagedAttribute(description = "Returns the average number of writes per transaction, for transactions that has " +
          "failed due to deadlocks",
                      displayName = "Avg no of writes per failed transaction - deadlock")
    public final float getAvgNumWritesForDeadlockFailedTx() {
@@ -151,7 +151,7 @@ public class TransactionalStatisticsManager implements StatisticsManager {
       return nanosToMillis(average(DEADLOCK, WRITE_DUR_WRT_TX, NUM_WRITE_WRT_TX));
    }
 
-   @ManagedAttribute(description = "Returns the average number of write per transaction, for transactions that has " +
+   @ManagedAttribute(description = "Returns the average number of writes per transaction, for transactions that has " +
          "failed due to validation",
                      displayName = "Avg no of writes per failed transaction - validation")
    public final float getAvgNumWritesForValidationFailedTx() {
@@ -166,7 +166,7 @@ public class TransactionalStatisticsManager implements StatisticsManager {
       return nanosToMillis(average(VALIDATION, WRITE_DUR_WRT_TX, NUM_WRITE_WRT_TX));
    }
 
-   @ManagedAttribute(description = "Returns the average number of write per transaction, for transactions that has " +
+   @ManagedAttribute(description = "Returns the average number of writes per transaction, for transactions that has " +
          "failed due to an unknown error",
                      displayName = "Avg no of writes per failed transaction - unknown")
    public final float getAvgNumWritesForUnknownFailedTx() {
