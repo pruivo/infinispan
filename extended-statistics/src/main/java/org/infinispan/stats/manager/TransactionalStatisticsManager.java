@@ -181,6 +181,94 @@ public class TransactionalStatisticsManager implements StatisticsManager {
       return nanosToMillis(average(UNKNOWN_ERROR, WRITE_DUR_WRT_TX, NUM_WRITE_WRT_TX));
    }
 
+   @ManagedAttribute(description = "Returns the average number of reads per write transaction, for successful transactions",
+                     displayName = "Avg no of reads per successful write transaction")
+   public final float getAvgNumReadsForSuccessWriteTx() {
+      return average(SUCCESS, NUM_READ_WRT_TX, NUM_LOCAL_WRT_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in successful write transactions",
+                     displayName = "Avg read duration in successful write transaction",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForSuccessWriteTx() {
+      return nanosToMillis(average(SUCCESS, READ_DUR_WRT_TX, NUM_READ_WRT_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per write transaction, for transactions that has " +
+         "failed due to lock timeout",
+                     displayName = "Avg no of reads per failed write transaction - lock")
+   public final float getAvgNumReadsForLockTimeoutFailedWriteTx() {
+      return average(LOCK_TIMEOUT, NUM_READ_WRT_TX, NUM_LOCAL_WRT_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in lock timeout failed" +
+         " write transactions",
+                     displayName = "Avg read duration in failed write transaction - lock",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForLockTimeoutFailedWriteTx() {
+      return nanosToMillis(average(LOCK_TIMEOUT, READ_DUR_WRT_TX, NUM_READ_WRT_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per write transaction, for transactions that has " +
+         "failed due to network timeout",
+                     displayName = "Avg no of reads per failed write transaction - network")
+   public final float getAvgNumReadForNetworkTimeoutFailedWriteTx() {
+      return average(NETWORK_TIMEOUT, NUM_READ_WRT_TX, NUM_LOCAL_WRT_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in network timeout failed" +
+         " write transactions",
+                     displayName = "Avg read duration in failed write transaction - network",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForNetworkTimeoutFailedTx() {
+      return nanosToMillis(average(NETWORK_TIMEOUT, READ_DUR_WRT_TX, NUM_READ_WRT_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per write transaction, for transactions that has " +
+         "failed due to deadlocks",
+                     displayName = "Avg no of reads per failed write transaction - deadlock")
+   public final float getAvgNumReadsForDeadlockFailedWriteTx() {
+      return average(DEADLOCK, NUM_READ_WRT_TX, NUM_LOCAL_WRT_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in deadlock failed" +
+         " write transactions",
+                     displayName = "Avg read duration in failed write transaction - deadlock",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForDeadlockFailedWriteTx() {
+      return nanosToMillis(average(DEADLOCK, READ_DUR_WRT_TX, NUM_READ_WRT_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per write transaction, for transactions that has " +
+         "failed due to validation",
+                     displayName = "Avg no of reads per failed write transaction - validation")
+   public final float getAvgNumReadsForValidationFailedWriteTx() {
+      return average(VALIDATION, NUM_READ_WRT_TX, NUM_LOCAL_WRT_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in validation failed" +
+         " write transactions",
+                     displayName = "Avg read duration in failed write transaction - validation",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForValidationFailedWriteTx() {
+      return nanosToMillis(average(VALIDATION, READ_DUR_WRT_TX, NUM_READ_WRT_TX));
+   }
+
+   @ManagedAttribute(description = "Returns the average number of reads per write transaction, for transactions that has " +
+         "failed due to an unknown error",
+                     displayName = "Avg no of reads per failed write transaction - unknown")
+   public final float getAvgNumReadsForUnknownFailedWriteTx() {
+      return average(UNKNOWN_ERROR, NUM_READ_WRT_TX, NUM_LOCAL_WRT_TX);
+   }
+
+   @ManagedAttribute(description = "Returns the average duration of a read operation in unknown error failed" +
+         " write transactions",
+                     displayName = "Avg read duration in failed write transaction - unknown",
+                     units = Units.MILLISECONDS)
+   public final float getAvgReadDurationForUnknownFailedWriteTx() {
+      return nanosToMillis(average(UNKNOWN_ERROR, READ_DUR_WRT_TX, NUM_READ_WRT_TX));
+   }
+
    private boolean isLocal(GlobalTransaction globalTransaction) {
       return rpcManager.getAddress().equals(globalTransaction.getAddress());
    }
