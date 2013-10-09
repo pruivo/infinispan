@@ -25,6 +25,8 @@ package org.infinispan.config;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
+import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.statetransfer.StateTransferManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -148,8 +150,8 @@ public class QueryableDataContainer implements DataContainer {
    }
 
    @Override
-   public void gc(EntryVersion minimumVersion) {
-      delegate.gc(minimumVersion);
+   public void gc(EntryVersion minimumVersion, StateTransferManager stateTransferManager, RpcManager rpcManager) {
+      delegate.gc(minimumVersion, stateTransferManager, rpcManager);
    }
 
    public Collection<String> getLoggedOperations() {

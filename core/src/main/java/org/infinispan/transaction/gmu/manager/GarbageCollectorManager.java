@@ -45,6 +45,7 @@ import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.rpc.ResponseMode;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.topology.ClusterTopologyManager;
 import org.infinispan.transaction.LocalTransaction;
 import org.infinispan.transaction.TransactionTable;
@@ -84,12 +85,13 @@ public class GarbageCollectorManager {
    private L1GarbageCollectorThread l1GarbageCollectorThread;
    private ViewGarbageCollectorThread viewGarbageCollectorThread;
    private CacheManagerNotifier cacheManagerNotifier;
+   private StateTransferManager stateTransferManager;
 
    @Inject
    public void inject(CommitLog commitLog, CommandsFactory commandsFactory, RpcManager rpcManager,
                       Configuration configuration, VersionGenerator versionGenerator, DataContainer dataContainer,
                       TransactionTable transactionTable, L1GMUContainer l1GMUContainer, ClusterTopologyManager clusterTopologyManager,
-                      CacheManagerNotifier cacheManagerNotifier) {
+                      CacheManagerNotifier cacheManagerNotifier, StateTransferManager stateTransferManager) {
       this.configuration = configuration;
       if (configuration.locking().isolationLevel() != IsolationLevel.SERIALIZABLE) {
          return;
@@ -103,6 +105,7 @@ public class GarbageCollectorManager {
       this.l1GMUContainer = l1GMUContainer;
       this.clusterTopologyManager = clusterTopologyManager;
       this.cacheManagerNotifier = cacheManagerNotifier;
+      this.stateTransferManager = stateTransferManager;
    }
 
    @Start
@@ -332,7 +335,7 @@ public class GarbageCollectorManager {
             }
 
             //step 4
-            dataContainer.gc(minimumLocalVersion);
+            dataContainer.gc(minimumLocalVersion, stateTransferManager, rpcManager);
          } catch (Throwable throwable) {
             log.warnf("Exception caught while garbage collecting oldest versions: " + throwable.getLocalizedMessage());
          }

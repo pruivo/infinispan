@@ -29,6 +29,7 @@ import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.ConfigurationStateCommand;
 import org.infinispan.commands.remote.GMUClusteredGetCommand;
+import org.infinispan.commands.remote.GarbageCollectorControlCommand;
 import org.infinispan.commands.tx.AbstractTransactionBoundaryCommand;
 import org.infinispan.commands.tx.GMUCommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
@@ -348,7 +349,9 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
          });
          gmuExecutorService.checkForReadyTasks();
          return;
-      } else if ((cmd instanceof StateResponseCommand) || ((cmd instanceof StateRequestCommand) && ( ((StateRequestCommand)cmd).getType() == StateRequestCommand.Type.GET_TRANSACTIONS || ((StateRequestCommand)cmd).getType() == StateRequestCommand.Type.START_STATE_TRANSFER)) ){
+      } else if ((cmd instanceof StateResponseCommand) ||
+            ((cmd instanceof StateRequestCommand) && ( ((StateRequestCommand)cmd).getType() == StateRequestCommand.Type.GET_TRANSACTIONS || ((StateRequestCommand)cmd).getType() == StateRequestCommand.Type.START_STATE_TRANSFER)) ||
+            (cmd instanceof GarbageCollectorControlCommand)){
 
          topologyExecutorService.execute(new BlockingRunnable() {
             @Override

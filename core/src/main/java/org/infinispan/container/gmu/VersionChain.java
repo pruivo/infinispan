@@ -179,6 +179,16 @@ public abstract class VersionChain<T> {
       return size;
    }
 
+   public final boolean atMostOneVersion() {
+      VersionBody<T> iterator;
+      int size = 0;
+      synchronized (this) {
+         iterator = first;
+      }
+      return iterator == null || iterator.getPrevious() == null;
+
+   }
+
    protected abstract VersionBody<T> newValue(T value);
 
    protected abstract void writeValue(BufferedWriter writer, T value) throws IOException;

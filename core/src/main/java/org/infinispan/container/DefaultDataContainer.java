@@ -27,6 +27,8 @@ import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.eviction.EvictionStrategy;
 import org.infinispan.eviction.EvictionThreadPolicy;
+import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.util.Util;
 
 import java.io.BufferedWriter;
@@ -212,7 +214,7 @@ public class DefaultDataContainer extends AbstractDataContainer<InternalCacheEnt
    }
 
    @Override
-   public void gc(EntryVersion minimumVersion) {
+   public void gc(EntryVersion minimumVersion, StateTransferManager stateTransferManager, RpcManager rpcManager) {
       //no-op
    }
 

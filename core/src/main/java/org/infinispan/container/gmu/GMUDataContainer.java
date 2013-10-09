@@ -35,6 +35,8 @@ import org.infinispan.container.versioning.gmu.GMUReadVersion;
 import org.infinispan.eviction.EvictionStrategy;
 import org.infinispan.eviction.EvictionThreadPolicy;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.transaction.gmu.CommitLog;
 import org.infinispan.util.Util;
 import org.infinispan.util.logging.Log;
@@ -44,6 +46,8 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -58,6 +62,7 @@ import static org.infinispan.container.gmu.GMUEntryFactoryImpl.wrap;
 public class GMUDataContainer extends AbstractDataContainer<GMUDataContainer.DataContainerVersionChain> {
 
    private static final Log log = LogFactory.getLog(GMUDataContainer.class);
+   private static final boolean debug = log.isDebugEnabled();
    private CommitLog commitLog;
 
    protected GMUDataContainer(int concurrencyLevel) {
@@ -310,9 +315,26 @@ public class GMUDataContainer extends AbstractDataContainer<GMUDataContainer.Dat
    }
 
    @Override
-   public final void gc(EntryVersion minimumVersion) {
-      for (DataContainerVersionChain versionChain : entries.values()) {
-         versionChain.gc(minimumVersion);
+   public final void gc(EntryVersion minimumVersion, StateTransferManager stateTransferManager, RpcManager rpcManager) {
+
+      List<Object> toRemove = new LinkedList<Object>();
+
+      for(Map.Entry<Object,DataContainerVersionChain> entry : entries.entrySet()){
+         entry.getValue().gc(minimumVersion);
+
+         if(stateTransferManager != null &&
+               rpcManager != null &&
+               !stateTransferManager.getCacheTopology().getWriteConsistentHash().isKeyLocalToNode(rpcManager.getAddress(), entry.getKey())) {
+            //We can GC also the first version (if alone) since this node is not the owner of this key. The first version is migrated on an acceptor of a state transfer.
+            if(entry.getValue().atMostOneVersion()) {
+               toRemove.add(entry.getKey());
+               if(debug)log.debug("The key "+entry.getKey()+" is going to be removed.");
+            }
+         }
+      }
+
+      for(Object key: toRemove) {
+         entries.remove(key);
       }
    }
 

@@ -30,6 +30,8 @@ import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.factories.annotations.Stop;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
+import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.statetransfer.StateTransferManager;
 
 /**
  * The main internal data structure which stores entries
@@ -166,5 +168,5 @@ public interface DataContainer extends Iterable<InternalCacheEntry> {
 
    boolean dumpTo(String filePath);
 
-   void gc(EntryVersion minimumVersion);
+   void gc(EntryVersion minimumVersion, StateTransferManager stateTransferManager, RpcManager rpcManager);
 }
