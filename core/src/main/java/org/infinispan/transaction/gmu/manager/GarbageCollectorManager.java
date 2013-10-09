@@ -81,9 +81,9 @@ public class GarbageCollectorManager {
    private L1GMUContainer l1GMUContainer;
    private ClusterTopologyManager clusterTopologyManager;
    private boolean enabled;
-   private VersionGarbageCollectorThread versionGarbageCollectorThread;
-   private L1GarbageCollectorThread l1GarbageCollectorThread;
-   private ViewGarbageCollectorThread viewGarbageCollectorThread;
+   private VersionGarbageCollectorThread versionGarbageCollectorThread = null;
+   private L1GarbageCollectorThread l1GarbageCollectorThread = null;
+   private ViewGarbageCollectorThread viewGarbageCollectorThread = null;
    private CacheManagerNotifier cacheManagerNotifier;
    private StateTransferManager stateTransferManager;
 
@@ -116,12 +116,12 @@ public class GarbageCollectorManager {
       if (enabled) {
          versionGarbageCollectorThread = new VersionGarbageCollectorThread(configuration.garbageCollector().transactionThreshold(),
                                                                            configuration.garbageCollector().versionGCMaxIdle());
-         l1GarbageCollectorThread = new L1GarbageCollectorThread(configuration.garbageCollector().l1GCInterval());
-         viewGarbageCollectorThread = new ViewGarbageCollectorThread(configuration.garbageCollector().viewGCBackOff());
+         //l1GarbageCollectorThread = new L1GarbageCollectorThread(configuration.garbageCollector().l1GCInterval());
+         //viewGarbageCollectorThread = new ViewGarbageCollectorThread(configuration.garbageCollector().viewGCBackOff());
 
          versionGarbageCollectorThread.start();
-         l1GarbageCollectorThread.start();
-         viewGarbageCollectorThread.start();
+         //l1GarbageCollectorThread.start();
+         //viewGarbageCollectorThread.start();
          cacheManagerNotifier.addListener(this);
       }
    }
@@ -130,8 +130,10 @@ public class GarbageCollectorManager {
    public void stop() {
       if (enabled) {
          versionGarbageCollectorThread.interrupt();
-         l1GarbageCollectorThread.interrupt();
-         viewGarbageCollectorThread.interrupt();
+         if(l1GarbageCollectorThread != null)
+            l1GarbageCollectorThread.interrupt();
+         if(viewGarbageCollectorThread != null)
+            viewGarbageCollectorThread.interrupt();
          cacheManagerNotifier.removeListener(this);
       }
    }
@@ -170,7 +172,8 @@ public class GarbageCollectorManager {
       if (!enabled) {
          return;
       }
-      viewGarbageCollectorThread.triggerNow();
+      if(viewGarbageCollectorThread != null)
+         viewGarbageCollectorThread.triggerNow();
    }
 
    /**
@@ -184,7 +187,8 @@ public class GarbageCollectorManager {
       if (!enabled || configuration.clustering().cacheMode().isReplicated()) {
          return;
       }
-      l1GarbageCollectorThread.trigger();
+      if(l1GarbageCollectorThread != null)
+         l1GarbageCollectorThread.trigger();
    }
 
    public final GMUVersion handleGetMinimumVisibleVersion() {
@@ -231,7 +235,8 @@ public class GarbageCollectorManager {
    @ViewChanged
    @Merged
    public final void handle(Event event) {
-      viewGarbageCollectorThread.trigger();
+      if(viewGarbageCollectorThread != null)
+         viewGarbageCollectorThread.trigger();
    }
 
    private long getTimeout() {
