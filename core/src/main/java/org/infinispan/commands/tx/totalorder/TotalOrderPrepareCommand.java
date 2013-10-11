@@ -20,6 +20,7 @@ package org.infinispan.commands.tx.totalorder;
 
 import org.infinispan.commands.tx.TransactionBoundaryCommand;
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.reconfigurableprotocol.exception.NoSuchReconfigurableProtocolException;
 import org.infinispan.transaction.TotalOrderRemoteTransactionState;
 
 /**
@@ -61,4 +62,8 @@ public interface TotalOrderPrepareCommand extends TransactionBoundaryCommand {
    TotalOrderRemoteTransactionState getOrCreateState();
 
    Object[][] getKeysToLock();
+
+   void notifyTotalOrderRemoteTransaction() throws NoSuchReconfigurableProtocolException, InterruptedException;
+
+   boolean isOnePhaseCommit();
 }

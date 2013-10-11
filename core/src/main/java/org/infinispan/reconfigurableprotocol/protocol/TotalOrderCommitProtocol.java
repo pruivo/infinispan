@@ -97,6 +97,10 @@ public class TotalOrderCommitProtocol extends ReconfigurableProtocol {
    @Override
    public final void processOldTransaction(GlobalTransaction globalTransaction, Object[] affectedKeys,
                                            ReconfigurableProtocol currentProtocol) {
+      if (affectedKeys == null) {
+         //commit or rollback command
+         return;
+      }
       try {
          throwOldTxException(globalTransaction);
       } catch (CacheException ce) {

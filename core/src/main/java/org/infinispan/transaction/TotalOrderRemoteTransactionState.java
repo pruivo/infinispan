@@ -233,6 +233,14 @@ public class TotalOrderRemoteTransactionState {
       return dependencies == null ? InfinispanCollections.<TotalOrderLatch>emptyList() : dependencies;
    }
 
+   /**
+    * @return {@code true} if the {@link org.infinispan.commands.tx.RollbackCommand} was received.n
+    */
+   public synchronized boolean failedToNotify() {
+      transactionState.add(State.PREPARED);
+      return transactionState.contains(State.ROLLBACK_ONLY);
+   }
+
    private static enum State {
       /**
        * the prepare command was received and started the validation

@@ -25,6 +25,7 @@ package org.infinispan.commands.tx;
 import org.infinispan.commands.Visitor;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.reconfigurableprotocol.exception.NoSuchReconfigurableProtocolException;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.transaction.RemoteTransaction;
 
@@ -62,7 +63,8 @@ public class RollbackCommand extends AbstractTransactionBoundaryCommand {
    }
 
    @Override
-   public void visitRemoteTransaction(RemoteTransaction tx) {
+   protected void visitRemoteTransaction(RemoteTransaction tx) throws NoSuchReconfigurableProtocolException, InterruptedException {
+      super.visitRemoteTransaction(tx);
       tx.markForRollback(true);
    }
 

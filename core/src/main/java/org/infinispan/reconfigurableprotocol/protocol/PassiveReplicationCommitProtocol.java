@@ -119,6 +119,10 @@ public class PassiveReplicationCommitProtocol extends ReconfigurableProtocol {
    public final void processOldTransaction(GlobalTransaction globalTransaction, Object[] affectedKeys,
                                            ReconfigurableProtocol currentProtocol) {
       logProcessOldTransaction(globalTransaction, currentProtocol);
+      if (affectedKeys == null) {
+         //commit or rollback command
+         return;
+      }
       if (TWO_PC_UID.equals(currentProtocol.getUniqueProtocolName())) {
          return;
       }

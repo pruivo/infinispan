@@ -96,13 +96,12 @@ public class TwoPhaseCommitProtocol extends ReconfigurableProtocol {
    public final void processOldTransaction(GlobalTransaction globalTransaction, Object[] affectedKeys,
                                            ReconfigurableProtocol currentProtocol) {
       logProcessOldTransaction(globalTransaction, currentProtocol);
+      if (affectedKeys == null) {
+         //commit or rollback command
+         return;
+      }
       if (PB_UID.equals(currentProtocol.getUniqueProtocolName())) {
          return;
-      } else if (TO_UID.equals(currentProtocol.getUniqueProtocolName())) {
-         if (affectedKeys == null) {
-            //commit or rollback
-            return;
-         }
       }
 
       /*RemoteTransaction remoteTransaction = transactionTable.getRemoteTransaction(globalTransaction);

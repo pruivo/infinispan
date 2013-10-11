@@ -57,6 +57,7 @@ import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
 import org.infinispan.stats.container.TransactionStatistics;
 import org.infinispan.transaction.TotalOrderRemoteTransactionState;
+import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.totalorder.TotalOrderLatch;
 import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.util.concurrent.BlockingRunnable;
@@ -161,9 +162,30 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       commandsFactory.initializeReplicableCommand(cmd, true);
       final long arrivalTime = System.nanoTime();
       if (cmd instanceof TotalOrderPrepareCommand) {
-         final TotalOrderRemoteTransactionState state = ((TotalOrderPrepareCommand) cmd).getOrCreateState();
+         TotalOrderPrepareCommand prepareCommand = (TotalOrderPrepareCommand) cmd;
+         if (prepareCommand.isOnePhaseCommit()) {
+            //the notifyTotalOrderRemoteTransaction does not change the state in TransactionTable neither in
+            //ReconfigurableReplicationManager
+            prepareCommand.notifyTotalOrderRemoteTransaction();
+         } else {
+            //we need to sync with the second phase commands
+            TotalOrderRemoteTransactionState state = prepareCommand.getOrCreateState();
+            try {
+               prepareCommand.notifyTotalOrderRemoteTransaction();
+            } catch (Throwable t) {
+               if (state.failedToNotify()) {
+                  //in this scenario, the rollback command was already received and the ReconfigurableReplicationManager
+                  // has decided to refuse the command.
+                  //we have to do the cleanup work
+                  cr.getComponent(TransactionTable.class).remoteTransactionRollback(prepareCommand.getGlobalTransaction());
+               }
+               throw t;
+            }
+
+         }
+         final TotalOrderRemoteTransactionState state = prepareCommand.getOrCreateState();
          final TotalOrderManager totalOrderManager = cr.getTotalOrderManager();
-         totalOrderManager.ensureOrder(state, ((TotalOrderPrepareCommand) cmd).getKeysToLock());
+         totalOrderManager.ensureOrder(state, prepareCommand.getKeysToLock());
          final boolean hasWaited = isTOGoingToWait(state);
          totalOrderExecutorService.execute(new BlockingRunnable() {
             @Override

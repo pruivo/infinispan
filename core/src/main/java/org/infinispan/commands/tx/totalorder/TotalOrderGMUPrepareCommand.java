@@ -21,13 +21,11 @@ package org.infinispan.commands.tx.totalorder;
 
 import org.infinispan.commands.tx.GMUPrepareCommand;
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.reconfigurableprotocol.exception.NoSuchReconfigurableProtocolException;
 import org.infinispan.transaction.TotalOrderRemoteTransactionState;
 import org.infinispan.transaction.xa.GlobalTransaction;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * // TODO: Document this
@@ -84,5 +82,16 @@ public class TotalOrderGMUPrepareCommand extends GMUPrepareCommand implements To
       keysWriteAndRead[0] = writeSet;
       keysWriteAndRead[1] = getReadSet();
       return keysWriteAndRead;
+   }
+
+   @Override
+   public final void notifyTotalOrderRemoteTransaction() throws NoSuchReconfigurableProtocolException, InterruptedException {
+      notifyRemoteTransaction(getGlobalTransaction(), getAffectedKeysToLock(false));
+   }
+
+   @Override
+   protected final void notifyRemoteTransactionOnPrepare(GlobalTransaction globalTransaction, Object[] affectedKeys)
+         throws NoSuchReconfigurableProtocolException, InterruptedException {
+      //no-op
    }
 }

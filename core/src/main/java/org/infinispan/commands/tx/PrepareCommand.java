@@ -37,6 +37,7 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.RemoteTxInvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
+import org.infinispan.reconfigurableprotocol.exception.NoSuchReconfigurableProtocolException;
 import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.transaction.xa.recovery.RecoveryManager;
@@ -130,7 +131,8 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
       if (hasModifications()) {
          remoteTransaction.setModifications(Arrays.asList(modifications));
       }
-      reconfigurableReplicationManager.notifyRemoteTransaction(getGlobalTransaction(), getAffectedKeysToLock(false));
+
+      notifyRemoteTransactionOnPrepare(getGlobalTransaction(), getAffectedKeysToLock(false));
 
       // 2. then set it on the invocation context
       RemoteTxInvocationContext ctx = icc.createRemoteTxInvocationContext(remoteTransaction, getOrigin());
@@ -139,6 +141,11 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
          log.tracef("Invoking remotely originated prepare: %s with invocation context: %s", this, ctx);
       notifier.notifyTransactionRegistered(ctx.getGlobalTransaction(), ctx);
       return invoker.invoke(ctx, this);
+   }
+
+   protected void notifyRemoteTransactionOnPrepare(GlobalTransaction globalTransaction, Object[] affectedKeys)
+         throws NoSuchReconfigurableProtocolException, InterruptedException {
+      notifyRemoteTransaction(globalTransaction, affectedKeys);
    }
 
    @Override

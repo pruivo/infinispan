@@ -20,6 +20,7 @@ package org.infinispan.commands.tx.totalorder;
 
 import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.reconfigurableprotocol.exception.NoSuchReconfigurableProtocolException;
 import org.infinispan.transaction.TotalOrderRemoteTransactionState;
 import org.infinispan.transaction.xa.GlobalTransaction;
 
@@ -77,6 +78,17 @@ public class TotalOrderVersionedPrepareCommand extends VersionedPrepareCommand i
    @Override
    public Object[][] getKeysToLock() {
       Object[] writeSet = getAffectedKeysToLock(false);
-      return writeSet == null ? null : new Object[][] {writeSet};
+      return writeSet == null ? null : new Object[][]{writeSet};
+   }
+
+   @Override
+   public final void notifyTotalOrderRemoteTransaction() throws NoSuchReconfigurableProtocolException, InterruptedException {
+      notifyRemoteTransaction(getGlobalTransaction(), getAffectedKeysToLock(false));
+   }
+
+   @Override
+   protected void notifyRemoteTransactionOnPrepare(GlobalTransaction globalTransaction, Object[] affectedKeys)
+         throws NoSuchReconfigurableProtocolException, InterruptedException {
+      //no-op
    }
 }

@@ -126,7 +126,12 @@ public abstract class AbstractTransactionBoundaryCommand implements TransactionB
 
    protected void visitRemoteTransaction(RemoteTransaction tx) throws NoSuchReconfigurableProtocolException, InterruptedException {
       tx.getGlobalTransaction().update(globalTx);
-      reconfigurableReplicationManager.notifyRemoteTransaction(tx.getGlobalTransaction(), null);
+      notifyRemoteTransaction(tx.getGlobalTransaction(), null);
+   }
+
+   protected final void notifyRemoteTransaction(GlobalTransaction globalTransaction, Object[] affectedKeys)
+         throws NoSuchReconfigurableProtocolException, InterruptedException {
+      reconfigurableReplicationManager.notifyRemoteTransaction(globalTransaction, affectedKeys);
    }
 
    protected RemoteTransaction getRemoteTransaction() {
