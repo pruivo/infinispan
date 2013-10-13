@@ -209,7 +209,7 @@ public class StateConsumerTest extends AbstractInfinispanTest {
       final StateConsumerImpl stateConsumer = new StateConsumerImpl();
       stateConsumer.init(cache, blockingservice, stateTransferManager, interceptorChain, icc, configuration, rpcManager, null,
             commandsFactory, cacheLoaderManager, dataContainer, transactionTable, stateTransferLock, cacheNotifier, totalOrderManager,
-            null, blockingservice, reconfigurableReplicationManager, trasanctionCommitManager);
+            null, blockingservice, reconfigurableReplicationManager, trasanctionCommitManager, blockingservice);
       stateConsumer.start();
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();

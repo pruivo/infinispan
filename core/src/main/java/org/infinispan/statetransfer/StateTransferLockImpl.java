@@ -106,6 +106,13 @@ public class StateTransferLockImpl implements StateTransferLock {
    }
 
    @Override
+   public boolean transactionDataReceived(int expectedTopologyId) {
+      if (trace) log.tracef("Checking if transaction data was received for topology %s, current topology is %s",
+            expectedTopologyId, transactionDataTopologyId);
+      return transactionDataTopologyId >= expectedTopologyId;
+   }
+
+   @Override
    public void notifyTopologyInstalled(int topologyId) {
       if (topologyId < this.topologyId) {
          throw new IllegalStateException("Cannot set a topology id (" + topologyId +

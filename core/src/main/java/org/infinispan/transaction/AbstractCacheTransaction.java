@@ -223,6 +223,12 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
    }
 
    @Override
+   public boolean hasToWaitForLockRelease(Object key) {
+      if (txComplete) return false;
+      return hasLockOrIsLockBackup(key);
+   }
+
+   @Override
    public int getTopologyId() {
       return topologyId;
    }

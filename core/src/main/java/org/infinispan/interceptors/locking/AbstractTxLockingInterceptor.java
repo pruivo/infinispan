@@ -35,6 +35,7 @@ import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.transaction.LocalTransaction;
+import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
@@ -183,13 +184,13 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
          waitForTransactionsToComplete(txContext, txTable.getRemoteTransactions(), key, transactionTopologyId, expectedEndTime);
 
          // Then try to acquire a lock
-         final long remaining = expectedEndTime - nowMillis();
+         long remaining = expectedEndTime - nowMillis();
          if (remaining <= 0) {
-            throw newTimeoutException(key, txContext);
-         } else {
-            getLog().tracef("Finished waiting for other potential lockers, trying to acquire the lock on %s", key);
-            lockManager.acquireLock(ctx, key, remaining, skipLocking, share);
+            remaining = 0L;
          }
+         getLog().tracef("Finished waiting for other potential lockers, trying to acquire the lock on %s", key);
+         lockManager.acquireLock(ctx, key, remaining, skipLocking, share);
+
       } else {
          getLog().tracef("Locking key %s, no need to check for pending locks.", key);
          lockManager.acquireLock(ctx, key, lockTimeout, skipLocking, share);
@@ -202,7 +203,7 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
       for (CacheTransaction tx : transactions) {
          if (tx.getTopologyId() < transactionTopologyId) {
             // don't wait for the current transaction
-            if (tx.getGlobalTransaction().equals(thisTransaction))
+            if (tx.getGlobalTransaction().equals(thisTransaction) || !tx.hasToWaitForLockRelease(key))
                continue;
 
             boolean txCompleted = false;
@@ -216,7 +217,7 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
             }
 
             if (!txCompleted) {
-               throw newTimeoutException(key, txContext);
+               throw newTimeoutException(key, txContext, tx);
             }
          }
       }
@@ -225,6 +226,11 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
    private TimeoutException newTimeoutException(Object key, TxInvocationContext txContext) {
       return new TimeoutException("Could not acquire lock on " + key + " on behalf of transaction " +
                                        txContext.getGlobalTransaction() + ". Lock is being held by " + lockManager.getOwner(key));
+   }
+
+   private TimeoutException newTimeoutException(Object key, TxInvocationContext txContext, CacheTransaction tx) {
+      return new TimeoutException("Could not acquire lock on " + key + " on behalf of transaction " +
+                                        txContext.getGlobalTransaction() + ". Lock is being held by " + lockManager.getOwner(key)+". Is Missing Lookedup entries="+((tx instanceof RemoteTransaction)?((RemoteTransaction)tx).isMissingLookedUpEntries():"false")+" "+tx);
    }
 
    protected boolean releaseLockOnTxCompletion(TxInvocationContext ctx) {

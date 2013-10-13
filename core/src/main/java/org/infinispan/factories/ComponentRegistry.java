@@ -36,6 +36,7 @@ import org.infinispan.lifecycle.ModuleLifecycle;
 import org.infinispan.marshall.StreamingMarshaller;
 import org.infinispan.notifications.cachemanagerlistener.CacheManagerNotifier;
 import org.infinispan.remoting.responses.ResponseGenerator;
+import org.infinispan.statetransfer.StateTransferLock;
 import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.util.InfinispanCollections;
@@ -65,6 +66,7 @@ public final class ComponentRegistry extends AbstractComponentRegistry {
    private ResponseGenerator responseGenerator;
    private CommandsFactory commandsFactory;
    private TotalOrderManager totalOrderManager;
+   private StateTransferLock stateTransferLock;
 
    protected final ClassLoader defaultClassLoader;
 
@@ -283,6 +285,13 @@ public final class ComponentRegistry extends AbstractComponentRegistry {
    }
 
    /**
+    * Caching shortcut for #getComponent(StateTransferManager.class);
+    */
+   public StateTransferLock getStateTransferLock() {
+      return stateTransferLock;
+   }
+
+   /**
     * Invoked last after all services are wired
     */
    public void cacheComponents() {
@@ -291,6 +300,7 @@ public final class ComponentRegistry extends AbstractComponentRegistry {
       responseGenerator = getOrCreateComponent(ResponseGenerator.class);
       commandsFactory = getLocalComponent(CommandsFactory.class);
       totalOrderManager = getOrCreateComponent(TotalOrderManager.class);
+      stateTransferLock = getOrCreateComponent(StateTransferLock.class);
    }
 
    @Override

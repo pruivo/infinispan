@@ -169,6 +169,7 @@ public class StateConsumerImpl implements StateConsumer {
    private VersionGenerator versionGenerator;
    private final Map<Address, TransactionInfo> shadowTransactionInfoReceiverMap = new HashMap<Address, TransactionInfo>();
    private TransactionCommitManager transactionCommitManager;
+   private BlockingTaskAwareExecutorService abstractTransactionBoundaryExecutorService;
 
    public StateConsumerImpl() {
    }
@@ -238,7 +239,8 @@ public class StateConsumerImpl implements StateConsumer {
                     VersionGenerator versionGenerator,
                     @ComponentName(KnownComponentNames.GMU_EXECUTOR) BlockingTaskAwareExecutorService gmuExecutorService,
                     ReconfigurableReplicationManager reconfigurableReplicationManager,
-                    TransactionCommitManager transactionCommitManager) {
+                    TransactionCommitManager transactionCommitManager,
+                                        @ComponentName(KnownComponentNames.ABSTRACT_TX_BOUNDARY_EXECUTOR) BlockingTaskAwareExecutorService abstractTransactionBoundaryExecutorService) {
       this.cacheName = cache.getName();
       this.executorService = executorService;
       this.stateTransferManager = stateTransferManager;
@@ -258,6 +260,7 @@ public class StateConsumerImpl implements StateConsumer {
       this.gmuExecutorService = gmuExecutorService;
       this.protocolManager = reconfigurableReplicationManager.getProtocolManager();
       this.transactionCommitManager = transactionCommitManager;
+      this.abstractTransactionBoundaryExecutorService = abstractTransactionBoundaryExecutorService;
 
       isInvalidationMode = configuration.clustering().cacheMode().isInvalidation();
 
@@ -451,6 +454,7 @@ public class StateConsumerImpl implements StateConsumer {
          }
       } finally {
          stateTransferLock.notifyTransactionDataReceived(cacheTopology.getTopologyId());
+         abstractTransactionBoundaryExecutorService.checkForReadyTasks();
 
          // Only set the flag here, after all the transfers have been added to the transfersBySource map
          if (rebalanceInProgress.get()) {

@@ -26,10 +26,14 @@ import org.infinispan.CacheException;
 import org.infinispan.commands.CancellableCommand;
 import org.infinispan.commands.CancellationService;
 import org.infinispan.commands.CommandsFactory;
+import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.commands.TopologyAffectedCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.ConfigurationStateCommand;
 import org.infinispan.commands.remote.GMUClusteredGetCommand;
 import org.infinispan.commands.remote.GarbageCollectorControlCommand;
+import org.infinispan.commands.remote.MultipleRpcCommand;
+import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.tx.AbstractTransactionBoundaryCommand;
 import org.infinispan.commands.tx.GMUCommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
@@ -56,6 +60,7 @@ import org.infinispan.remoting.transport.Transport;
 import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.statetransfer.StateResponseCommand;
+import org.infinispan.statetransfer.StateTransferLock;
 import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.stats.PiggyBackStat;
 import org.infinispan.stats.TransactionsStatisticsRegistry;
@@ -406,10 +411,13 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
          return;
       } else if (cmd instanceof AbstractTransactionBoundaryCommand){
 
+         final StateTransferLock stateTransferLock = cr.getStateTransferLock();
+         final int commandTopologyId = extractCommandTopologyId(cmd);
+
          abstractTransactionBoundaryExecutorService.execute(new BlockingRunnable() {
             @Override
             public boolean isReady() {
-               return true;
+               return stateTransferLock.transactionDataReceived(commandTopologyId);
             }
 
             @Override
@@ -452,6 +460,25 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
             cmd instanceof RollbackCommand) {
          gmuExecutorService.checkForReadyTasks();
       }
+   }
+
+   private int extractCommandTopologyId(CacheRpcCommand cmd) {
+      int commandTopologyId = -1;
+      if (cmd instanceof SingleRpcCommand) {
+         ReplicableCommand innerCmd = ((SingleRpcCommand) cmd).getCommand();
+         if (innerCmd instanceof TopologyAffectedCommand) {
+            commandTopologyId = ((TopologyAffectedCommand) innerCmd).getTopologyId();
+         }
+      } else if (cmd instanceof MultipleRpcCommand) {
+         for (ReplicableCommand innerCmd : ((MultipleRpcCommand) cmd).getCommands()) {
+            if (innerCmd instanceof TopologyAffectedCommand) {
+               commandTopologyId = Math.max(((TopologyAffectedCommand) innerCmd).getTopologyId(), commandTopologyId);
+            }
+         }
+      } else if (cmd instanceof TopologyAffectedCommand) {
+         commandTopologyId = ((TopologyAffectedCommand) cmd).getTopologyId();
+      }
+      return commandTopologyId;
    }
 
    private void reply(org.jgroups.blocks.Response response, Object retVal) {
