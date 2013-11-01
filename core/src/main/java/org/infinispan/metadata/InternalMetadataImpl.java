@@ -32,7 +32,7 @@ public class InternalMetadataImpl implements InternalMetadata {
    }
 
    public InternalMetadataImpl(Metadata actual, long created, long lastUsed) {
-      this.actual = actual;
+      this.actual = extractMetadata(actual);
       this.created = created;
       this.lastUsed = lastUsed;
    }
@@ -86,10 +86,6 @@ public class InternalMetadataImpl implements InternalMetadata {
    public boolean isExpired(long now) {
       long expiry = expiryTime();
       return expiry > 0 && expiry <= now;
-   }
-
-   public Metadata getActual() {
-      return actual;
    }
 
    @Override
@@ -155,5 +151,17 @@ public class InternalMetadataImpl implements InternalMetadata {
       public Set<Class<? extends InternalMetadataImpl>> getTypeClasses() {
          return Util.<Class<? extends InternalMetadataImpl>>asSet(InternalMetadataImpl.class);
       }
+   }
+
+   public static Metadata extractMetadata(Metadata metadata) {
+      Metadata toCheck = metadata;
+      while (toCheck != null) {
+         if (toCheck instanceof InternalMetadataImpl) {
+            toCheck = ((InternalMetadataImpl) toCheck).actual();
+         } else {
+            break;
+         }
+      }
+      return toCheck;
    }
 }
