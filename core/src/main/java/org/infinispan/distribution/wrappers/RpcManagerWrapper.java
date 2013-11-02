@@ -229,7 +229,7 @@ public class RpcManagerWrapper implements RpcManager {
             recipientSizeStat = IspnStats.NUM_NODES_COMPLETE_NOTIFY;
 
             log.tracef("Update stats for command %s. Is sync? %s. Duration stat is %s, counter stats is %s, " +
-                             "recipient size stat is %s", command, durationStat, counterStat, recipientSizeStat);
+                             "recipient size stat is %s", command, sync, durationStat, counterStat, recipientSizeStat);
 
             TransactionsStatisticsRegistry.addValueAndFlushIfNeeded(durationStat, System.nanoTime() - init, true);
             TransactionsStatisticsRegistry.incrementValueAndFlushIfNeeded(counterStat, true);
