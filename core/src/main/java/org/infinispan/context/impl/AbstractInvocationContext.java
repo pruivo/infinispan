@@ -4,6 +4,7 @@ import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.remoting.transport.BackupResponse;
 
 /**
  * Common features of transaction and invocation contexts
@@ -18,6 +19,7 @@ public abstract class AbstractInvocationContext implements InvocationContext {
    private Address origin;
    // Class loader associated with this invocation which supports AdvancedCache.with() functionality
    private ClassLoader classLoader;
+   private BackupResponse backupResponse;
 
    @Override
    public final Address getOrigin() {
@@ -84,5 +86,15 @@ public abstract class AbstractInvocationContext implements InvocationContext {
 
    protected void onEntryValueReplaced(final Object key, final InternalCacheEntry cacheEntry) {
       //no-op. used in tx mode with write skew check.
+   }
+
+   @Override
+   public void setBackupResponse(BackupResponse backupResponse) {
+      this.backupResponse = backupResponse;
+   }
+
+   @Override
+   public BackupResponse getBackupResponse() {
+      return backupResponse;
    }
 }

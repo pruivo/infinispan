@@ -4,6 +4,7 @@ import java.util.Set;
 
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.remoting.transport.BackupResponse;
 
 /**
  * A context that contains information pertaining to a given invocation.  These contexts typically have the lifespan of
@@ -85,4 +86,8 @@ public interface InvocationContext extends EntryLookup, Cloneable {
    boolean replaceValue(Object key, InternalCacheEntry cacheEntry);
 
    boolean isEntryRemovedInContext(Object key);
+
+   void setBackupResponse(BackupResponse backupResponse);
+
+   BackupResponse getBackupResponse();
 }

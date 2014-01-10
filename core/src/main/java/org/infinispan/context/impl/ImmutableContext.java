@@ -6,6 +6,7 @@ import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.remoting.transport.BackupResponse;
 
 import java.util.Map;
 import java.util.Set;
@@ -114,5 +115,15 @@ public final class ImmutableContext implements InvocationContext {
    @Override
    public boolean isEntryRemovedInContext(Object key) {
       return false;
+   }
+
+   @Override
+   public void setBackupResponse(BackupResponse backupResponse) {
+      throw newUnsupportedMethod();
+   }
+
+   @Override
+   public BackupResponse getBackupResponse() {
+      return null;
    }
 }

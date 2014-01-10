@@ -5,6 +5,7 @@ import org.infinispan.commons.util.InfinispanCollections;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.remoting.transport.BackupResponse;
 
 import java.util.Collections;
 import java.util.Map;
@@ -34,6 +35,8 @@ public final class SingleKeyNonTxInvocationContext implements InvocationContext 
    //TODO move the Origin's address to the InvocationContextFactory when isOriginLocal=true -> all addresses are the same  (Memory allocation cost)
    //(verify if this is worth it by looking at object alignment - would need a different implementation as pointing to null wouldn't help)
    private Address origin;
+
+   private BackupResponse backupResponse;
 
    public SingleKeyNonTxInvocationContext(final boolean originLocal, final Equivalence keyEquivalence) {
       this.isOriginLocal = originLocal;
@@ -162,6 +165,16 @@ public final class SingleKeyNonTxInvocationContext implements InvocationContext 
    public boolean isEntryRemovedInContext(final Object key) {
       CacheEntry ce = lookupEntry(key);
       return ce != null && ce.isRemoved() && ce.isChanged();
+   }
+
+   @Override
+   public void setBackupResponse(BackupResponse backupResponse) {
+      this.backupResponse = backupResponse;
+   }
+
+   @Override
+   public BackupResponse getBackupResponse() {
+      return backupResponse;
    }
 
    @Override

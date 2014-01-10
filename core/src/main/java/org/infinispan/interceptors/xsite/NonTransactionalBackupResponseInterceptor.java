@@ -6,49 +6,57 @@ import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commands.write.WriteCommand;
-import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.BackupResponse;
 
 /**
- * Handles x-site data backups for non-transactional caches.
+ * Handles x-site data backups for non-transactional caches. The main goal is to wait if the backup is configured as
+ * Synchronous
  *
  * @author Mircea Markus
- * @since 5.2
+ * @author Pedro Ruivo
+ * @since 7.0
  */
-public class NonTransactionalBackupInterceptor extends BaseBackupInterceptor {
+public class NonTransactionalBackupResponseInterceptor extends BaseBackupInterceptor {
 
    @Override
    public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
-      return handleWrite(ctx, command);
+      return invokeNextAndAwaitResponse(ctx, command);
    }
 
    @Override
    public Object visitRemoveCommand(InvocationContext ctx, RemoveCommand command) throws Throwable {
-      return handleWrite(ctx, command);
+      return invokeNextAndAwaitResponse(ctx, command);
    }
 
    @Override
    public Object visitReplaceCommand(InvocationContext ctx, ReplaceCommand command) throws Throwable {
-      return handleWrite(ctx, command);
+      return invokeNextAndAwaitResponse(ctx, command);
    }
 
    @Override
    public Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
-      return handleWrite(ctx, command);
+      return invokeNextAndAwaitResponse(ctx, command);
    }
 
    @Override
    public Object visitPutMapCommand(InvocationContext ctx, PutMapCommand command) throws Throwable {
-      return handleWrite(ctx, command);
+      return invokeNextAndAwaitResponse(ctx, command);
    }
 
-   private Object handleWrite(InvocationContext ctx, WriteCommand command) throws Throwable {
-      if (!ctx.isOriginLocal() || command.hasFlag(Flag.SKIP_XSITE_BACKUP))
-         return invokeNextInterceptor(ctx, command);
-      BackupResponse backupResponse = backupSender.backupWrite(command);
-      Object result = invokeNextInterceptor(ctx, command);
-      backupSender.processResponses(backupResponse, command);
-      return result;
+   /**
+    * waits until the backup is completed
+    */
+   private Object invokeNextAndAwaitResponse(InvocationContext context, WriteCommand command) throws Throwable {
+      try {
+         Object result = invokeNextInterceptor(context, command);
+         BackupResponse backupResponse = context.getBackupResponse();
+         if (backupResponse != null) {
+            backupSender.processResponses(backupResponse, command);
+         }
+         return result;
+      } finally {
+         context.setBackupResponse(null);
+      }
    }
 }

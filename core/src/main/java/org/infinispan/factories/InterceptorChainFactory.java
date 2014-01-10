@@ -14,7 +14,7 @@ import org.infinispan.interceptors.locking.NonTransactionalLockingInterceptor;
 import org.infinispan.interceptors.locking.OptimisticLockingInterceptor;
 import org.infinispan.interceptors.locking.PessimisticLockingInterceptor;
 import org.infinispan.interceptors.totalorder.*;
-import org.infinispan.interceptors.xsite.NonTransactionalBackupInterceptor;
+import org.infinispan.interceptors.xsite.NonTransactionalBackupSenderInterceptor;
 import org.infinispan.interceptors.xsite.OptimisticBackupInterceptor;
 import org.infinispan.interceptors.xsite.PessimisticBackupInterceptor;
 import org.infinispan.statetransfer.StateTransferInterceptor;
@@ -23,6 +23,7 @@ import org.infinispan.transaction.LockingMode;
 import org.infinispan.transaction.TransactionMode;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.interceptors.xsite.NonTransactionalBackupResponseInterceptor;
 
 import java.util.List;
 
@@ -163,7 +164,8 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
                interceptorChain.appendInterceptor(createInterceptor(new PessimisticBackupInterceptor(), PessimisticBackupInterceptor.class), false);
             }
          } else {
-            interceptorChain.appendInterceptor(createInterceptor(new NonTransactionalBackupInterceptor(), NonTransactionalBackupInterceptor.class), false);
+            interceptorChain.appendInterceptor(createInterceptor(new NonTransactionalBackupResponseInterceptor(),
+                                                                 NonTransactionalBackupResponseInterceptor.class), false);
          }
       }
 
@@ -251,6 +253,13 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
             break;
          case LOCAL:
             //Nothing...
+      }
+
+      if (configuration.sites().hasEnabledBackups() && !configuration.sites().disableBackups()) {
+         if (configuration.transaction().transactionMode() != TransactionMode.TRANSACTIONAL) {
+            interceptorChain.appendInterceptor(createInterceptor(new NonTransactionalBackupSenderInterceptor(),
+                                                                 NonTransactionalBackupSenderInterceptor.class), false);
+         }
       }
 
       CommandInterceptor callInterceptor = createInterceptor(new CallInterceptor(), CallInterceptor.class);
