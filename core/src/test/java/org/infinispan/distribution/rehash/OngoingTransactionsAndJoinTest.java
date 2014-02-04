@@ -44,7 +44,7 @@ import static org.infinispan.test.TestingUtil.replaceField;
  * 1 node exists.  Transactions running.  Some complete, some in prepare, some in commit. New node joins, rehash occurs.
  * Test that the new node is the owner and receives this state.
  */
-@Test(groups = "functional", testName = "distribution.rehash.OngoingTransactionsAndJoinTest", enabled = false)
+@Test(groups = "unstable", testName = "distribution.rehash.OngoingTransactionsAndJoinTest", description = "original group: functional")
 @CleanupAfterMethod
 public class OngoingTransactionsAndJoinTest extends MultipleCacheManagersTest {
    ConfigurationBuilder configuration;

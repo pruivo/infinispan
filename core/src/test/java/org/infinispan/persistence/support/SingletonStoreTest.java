@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.fail;
 
-@Test(groups = "functional", testName = "persistence.decorators.SingletonStoreTest", enabled = false, description = "See ISPN-1123")
+@Test(groups = "unstable", testName = "persistence.decorators.SingletonStoreTest", description = "See ISPN-1123 -- original group: functional")
 public class SingletonStoreTest extends MultipleCacheManagersTest {
    private static final Log log = LogFactory.getLog(SingletonStoreTest.class);
    private static final AtomicInteger storeCounter = new AtomicInteger(0);

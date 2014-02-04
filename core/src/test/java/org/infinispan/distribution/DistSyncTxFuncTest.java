@@ -8,7 +8,7 @@ import org.testng.annotations.Test;
 
 import javax.transaction.TransactionManager;
 
-@Test(groups = "functional", enabled=false, testName = "distribution.DistSyncTxFuncTest")
+@Test(groups = "unstable", testName = "distribution.DistSyncTxFuncTest", description = "original group: functional")
 public class DistSyncTxFuncTest extends BaseDistFunctionalTest<Object, String> {
    
    public DistSyncTxFuncTest() {

@@ -112,7 +112,7 @@ public class ClusteredCacheConfigurationTest {
     }
 
     // test queue-size=3 with hotrod
-    @Test
+    @Test(groups = "unstable")
     public void testQueueSizeHotrod() throws Exception {
         RemoteCache<String, String> rc1 = rcm1.getCache("queueSizeCache");
         long server1Entries, server2Entries;

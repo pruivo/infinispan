@@ -253,6 +253,7 @@ public abstract class AbstractClusteredWriteSkewTest extends MultipleCacheManage
    }
 
    // This test is based on a contribution by Pedro Ruivo of INESC-ID, working on the Cloud-TM project.
+   @Test(groups = "stress")
    public void testSharedCounter() {
       waitForClusterToForm(SHARED_COUNTER_TEST_CACHE_NAME);
       final Cache<String, Integer> c1 = cache(0, SHARED_COUNTER_TEST_CACHE_NAME);

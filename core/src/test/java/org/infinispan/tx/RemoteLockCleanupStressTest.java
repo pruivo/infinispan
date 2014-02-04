@@ -19,7 +19,7 @@ import javax.transaction.TransactionManager;
 
 import static org.infinispan.test.TestingUtil.sleepThread;
 
-@Test (groups = "functional", testName = "tx.RemoteLockCleanupStressTest", invocationCount = 20, enabled = false)
+@Test (groups = "unstable", testName = "tx.RemoteLockCleanupStressTest", invocationCount = 20, description = "original group: functional")
 @CleanupAfterMethod
 public class RemoteLockCleanupStressTest extends MultipleCacheManagersTest {
 
