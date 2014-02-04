@@ -12,6 +12,7 @@ import org.infinispan.marshall.core.MarshalledEntryFactoryImpl;
 import org.infinispan.persistence.BaseStoreTest;
 import org.infinispan.persistence.DummyInitializationContext;
 import org.infinispan.persistence.spi.AdvancedLoadWriteStore;
+import org.infinispan.persistence.spi.PersistenceException;
 import org.infinispan.rest.EmbeddedRestServer;
 import org.infinispan.rest.RestTestingUtil;
 import org.infinispan.test.TestingUtil;
@@ -97,5 +98,35 @@ public class RestStoreTest extends BaseStoreTest {
       InternalCacheEntry ice2 = TestInternalCacheEntryFactory.create("k1", "v2", 100);
       cl.write(TestingUtil.marshalledEntry(ice2, getMarshaller()));
       assert cl.load("k1").getValue().equals("v2");
+   }
+
+   @Test(groups = "unstable")
+   @Override
+   public void testLoadAndStoreMarshalledValues() throws PersistenceException {
+      super.testLoadAndStoreMarshalledValues();
+   }
+
+   @Test(groups = "unstable")
+   @Override
+   public void testLoadAndStoreWithLifespan() throws Exception {
+      super.testLoadAndStoreWithLifespan();
+   }
+
+   @Test(groups = "unstable")
+   @Override
+   public void testLoadAndStoreWithLifespanAndIdle() throws Exception {
+      super.testLoadAndStoreWithLifespanAndIdle();
+   }
+
+   @Test(groups = "unstable")
+   @Override
+   public void testPreload() throws Exception {
+      super.testPreload();
+   }
+
+   @Test(groups = "unstable")
+   @Override
+   public void testStoreAndRemove() throws PersistenceException {
+      super.testStoreAndRemove();
    }
 }

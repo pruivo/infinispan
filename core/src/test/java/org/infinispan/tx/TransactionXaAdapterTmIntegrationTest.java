@@ -24,7 +24,7 @@ import java.util.UUID;
  * @author Mircea.Markus@jboss.com
  * @since 4.2
  */
-@Test(testName = "tx.TransactionXaAdapterTmIntegrationTest", groups = "unit", enabled = false, description = "Disabled due to instability - see ISPN-1123")
+@Test(testName = "tx.TransactionXaAdapterTmIntegrationTest", groups = "unstable", description = "Disabled due to instability - see ISPN-1123 -- original group: unit")
 public class TransactionXaAdapterTmIntegrationTest {
    private Configuration configuration;
    private XaTransactionTable txTable;

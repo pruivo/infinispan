@@ -319,6 +319,7 @@ public class CacheLoaderFunctionalTest extends AbstractInfinispanTest {
       doPreloadingTestWithEviction(preloadingCfg.build(), "preloadingCache_4");
    }
 
+   @Test(groups = "unstable")
    public void testPurgeOnStartup() throws PersistenceException {
       ConfigurationBuilder purgingCfg = new ConfigurationBuilder();
       purgingCfg.read(cfg.build());
