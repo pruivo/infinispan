@@ -195,6 +195,7 @@ public abstract class BaseStoreTest extends AbstractInfinispanTest {
       cl.purge(new WithinThreadExecutor(), null);
    }
 
+   @Test(groups = "unstable", description = "original group: functional")
    public void testLoadAndStoreWithLifespanAndIdle() throws Exception {
       assertFalse(cl.contains("k"));
 
