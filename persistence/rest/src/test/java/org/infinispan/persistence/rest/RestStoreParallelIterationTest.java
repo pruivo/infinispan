@@ -16,7 +16,7 @@ import org.testng.annotations.Test;
  * @author Mircea Markus
  * @since 6.0
  */
-@Test (groups = "functional", testName = "persistence.rest.RestStoreParallelIterationTest")
+@Test (groups = "unstable", testName = "persistence.rest.RestStoreParallelIterationTest", description = "original group: functional")
 public class RestStoreParallelIterationTest  extends ParallelIterationTest {
 
    private EmbeddedCacheManager localCacheManager;
