@@ -29,6 +29,7 @@ public class WorkDuringJoinTest extends BaseDistFunctionalTest<Object, String> {
 
    public WorkDuringJoinTest() {
       INIT_CLUSTER_SIZE = 2;
+      performRehashing = true;
    }
 
    private List<MagicKey> init() {

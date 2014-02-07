@@ -67,7 +67,7 @@ public class CacheLoaderFunctionalTest extends AbstractInfinispanTest {
 
    long lifespan = 60000000; // very large lifespan so nothing actually expires
 
-   @BeforeMethod
+   @BeforeMethod(alwaysRun = true)
    public void setUp() {
       cfg = new ConfigurationBuilder();
       cfg.persistence()
@@ -85,7 +85,7 @@ public class CacheLoaderFunctionalTest extends AbstractInfinispanTest {
 
    protected void configure(ConfigurationBuilder cb) { }
 
-   @AfterMethod
+   @AfterMethod(alwaysRun = true)
    public void tearDown() throws PersistenceException {
       writer.clear();
       TestingUtil.killCacheManagers(cm);
