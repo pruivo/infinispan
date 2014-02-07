@@ -13,8 +13,9 @@ import org.infinispan.notifications.cachemanagerlistener.annotation.CacheStopped
 import org.infinispan.notifications.cachemanagerlistener.event.CacheStoppedEvent;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferControlCommand;
 import org.jgroups.protocols.relay.SiteAddress;
-import org.jgroups.protocols.relay.SiteUUID;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,6 +29,7 @@ import java.util.concurrent.ConcurrentMap;
 public class BackupReceiverRepositoryImpl implements BackupReceiverRepository {
 
    private static Log log = LogFactory.getLog(BackupReceiverRepositoryImpl.class);
+   private static boolean trace = log.isTraceEnabled();
 
    private final ConcurrentMap<SiteCachePair, BackupReceiver> backupReceivers = new ConcurrentHashMap<SiteCachePair, BackupReceiver>();
 
@@ -62,10 +64,29 @@ public class BackupReceiverRepositoryImpl implements BackupReceiverRepository {
 
    @Override
    public Object handleRemoteCommand(SingleRpcCommand cmd, SiteAddress src) throws Throwable {
-      log.tracef("Handling command %s from remote site %s", cmd, src);
-      String name = cmd.getCacheName();
-      BackupReceiver localBackupCache = getBackupCacheManager(src.getSite(), name);
+      if (trace) {
+         log.tracef("Handling command %s from remote site %s", cmd, src);
+      }
+      BackupReceiver localBackupCache = getBackupCacheManager(src.getSite(), cmd.getCacheName());
       return localBackupCache.handleRemoteCommand((VisitableCommand)cmd.getCommand());
+   }
+
+   @Override
+   public void handleStateTransferControl(XSiteStateTransferControlCommand cmd, SiteAddress src) throws Exception {
+      if (trace) {
+         log.tracef("Handling command %s from remote site %s", cmd, src);
+      }
+      BackupReceiver localBackupCache = getBackupCacheManager(src.getSite(), cmd.getCacheName());
+      localBackupCache.handleStateTransferControl(cmd);
+   }
+
+   @Override
+   public void handleStateTransferState(XSiteStatePushCommand cmd, SiteAddress src) throws Exception {
+      if (trace) {
+         log.tracef("Handling command %s from remote site %s", cmd, src);
+      }
+      BackupReceiver localBackupCache = getBackupCacheManager(src.getSite(), cmd.getCacheName());
+      localBackupCache.handleStateTransferState(cmd);
    }
 
    /**

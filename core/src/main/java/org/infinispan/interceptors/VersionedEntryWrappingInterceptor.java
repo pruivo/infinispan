@@ -1,5 +1,6 @@
 package org.infinispan.interceptors;
 
+import org.infinispan.context.Flag;
 import org.infinispan.metadata.EmbeddedMetadata;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.commands.FlagAffectedCommand;
@@ -73,8 +74,9 @@ public class VersionedEntryWrappingInterceptor extends EntryWrappingInterceptor 
    }
 
    @Override
-   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, FlagAffectedCommand command, Metadata metadata) {
-      if (ctx.isInTxScope() && !isFromStateTransfer(ctx)) {
+   protected void commitContextEntry(CacheEntry entry, InvocationContext ctx, FlagAffectedCommand command,
+                                     Metadata metadata, Flag stateTransferFlag, boolean l1Invalidation) {
+      if (ctx.isInTxScope() && stateTransferFlag == null) {
          EntryVersion updatedEntryVersion = ((TxInvocationContext) ctx)
                .getCacheTransaction().getUpdatedEntryVersions().get(entry.getKey());
          Metadata commitMetadata;
@@ -89,10 +91,10 @@ public class VersionedEntryWrappingInterceptor extends EntryWrappingInterceptor 
             commitMetadata = metadata != null ? metadata : entry.getMetadata();
          }
 
-         cdl.commitEntry(entry, commitMetadata, command, ctx);
+         cdl.commitEntry(entry, commitMetadata, command, ctx, null, l1Invalidation);
       } else {
          // This could be a state transfer call!
-         cdl.commitEntry(entry, entry.getMetadata(), command, ctx);
+         cdl.commitEntry(entry, entry.getMetadata(), command, ctx, stateTransferFlag, l1Invalidation);
       }
    }
 

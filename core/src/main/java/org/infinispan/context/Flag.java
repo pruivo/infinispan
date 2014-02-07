@@ -125,6 +125,8 @@ public enum Flag {
     */
    PUT_FOR_STATE_TRANSFER,
 
+   PUT_FOR_X_SITE_STATE_TRANSFER,
+
    /**
     * If this flag is enabled, if a cache store is shared, then storage to the store is skipped.
     */

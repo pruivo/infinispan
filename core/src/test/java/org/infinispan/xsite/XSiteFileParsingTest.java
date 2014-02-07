@@ -5,6 +5,9 @@ import org.infinispan.configuration.cache.BackupFailurePolicy;
 import org.infinispan.configuration.cache.BackupForConfiguration;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.TakeOfflineConfiguration;
+import org.infinispan.configuration.cache.TakeOfflineConfigurationBuilder;
+import org.infinispan.configuration.cache.XSiteStateTransferConfiguration;
+import org.infinispan.configuration.cache.XSiteStateTransferConfigurationBuilder;
 import org.infinispan.configuration.global.GlobalConfiguration;
 import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.test.SingleCacheManagerTest;
@@ -63,19 +66,24 @@ public class XSiteFileParsingTest extends SingleCacheManagerTest {
       Configuration dcc = cacheManager.getCacheConfiguration("customBackupPolicy");
       assertEquals(dcc.sites().allBackups().size(), 1);
 
-            assertTrue(dcc.sites().allBackups().contains(new BackupConfiguration("NYC2", BackupConfiguration.BackupStrategy.SYNC,
-                                                                              160000, BackupFailurePolicy.CUSTOM,
-                                                                              CountingCustomFailurePolicy.class.getName(),
-                                                                              false,
-                                                                              new TakeOfflineConfiguration(0, 0), true)));
+      assertTrue(dcc.sites().allBackups().contains(new BackupConfiguration("NYC2", BackupConfiguration.BackupStrategy.SYNC,
+                                                                           160000, BackupFailurePolicy.CUSTOM,
+                                                                           CountingCustomFailurePolicy.class.getName(),
+                                                                           false,
+                                                                           TakeOfflineConfigurationBuilder.DEFAULT,
+                                                                           XSiteStateTransferConfigurationBuilder.DEFAULT, true)));
       assertEquals(dcc.sites().backupFor().remoteCache(), null);
    }
 
    private void testDefault(Configuration dcc) {
       assertEquals(dcc.sites().allBackups().size(), 2);
       assertTrue(dcc.sites().allBackups().contains(new BackupConfiguration("NYC", BackupConfiguration.BackupStrategy.SYNC,
-                                                                        12003l, BackupFailurePolicy.IGNORE, null, false, new TakeOfflineConfiguration(0, 0), true)));
+                                                                        12003l, BackupFailurePolicy.IGNORE, null, false,
+                                                                        TakeOfflineConfigurationBuilder.DEFAULT,
+                                                                        XSiteStateTransferConfigurationBuilder.DEFAULT, true)));
       assertTrue(dcc.sites().allBackups().contains(new BackupConfiguration("SFO", BackupConfiguration.BackupStrategy.ASYNC,
-                                                                        10000l, BackupFailurePolicy.WARN, null, false, new TakeOfflineConfiguration(0, 0), true)));
+                                                                        10000l, BackupFailurePolicy.WARN, null, false,
+                                                                        TakeOfflineConfigurationBuilder.DEFAULT,
+                                                                        XSiteStateTransferConfigurationBuilder.DEFAULT, true)));
    }
 }

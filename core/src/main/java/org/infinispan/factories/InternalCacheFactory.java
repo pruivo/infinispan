@@ -11,7 +11,6 @@ import org.infinispan.upgrade.RollingUpgradeManager;
 import org.infinispan.transaction.xa.recovery.RecoveryAdminOperations;
 import org.infinispan.xsite.XSiteAdminOperations;
 
-import java.lang.ref.WeakReference;
 
 /**
  * An internal factory for constructing Caches.  Used by the {@link DefaultCacheManager}, this is not intended as public
@@ -33,7 +32,7 @@ public class InternalCacheFactory<K, V> extends AbstractNamedCacheComponentFacto
     * @param globalComponentRegistry global component registry to attach the cache to
     * @param cacheName               name of the cache
     * @return a cache
-    * @throws ConfigurationException if there are problems with the cfg
+    * @throws CacheConfigurationException if there are problems with the cfg
     */
    public Cache<K, V> createCache(Configuration configuration,
                                   GlobalComponentRegistry globalComponentRegistry,

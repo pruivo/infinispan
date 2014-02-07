@@ -10,18 +10,17 @@ import org.infinispan.commons.util.Util;
 import org.infinispan.context.Flag;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.remoting.responses.SuccessfulResponse;
-import org.infinispan.statetransfer.StateRequestCommand;
-import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.remoting.InboundInvocationHandler;
 import org.infinispan.remoting.RpcException;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
-import org.infinispan.topology.CacheTopologyControlCommand;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.BackupReceiverRepository;
+import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferControlCommand;
 import org.jgroups.Address;
 import org.jgroups.AnycastAddress;
 import org.jgroups.Channel;
@@ -226,12 +225,13 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
    }
 
    private void executeCommandFromRemoteSite(final ReplicableCommand cmd, final SiteAddress src, final org.jgroups.blocks.Response response, boolean preserveOrder) throws Throwable {
-      if (! (cmd instanceof SingleRpcCommand)) {
+      final XSiteCommandType type = XSiteCommandType.extractType(cmd);
+      if (type == XSiteCommandType.UNKNOWN) {
          throw new IllegalStateException("Only CacheRpcCommand commands expected as a result of xsite calls but got " + cmd.getClass().getName());
       }
       
       if (preserveOrder) {
-         reply(response, backupReceiverRepository.handleRemoteCommand((SingleRpcCommand) cmd, src));
+         reply(response, handleRemoteSiteCommandBasedInType(type, cmd, src));
          return;
       }
       
@@ -240,8 +240,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
          @Override
          public void run() {
             try {
-               Object retVal = backupReceiverRepository.handleRemoteCommand((SingleRpcCommand) cmd, src);
-               reply(response, retVal);
+               reply(response, handleRemoteSiteCommandBasedInType(type, cmd, src));
             } catch (InterruptedException e) {
                log.shutdownHandlingCommand(cmd);
                reply(response, new ExceptionResponse(new CacheException("Cache is shutting down")));
@@ -375,7 +374,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       Buffer buf;
       if (totalOrder) {
          buf = marshallCall(marshaller, command);
-         Message message = constructMessage(buf, null, oob, mode, rsvp, totalOrder);
+         Message message = constructMessage(buf, null, oob, mode, rsvp, true);
 
          AnycastAddress address = new AnycastAddress(dests);
          message.setDest(address);
@@ -389,7 +388,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
          //For correctness, ispn doesn't need their own message, so add own address to exclusion list
          opts.setExclusionList(card.getChannel().getAddress());
 
-         retval = card.castMessage(dests, constructMessage(buf, null, oob, mode, rsvp, totalOrder),opts);
+         retval = card.castMessage(dests, constructMessage(buf, null, oob, mode, rsvp, false),opts);
       } else {
          RequestOptions opts = new RequestOptions(mode, timeout);
 
@@ -573,6 +572,39 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
                }
             }
          }
+      }
+   }
+
+   private Object handleRemoteSiteCommandBasedInType(XSiteCommandType type, ReplicableCommand command,
+                                                     SiteAddress source) throws Throwable {
+      switch (type) {
+         case OPERATION:
+            return backupReceiverRepository.handleRemoteCommand((SingleRpcCommand) command, source);
+         case STATE_TRANSFER_CONTROL:
+            backupReceiverRepository.handleStateTransferControl((XSiteStateTransferControlCommand) command, source);
+            return null;
+         case STATE_TRANSFER_STATE:
+            backupReceiverRepository.handleStateTransferState((XSiteStatePushCommand) command, source);
+            return null;
+      }
+      throw new IllegalStateException("Should never happen!");
+   }
+
+   private static enum XSiteCommandType {
+      STATE_TRANSFER_CONTROL,
+      STATE_TRANSFER_STATE,
+      OPERATION,
+      UNKNOWN;
+
+      public static XSiteCommandType extractType(ReplicableCommand command) {
+         if (command instanceof XSiteStateTransferControlCommand) {
+            return XSiteCommandType.STATE_TRANSFER_CONTROL;
+         } else if (command instanceof XSiteStatePushCommand) {
+            return XSiteCommandType.STATE_TRANSFER_STATE;
+         } else if (command instanceof SingleRpcCommand) {
+            return XSiteCommandType.OPERATION;
+         }
+         return UNKNOWN;
       }
    }
 }

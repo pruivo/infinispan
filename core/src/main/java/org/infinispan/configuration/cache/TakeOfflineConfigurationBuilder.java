@@ -8,6 +8,7 @@ import org.infinispan.commons.configuration.Builder;
  */
 public class TakeOfflineConfigurationBuilder extends AbstractConfigurationChildBuilder implements Builder<TakeOfflineConfiguration>{
 
+   public static final TakeOfflineConfiguration DEFAULT = new TakeOfflineConfiguration(0, 0);
    private int afterFailures = 0;
    private long minTimeToWait = 0;
    private BackupConfigurationBuilder backupConfigurationBuilder;

@@ -44,6 +44,7 @@ public interface StateConsumer {
     *
     * @param key the key that is being modified
     */
+   @Deprecated
    void addUpdatedKey(Object key);
 
    /**
@@ -52,6 +53,7 @@ public interface StateConsumer {
     * @param key the key to check
     * @return true if the key is known to be modified, false otherwise
     */
+   @Deprecated
    boolean isKeyUpdated(Object key);
 
    /**
@@ -62,6 +64,7 @@ public interface StateConsumer {
     * @param callback The callback to run
     * @return {@code true} if the callback was executed, {@code false} otherwise.
     */
+   @Deprecated
    boolean executeIfKeyIsNotUpdated(Object key, Runnable callback);
 
    /**

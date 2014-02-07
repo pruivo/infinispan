@@ -3,7 +3,8 @@ package org.infinispan.xsite;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.BackupFailurePolicy;
 import org.infinispan.configuration.cache.Configuration;
-import org.infinispan.configuration.cache.TakeOfflineConfiguration;
+import org.infinispan.configuration.cache.TakeOfflineConfigurationBuilder;
+import org.infinispan.configuration.cache.XSiteStateTransferConfigurationBuilder;
 import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.test.SingleCacheManagerTest;
 import org.infinispan.test.fwk.TestCacheManagerFactory;
@@ -45,7 +46,9 @@ public class XSiteFileParsing2Test extends SingleCacheManagerTest {
       assertEquals(1, dcc.sites().allBackups().size());
 
       assertTrue(dcc.sites().allBackups().contains(new BackupConfiguration("NYC", BackupConfiguration.BackupStrategy.SYNC,
-                                                                        12003, BackupFailurePolicy.WARN, null, false, new TakeOfflineConfiguration(0,0), true)));
+                                                                        12003, BackupFailurePolicy.WARN, null, false,
+                                                                        TakeOfflineConfigurationBuilder.DEFAULT,
+                                                                        XSiteStateTransferConfigurationBuilder.DEFAULT, true)));
       assertNull(dcc.sites().backupFor().remoteSite());
       assertNull(dcc.sites().backupFor().remoteCache());
    }
@@ -59,11 +62,17 @@ public class XSiteFileParsing2Test extends SingleCacheManagerTest {
 
    private void testDefault(Configuration dcc) {
       BackupConfiguration nyc = new BackupConfiguration("NYC", BackupConfiguration.BackupStrategy.SYNC,
-                                                        12003l, BackupFailurePolicy.IGNORE, null, false, new TakeOfflineConfiguration(0,0), true);
+                                                        12003l, BackupFailurePolicy.IGNORE, null, false,
+                                                        TakeOfflineConfigurationBuilder.DEFAULT,
+                                                        XSiteStateTransferConfigurationBuilder.DEFAULT, true);
       BackupConfiguration sfo = new BackupConfiguration("SFO", BackupConfiguration.BackupStrategy.ASYNC,
-                                                        10000l, BackupFailurePolicy.WARN, null, false, new TakeOfflineConfiguration(0,0), true);
+                                                        10000l, BackupFailurePolicy.WARN, null, false,
+                                                        TakeOfflineConfigurationBuilder.DEFAULT,
+                                                        XSiteStateTransferConfigurationBuilder.DEFAULT, true);
       BackupConfiguration lon = new BackupConfiguration("LON", BackupConfiguration.BackupStrategy.SYNC,
-                                                        10000l, BackupFailurePolicy.WARN, null, false, new TakeOfflineConfiguration(0,0), false);
+                                                        10000l, BackupFailurePolicy.WARN, null, false,
+                                                        TakeOfflineConfigurationBuilder.DEFAULT,
+                                                        XSiteStateTransferConfigurationBuilder.DEFAULT, false);
       assertTrue(dcc.sites().allBackups().contains(nyc));
       assertTrue(dcc.sites().allBackups().contains(sfo));
       assertTrue(dcc.sites().allBackups().contains(lon));

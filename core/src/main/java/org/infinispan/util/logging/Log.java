@@ -1047,4 +1047,23 @@ public interface Log extends BasicLogger {
    @Message(value = "A cache configured with invocation batching can't have recovery enabled", id = 283)
    CacheConfigurationException invocationBatchingCannotBeRecoverable();
 
+   @LogMessage(level = WARN)
+   @Message(value = "Unable to send X-Site state chunk to '%s'.", id = 284)
+   void unableToSendXSiteState(String site, @Cause Throwable cause);
+
+   @LogMessage(level = WARN)
+   @Message(value = "Unable to wait X-Site state chunk ACKs from '%s'.", id = 285)
+   void unableToWaitForXSiteStateAcks(String site, @Cause Throwable cause);
+
+   @LogMessage(level = WARN)
+   @Message(value = "Unable to apply X-Site state chunk. Keys inserted=%s.%nTotal=%s", id = 286)
+   void unableToApplyXSiteStateT(Collection<Object> inserted, Collection<Object> total, @Cause Throwable cause);
+
+   @LogMessage(level = WARN)
+   @Message(value = "Unable to apply X-Site state chunk. Inserted=%s keys, Total=%s keys", id = 287)
+   void unableToApplyXSiteStateD(int inserted, int total, @Cause Throwable cause);
+
+   @LogMessage(level = WARN)
+   @Message(value = "Unable to apply X-Site state chunk.", id = 288)
+   void unableToApplyXSiteState(@Cause Throwable cause);
 }

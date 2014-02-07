@@ -7,6 +7,8 @@ import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.manager.CacheContainer;
+import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferControlCommand;
 import org.testng.annotations.Test;
 
 import javax.transaction.TransactionManager;
@@ -50,25 +52,18 @@ public class RollbackNoPrepareOptimisticTest extends AbstractTwoSitesTest {
       assertNull(brWrapper.received);
    }
 
-   public class BackupReceiverWrapper implements BackupReceiver {
-
-      final BackupReceiver br;
+   public class BackupReceiverWrapper extends BackupReceiverDelegate {
 
       volatile VisitableCommand received;
 
       public BackupReceiverWrapper(BackupReceiver br) {
-         this.br = br;
-      }
-
-      @Override
-      public Cache getCache() {
-         return br.getCache();
+         super(br);
       }
 
       @Override
       public Object handleRemoteCommand(VisitableCommand command) throws Throwable {
          received = command;
-         return br.handleRemoteCommand(command);
+         return super.handleRemoteCommand(command);
       }
    }
 

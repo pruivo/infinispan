@@ -41,6 +41,8 @@ import org.infinispan.commons.util.Util;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.xsite.XSiteAdminCommand;
+import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferControlCommand;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -80,7 +82,8 @@ public final class CacheRpcCommandExternalizer extends AbstractExternalizer<Cach
                VersionedPrepareCommand.class, CreateCacheCommand.class, CancelCommand.class,
                VersionedCommitCommand.class, XSiteAdminCommand.class, TotalOrderNonVersionedPrepareCommand.class,
                TotalOrderVersionedPrepareCommand.class, TotalOrderCommitCommand.class,
-               TotalOrderVersionedCommitCommand.class, TotalOrderRollbackCommand.class);
+               TotalOrderVersionedCommitCommand.class, TotalOrderRollbackCommand.class,
+               XSiteStateTransferControlCommand.class, XSiteStatePushCommand.class);
       // Only interested in cache specific replicable commands
       coreCommands.addAll(gcr.getModuleProperties().moduleCacheRpcCommands());
       return coreCommands;
