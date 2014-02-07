@@ -31,7 +31,7 @@ public class CustomFailurePolicyTxTest extends BaseBackupTxFailureTest {
       return getDefaultClusteredCacheConfig(CacheMode.DIST_SYNC, true);
    }
 
-   @Test(groups = "unstable")
+   @Test(groups = "unstable_xsite")
    @Override
    public void testPrepareFailure() {
       assertFalse(CountingCustomFailurePolicy.PREPARE_INVOKED);
