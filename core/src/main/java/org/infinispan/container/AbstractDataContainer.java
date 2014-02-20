@@ -1,10 +1,15 @@
 package org.infinispan.container;
 
 import com.sun.istack.internal.NotNull;
+import org.infinispan.commons.util.concurrent.ParallelIterableMap;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.metadata.Metadata;
+import org.infinispan.persistence.spi.AdvancedCacheLoader;
+import org.infinispan.util.CoreImmutables;
 import org.infinispan.util.TimeService;
+
+import java.util.Iterator;
 
 /**
  * // TODO: Document this
@@ -72,6 +77,53 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
       return innerSize(mode);
    }
 
+   @Override
+   public final void purgeExpired() {
+      long currentTimeMillis = timeService().wallClockTime();
+      for (Iterator<InternalCacheEntry> purgeCandidates = asInMemoryUtil().iterator(); purgeCandidates.hasNext(); ) {
+         InternalCacheEntry e = purgeCandidates.next();
+         if (e.isExpired(currentTimeMillis)) {
+            purgeCandidates.remove();
+         }
+      }
+   }
+
+   @Override
+   public final void executeTask(final AdvancedCacheLoader.KeyFilter<Object> filter, final ParallelIterableMap.KeyValueAction<Object, InternalCacheEntry> action)
+         throws InterruptedException {
+      if (filter == null) {
+         throw new NullPointerException("No filter specified");
+      }
+      if (action == null) {
+         throw new NullPointerException("No action specified");
+      }
+
+
+      //noinspection unchecked
+      asInMemoryUtil().forEach(512, new ParallelIterableMap.KeyValueAction<Object, InternalCacheEntry>() {
+         @Override
+         public void apply(Object key, InternalCacheEntry value) {
+            if (filter.shouldLoadKey(key)) {
+               action.apply(key, value);
+            }
+         }
+      });
+      //TODO figure out the way how to do interruption better (during iteration)
+      if (Thread.currentThread().isInterrupted()) {
+         throw new InterruptedException();
+      }
+   }
+
+   @Override
+   public final void clear() {
+      asInMemoryUtil().clear();
+   }
+
+   @Override
+   public final Iterator<InternalCacheEntry> iterator() {
+      return new ImmutableEntryIterator(asInMemoryUtil().iterator());
+   }
+
    //load from data container (or persistence).
    protected abstract InternalCacheEntry innerGet(@NotNull Object key, @NotNull AccessMode mode);
 
@@ -83,8 +135,14 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
 
    protected abstract int innerSize(@NotNull AccessMode mode);
 
-   protected final TimeService getTimeService() {
+   protected abstract MemoryContainerUtil asInMemoryUtil();
+
+   protected final TimeService timeService() {
       return timeService;
+   }
+
+   protected final InternalEntryFactory factory() {
+      return entryFactory;
    }
 
    private boolean isExpired(InternalCacheEntry entry) {
@@ -111,6 +169,35 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
    private void assertNotNull(String fieldName, Object value) {
       if (value == null) {
          throw new NullPointerException(fieldName + " must not be null.");
+      }
+   }
+
+   protected static interface MemoryContainerUtil extends ParallelIterableMap<Object, InternalCacheEntry>,
+                                              Iterable<InternalCacheEntry> {
+      void clear();
+   }
+
+   private static class ImmutableEntryIterator implements Iterator<InternalCacheEntry> {
+
+      private final Iterator<InternalCacheEntry> it;
+
+      ImmutableEntryIterator(Iterator<InternalCacheEntry> it) {
+         this.it = it;
+      }
+
+      @Override
+      public InternalCacheEntry next() {
+         return CoreImmutables.immutableInternalCacheEntry(it.next());
+      }
+
+      @Override
+      public boolean hasNext() {
+         return it.hasNext();
+      }
+
+      @Override
+      public void remove() {
+         throw new UnsupportedOperationException();
       }
    }
 }

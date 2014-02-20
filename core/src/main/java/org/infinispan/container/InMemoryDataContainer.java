@@ -19,8 +19,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.infinispan.commons.util.concurrent.ParallelIterableMap.KeyValueAction;
-import static org.infinispan.persistence.spi.AdvancedCacheLoader.KeyFilter;
 import static org.infinispan.util.concurrent.BoundedConcurrentHashMap.EvictionListener;
 
 /**
@@ -45,25 +43,36 @@ public class InMemoryDataContainer extends AbstractDataContainer {
             @Override
             public void onEntryRemoved(Object key) {/*no-op*/}
          };
-   private final ParallelConcurrentIterableMap entries;
+   private final ConcurrentMap<Object, InternalCacheEntry> entries;
+   private final MemoryContainerUtil memoryContainerUtil = new MemoryContainerUtil() {
+      @Override
+      public void clear() {
+         entries.clear();
+      }
 
-   private InMemoryDataContainer(ParallelConcurrentIterableMap map) {
+      @Override
+      public Iterator<InternalCacheEntry> iterator() {
+         return entries.values().iterator();
+      }
+
+      @SuppressWarnings("unchecked")
+      @Override
+      public void forEach(long parallelismThreshold, KeyValueAction<? super Object, ? super InternalCacheEntry> action) throws InterruptedException {
+         ((ParallelIterableMap<Object, InternalCacheEntry>) entries).forEach(parallelismThreshold, action);
+      }
+   };
+
+   private InMemoryDataContainer(ConcurrentMap<Object, InternalCacheEntry> map) {
       this.entries = map;
    }
 
    public static InMemoryDataContainer unboundedDataContainer(int concurrencyLevel) {
-      ConcurrentMap<Object, InternalCacheEntry> map = CollectionFactory.makeConcurrentMap(128, concurrencyLevel);
-      if (map instanceof ParallelConcurrentIterableMap) {
-         return new InMemoryDataContainer((ParallelConcurrentIterableMap) map);
-      }
-      throw new IllegalStateException("Unable to build an unbounded in-memory data container");
+      return newInstance(CollectionFactory.<Object, InternalCacheEntry>makeConcurrentMap(128, concurrencyLevel));
    }
 
    public static InMemoryDataContainer unboundedDataContainer(int concurrencyLevel, Equivalence<Object> keyEquivalence,
                                                               Equivalence<InternalCacheEntry> valueEquivalence) {
-      ConcurrentMap<Object, InternalCacheEntry> map = CollectionFactory.makeConcurrentMap(128, concurrencyLevel,
-                                                                                          keyEquivalence, valueEquivalence);
-      return newInstance(map);
+      return newInstance(CollectionFactory.makeConcurrentMap(128, concurrencyLevel, keyEquivalence, valueEquivalence));
    }
 
    public static InMemoryDataContainer boundedDataContainer(int concurrencyLevel, int maxEntries,
@@ -95,11 +104,6 @@ public class InMemoryDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   public void clear() {
-      entries.clear();
-   }
-
-   @Override
    public Set<Object> keySet(AccessMode mode) {
       if (mode == AccessMode.SKIP_CONTAINER) {
          return Collections.emptySet();
@@ -118,44 +122,6 @@ public class InMemoryDataContainer extends AbstractDataContainer {
    @Override
    public Set<InternalCacheEntry> entrySet(AccessMode mode) {
       return new EntrySet();
-   }
-
-   @Override
-   public void purgeExpired() {
-      long currentTimeMillis = getTimeService().wallClockTime();
-      for (Iterator<InternalCacheEntry> purgeCandidates = entries.values().iterator(); purgeCandidates.hasNext(); ) {
-         InternalCacheEntry e = purgeCandidates.next();
-         if (e.isExpired(currentTimeMillis)) {
-            purgeCandidates.remove();
-         }
-      }
-   }
-
-   @Override
-   public void executeTask(final KeyFilter<Object> filter, final KeyValueAction<Object, InternalCacheEntry> action)
-         throws InterruptedException {
-      if (filter == null)
-         throw new NullPointerException("No filter specified");
-      if (action == null)
-         throw new NullPointerException("No action specified");
-
-      entries.forEach(512, new ParallelIterableMap.KeyValueAction<Object, InternalCacheEntry>() {
-         @Override
-         public void apply(Object key, InternalCacheEntry value) {
-            if (filter.shouldLoadKey(key)) {
-               action.apply(key, value);
-            }
-         }
-      });
-      //TODO figure out the way how to do interruption better (during iteration)
-      if (Thread.currentThread().isInterrupted()) {
-         throw new InterruptedException();
-      }
-   }
-
-   @Override
-   public Iterator<InternalCacheEntry> iterator() {
-      return new ImmutableEntryIterator(entries.values().iterator());
    }
 
    @Override
@@ -178,16 +144,16 @@ public class InMemoryDataContainer extends AbstractDataContainer {
       return entries.size();
    }
 
-   private static InMemoryDataContainer newInstance(ConcurrentMap<Object, InternalCacheEntry> map) {
-      if (map instanceof ParallelConcurrentIterableMap) {
-         return new InMemoryDataContainer((ParallelConcurrentIterableMap) map);
-      }
-      throw new IllegalStateException("Unable to build in-memory data container");
+   @Override
+   protected MemoryContainerUtil asInMemoryUtil() {
+      return memoryContainerUtil;
    }
 
-   private static interface ParallelConcurrentIterableMap extends ParallelIterableMap<Object, InternalCacheEntry>,
-                                                                  ConcurrentMap<Object, InternalCacheEntry> {
-
+   private static InMemoryDataContainer newInstance(ConcurrentMap<Object, InternalCacheEntry> map) {
+      if (map instanceof ParallelIterableMap) {
+         return new InMemoryDataContainer(map);
+      }
+      throw new IllegalStateException("Unable to build in-memory data container");
    }
 
    private static class ImmutableEntryIterator extends EntryIterator {
