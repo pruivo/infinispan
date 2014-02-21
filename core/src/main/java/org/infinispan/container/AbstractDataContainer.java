@@ -1,15 +1,24 @@
 package org.infinispan.container;
 
 import com.sun.istack.internal.NotNull;
+import org.infinispan.commons.marshall.StreamingMarshaller;
 import org.infinispan.commons.util.concurrent.ParallelIterableMap;
 import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.container.entries.InternalCacheValue;
+import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.marshall.core.MarshalledEntry;
+import org.infinispan.marshall.core.MarshalledEntryImpl;
+import org.infinispan.metadata.InternalMetadata;
+import org.infinispan.metadata.InternalMetadataImpl;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.persistence.spi.AdvancedCacheLoader;
 import org.infinispan.util.CoreImmutables;
 import org.infinispan.util.TimeService;
 
 import java.util.Iterator;
+
+import static org.infinispan.factories.KnownComponentNames.CACHE_MARSHALLER;
 
 /**
  * // TODO: Document this
@@ -19,13 +28,16 @@ import java.util.Iterator;
  */
 public abstract class AbstractDataContainer implements DataContainerV2 {
 
+   StreamingMarshaller marshaller;
    private TimeService timeService;
    private InternalEntryFactory entryFactory;
 
    @Inject
-   public void injectTimeServerAndFactory(TimeService timeService, InternalEntryFactory entryFactory) {
+   public void injectDependencies(TimeService timeService, InternalEntryFactory entryFactory,
+                                  @ComponentName(CACHE_MARSHALLER) StreamingMarshaller marshaller) {
       this.timeService = timeService;
       this.entryFactory = entryFactory;
+      this.marshaller = marshaller;
    }
 
    @Override
@@ -145,6 +157,25 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
       return entryFactory;
    }
 
+   protected final InternalCacheEntry convert(MarshalledEntry marshalledEntry) {
+      if (marshalledEntry == null) {
+         return null;
+      }
+      return entryFactory.create(marshalledEntry.getKey(), marshalledEntry.getValue(), marshalledEntry.getMetadata());
+   }
+
+   protected final MarshalledEntry convert(InternalCacheEntry entry) {
+      if (entry == null) {
+         return null;
+      }
+      return new MarshalledEntryImpl<Object, Object>(entry.getKey(), entry.getValue(),
+                                                     internalMetadata(entry.toInternalCacheValue()), marshaller);
+   }
+
+   protected static IllegalArgumentException illegalAccessMode(AccessMode mode) {
+      return new IllegalArgumentException("Invalid access mode: " + mode);
+   }
+
    private boolean isExpired(InternalCacheEntry entry) {
       return entry.canExpire() && entry.isExpired(timeService.wallClockTime());
    }
@@ -172,8 +203,12 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
       }
    }
 
+   private static InternalMetadata internalMetadata(InternalCacheValue icv) {
+      return icv.getMetadata() == null ? null : new InternalMetadataImpl(icv.getMetadata(), icv.getCreated(), icv.getLastUsed());
+   }
+
    protected static interface MemoryContainerUtil extends ParallelIterableMap<Object, InternalCacheEntry>,
-                                              Iterable<InternalCacheEntry> {
+                                                          Iterable<InternalCacheEntry> {
       void clear();
    }
 

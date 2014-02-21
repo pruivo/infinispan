@@ -2071,6 +2071,29 @@ public class BoundedConcurrentHashMap<K, V> extends AbstractMap<K, V>
       return segmentFor(hash).put(key, hash, value, false);
    }
 
+   /*
+    * this is the easy way to track to allow a single loadAndPut in DataContainer. However, it is not the best way to do it.
+    */
+   public void lock(K key) {
+      if (key == null) {
+         throw new NullPointerException();
+      }
+      segmentFor(hash(keyEquivalence.hashCode(key))).lock();
+   }
+
+   public void unlock(K key) {
+      if (key == null) {
+         throw new NullPointerException();
+      }
+      segmentFor(hash(keyEquivalence.hashCode(key))).unlock();
+   }
+
+   public V evict(Object key) {
+      //a little hint :)
+      int hash = hash(keyEquivalence.hashCode(key));
+      return segmentFor(hash).remove(key, hash, null, true);
+   }
+
    /**
     * {@inheritDoc}
     *

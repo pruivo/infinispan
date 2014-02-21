@@ -132,15 +132,15 @@ public class DurableDataContainer extends AbstractDataContainer {
             });
             return Collections.unmodifiableCollection(result);
          case ALL:
-            final ConcurrentHashSet<Object> loadedKeys = new ConcurrentHashSet<Object>();
+            final ConcurrentHashSet<Object> skipKeys = new ConcurrentHashSet<Object>();
             entries.forEachValue(512, new EquivalentConcurrentHashMapV8.Action<InternalCacheEntry>() {
                @Override
                public void apply(InternalCacheEntry entry) {
                   result.add(entry.getValue());
-                  loadedKeys.add(entry.getValue());
+                  skipKeys.add(entry.getKey());
                }
             });
-            persistenceManager.processOnAllStores(new CollectionKeyFilter(loadedKeys), new CacheLoaderTask() {
+            persistenceManager.processOnAllStores(new CollectionKeyFilter(skipKeys), new CacheLoaderTask() {
                @Override
                public void processEntry(MarshalledEntry marshalledEntry, AdvancedCacheLoader.TaskContext taskContext) throws InterruptedException {
                   result.add(marshalledEntry.getValue());
@@ -264,7 +264,7 @@ public class DurableDataContainer extends AbstractDataContainer {
    protected void innerPut(@NotNull final InternalCacheEntry entry, @NotNull AccessMode mode) {
       switch (mode) {
          case SKIP_CONTAINER:
-            persistenceManager.writeToAllStores(null, false);
+            persistenceManager.writeToAllStores(convert(entry), false);
             return;
          case SKIP_PERSISTENCE:
             entries.put(entry.getKey(), entry);
@@ -307,17 +307,6 @@ public class DurableDataContainer extends AbstractDataContainer {
          return new DurableDataContainer((ConcurrentParallelHashMapV8<Object, InternalCacheEntry>) map);
       }
       throw new IllegalStateException("Unable to build in-memory data container");
-   }
-
-   private InternalCacheEntry convert(MarshalledEntry marshalledEntry) {
-      if (marshalledEntry == null) {
-         return null;
-      }
-      return factory().create(marshalledEntry.getKey(), marshalledEntry.getValue(), marshalledEntry.getMetadata());
-   }
-
-   private static IllegalArgumentException illegalAccessMode(AccessMode mode) {
-      return new IllegalArgumentException("Invalid access mode: " + mode);
    }
 
 }
