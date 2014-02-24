@@ -196,6 +196,33 @@ public class DurableDataContainer extends AbstractDataContainer {
    }
 
    @Override
+   protected InternalCacheEntry innerPeek(final Object key, AccessMode mode) {
+      switch (mode) {
+         case SKIP_CONTAINER:
+            return convert(persistenceManager.loadFromAllStores(key, null));
+         case SKIP_PERSISTENCE:
+            return entries.get(key);
+         case ALL:
+            InternalCacheEntry entry = entries.get(key);
+            final AtomicReference<InternalCacheEntry> loadedEntry = new AtomicReference<InternalCacheEntry>(null);
+            if (entry == null) {
+               //loaded in compute method to avoid concurrent loads. Remember that peek() does not change the
+               //entries maps!
+               entry = entries.computeIfAbsent(key, new EquivalentConcurrentHashMapV8.Fun<Object, InternalCacheEntry>() {
+                  @Override
+                  public InternalCacheEntry apply(Object o) {
+                     loadedEntry.set(convert(persistenceManager.loadFromAllStores(key, null)));
+                     return null;
+                  }
+               });
+            }
+            return entry != null ? entry : loadedEntry.get();
+         default:
+            throw illegalAccessMode(mode);
+      }
+   }
+
+   @Override
    protected InternalCacheEntry innerGet(@NotNull final Object key, @NotNull AccessMode mode) {
       //TODO how to pass the context?
       switch (mode) {

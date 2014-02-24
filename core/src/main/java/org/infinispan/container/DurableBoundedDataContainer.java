@@ -218,6 +218,34 @@ public class DurableBoundedDataContainer extends AbstractDataContainer {
 
 
    @Override
+   protected InternalCacheEntry innerPeek(final Object key, AccessMode mode) {
+      switch (mode) {
+         case SKIP_CONTAINER:
+            return convert(persistenceManager.loadFromAllStores(key, null));
+         case SKIP_PERSISTENCE:
+            return entries.peek(key);
+         case ALL:
+            //two phase locking
+            InternalCacheEntry entry = entries.peek(key);
+            if (entry != null) {
+               return entry;
+            }
+            return performAtomic(key, new AtomicAction<InternalCacheEntry>() {
+               @Override
+               public InternalCacheEntry execute() {
+                  InternalCacheEntry entry = entries.peek(key);
+                  if (entry == null) {
+                     return convert(persistenceManager.loadFromAllStores(key, null));
+                  }
+                  return entry;
+               }
+            });
+         default:
+            throw illegalAccessMode(mode);
+      }
+   }
+
+   @Override
    protected InternalCacheEntry innerGet(@NotNull final Object key, @NotNull AccessMode mode) {
       switch (mode) {
          case SKIP_CONTAINER:

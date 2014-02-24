@@ -44,6 +44,7 @@ public class InMemoryDataContainer extends AbstractDataContainer {
             public void onEntryRemoved(Object key) {/*no-op*/}
          };
    private final ConcurrentMap<Object, InternalCacheEntry> entries;
+   private final boolean bounded;
    private final MemoryContainerUtil memoryContainerUtil = new MemoryContainerUtil() {
       @Override
       public void clear() {
@@ -64,6 +65,7 @@ public class InMemoryDataContainer extends AbstractDataContainer {
 
    private InMemoryDataContainer(ConcurrentMap<Object, InternalCacheEntry> map) {
       this.entries = map;
+      this.bounded = map instanceof BoundedConcurrentHashMap;
    }
 
    public static InMemoryDataContainer unboundedDataContainer(int concurrencyLevel) {
@@ -122,6 +124,12 @@ public class InMemoryDataContainer extends AbstractDataContainer {
    @Override
    public Set<InternalCacheEntry> entrySet(AccessMode mode) {
       return new EntrySet();
+   }
+
+   @Override
+   protected InternalCacheEntry innerPeek(Object key, AccessMode mode) {
+      //cast is safe because the bounded field is based on instanceOf.
+      return bounded ? ((BoundedConcurrentHashMap<Object, InternalCacheEntry>) entries).peek(key) : entries.get(key);
    }
 
    @Override

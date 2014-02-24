@@ -1,6 +1,5 @@
 package org.infinispan.container;
 
-import com.sun.istack.internal.NotNull;
 import org.infinispan.commons.marshall.StreamingMarshaller;
 import org.infinispan.commons.util.concurrent.ParallelIterableMap;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -49,7 +48,7 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
    @Override
    public final InternalCacheEntry peek(Object key, AccessMode mode) {
       assertNotNull("mode", mode);
-      return innerGet(key, mode);
+      return innerPeek(key, mode);
    }
 
    @Override
@@ -136,16 +135,18 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
       return new ImmutableEntryIterator(asInMemoryUtil().iterator());
    }
 
+   protected abstract InternalCacheEntry innerPeek(Object key, AccessMode mode);
+
    //load from data container (or persistence).
-   protected abstract InternalCacheEntry innerGet(@NotNull Object key, @NotNull AccessMode mode);
+   protected abstract InternalCacheEntry innerGet(Object key, AccessMode mode);
 
    //remove (options define if remove from persistence)
-   protected abstract InternalCacheEntry innerRemove(@NotNull Object key, @NotNull AccessMode mode);
+   protected abstract InternalCacheEntry innerRemove(Object key, AccessMode mode);
 
    //put in data container and in persistence
-   protected abstract void innerPut(@NotNull InternalCacheEntry entry, @NotNull AccessMode mode);
+   protected abstract void innerPut(InternalCacheEntry entry, AccessMode mode);
 
-   protected abstract int innerSize(@NotNull AccessMode mode);
+   protected abstract int innerSize(AccessMode mode);
 
    protected abstract MemoryContainerUtil asInMemoryUtil();
 

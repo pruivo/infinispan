@@ -1321,7 +1321,7 @@ public class BoundedConcurrentHashMap<K, V> extends AbstractMap<K, V>
 
       /* Specialized implementations of map methods */
 
-      V get(Object key, int hash) {
+      V get(Object key, int hash, boolean peek) {
          int c = count;
          if (c != 0) { // read-volatile
             V result = null;
@@ -1340,7 +1340,7 @@ public class BoundedConcurrentHashMap<K, V> extends AbstractMap<K, V>
                e = e.next;
             }
             // a hit
-            if (result != null) {
+            if (!peek && result != null) {
                if (eviction.onEntryHit(e)) {
                   Set<HashEntry<K, V>> evicted = attemptEviction(false);
                   notifyEvictionListener(evicted);
@@ -1944,7 +1944,12 @@ public class BoundedConcurrentHashMap<K, V> extends AbstractMap<K, V>
    @Override
    public V get(Object key) {
       int hash = hash(keyEquivalence.hashCode(key));
-      return segmentFor(hash).get(key, hash);
+      return segmentFor(hash).get(key, hash, false);
+   }
+
+   public V peek(Object key) {
+      int hash = hash(keyEquivalence.hashCode(key));
+      return segmentFor(hash).get(key, hash, true);
    }
 
    /**

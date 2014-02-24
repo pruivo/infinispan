@@ -24,20 +24,21 @@ import java.util.Set;
 public interface DataContainerV2 extends Iterable<InternalCacheEntry> {
 
    /**
-    * Retrieves a cached entry from in memory container or from cache loader (a.k.a. persistence).
+    * Retrieves a cached entry from container or from cache loader (a.k.a. persistence).
     * <p/>
-    * The {@link org.infinispan.container.DataContainerV2.AccessMode} changes the implementation behavior. For the
-    * current available {@code AccessMode}, this is the expected result:
+    * The {@link org.infinispan.container.DataContainerV2.AccessMode} has the following effect:
     * <p/>
     * <li> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_CONTAINER} - returns the entry from
-    * CacheLoader; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE} - returns the
-    * entry from in memory container; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#ALL} -
-    * returns the entry from in memory container. If it does not exists, it tries to load it from CacheLoader and stores
-    * it in in memory container</ul> </li>
+    * cache loader; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE} - returns
+    * the entry from container; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#ALL} - returns the
+    * entry from container. If it does not exists, it tries to load it from cache loader and stores it in container,
+    * atomically (the entry must be activated)</ul> </li>
     *
-    * @param k key under which entry is stored
+    * @param k    key under which entry is stored
+    * @param mode the access mode which behavior is described above
     * @return entry, if it exists and has not expired, or {@code null} if not
     * @throws java.lang.IllegalArgumentException if {@code mode} is not valid.
+    * @throws java.lang.NullPointerException     if any parameter is null.
     */
    InternalCacheEntry get(Object k, AccessMode mode);
 
@@ -50,9 +51,21 @@ public interface DataContainerV2 extends Iterable<InternalCacheEntry> {
     * when called while iterating through the data container using methods like {@link
     * #keySet(org.infinispan.container.DataContainerV2.AccessMode)} to avoid changing the underlying collection's
     * order.
+    * <p/>
+    * The {@link org.infinispan.container.DataContainerV2.AccessMode} has the following effect:
+    * <p/>
+    * <li> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_CONTAINER} - returns the entry from
+    * cache loader; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE} - returns
+    * the entry from container; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#ALL} - returns the
+    * entry from container. If it does not exists, it tries to load it from cache loader (note that the entry is not
+    * stored in container as happens in {@link #get(Object, org.infinispan.container.DataContainerV2.AccessMode)}</ul>
+    * </li>
     *
-    * @param k key under which entry is stored
+    * @param k    key under which entry is stored
+    * @param mode the access mode
     * @return entry, if it exists, or null if not
+    * @throws java.lang.IllegalArgumentException if {@code mode} is not valid.
+    * @throws java.lang.NullPointerException     if any parameter is null.
     */
    InternalCacheEntry peek(Object k, AccessMode mode);
 
@@ -67,15 +80,33 @@ public interface DataContainerV2 extends Iterable<InternalCacheEntry> {
    void put(Object k, Object v, Metadata metadata);
 
    /**
-    * Tests whether an entry exists in the container
+    * Tests whether an entry exists in the container and/or cache loader.
+    * <p/>
+    * The {@link org.infinispan.container.DataContainerV2.AccessMode} has the following effect:
+    * <p/>
+    * <li> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_CONTAINER} - checks only in cache
+    * loader; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE} - checks only in
+    * container; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#ALL} - checks in container and in
+    * cache loader.</ul> </li>
     *
-    * @param k key to test
+    * @param k    key to test
+    * @param mode the access mode.
     * @return true if entry exists and has not expired; false otherwise
+    * @throws java.lang.IllegalArgumentException if {@code mode} is not valid.
+    * @throws java.lang.NullPointerException     if any parameter is null.
     */
    boolean containsKey(Object k, AccessMode mode);
 
    /**
-    * Removes an entry from the cache
+    * Removes an entry from the container and/or cache loader.
+    * <p/>
+    * The {@link org.infinispan.container.DataContainerV2.AccessMode} has the following effect:
+    * <p/>
+    * <li> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_CONTAINER} - removes only from cache
+    * writer </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE} - this remove
+    * behaves as eviction. Atomically, the entry is removed from container and stored in cache writer (the key must be
+    * passivated); </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#ALL} - removes from container
+    * and cache writer.</ul> </li>
     *
     * @param k key to remove
     * @return entry removed, or null if it didn't exist or had expired
