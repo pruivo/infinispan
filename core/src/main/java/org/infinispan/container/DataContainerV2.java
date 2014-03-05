@@ -70,8 +70,15 @@ public interface DataContainerV2 extends Iterable<InternalCacheEntry> {
    InternalCacheEntry peek(Object k, AccessMode mode);
 
    /**
-    * Puts an entry in the cache along with metadata adding information such lifespan of entry, max idle time, version
-    * information...etc.
+    * Stores an entry in the container and/or cache writer along with metadata adding information such lifespan of
+    * entry, max idle time, version information...etc.
+    * <p/>
+    * The {@link org.infinispan.container.DataContainerV2.AccessMode} has the following effect:
+    * <p/>
+    * <li> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_CONTAINER} - stores only in cache store;
+    * </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE} - stores only in
+    * container; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#ALL} - store in container and in
+    * cache writer.</ul> </li>
     *
     * @param k        key under which to store entry
     * @param v        value to store
@@ -110,11 +117,23 @@ public interface DataContainerV2 extends Iterable<InternalCacheEntry> {
     *
     * @param k key to remove
     * @return entry removed, or null if it didn't exist or had expired
+    * @throws java.lang.IllegalArgumentException if {@code mode} is not valid.
+    * @throws java.lang.NullPointerException     if any parameter is null.
     */
    InternalCacheEntry remove(Object k, AccessMode mode);
 
    /**
-    * @return count of the number of entries in the container
+    * The {@link org.infinispan.container.DataContainerV2.AccessMode} has the following effect:
+    * <p/>
+    * <li> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_CONTAINER} - size only from cache loader
+    * </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE} - size only from
+    * container; </ul> <ul> {@link org.infinispan.container.DataContainerV2.AccessMode#ALL} - size from container and
+    * cache loader.</ul> </li>
+    *
+    * @return count of the number of entries in the container and/or persistence depending of the {@link
+    * org.infinispan.container.DataContainerV2.AccessMode}
+    * @throws java.lang.IllegalArgumentException if {@code mode} is not valid.
+    * @throws java.lang.NullPointerException     if any parameter is null.
     */
    int size(AccessMode mode);
 
@@ -125,17 +144,23 @@ public interface DataContainerV2 extends Iterable<InternalCacheEntry> {
    void clear();
 
    /**
-    * Returns a set of keys in the container. When iterating through the container using this method, clients should
-    * never call {@link #get(Object, org.infinispan.container.DataContainerV2.AccessMode)} method but instead {@link
-    * #peek(Object, org.infinispan.container.DataContainerV2.AccessMode)}, in order to avoid changing the order of the
-    * underlying collection as a side of effect of iterating through it.
+    * Returns a set of keys in the container and/or persistence depending of the {@link
+    * org.infinispan.container.DataContainerV2.AccessMode}. When iterating through the container using this method,
+    * clients should never call {@link #get(Object, org.infinispan.container.DataContainerV2.AccessMode)} method but
+    * instead {@link #peek(Object, org.infinispan.container.DataContainerV2.AccessMode)}, in order to avoid changing the
+    * order of the underlying collection as a side of effect of iterating through it.
     *
     * @return a set of keys
+    * @throws java.lang.IllegalArgumentException if {@code mode} is not valid.
+    * @throws java.lang.NullPointerException     if any parameter is null.
     */
    Set<Object> keySet(AccessMode mode);
 
    /**
-    * @return a set of values contained in the container
+    * @return a set of values contained in the container and/or persistence depending on the {@link
+    * org.infinispan.container.DataContainerV2.AccessMode}
+    * @throws java.lang.IllegalArgumentException if {@code mode} is not valid.
+    * @throws java.lang.NullPointerException     if any parameter is null.
     */
    Collection<Object> values(AccessMode mode);
 
@@ -148,11 +173,13 @@ public interface DataContainerV2 extends Iterable<InternalCacheEntry> {
     * itself rather than iterating through the return of entrySet().
     *
     * @return a set of immutable cache entries
+    * @throws java.lang.IllegalArgumentException if {@code mode} is not valid.
+    * @throws java.lang.NullPointerException     if any parameter is null.
     */
    Set<InternalCacheEntry> entrySet(AccessMode mode);
 
    /**
-    * Purges entries that have passed their expiry time
+    * Purges entries that have passed their expiry time from container
     */
    void purgeExpired();
 

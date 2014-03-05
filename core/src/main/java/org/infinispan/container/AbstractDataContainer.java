@@ -90,7 +90,7 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
 
    @Override
    public final void purgeExpired() {
-      long currentTimeMillis = timeService().wallClockTime();
+      long currentTimeMillis = timeService.wallClockTime();
       for (Iterator<InternalCacheEntry> purgeCandidates = asInMemoryUtil().iterator(); purgeCandidates.hasNext(); ) {
          InternalCacheEntry e = purgeCandidates.next();
          if (e.isExpired(currentTimeMillis)) {
@@ -135,29 +135,55 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
       return new ImmutableEntryIterator(asInMemoryUtil().iterator());
    }
 
+   /**
+    * Same behavior as {@link #peek(Object, org.infinispan.container.DataContainerV2.AccessMode)}.
+    *
+    * @return the {@link org.infinispan.container.entries.InternalCacheEntry} without touching it.
+    */
    protected abstract InternalCacheEntry innerPeek(Object key, AccessMode mode);
 
    //load from data container (or persistence).
+
+   /**
+    * Same behavior as {@link #innerPeek(Object, org.infinispan.container.DataContainerV2.AccessMode)} but if the entry
+    * is loaded from persistence, then it is stored in the container.
+    *
+    * @return the {@link org.infinispan.container.entries.InternalCacheEntry} without touching it.
+    */
    protected abstract InternalCacheEntry innerGet(Object key, AccessMode mode);
 
-   //remove (options define if remove from persistence)
+   /**
+    * Removes the key from container and/or cache store. Note that if {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE}
+    * is used, the entry should be passivated, i.e., the entry is removed from container and should be stored in cache
+    * store (if it wasn't already there).
+    *
+    * @return the removed {@link org.infinispan.container.entries.InternalCacheEntry}.
+    */
    protected abstract InternalCacheEntry innerRemove(Object key, AccessMode mode);
 
-   //put in data container and in persistence
+   /**
+    * Same behavior as described in {@link #put(Object, Object, org.infinispan.metadata.Metadata)}
+    */
    protected abstract void innerPut(InternalCacheEntry entry, AccessMode mode);
 
+   /**
+    * Same behavior as described in {@link #size(org.infinispan.container.DataContainerV2.AccessMode)}
+    *
+    * @return the number of entries stored.
+    */
    protected abstract int innerSize(AccessMode mode);
 
+   /**
+    * @return an exposed interface with the common logic to deal with in-memory storage.
+    */
    protected abstract MemoryContainerUtil asInMemoryUtil();
 
-   protected final TimeService timeService() {
-      return timeService;
-   }
-
-   protected final InternalEntryFactory factory() {
-      return entryFactory;
-   }
-
+   /**
+    * Converts the {@link org.infinispan.marshall.core.MarshalledEntry} into {@link
+    * org.infinispan.container.entries.InternalCacheEntry}
+    *
+    * @return the converted {@code InternalCacheEntry} or {@code null} if the parameter {@code marshalledEntry} is null.
+    */
    protected final InternalCacheEntry convert(MarshalledEntry marshalledEntry) {
       if (marshalledEntry == null) {
          return null;
@@ -165,6 +191,12 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
       return entryFactory.create(marshalledEntry.getKey(), marshalledEntry.getValue(), marshalledEntry.getMetadata());
    }
 
+   /**
+    * Converts the {@link org.infinispan.container.entries.InternalCacheEntry} into {@link
+    * org.infinispan.marshall.core.MarshalledEntry}
+    *
+    * @return the converted {@code MarshalledEntry} or {@code null} if the parameter {@code entry} is null.
+    */
    protected final MarshalledEntry convert(InternalCacheEntry entry) {
       if (entry == null) {
          return null;
@@ -173,6 +205,10 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
                                                      internalMetadata(entry.toInternalCacheValue()), marshaller);
    }
 
+   /**
+    * @return the exception to be thrown if the {@link org.infinispan.container.DataContainerV2.AccessMode} is not
+    * valid.
+    */
    protected static IllegalArgumentException illegalAccessMode(AccessMode mode) {
       return new IllegalArgumentException("Invalid access mode: " + mode);
    }

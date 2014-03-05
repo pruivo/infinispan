@@ -1,6 +1,5 @@
 package org.infinispan.container;
 
-import com.sun.istack.internal.NotNull;
 import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.commons.util.concurrent.ParallelIterableMap;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -31,7 +30,7 @@ import static org.infinispan.util.concurrent.BoundedConcurrentHashMap.EvictionLi
  * // TODO: Document this
  *
  * @author Pedro Ruivo
- * @since 6.0
+ * @since 7.0
  */
 public class DurableBoundedDataContainer extends AbstractDataContainer {
 
@@ -246,7 +245,7 @@ public class DurableBoundedDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected InternalCacheEntry innerGet(@NotNull final Object key, @NotNull AccessMode mode) {
+   protected InternalCacheEntry innerGet(final Object key, AccessMode mode) {
       switch (mode) {
          case SKIP_CONTAINER:
             return convert(persistenceManager.loadFromAllStores(key, null));
@@ -278,7 +277,7 @@ public class DurableBoundedDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected InternalCacheEntry innerRemove(@NotNull Object key, @NotNull AccessMode mode) {
+   protected InternalCacheEntry innerRemove(Object key, AccessMode mode) {
       switch (mode) {
          case SKIP_PERSISTENCE:
             return entries.evict(key);
@@ -291,7 +290,7 @@ public class DurableBoundedDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected void innerPut(@NotNull final InternalCacheEntry entry, @NotNull AccessMode mode) {
+   protected void innerPut(final InternalCacheEntry entry, AccessMode mode) {
       switch (mode) {
          case SKIP_CONTAINER:
             persistenceManager.writeToAllStores(null, true);
@@ -315,7 +314,7 @@ public class DurableBoundedDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected int innerSize(@NotNull AccessMode mode) {
+   protected int innerSize(AccessMode mode) {
       switch (mode) {
          case SKIP_CONTAINER:
             return persistenceManager.size();

@@ -1,6 +1,5 @@
 package org.infinispan.container;
 
-import com.sun.istack.internal.NotNull;
 import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.commons.util.CollectionFactory;
 import org.infinispan.commons.util.concurrent.ParallelIterableMap;
@@ -133,22 +132,22 @@ public class InMemoryDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected InternalCacheEntry innerGet(@NotNull Object key, @NotNull AccessMode mode) {
+   protected InternalCacheEntry innerGet(Object key, AccessMode mode) {
       return entries.get(key);
    }
 
    @Override
-   protected InternalCacheEntry innerRemove(@NotNull Object key, @NotNull AccessMode mode) {
+   protected InternalCacheEntry innerRemove(Object key, AccessMode mode) {
       return entries.remove(key);
    }
 
    @Override
-   protected void innerPut(@NotNull InternalCacheEntry entry, @NotNull AccessMode mode) {
+   protected void innerPut(InternalCacheEntry entry, AccessMode mode) {
       entries.put(entry.getKey(), entry);
    }
 
    @Override
-   protected int innerSize(@NotNull AccessMode mode) {
+   protected int innerSize(AccessMode mode) {
       return entries.size();
    }
 

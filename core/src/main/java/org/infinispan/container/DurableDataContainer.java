@@ -1,6 +1,5 @@
 package org.infinispan.container;
 
-import com.sun.istack.internal.NotNull;
 import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.commons.util.CollectionFactory;
 import org.infinispan.commons.util.concurrent.jdk8backported.ConcurrentParallelHashMapV8;
@@ -223,7 +222,7 @@ public class DurableDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected InternalCacheEntry innerGet(@NotNull final Object key, @NotNull AccessMode mode) {
+   protected InternalCacheEntry innerGet(final Object key, AccessMode mode) {
       //TODO how to pass the context?
       switch (mode) {
          case SKIP_CONTAINER:
@@ -252,7 +251,7 @@ public class DurableDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected InternalCacheEntry innerRemove(@NotNull final Object key, @NotNull AccessMode mode) {
+   protected InternalCacheEntry innerRemove(final Object key, AccessMode mode) {
       final AtomicReference<InternalCacheEntry> oldValue = new AtomicReference<InternalCacheEntry>(null);
       switch (mode) {
          case SKIP_PERSISTENCE:
@@ -288,7 +287,7 @@ public class DurableDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected void innerPut(@NotNull final InternalCacheEntry entry, @NotNull AccessMode mode) {
+   protected void innerPut(final InternalCacheEntry entry, AccessMode mode) {
       switch (mode) {
          case SKIP_CONTAINER:
             persistenceManager.writeToAllStores(convert(entry), false);
@@ -311,7 +310,7 @@ public class DurableDataContainer extends AbstractDataContainer {
    }
 
    @Override
-   protected int innerSize(@NotNull AccessMode mode) {
+   protected int innerSize(AccessMode mode) {
       switch (mode) {
          case SKIP_CONTAINER:
             return persistenceManager.size();
