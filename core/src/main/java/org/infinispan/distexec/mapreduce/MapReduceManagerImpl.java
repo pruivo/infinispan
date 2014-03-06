@@ -43,6 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static org.infinispan.container.DataContainer.AccessMode;
 import static org.infinispan.distexec.mapreduce.MapReduceTask.DEFAULT_TMP_CACHE_CONFIGURATION_NAME;
 import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR;
 
@@ -134,7 +135,7 @@ public class MapReduceManagerImpl implements MapReduceManager {
             }
             //iterate all tmp cache entries in memory, do it in parallel
             DataContainer dc = cache.getAdvancedCache().getDataContainer();
-            dc.executeTask(filter, new StatelessDataContainerTask<KOut, List<VOut>>() {
+            dc.executeTask((AdvancedCacheLoader.KeyFilter<Object>) filter, new StatelessDataContainerTask<KOut, List<VOut>>() {
                @Override
                public void apply(Object k, InternalCacheEntry v) {
                   KOut key = null;
@@ -201,7 +202,8 @@ public class MapReduceManagerImpl implements MapReduceManager {
          }
          // in case we have stores, we have to process key/values from there as well
          if (persistenceManager != null && !inputKeysSpecified) {
-               AdvancedCacheLoader.KeyFilter<?> keyFilter = new CompositeFilter(new PrimaryOwnerFilter(cdl), new CollectionKeyFilter(dc.keySet()));
+               AdvancedCacheLoader.KeyFilter<?> keyFilter = new CompositeFilter(new PrimaryOwnerFilter(cdl),
+                                                                                new CollectionKeyFilter(dc.keySet(AccessMode.SKIP_PERSISTENCE)));
                persistenceManager.processOnAllStores(keyFilter, new MapReduceCacheLoaderTask(mapper, collector),
                      true, false);
          }

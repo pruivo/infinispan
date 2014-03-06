@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
+import static org.infinispan.container.DataContainer.AccessMode;
+
 /**
  * Command implementation for {@link java.util.Map#keySet()} functionality.
  *
@@ -37,30 +39,37 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
 
    @Override
    public Set<Object> perform(InvocationContext ctx) throws Throwable {
-      Set<Object> objects = container.keySet();
+      final AccessMode accessMode = accessMode();
+      Set<Object> objects = container.keySet(accessMode);
       if (ctx.getLookedUpEntries().isEmpty()) {
-         return new ExpiredFilteredKeySet(objects, container);
+         return new ExpiredFilteredKeySet(objects, container, accessMode);
       }
 
-      return new FilteredKeySet(objects, ctx.getLookedUpEntries(), container);
+      return new FilteredKeySet(objects, ctx.getLookedUpEntries(), container, accessMode);
    }
 
    @Override
    public String toString() {
       return "KeySetCommand{" +
-            "set=" + container.size() + " elements" +
+            "set=" + container.size(accessMode()) + " elements" +
             '}';
+   }
+
+   private AccessMode accessMode() {
+      return hasFlag(Flag.SKIP_CACHE_LOAD) ? AccessMode.SKIP_PERSISTENCE : AccessMode.ALL;
    }
 
    private static class FilteredKeySet extends AbstractSet<Object> {
       final Set<Object> keySet;
       final Map<Object, CacheEntry> lookedUpEntries;
       final DataContainer container;
+      final AccessMode accessMode;
 
-      FilteredKeySet(Set<Object> keySet, Map<Object, CacheEntry> lookedUpEntries, DataContainer container) {
+      FilteredKeySet(Set<Object> keySet, Map<Object, CacheEntry> lookedUpEntries, DataContainer container, AccessMode accessMode) {
          this.keySet = keySet;
          this.lookedUpEntries = lookedUpEntries;
          this.container = container;
+         this.accessMode = accessMode;
       }
 
       @Override
@@ -69,12 +78,12 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
          // First, removed any expired keys
          for (Object k : keySet) {
             // Given the key set, a key won't be contained if it's expired
-            if (!container.containsKey(k))
+            if (!container.containsKey(k, accessMode))
                size--;
          }
          // Update according to keys added or removed in tx
          for (CacheEntry e: lookedUpEntries.values()) {
-            if (container.containsKey(e.getKey())) {
+            if (container.containsKey(e.getKey(), accessMode)) {
                if (e.isRemoved()) {
                   size --;
                }
@@ -207,10 +216,12 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
    public static class ExpiredFilteredKeySet extends AbstractSet<Object> {
       final Set<Object> keySet;
       final DataContainer container;
+      final AccessMode accessMode;
 
-      public ExpiredFilteredKeySet(Set<Object> keySet, DataContainer container) {
+      public ExpiredFilteredKeySet(Set<Object> keySet, DataContainer container, AccessMode accessMode) {
          this.keySet = keySet;
          this.container = container;
+         this.accessMode = accessMode;
       }
 
       @Override
@@ -255,7 +266,7 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
          int s = keySet.size();
          for (Object k : keySet) {
             // Given the key set, a key won't be contained if it's expired
-            if (!container.containsKey(k))
+            if (!container.containsKey(k, accessMode))
                s--;
          }
          return s;
@@ -273,7 +284,7 @@ public class KeySetCommand extends AbstractLocalCommand implements VisitableComm
          private void fetchNext() {
             while (it.hasNext()) {
                Object k = it.next();
-               if (container.containsKey(k)) {
+               if (container.containsKey(k, accessMode)) {
                   next = k;
                   break;
                }

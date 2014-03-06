@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.infinispan.commons.util.Util.toStr;
+import static org.infinispan.container.DataContainer.AccessMode;
 
 /**
  * Interceptor in charge with wrapping entries and add them in caller's context.
@@ -142,7 +143,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
 
    @Override
    public final Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
-      for (InternalCacheEntry entry : dataContainer.entrySet())
+      for (InternalCacheEntry entry : dataContainer.entrySet(AccessMode.ALL))
          entryFactory.wrapEntryForClear(ctx, entry.getKey());
       return setSkipRemoteGetsAndInvokeNextForClear(ctx, command);
    }
@@ -427,7 +428,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       @Override
       public Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
          boolean wrapped = false;
-         for (Object key : dataContainer.keySet()) {
+         for (Object key : dataContainer.keySet(AccessMode.ALL)) {
             entryFactory.wrapEntryForClear(ctx, key);
             wrapped = true;
          }

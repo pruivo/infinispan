@@ -18,6 +18,7 @@ import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.util.concurrent.locks.LockManager;
 
 import static org.infinispan.commons.util.Util.toStr;
+import static org.infinispan.container.DataContainer.AccessMode;
 
 /**
  * Base class for replication and distribution interceptors.
@@ -78,7 +79,7 @@ public abstract class ClusteringInterceptor extends BaseRpcInterceptor {
 
    protected boolean isValueAvailableLocally(ConsistentHash consistentHash, Object key) {
       final boolean isLocal = consistentHash.isKeyLocalToNode(rpcManager.getAddress(), key);
-      return isLocal || (isL1Enabled && dataContainer.containsKey(key));
+      return isLocal || (isL1Enabled && dataContainer.containsKey(key, AccessMode.ALL));
    }
 
    /**

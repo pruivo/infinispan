@@ -25,6 +25,8 @@ import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
+import static org.infinispan.container.DataContainer.AccessMode;
+
 /**
  * {@link EntryFactory} implementation to be used for optimistic locking scheme.
  *
@@ -260,7 +262,7 @@ public class EntryFactoryImpl implements EntryFactory {
 
    private InternalCacheEntry getFromContainer(Object key, boolean forceFetch) {
       final boolean isLocal = distributionManager == null || distributionManager.getLocality(key).isLocal();
-      final InternalCacheEntry ice = isL1Enabled || isLocal || forceFetch ? container.get(key) : null;
+      final InternalCacheEntry ice = isL1Enabled || isLocal || forceFetch ? container.get(key, AccessMode.ALL) : null;
       if (trace) log.tracef("Retrieved from container %s (isL1Enabled=%s, isLocal=%s)", ice, isL1Enabled, isLocal);
       return ice;
    }

@@ -14,7 +14,6 @@ import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextFactory;
-import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.distexec.DistributedCallable;
 import org.infinispan.distribution.L1Manager;
 import org.infinispan.distribution.ch.ConsistentHash;
@@ -66,6 +65,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
 
+import static org.infinispan.container.DataContainer.AccessMode;
 import static org.infinispan.context.Flag.*;
 import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR;
 
@@ -488,7 +488,7 @@ public class StateConsumerImpl implements StateConsumer {
       }
 
       if (trace) {
-         log.tracef("Before applying the received state the data container of cache %s has %d keys", cacheName, dataContainer.size());
+         log.tracef("Before applying the received state the data container of cache %s has %d keys", cacheName, dataContainer.size(AccessMode.SKIP_PERSISTENCE));
       }
 
       for (StateChunk stateChunk : stateChunks) {
@@ -516,7 +516,7 @@ public class StateConsumerImpl implements StateConsumer {
       }
 
       if (trace) {
-         log.tracef("After applying the received state the data container of cache %s has %d keys", cacheName, dataContainer.size());
+         log.tracef("After applying the received state the data container of cache %s has %d keys", cacheName, dataContainer.size(AccessMode.SKIP_PERSISTENCE));
          synchronized (transferMapsLock) {
             log.tracef("Segments not received yet for cache %s: %s", cacheName, transfersBySource);
          }
@@ -965,7 +965,7 @@ public class StateConsumerImpl implements StateConsumer {
             InvocationContext ctx = icf.createNonTxInvocationContext();
             interceptorChain.invoke(ctx, invalidateCmd);
 
-            log.debugf("Invalidated %d keys, data container now has %d keys", keysToL1.size(), dataContainer.size());
+            log.debugf("Invalidated %d keys, data container now has %d keys", keysToL1.size(), dataContainer.size(AccessMode.SKIP_PERSISTENCE));
             if (trace) log.tracef("Invalidated keys: %s", keysToL1);
          } catch (CacheException e) {
             log.failedToInvalidateKeys(e);
@@ -979,7 +979,7 @@ public class StateConsumerImpl implements StateConsumer {
             InvocationContext ctx = icf.createNonTxInvocationContext();
             interceptorChain.invoke(ctx, invalidateCmd);
 
-            log.debugf("Invalidated %d keys, data container of cache %s now has %d keys", keysToRemove.size(), cacheName, dataContainer.size());
+            log.debugf("Invalidated %d keys, data container of cache %s now has %d keys", keysToRemove.size(), cacheName, dataContainer.size(AccessMode.SKIP_PERSISTENCE));
             if (trace) log.tracef("Invalidated keys: %s", keysToRemove);
          } catch (CacheException e) {
             log.failedToInvalidateKeys(e);

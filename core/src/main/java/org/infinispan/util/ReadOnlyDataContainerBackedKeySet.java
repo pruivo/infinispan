@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 
+import static org.infinispan.container.DataContainer.AccessMode;
+
 /**
  * A Set view of keys in a data container, which is read-only and has efficient contains(), unlike some data container
  * ley sets.
@@ -24,34 +26,34 @@ public class ReadOnlyDataContainerBackedKeySet implements Set<Object> {
 
    @Override
    public int size() {
-      return container.size();
+      return container.size(AccessMode.SKIP_PERSISTENCE);
    }
 
    @Override
    public boolean isEmpty() {
-      return container.size() == 0;
+      return container.size(AccessMode.SKIP_PERSISTENCE) == 0;
    }
 
    @Override
    public boolean contains(Object o) {
-      return container.containsKey(o);
+      return container.containsKey(o, AccessMode.SKIP_PERSISTENCE);
    }
 
    @Override
    public Iterator<Object> iterator() {
-      if (keySet == null) keySet = container.keySet();
+      if (keySet == null) keySet = container.keySet(AccessMode.SKIP_PERSISTENCE);
       return keySet.iterator();
    }
 
    @Override
    public Object[] toArray() {
-      if (keySet == null) keySet = container.keySet();
+      if (keySet == null) keySet = container.keySet(AccessMode.SKIP_PERSISTENCE);
       return keySet.toArray();
    }
 
    @Override
    public <T> T[] toArray(T[] a) {
-      if (keySet == null) keySet = container.keySet();
+      if (keySet == null) keySet = container.keySet(AccessMode.SKIP_PERSISTENCE);
       return keySet.toArray(a);
    }
 

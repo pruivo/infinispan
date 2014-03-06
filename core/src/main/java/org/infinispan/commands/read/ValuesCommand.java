@@ -17,6 +17,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
+import static org.infinispan.container.DataContainer.AccessMode;
+
 /**
  * Command implementation for {@link java.util.Map#values()} functionality.
  *
@@ -43,30 +45,33 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
    @Override
    public Collection<Object> perform(InvocationContext ctx) throws Throwable {
       if (ctx.getLookedUpEntries().isEmpty()) {
-         return new ExpiredFilteredValues(container.entrySet(), timeService);
+         return new ExpiredFilteredValues(container.entrySet(accessMode()), timeService);
       }
 
-      return new FilteredValues(container, ctx.getLookedUpEntries(), timeService);
+      return new FilteredValues(container, container.entrySet(accessMode()), ctx.getLookedUpEntries(), timeService);
    }
 
    @Override
    public String toString() {
       return "ValuesCommand{" +
-            "values=" + container.size() + " elements" +
+            "values=" + container.size(accessMode()) + " elements" +
             '}';
+   }
+
+   private AccessMode accessMode() {
+      return hasFlag(Flag.SKIP_CACHE_LOAD) ? AccessMode.SKIP_PERSISTENCE : AccessMode.ALL;
    }
 
    private static class FilteredValues extends AbstractCollection<Object> {
       final DataContainer container;
-      final Collection<Object> values;
       final Set<InternalCacheEntry> entrySet;
       final Map<Object, CacheEntry> lookedUpEntries;
       final TimeService timeService;
 
-      FilteredValues(DataContainer container, Map<Object, CacheEntry> lookedUpEntries, TimeService timeService) {
+      FilteredValues(DataContainer container, Set<InternalCacheEntry> entrySet, Map<Object, CacheEntry> lookedUpEntries,
+                     TimeService timeService) {
          this.container = container;
-         values = container.values();
-         entrySet = container.entrySet();
+         this.entrySet = entrySet;
          this.lookedUpEntries = lookedUpEntries;
          this.timeService = timeService;
       }
@@ -76,7 +81,7 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
          long currentTimeMillis = 0;
          Set<Object> validKeys = new HashSet<Object>();
          // First, removed any expired ones
-         for (InternalCacheEntry e: entrySet) {
+         for (InternalCacheEntry e : entrySet) {
             if (e.canExpire()) {
                if (currentTimeMillis == 0)
                   currentTimeMillis = timeService.wallClockTime();
@@ -90,13 +95,13 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
 
          int size = validKeys.size();
          // Update according to entries added or removed in tx
-         for (CacheEntry e: lookedUpEntries.values()) {
+         for (CacheEntry e : lookedUpEntries.values()) {
             if (validKeys.contains(e.getKey())) {
                if (e.isRemoved()) {
-                  size --;
+                  size--;
                }
             } else if (!e.isRemoved()) {
-               size ++;
+               size++;
             }
          }
          return Math.max(size, 0);
@@ -104,7 +109,7 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
 
       @Override
       public boolean contains(Object o) {
-         for (CacheEntry e: lookedUpEntries.values()) {
+         for (CacheEntry e : lookedUpEntries.values()) {
             // A value can repeat, so only return true if we find one, not just whether or not it was removed
             if (o.equals(e.getValue()) && !e.isRemoved()) {
                return true;
@@ -168,6 +173,34 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
             fetchNext();
          }
 
+         @Override
+         public boolean hasNext() {
+            if (next == null) {
+               fetchNext();
+            }
+            return next != null;
+         }
+
+         @Override
+         public Object next() {
+            if (next == null) {
+               fetchNext();
+            }
+
+            if (next == null) {
+               throw new NoSuchElementException();
+            }
+
+            Object ret = next;
+            next = null;
+            return ret;
+         }
+
+         @Override
+         public void remove() {
+            throw new UnsupportedOperationException();
+         }
+
          private void fetchNext() {
             if (atIt1) {
                boolean found = false;
@@ -209,34 +242,6 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
                   next = null;
                }
             }
-         }
-
-         @Override
-         public boolean hasNext() {
-            if (next == null) {
-               fetchNext();
-            }
-            return next != null;
-         }
-
-         @Override
-         public Object next() {
-            if (next == null) {
-               fetchNext();
-            }
-
-            if (next == null) {
-               throw new NoSuchElementException();
-            }
-
-            Object ret = next;
-            next = null;
-            return ret;
-         }
-
-         @Override
-         public void remove() {
-            throw new UnsupportedOperationException();
          }
       }
    }
@@ -290,9 +295,9 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
          // Use entry set as a way to calculate the number of values.
          int s = entrySet.size();
          long currentTimeMillis = 0;
-         for (InternalCacheEntry e: entrySet) {
+         for (InternalCacheEntry e : entrySet) {
             if (e.canExpire()) {
-               if (currentTimeMillis==0)
+               if (currentTimeMillis == 0)
                   currentTimeMillis = timeService.wallClockTime();
                if (e.isExpired(currentTimeMillis))
                   s--;
@@ -308,24 +313,6 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
 
          private Itr() {
             fetchNext();
-         }
-
-         private void fetchNext() {
-            long currentTimeMillis = 0;
-            while (it.hasNext()) {
-               InternalCacheEntry e = it.next();
-               final boolean canExpire = e.canExpire();
-               if (canExpire && currentTimeMillis == 0) {
-                  currentTimeMillis = timeService.wallClockTime();
-               }
-               if (!canExpire) {
-                  next = e.getValue();
-                  break;
-               } else if (!e.isExpired(currentTimeMillis)) {
-                  next = e.getValue();
-                  break;
-               }
-            }
          }
 
          @Override
@@ -352,6 +339,24 @@ public class ValuesCommand extends AbstractLocalCommand implements VisitableComm
          @Override
          public void remove() {
             throw new UnsupportedOperationException();
+         }
+
+         private void fetchNext() {
+            long currentTimeMillis = 0;
+            while (it.hasNext()) {
+               InternalCacheEntry e = it.next();
+               final boolean canExpire = e.canExpire();
+               if (canExpire && currentTimeMillis == 0) {
+                  currentTimeMillis = timeService.wallClockTime();
+               }
+               if (!canExpire) {
+                  next = e.getValue();
+                  break;
+               } else if (!e.isExpired(currentTimeMillis)) {
+                  next = e.getValue();
+                  break;
+               }
+            }
          }
       }
    }

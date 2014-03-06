@@ -8,6 +8,7 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import static org.infinispan.commons.util.Util.toStr;
+import static org.infinispan.container.DataContainer.AccessMode;
 import static org.infinispan.container.entries.ReadCommittedEntry.Flags.*;
 
 /**
@@ -155,7 +156,7 @@ public class ReadCommittedEntry implements MVCCEntry {
          }
 
          if (isRemoved()) {
-            container.remove(key);
+            container.remove(key, AccessMode.ALL);
          } else if (value != null) {
             // Can't just rely on the entry's metadata because it could have
             // been modified by the interceptor chain (i.e. new version

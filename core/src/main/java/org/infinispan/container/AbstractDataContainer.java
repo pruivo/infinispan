@@ -25,7 +25,7 @@ import static org.infinispan.factories.KnownComponentNames.CACHE_MARSHALLER;
  * @author Pedro Ruivo
  * @since 6.0
  */
-public abstract class AbstractDataContainer implements DataContainerV2 {
+public abstract class AbstractDataContainer implements DataContainer {
 
    StreamingMarshaller marshaller;
    private TimeService timeService;
@@ -136,7 +136,7 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
    }
 
    /**
-    * Same behavior as {@link #peek(Object, org.infinispan.container.DataContainerV2.AccessMode)}.
+    * Same behavior as {@link #peek(Object, DataContainer.AccessMode)}.
     *
     * @return the {@link org.infinispan.container.entries.InternalCacheEntry} without touching it.
     */
@@ -145,7 +145,7 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
    //load from data container (or persistence).
 
    /**
-    * Same behavior as {@link #innerPeek(Object, org.infinispan.container.DataContainerV2.AccessMode)} but if the entry
+    * Same behavior as {@link #innerPeek(Object, DataContainer.AccessMode)} but if the entry
     * is loaded from persistence, then it is stored in the container.
     *
     * @return the {@link org.infinispan.container.entries.InternalCacheEntry} without touching it.
@@ -153,7 +153,7 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
    protected abstract InternalCacheEntry innerGet(Object key, AccessMode mode);
 
    /**
-    * Removes the key from container and/or cache store. Note that if {@link org.infinispan.container.DataContainerV2.AccessMode#SKIP_PERSISTENCE}
+    * Removes the key from container and/or cache store. Note that if {@link DataContainer.AccessMode#SKIP_PERSISTENCE}
     * is used, the entry should be passivated, i.e., the entry is removed from container and should be stored in cache
     * store (if it wasn't already there).
     *
@@ -167,7 +167,7 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
    protected abstract void innerPut(InternalCacheEntry entry, AccessMode mode);
 
    /**
-    * Same behavior as described in {@link #size(org.infinispan.container.DataContainerV2.AccessMode)}
+    * Same behavior as described in {@link #size(DataContainer.AccessMode)}
     *
     * @return the number of entries stored.
     */
@@ -206,7 +206,7 @@ public abstract class AbstractDataContainer implements DataContainerV2 {
    }
 
    /**
-    * @return the exception to be thrown if the {@link org.infinispan.container.DataContainerV2.AccessMode} is not
+    * @return the exception to be thrown if the {@link DataContainer.AccessMode} is not
     * valid.
     */
    protected static IllegalArgumentException illegalAccessMode(AccessMode mode) {

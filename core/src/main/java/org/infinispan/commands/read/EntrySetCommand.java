@@ -9,6 +9,8 @@ import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.util.TimeService;
+
+import static org.infinispan.container.DataContainer.AccessMode;
 import static org.infinispan.util.CoreImmutables.immutableInternalCacheEntry;
 
 import java.util.AbstractSet;
@@ -45,7 +47,7 @@ public class EntrySetCommand extends AbstractLocalCommand implements VisitableCo
 
    @Override
    public Set<InternalCacheEntry> perform(InvocationContext ctx) throws Throwable {
-      Set<InternalCacheEntry> entries = container.entrySet();
+      Set<InternalCacheEntry> entries = container.entrySet(accessMode());
       return createFilteredEntrySet(entries, ctx, timeService, entryFactory);
    }
 
@@ -62,8 +64,12 @@ public class EntrySetCommand extends AbstractLocalCommand implements VisitableCo
    @Override
    public String toString() {
       return "EntrySetCommand{" +
-            "set=" + container.size() + " elements" +
+            "set=" + container.size(accessMode()) + " elements" +
             '}';
+   }
+
+   private AccessMode accessMode() {
+      return hasFlag(Flag.SKIP_CACHE_LOAD) ? AccessMode.SKIP_PERSISTENCE : AccessMode.ALL;
    }
 
    private static class FilteredEntrySet extends AbstractSet<InternalCacheEntry> {

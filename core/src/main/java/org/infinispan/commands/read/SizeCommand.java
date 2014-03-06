@@ -9,6 +9,8 @@ import org.infinispan.context.InvocationContext;
 
 import java.util.Set;
 
+import static org.infinispan.container.DataContainer.AccessMode;
+
 /**
  * Command to calculate the size of the cache
  *
@@ -32,13 +34,14 @@ public class SizeCommand extends AbstractLocalCommand implements VisitableComman
 
    @Override
    public Integer perform(InvocationContext ctx) throws Throwable {
+      final AccessMode accessMode = accessMode();
       if (ctx.getLookedUpEntries().isEmpty()) {
-         return container.size();
+         return container.size(accessMode);
       }
 
-      int size = container.size();
+      int size = container.size(accessMode);
       for (CacheEntry e: ctx.getLookedUpEntries().values()) {
-         if (container.containsKey(e.getKey())) {
+         if (container.containsKey(e.getKey(), accessMode)) {
             if (e.isRemoved()) {
                size --;
             }
@@ -53,7 +56,11 @@ public class SizeCommand extends AbstractLocalCommand implements VisitableComman
    @Override
    public String toString() {
       return "SizeCommand{" +
-            "containerSize=" + container.size() +
+            "containerSize=" + container.size(accessMode()) +
             '}';
+   }
+
+   private AccessMode accessMode() {
+      return hasFlag(Flag.SKIP_CACHE_LOAD) ? AccessMode.SKIP_PERSISTENCE : AccessMode.ALL;
    }
 }

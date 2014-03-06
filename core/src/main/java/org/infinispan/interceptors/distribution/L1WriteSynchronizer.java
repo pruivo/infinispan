@@ -12,6 +12,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
+import static org.infinispan.container.DataContainer.AccessMode;
+
 /**
 * A write synchronizer that allows for a single thread to run the L1 update while others can block until it is
 * completed.  Also allows for someone to attempt to cancel the write to the L1.  If they are unable to, they should
@@ -168,14 +170,14 @@ public class L1WriteSynchronizer {
          if (ice != null) {
             value = ice.getValue();
             Object key;
-            if (sync.attemptUpdateToRunning() && !dc.containsKey((key = ice.getKey()))) {
+            if (sync.attemptUpdateToRunning() && !dc.containsKey((key = ice.getKey()), AccessMode.ALL)) {
                // Acquire the transfer lock to ensure that we don't have a rehash and change to become an owner,
                // note we check the ownership in following if
                stateTransferLock.acquireSharedTopologyLock();
                try {
                   // Now we can update the L1 if there isn't a value already there and we haven't now become a write
                   // owner
-                  if (!dc.containsKey(key) && !cdl.localNodeIsOwner(key)) {
+                  if (!dc.containsKey(key, AccessMode.ALL) && !cdl.localNodeIsOwner(key)) {
                      log.tracef("Caching remotely retrieved entry for key %s in L1", key);
                      long lifespan = ice.getLifespan() < 0 ? l1Lifespan : Math.min(ice.getLifespan(), l1Lifespan);
                      // Make a copy of the metadata stored internally, adjust

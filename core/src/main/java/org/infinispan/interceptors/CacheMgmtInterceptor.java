@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 import org.infinispan.commons.util.concurrent.jdk8backported.LongAdder;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.infinispan.container.DataContainer.AccessMode;
+
 /**
  * Captures cache management statistics
  *
@@ -314,7 +316,7 @@ public class CacheMgmtInterceptor extends JmxStatsCommandInterceptor {
          displayType = DisplayType.SUMMARY
    )
    public int getNumberOfEntries() {
-      return dataContainer.size();
+      return dataContainer.size(AccessMode.SKIP_PERSISTENCE);
    }
 
    @ManagedAttribute(

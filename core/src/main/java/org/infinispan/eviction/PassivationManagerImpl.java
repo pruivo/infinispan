@@ -94,7 +94,7 @@ public class PassivationManagerImpl implements PassivationManager {
             persistenceManager.writeToAllStores(marshalledEntryFactory.newMarshalledEntry(e.getKey(), e.getValue(),
                                                                         internalMetadata(e)), false);
          }
-         log.passivatedEntries(container.size(),
+         log.passivatedEntries(container.size(DataContainer.AccessMode.SKIP_PERSISTENCE),
                                Util.prettyPrintTime(timeService.timeDuration(start, TimeUnit.MILLISECONDS)));
       }
    }

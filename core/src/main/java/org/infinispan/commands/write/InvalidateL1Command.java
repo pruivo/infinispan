@@ -3,7 +3,6 @@ package org.infinispan.commands.write;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
-import java.util.concurrent.locks.LockSupport;
 
 import org.infinispan.commands.Visitor;
 import org.infinispan.configuration.cache.Configuration;
@@ -19,7 +18,7 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.infinispan.container.DataContainer.AccessMode;
 
 /**
  * Invalidates an entry in a L1 cache (used with DIST mode)
@@ -83,7 +82,7 @@ public class InvalidateL1Command extends InvalidateCommand {
       final boolean trace = log.isTraceEnabled();
       if (trace) log.tracef("Preparing to invalidate keys %s", Arrays.asList(keys));
       for (Object k : getKeys()) {
-         InternalCacheEntry ice = dataContainer.get(k);
+         InternalCacheEntry ice = dataContainer.get(k, AccessMode.SKIP_PERSISTENCE);
          if (ice != null) {
             DataLocality locality = dm.getLocality(k);
 

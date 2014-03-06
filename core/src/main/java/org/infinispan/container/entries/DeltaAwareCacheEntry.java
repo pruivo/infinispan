@@ -13,6 +13,7 @@ import org.infinispan.util.logging.LogFactory;
 import java.util.LinkedList;
 import java.util.List;
 
+import static org.infinispan.container.DataContainer.AccessMode;
 import static org.infinispan.container.entries.DeltaAwareCacheEntry.Flags.*;
 
 /**
@@ -159,7 +160,7 @@ public class DeltaAwareCacheEntry implements CacheEntry, StateChangingEntry {
       //If possible, we now ensure copy-on-write semantics. This way, it can ensure the correct transaction isolation.
       //note: this method is invoked under the ClusteringDependentLogic.lock(key)
       //note2: we want to merge/copy to/from the data container value.
-      CacheEntry entry = container.get(key);
+      CacheEntry entry = container.get(key, AccessMode.ALL);
       DeltaAware containerValue = entry == null ? null : (DeltaAware) entry.getValue();
       if (containerValue != null && containerValue != value) {
          value = containerValue;

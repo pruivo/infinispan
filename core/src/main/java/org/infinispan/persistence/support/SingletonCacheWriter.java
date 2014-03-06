@@ -4,7 +4,6 @@ import org.infinispan.Cache;
 import org.infinispan.configuration.cache.SingletonStoreConfiguration;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
-import org.infinispan.marshall.core.MarshalledEntryImpl;
 import org.infinispan.persistence.spi.CacheWriter;
 import org.infinispan.marshall.core.MarshalledEntry;
 import org.infinispan.manager.EmbeddedCacheManager;
@@ -142,9 +141,9 @@ public class SingletonCacheWriter extends DelegatingCacheWriter {
     */
    protected void pushState(final Cache cache) throws Exception {
       DataContainer dc = cache.getAdvancedCache().getDataContainer();
-      Set<Object> keys = dc.keySet();
+      Set<Object> keys = dc.keySet(DataContainer.AccessMode.SKIP_PERSISTENCE);
       for (Object k : keys) {
-         InternalCacheEntry entry = dc.get(k);
+         InternalCacheEntry entry = dc.get(k, DataContainer.AccessMode.SKIP_PERSISTENCE);
          if (entry != null) {
             MarshalledEntry me = ctx.getMarshalledEntryFactory().newMarshalledEntry(entry.getKey(), entry.getValue(),
                                                              internalMetadata(entry));

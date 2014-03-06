@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 
+import static org.infinispan.container.DataContainer.AccessMode;
 import static org.infinispan.util.DeltaCompositeKeyUtil.filterDeltaCompositeKey;
 import static org.infinispan.util.DeltaCompositeKeyUtil.filterDeltaCompositeKeys;
 import static org.infinispan.util.DeltaCompositeKeyUtil.getAffectedKeysFromContext;
@@ -253,7 +254,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
             // TODO Dan: Do we need a special check for total order?
             boolean shouldPerformWriteSkewCheck = cdl.localNodeIsPrimaryOwner(key);
             // TODO Dan: remoteGet() already checks if the key is available locally or not
-            if (shouldPerformWriteSkewCheck && dm.isAffectedByRehash(key) && !dataContainer.containsKey(key)) return true;
+            if (shouldPerformWriteSkewCheck && dm.isAffectedByRehash(key) && !dataContainer.containsKey(key, AccessMode.ALL)) return true;
          }
       }
       return false;
@@ -285,7 +286,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
 
    private Object localGet(InvocationContext ctx, Object key, boolean isWrite,
          FlagAffectedCommand command, boolean isGetCacheEntry) throws Throwable {
-      InternalCacheEntry ice = dataContainer.get(key);
+      InternalCacheEntry ice = dataContainer.get(key, AccessMode.ALL);
       if (ice != null) {
          if (isWrite && isPessimisticCache && ctx.isInTxScope()) {
             ((TxInvocationContext) ctx).addAffectedKey(key);
@@ -316,7 +317,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
    }
 
    private InternalCacheEntry remoteGet(InvocationContext ctx, Object key, boolean isWrite, FlagAffectedCommand command) throws Throwable {
-      if (ctx.isOriginLocal() && !isValueAvailableLocally(dm.getReadConsistentHash(), key) || dm.isAffectedByRehash(key) && !dataContainer.containsKey(key)) {
+      if (ctx.isOriginLocal() && !isValueAvailableLocally(dm.getReadConsistentHash(), key) || dm.isAffectedByRehash(key) && !dataContainer.containsKey(key, AccessMode.ALL)) {
          if (trace) log.tracef("Doing a remote get for key %s", key);
 
          boolean acquireRemoteLock = false;
