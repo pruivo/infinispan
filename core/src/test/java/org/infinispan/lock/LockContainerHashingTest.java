@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.Lock;
 
 @Test(groups = "unit", testName = "lock.LockContainerHashingTest")
 public class LockContainerHashingTest extends AbstractInfinispanTest {
@@ -26,10 +25,10 @@ public class LockContainerHashingTest extends AbstractInfinispanTest {
       // ensure even bucket distribution of lock stripes
       List<String> keys = createRandomKeys(1000);
 
-      Map<Lock, Integer> distribution = new HashMap<Lock, Integer>();
+      Map<Integer, Integer> distribution = new HashMap<Integer, Integer>();
 
       for (String s : keys) {
-         Lock lock = stripedLock.getLock(s);
+         int lock = stripedLock.getLockId(s);
          if (distribution.containsKey(lock)) {
             int count = distribution.get(lock) + 1;
             distribution.put(lock, count);

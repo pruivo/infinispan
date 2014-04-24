@@ -57,7 +57,7 @@ public class KeyLockTest extends SingleCacheManagerTest {
    }
 
    private void doTest(CacheName cacheName) throws InterruptedException {
-      final LockContainer<?> lockContainer = TestingUtil.extractComponent(cache(cacheName.name()), LockContainer.class);
+      final LockContainer lockContainer = TestingUtil.extractComponent(cache(cacheName.name()), LockContainer.class);
       final Object lockOwner = new Object();
       AssertJUnit.assertNotNull(lockContainer.acquireLock(lockOwner, byteArray(), 10, TimeUnit.MILLISECONDS));
       AssertJUnit.assertTrue(lockContainer.isLocked(byteArray()));

@@ -2,9 +2,10 @@ package org.infinispan.util.concurrent.locks.containers;
 
 import net.jcip.annotations.ThreadSafe;
 import org.infinispan.commons.equivalence.Equivalence;
+import org.infinispan.util.concurrent.locks.containers.wrappers.LockHolder;
+import org.infinispan.util.concurrent.locks.containers.wrappers.LockWrapper;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 
 /**
  * A container for locks.  Used with lock striping.
@@ -13,7 +14,7 @@ import java.util.concurrent.locks.Lock;
  * @since 4.0
  */
 @ThreadSafe
-public abstract class AbstractStripedLockContainer<L extends Lock> extends AbstractLockContainer<L> {
+public abstract class AbstractStripedLockContainer<L extends LockWrapper> extends AbstractLockContainer<L> {
    private int lockSegmentMask;
    private int lockSegmentShift;
    private final Equivalence<Object> keyEquivalence;
@@ -56,11 +57,11 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
    }
 
    @Override
-   public L acquireLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
+   public boolean acquireLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
       L lock = getLock(key);
       boolean locked;
       try {
-         locked = tryLock(lock, timeout, unit, lockOwner);
+         locked = lock.tryLock(lockOwner, timeout, unit);
       } catch (InterruptedException ie) {
          safeRelease(lock, lockOwner);
          throw ie;
@@ -68,7 +69,7 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
          safeRelease(lock, lockOwner);
          locked = false;
       }
-      return locked ? lock : null;
+      return locked;
    }
 
    @Override
@@ -80,5 +81,15 @@ public abstract class AbstractStripedLockContainer<L extends Lock> extends Abstr
    @Override
    public int getLockId(Object key) {
       return hashToIndex(key);
+   }
+
+   @Override
+   protected LockHolder addLockHolder(Object key, Object lockOwner) {
+      return getLock(key).add(key, lockOwner);
+   }
+
+   @Override
+   protected void lockHolderTimeout(LockHolder lockHolder) {
+      getLock(lockHolder.getKey()).remove(lockHolder);
    }
 }

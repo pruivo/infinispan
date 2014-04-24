@@ -45,7 +45,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 
 import static java.lang.Math.sqrt;
 import static org.infinispan.test.TestingUtil.marshalledEntry;
@@ -320,11 +319,11 @@ public class AsyncStoreStressTest {
    }
    
    private boolean withStore(String key, Callable<Boolean> call) {
-      Lock lock = null;
+      boolean locked = false;
       boolean result = false;
       try {
-         lock = locks.acquireLock(Thread.currentThread(), key, 30, TimeUnit.SECONDS);
-         if (lock != null) {
+         locked = locks.acquireLock(Thread.currentThread(), key, 30, TimeUnit.SECONDS);
+         if (locked) {
             result = call.call().booleanValue();
          }
       } catch (PersistenceException e) {
@@ -334,9 +333,9 @@ public class AsyncStoreStressTest {
          e.printStackTrace();
          result = false;
       } finally {
-         if (lock == null) return false;
+         if (!locked) return false;
          else {
-            lock.unlock();
+            locks.releaseLock(Thread.currentThread(), key);
             return result;
          }
       }

@@ -2,7 +2,6 @@ package org.infinispan.lock;
 
 import org.infinispan.commons.equivalence.AnyEquivalence;
 import org.infinispan.test.AbstractInfinispanTest;
-import org.infinispan.util.concurrent.locks.OwnableReentrantLock;
 import org.infinispan.util.concurrent.locks.containers.OwnableReentrantPerEntryLockContainer;
 import org.testng.annotations.Test;
 
@@ -29,9 +28,9 @@ public class SimpleLockContainerTest extends AbstractInfinispanTest {
             final Object otherOwner = new Object();
             for (int i =0; i < 10; i++) {
                try {
-                  final OwnableReentrantLock ownableReentrantLock = lc.acquireLock(otherOwner, k2, 500, TimeUnit.MILLISECONDS);
-                  log.trace("ownableReentrantLock = " + ownableReentrantLock);
-                  if (ownableReentrantLock != null) return;
+                  if (lc.acquireLock(otherOwner, k2, 500, TimeUnit.MILLISECONDS)) {
+                     return;
+                  }
                } catch (InterruptedException e) {
                   e.printStackTrace();
                }

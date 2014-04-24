@@ -20,7 +20,7 @@ public class LockContainerFactory extends AbstractNamedCacheComponentFactory imp
    @Override
    public <T> T construct(Class<T> componentType) {
       boolean notTransactional = !configuration.transaction().transactionMode().isTransactional();
-      LockContainer<?> lockContainer = configuration.locking().useLockStriping() ?
+      LockContainer lockContainer = configuration.locking().useLockStriping() ?
             notTransactional ? new ReentrantStripedLockContainer(configuration.locking().concurrencyLevel(),
                                                                  configuration.dataContainer().keyEquivalence())
                   : new OwnableReentrantStripedLockContainer(configuration.locking().concurrencyLevel(),

@@ -49,8 +49,7 @@ public class DeadlockDetectingLockManagerTest extends AbstractInfinispanTest {
    public void testNoTransaction() throws Exception {
       InvocationContext nonTx = new NonTxInvocationContext(AnyEquivalence.getInstance());
 
-      Lock mockLock = mock(Lock.class);
-      when(lc.acquireLock(nonTx.getLockOwner(), "k", config.locking().lockAcquisitionTimeout(), TimeUnit.MILLISECONDS)).thenReturn(mockLock).thenReturn(null);
+      when(lc.acquireLock(nonTx.getLockOwner(), "k", config.locking().lockAcquisitionTimeout(), TimeUnit.MILLISECONDS)).thenReturn(true).thenReturn(false);
 
       assert lockManager.lockAndRecord("k", nonTx, config.locking().lockAcquisitionTimeout());
       assert !lockManager.lockAndRecord("k", nonTx, config.locking().lockAcquisitionTimeout());
@@ -60,9 +59,8 @@ public class DeadlockDetectingLockManagerTest extends AbstractInfinispanTest {
    public void testLockHeldByThread() throws Exception {
       InvocationContext localTxContext = buildLocalTxIc(new DldGlobalTransaction());
 
-      Lock mockLock = mock(Lock.class);
       //this makes sure that we cannot acquire lock from the first try
-      when(lc.acquireLock(localTxContext.getLockOwner(), "k", SPIN_DURATION, TimeUnit.MILLISECONDS)).thenReturn(null).thenReturn(mockLock);
+      when(lc.acquireLock(localTxContext.getLockOwner(), "k", SPIN_DURATION, TimeUnit.MILLISECONDS)).thenReturn(false).thenReturn(true);
       lockManager.setOwner(Thread.currentThread() );
       //next lock acquisition will succeed
 
@@ -80,8 +78,7 @@ public class DeadlockDetectingLockManagerTest extends AbstractInfinispanTest {
       assert ddgt.wouldLose(lockOwner);
 
       //this makes sure that we cannot acquire lock from the first try
-      Lock mockLock = mock(Lock.class);
-      when(lc.acquireLock(localTxContext.getLockOwner(), "k", SPIN_DURATION, TimeUnit.MILLISECONDS)).thenReturn(null).thenReturn(mockLock);
+      when(lc.acquireLock(localTxContext.getLockOwner(), "k", SPIN_DURATION, TimeUnit.MILLISECONDS)).thenReturn(false).thenReturn(true);
       lockOwner.setRemote(false);
       lockOwner.setLockIntention("k");
       lockManager.setOwner(lockOwner);

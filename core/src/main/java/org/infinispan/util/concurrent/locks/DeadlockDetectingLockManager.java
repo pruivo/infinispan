@@ -70,7 +70,7 @@ public class DeadlockDetectingLockManager extends LockManagerImpl {
          if (trace) log.tracef("Setting lock intention to %s for %s (%s)", key, thisTx, System.identityHashCode(thisTx));
 
          while (!timeService.isTimeExpired(timeoutNanoTime)) {
-            if (lockContainer.acquireLock(ctx.getLockOwner(), key, spinDuration, MILLISECONDS) != null) {
+            if (lockContainer.acquireLock(ctx.getLockOwner(), key, spinDuration, MILLISECONDS)) {
                thisTx.setLockIntention(null); //clear lock intention
                if (trace) log.tracef("Successfully acquired lock on %s on behalf of %s.", key, ctx.getLockOwner());
                return true;

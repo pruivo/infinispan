@@ -27,7 +27,7 @@ public class OwnableReentrantLock extends AbstractQueuedSynchronizer implements 
 
    private static final long serialVersionUID = 4932974734462848792L;
    private transient Object owner;
-   private final ThreadLocal<Object> requestorOnStack = new ThreadLocal<Object>();
+   private final transient ThreadLocal<Object> requestorOnStack = new ThreadLocal<Object>();
 
    /**
     * @return a GlobalTransaction instance if the current call is participating in a transaction, or the current thread
@@ -93,10 +93,10 @@ public class OwnableReentrantLock extends AbstractQueuedSynchronizer implements 
       }
    }
 
-   public void unlock(Object requestor) {
+   public boolean unlock(Object requestor) {
       setCurrentRequestor(requestor);
       try {
-         release(1);
+         return release(1);
       } finally {
          unsetCurrentRequestor();
       }

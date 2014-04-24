@@ -8,6 +8,7 @@ import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
+import org.infinispan.util.concurrent.locks.LockPlaceHolder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -166,6 +167,11 @@ public class ExtendedStatisticLockManager implements LockManager {
       }
 
       return locked;
+   }
+
+   @Override
+   public LockPlaceHolder preAcquireLocks(InvocationContext context, Object key, long timeoutMillis) {
+      return actual.preAcquireLocks(context, key, timeoutMillis);
    }
 
    private void updateContentionStats(Object key, LockInfo lockInfo) {

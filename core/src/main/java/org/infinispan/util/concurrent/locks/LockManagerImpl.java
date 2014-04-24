@@ -10,7 +10,7 @@ import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.jmx.annotations.ManagedAttribute;
 import org.infinispan.marshall.core.MarshalledValue;
 import org.infinispan.util.concurrent.TimeoutException;
-import org.infinispan.util.concurrent.locks.containers.*;
+import org.infinispan.util.concurrent.locks.containers.LockContainer;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -19,7 +19,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.Lock;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.infinispan.commons.util.Util.toStr;
@@ -34,13 +33,12 @@ import static org.infinispan.commons.util.Util.toStr;
 @MBean(objectName = "LockManager", description = "Manager that handles MVCC locks for entries")
 public class LockManagerImpl implements LockManager {
    protected Configuration configuration;
-   protected volatile LockContainer<?> lockContainer;
+   protected volatile LockContainer lockContainer;
    private static final Log log = LogFactory.getLog(LockManagerImpl.class);
    protected static final boolean trace = log.isTraceEnabled();
-   private static final String ANOTHER_THREAD = "(another thread)";
 
    @Inject
-   public void injectDependencies(Configuration configuration, LockContainer<?> lockContainer) {
+   public void injectDependencies(Configuration configuration, LockContainer lockContainer) {
       this.configuration = configuration;
       this.lockContainer = lockContainer;
    }
@@ -48,7 +46,7 @@ public class LockManagerImpl implements LockManager {
    @Override
    public boolean lockAndRecord(Object key, InvocationContext ctx, long timeoutMillis) throws InterruptedException {
       if (trace) log.tracef("Attempting to lock %s with acquisition timeout of %s millis", toStr(key), timeoutMillis);
-      if (lockContainer.acquireLock(ctx.getLockOwner(), key, timeoutMillis, MILLISECONDS) != null) {
+      if (lockContainer.acquireLock(ctx.getLockOwner(), key, timeoutMillis, MILLISECONDS)) {
          if (trace) log.tracef("Successfully acquired lock %s!", toStr(key));
          return true;
       }
@@ -104,24 +102,7 @@ public class LockManagerImpl implements LockManager {
 
    @Override
    public Object getOwner(Object key) {
-      if (lockContainer.isLocked(key)) {
-         Lock l = lockContainer.getLock(key);
-
-         if (l instanceof OwnableReentrantLock) {
-            return ((OwnableReentrantLock) l).getOwner();
-         } else if (l instanceof VisibleOwnerReentrantLock) {
-            Thread owner = ((VisibleOwnerReentrantLock) l).getOwner();
-            // Don't assume the key is unlocked if getOwner() returned null.
-            // JDK ReentrantLocks can return null e.g. if another thread is in the process of acquiring the lock
-            if (owner != null)
-               return owner;
-         }
-
-         return ANOTHER_THREAD;
-      } else {
-         // not locked
-         return null;
-      }
+      return lockContainer.getLockOwner(key);
    }
 
    @Override
@@ -180,9 +161,14 @@ public class LockManagerImpl implements LockManager {
       if (!skipLocking) {
          return lock(ctx, key, timeoutMillis);
       } else {
-         logLockNotAcquired(skipLocking);
+         logLockNotAcquired(true);
       }
       return false;
+   }
+
+   @Override
+   public LockPlaceHolder preAcquireLocks(InvocationContext context, Object key, long timeoutMillis) {
+      return null;  // TODO: Customise this generated block
    }
 
    private boolean lock(InvocationContext ctx, Object key, long timeoutMillis) throws InterruptedException {

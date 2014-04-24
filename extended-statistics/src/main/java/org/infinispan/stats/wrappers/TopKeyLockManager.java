@@ -5,6 +5,7 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.stats.topK.StreamSummaryContainer;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
+import org.infinispan.util.concurrent.locks.LockPlaceHolder;
 
 import java.util.Collection;
 
@@ -120,6 +121,11 @@ public class TopKeyLockManager implements LockManager {
          container.addLockInformation(key, isContented, true);
          throw e;
       }
+   }
+
+   @Override
+   public LockPlaceHolder preAcquireLocks(InvocationContext context, Object key, long timeoutMillis) {
+      return current.preAcquireLocks(context, key, timeoutMillis);
    }
 
    private boolean isContented(Object key, Object requestor) {

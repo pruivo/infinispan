@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.Lock;
 
 /**
  * Tests the degree to which hash codes get spread
@@ -35,12 +34,12 @@ public class TreeStructureHashCodeTest {
 
    private void doTest(List<Fqn> fqns) {
       LockContainer container = new ReentrantStripedLockContainer(512, AnyEquivalence.getInstance());
-      Map<Lock, Integer> distribution = new HashMap<Lock, Integer>();
+      Map<Integer, Integer> distribution = new HashMap<Integer, Integer>();
       for (Fqn f : fqns) {
          NodeKey dataKey = new NodeKey(f, NodeKey.Type.DATA);
          NodeKey structureKey = new NodeKey(f, NodeKey.Type.STRUCTURE);
-         addToDistribution(container.getLock(dataKey), distribution);
-         addToDistribution(container.getLock(structureKey), distribution);
+         addToDistribution(container.getLockId(dataKey), distribution);
+         addToDistribution(container.getLockId(structureKey), distribution);
       }
 
       System.out.println("Distribution: " + distribution);
@@ -52,7 +51,7 @@ public class TreeStructureHashCodeTest {
 
    }
 
-   private void addToDistribution(Lock lock, Map<Lock, Integer> map) {
+   private void addToDistribution(int lock, Map<Integer, Integer> map) {
       int count = 1;
       if (map.containsKey(lock)) count = map.get(lock) + 1;
       map.put(lock, count);

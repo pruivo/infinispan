@@ -128,4 +128,6 @@ public interface LockManager {
     */
    boolean acquireLockNoCheck(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException, TimeoutException;
 
+   LockPlaceHolder preAcquireLocks(InvocationContext context, Object key, long timeoutMillis);
+
 }

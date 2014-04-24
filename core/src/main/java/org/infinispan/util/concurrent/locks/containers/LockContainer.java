@@ -1,5 +1,7 @@
 package org.infinispan.util.concurrent.locks.containers;
 
+import org.infinispan.util.concurrent.locks.LockPlaceHolder;
+
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
@@ -10,7 +12,7 @@ import java.util.concurrent.locks.Lock;
  * @author Mircea.Markus@jboss.com
  * @since 4.0
  */
-public interface LockContainer<L extends Lock> {
+public interface LockContainer {
    /**
     * Tests if a give owner owns a lock on a specified object.
     *
@@ -28,9 +30,9 @@ public interface LockContainer<L extends Lock> {
 
    /**
     * @param key object
-    * @return the lock for a specific object.  May be null if the object is not locked, but may also be an unlocked lock.
+    * @return the lock owner for a specific object. May be {@code null} if the object is not locked.
     */
-   L getLock(Object key);
+   Object getLockOwner(Object key);
 
    /**
     * @return number of locks held
@@ -49,10 +51,10 @@ public interface LockContainer<L extends Lock> {
     * @param key Object to acquire lock on
     * @param timeout Time after which the lock acquisition will fail
     * @param unit Time unit of the given timeout
-    * @return If lock was acquired it returns the corresponding Lock object. If lock was not acquired, it returns null
+    * @return {@code true} if the lock is acquired, {@code false} otherwise
     * @throws InterruptedException If the lock acquisition was interrupted
     */
-   L acquireLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException;
+   boolean acquireLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException;
 
    /**
     * Release lock on the given key.
@@ -73,4 +75,6 @@ public interface LockContainer<L extends Lock> {
     * @return the ID of the lock.
     */
    int getLockId(Object key);
+
+   LockPlaceHolder preAcquireLocks(Object lockOwner, long timeout, TimeUnit timeUnit, Object... keys);
 }

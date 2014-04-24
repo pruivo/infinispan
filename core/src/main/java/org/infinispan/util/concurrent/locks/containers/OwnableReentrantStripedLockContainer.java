@@ -2,12 +2,12 @@ package org.infinispan.util.concurrent.locks.containers;
 
 import net.jcip.annotations.ThreadSafe;
 import org.infinispan.commons.equivalence.Equivalence;
-import org.infinispan.util.concurrent.locks.OwnableReentrantLock;
+import org.infinispan.util.concurrent.locks.containers.wrappers.LockWrapper;
+import org.infinispan.util.concurrent.locks.containers.wrappers.OwnableReentrantLockWrapper;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A LockContainer that holds {@link org.infinispan.util.concurrent.locks.OwnableReentrantLock}s.
@@ -18,15 +18,10 @@ import java.util.concurrent.TimeUnit;
  * @since 4.0
  */
 @ThreadSafe
-public class OwnableReentrantStripedLockContainer extends AbstractStripedLockContainer<OwnableReentrantLock> {
+public class OwnableReentrantStripedLockContainer extends AbstractStripedLockContainer<OwnableReentrantLockWrapper> {
 
-   private final OwnableReentrantLock[] sharedLocks;
+   private final OwnableReentrantLockWrapper[] sharedLocks;
    private static final Log log = LogFactory.getLog(OwnableReentrantStripedLockContainer.class);
-
-   @Override
-   protected Log getLog() {
-      return log;
-   }
 
    /**
     * Creates a new LockContainer which uses a certain number of shared locks across all elements that need to be
@@ -38,31 +33,29 @@ public class OwnableReentrantStripedLockContainer extends AbstractStripedLockCon
    public OwnableReentrantStripedLockContainer(int concurrencyLevel, Equivalence<Object> keyEquivalence) {
       super(keyEquivalence);
       int numLocks = calculateNumberOfSegments(concurrencyLevel);
-      sharedLocks = new OwnableReentrantLock[numLocks];
-      for (int i = 0; i < numLocks; i++) sharedLocks[i] = new OwnableReentrantLock();
+      sharedLocks = new OwnableReentrantLockWrapper[numLocks];
+      for (int i = 0; i < numLocks; i++) sharedLocks[i] = new OwnableReentrantLockWrapper();
    }
 
    @Override
-   public final OwnableReentrantLock getLock(Object object) {
+   public boolean isQueuesEmpty() {
+      for (LockWrapper lockWrapper : sharedLocks) {
+         if (!lockWrapper.isEmpty()) {
+            return false;
+         }
+      }
+      return true;
+   }
+
+   @Override
+   public final OwnableReentrantLockWrapper getLock(Object object) {
       return sharedLocks[hashToIndex(object)];
-   }
-
-   @Override
-   public final boolean ownsLock(Object object, Object owner) {
-      OwnableReentrantLock lock = getLock(object);
-      return owner.equals(lock.getOwner());
-   }
-
-   @Override
-   public final boolean isLocked(Object object) {
-      OwnableReentrantLock lock = getLock(object);
-      return lock.isLocked();
    }
 
    @Override
    public final int getNumLocksHeld() {
       int i = 0;
-      for (OwnableReentrantLock l : sharedLocks) if (l.isLocked()) i++;
+      for (OwnableReentrantLockWrapper l : sharedLocks) if (l.isLocked()) i++;
       return i;
    }
 
@@ -79,17 +72,7 @@ public class OwnableReentrantStripedLockContainer extends AbstractStripedLockCon
    }
 
    @Override
-   protected boolean tryLock(OwnableReentrantLock lock, long timeout, TimeUnit unit, Object lockOwner) throws InterruptedException {
-      return lock.tryLock(lockOwner, timeout, unit);
-   }
-
-   @Override
-   protected void lock(OwnableReentrantLock lock, Object lockOwner) {
-      lock.lock(lockOwner);
-   }
-
-   @Override
-   protected void unlock(OwnableReentrantLock l, Object owner) {
-      l.unlock(owner);
+   protected Log getLog() {
+      return log;
    }
 }
