@@ -170,8 +170,8 @@ public class ExtendedStatisticLockManager implements LockManager {
    }
 
    @Override
-   public LockPlaceHolder preAcquireLocks(InvocationContext context, Object key, long timeoutMillis) {
-      return actual.preAcquireLocks(context, key, timeoutMillis);
+   public LockPlaceHolder preAcquireLocks(InvocationContext context, long timeoutMillis, Object... keys) {
+      return actual.preAcquireLocks(context, timeoutMillis, keys);
    }
 
    private void updateContentionStats(Object key, LockInfo lockInfo) {

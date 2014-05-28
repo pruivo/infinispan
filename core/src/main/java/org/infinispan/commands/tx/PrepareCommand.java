@@ -47,6 +47,7 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
    protected CacheNotifier notifier;
    protected RecoveryManager recoveryManager;
    private transient boolean replayEntryWrapping  = false;
+   private transient RemoteTxInvocationContext ctx;
    
    private static final WriteCommand[] EMPTY_WRITE_COMMAND_ARRAY = new WriteCommand[0];
    private static final Object[] EMPTY_ARRAY = new Object[0];
@@ -106,12 +107,19 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
       }
 
       // 2. then set it on the invocation context
-      RemoteTxInvocationContext ctx = icf.createRemoteTxInvocationContext(remoteTransaction, getOrigin());
+      createInvocationContextIfAbsent();
 
       if (trace)
          log.tracef("Invoking remotely originated prepare: %s with invocation context: %s", this, ctx);
       notifier.notifyTransactionRegistered(ctx.getGlobalTransaction(), false);
       return invoker.invoke(ctx, this);
+   }
+
+   public InvocationContext createInvocationContextIfAbsent() {
+      if (ctx == null) {
+         ctx = icf.createRemoteTxInvocationContext(getRemoteTransaction(), getOrigin());
+      }
+      return ctx;
    }
 
    @Override

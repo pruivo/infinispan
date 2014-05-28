@@ -167,8 +167,8 @@ public class LockManagerImpl implements LockManager {
    }
 
    @Override
-   public LockPlaceHolder preAcquireLocks(InvocationContext context, Object key, long timeoutMillis) {
-      return null;  // TODO: Customise this generated block
+   public LockPlaceHolder preAcquireLocks(InvocationContext context, long timeoutMillis, Object... keys) {
+      return lockContainer.preAcquireLocks(context.getLockOwner(), timeoutMillis, MILLISECONDS, keys);
    }
 
    private boolean lock(InvocationContext ctx, Object key, long timeoutMillis) throws InterruptedException {

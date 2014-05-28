@@ -124,8 +124,8 @@ public class TopKeyLockManager implements LockManager {
    }
 
    @Override
-   public LockPlaceHolder preAcquireLocks(InvocationContext context, Object key, long timeoutMillis) {
-      return current.preAcquireLocks(context, key, timeoutMillis);
+   public LockPlaceHolder preAcquireLocks(InvocationContext context, long timeoutMillis, Object... keys) {
+      return current.preAcquireLocks(context, timeoutMillis, keys);
    }
 
    private boolean isContented(Object key, Object requestor) {

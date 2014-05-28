@@ -41,6 +41,7 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
    private List<Object> keys;
    private boolean unlock = false;
    private Set<Flag> flags;
+   private transient RemoteTxInvocationContext ctx;
 
    private LockControlCommand() {
       super(null); // For command id uniqueness test
@@ -105,6 +106,23 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
       return keys.get(0);
    }
 
+   public InvocationContext createInvocationContextIfAbsent() {
+      if (ctx == null) {
+         RemoteTransaction transaction = txTable.getRemoteTransaction(globalTx);
+
+         if (transaction == null) {
+            if (unlock) {
+               log.tracef("Unlock for non-existent transaction %s. Not doing anything.", globalTx);
+               return null;
+            }
+            //create a remote tx without any modifications (we do not know modifications ahead of time)
+            transaction = txTable.getOrCreateRemoteTransaction(globalTx, null);
+         }
+         ctx = icf.createRemoteTxInvocationContext(transaction, getOrigin());
+      }
+      return ctx;
+   }
+
    @Override
    public Object acceptVisitor(InvocationContext ctx, Visitor visitor) throws Throwable {
       return visitor.visitLockControlCommand((TxInvocationContext) ctx, this);
@@ -115,18 +133,8 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
       if (ignored != null)
          throw new IllegalStateException("Expected null context!");
 
-      RemoteTransaction transaction = txTable.getRemoteTransaction(globalTx);
-
-      if (transaction == null) {
-         if (unlock) {
-            log.tracef("Unlock for non-existant transaction %s.  Not doing anything.", globalTx);
-            return null;
-         }
-         //create a remote tx without any modifications (we do not know modifications ahead of time)
-         transaction = txTable.getOrCreateRemoteTransaction(globalTx, null);
-      }
-      RemoteTxInvocationContext ctxt = icf.createRemoteTxInvocationContext(transaction, getOrigin());
-      return invoker.invoke(ctxt, this);
+      createInvocationContextIfAbsent();
+      return invoker.invoke(ctx, this);
    }
 
    @Override

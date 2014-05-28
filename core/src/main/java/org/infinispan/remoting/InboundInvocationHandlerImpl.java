@@ -5,6 +5,8 @@ import org.infinispan.commands.CancellationService;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.TopologyAffectedCommand;
+import org.infinispan.commands.VisitableCommand;
+import org.infinispan.commands.control.LockControlCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
@@ -13,7 +15,10 @@ import org.infinispan.commands.tx.totalorder.TotalOrderCommitCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderPrepareCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderRollbackCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderVersionedCommitCommand;
+import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.commons.CacheException;
+import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.KnownComponentNames;
@@ -23,21 +28,26 @@ import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.interceptors.totalorder.RetryPrepareException;
 import org.infinispan.remoting.responses.CacheNotFoundResponse;
-import org.infinispan.statetransfer.StateTransferLock;
-import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.ResponseGenerator;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
+import org.infinispan.statetransfer.StateTransferLock;
+import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.transaction.impl.TotalOrderRemoteTransactionState;
 import org.infinispan.transaction.totalorder.TotalOrderLatch;
 import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
+import org.infinispan.util.concurrent.locks.LockManager;
+import org.infinispan.util.concurrent.locks.LockPlaceHolder;
+import org.infinispan.util.concurrent.locks.NoOpLockPlaceHolder;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,9 +58,9 @@ import java.util.concurrent.TimeUnit;
  */
 @Scope(Scopes.GLOBAL)
 public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
-   private GlobalComponentRegistry gcr;
    private static final Log log = LogFactory.getLog(InboundInvocationHandlerImpl.class);
    private static final boolean trace = log.isTraceEnabled();
+   private GlobalComponentRegistry gcr;
    private Transport transport;
    private CancellationService cancelService;
    private BlockingTaskAwareExecutorService remoteCommandsExecutor;
@@ -89,7 +99,7 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
       try {
          if (trace) log.tracef("Calling perform() on %s", cmd);
          ResponseGenerator respGen = cr.getResponseGenerator();
-         if(cmd instanceof CancellableCommand){
+         if (cmd instanceof CancellableCommand) {
             cancelService.register(Thread.currentThread(), ((CancellableCommand) cmd).getUUID());
          }
          Object retval = cmd.perform(null);
@@ -100,8 +110,8 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
          log.exceptionExecutingInboundCommand(e);
          return new ExceptionResponse(e);
       } finally {
-         if(cmd instanceof CancellableCommand){
-            cancelService.unregister(((CancellableCommand)cmd).getUUID());
+         if (cmd instanceof CancellableCommand) {
+            cancelService.unregister(((CancellableCommand) cmd).getUUID());
          }
       }
    }
@@ -156,21 +166,22 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
          });
       } else {
          final StateTransferLock stateTransferLock = cr.getStateTransferLock();
+         final LockManager lockManager = cr.getComponent(LockManager.class);
          // Always wait for the first topology (i.e. for the join to finish)
          final int commandTopologyId = Math.max(extractCommandTopologyId(cmd), 0);
-
+         final LockPlaceHolder lockPlaceHolder = preAcquireLocksIfNeeded(cmd, lockManager, cr.getComponent(Configuration.class).locking().lockAcquisitionTimeout());
          if (!preserveOrder && cmd.canBlock()) {
             remoteCommandsExecutor.execute(new BlockingRunnable() {
                @Override
                public boolean isReady() {
-                  return stateTransferLock.transactionDataReceived(commandTopologyId);
+                  return stateTransferLock.transactionDataReceived(commandTopologyId) && lockPlaceHolder.isReady();
                }
 
                @Override
                public void run() {
                   if (0 < commandTopologyId && commandTopologyId < stm.getFirstTopologyAsMember()) {
                      if (trace) log.tracef("Ignoring command sent before the local node was a member " +
-                           "(command topology id is %d)", commandTopologyId);
+                                                 "(command topology id is %d)", commandTopologyId);
                      reply(response, null);
                      return;
                   }
@@ -248,6 +259,87 @@ public class InboundInvocationHandlerImpl implements InboundInvocationHandler {
             (command instanceof TotalOrderPrepareCommand &&
                    (((PrepareCommand) command).isOnePhaseCommit() || resp instanceof ExceptionResponse))) {
          totalOrderExecutorService.checkForReadyTasks();
+      }
+   }
+
+   private static LockPlaceHolder preAcquireLocksIfNeeded(CacheRpcCommand cacheRpcCommand, LockManager lockManager,
+                                                          long timeout) {
+      Object[] keys = null;
+      InvocationContext context = null;
+
+      if (cacheRpcCommand instanceof PrepareCommand) {
+         keys = extractKeys(cacheRpcCommand);
+         context = ((PrepareCommand) cacheRpcCommand).createInvocationContextIfAbsent();
+      } else if (cacheRpcCommand instanceof LockControlCommand) {
+         keys = extractKeys(cacheRpcCommand);
+         context = ((LockControlCommand) cacheRpcCommand).createInvocationContextIfAbsent();
+      } else if (cacheRpcCommand instanceof SingleRpcCommand) {
+         keys = extractKeys(((SingleRpcCommand) cacheRpcCommand).getCommand());
+         context = ((SingleRpcCommand) cacheRpcCommand)
+               .createInvocationContextIfAbsent((VisitableCommand) ((SingleRpcCommand) cacheRpcCommand).getCommand());
+      } else if (cacheRpcCommand instanceof MultipleRpcCommand) {
+         LockPlaceHolderCollection collection = new LockPlaceHolderCollection();
+         for (ReplicableCommand command : ((MultipleRpcCommand) cacheRpcCommand).getCommands()) {
+            Object[] singleCommandKeys = extractKeys(command);
+            if (singleCommandKeys != null) {
+               if (command instanceof PrepareCommand) {
+                  collection.add(lockManager.preAcquireLocks(((PrepareCommand) command).createInvocationContextIfAbsent(),
+                                                             timeout, singleCommandKeys));
+               } else if (command instanceof LockControlCommand) {
+                  collection.add(lockManager.preAcquireLocks(((LockControlCommand) command).createInvocationContextIfAbsent(),
+                                                             timeout, singleCommandKeys));
+               } else if (command instanceof VisitableCommand) {
+                  collection.add(lockManager.preAcquireLocks(((MultipleRpcCommand) cacheRpcCommand)
+                                                                   .createInvocationContextIfAbsent((VisitableCommand) command),
+                                                             timeout, singleCommandKeys
+                  ));
+               }
+            }
+         }
+         return collection;
+      }
+
+      return keys == null ? NoOpLockPlaceHolder.INSTANCE : lockManager.preAcquireLocks(context, timeout, keys);
+   }
+
+   private static Object[] extractKeys(ReplicableCommand command) {
+      if (command instanceof PrepareCommand) {
+         return ((PrepareCommand) command).getAffectedKeysToLock(false);
+      } else if (command instanceof LockControlCommand) {
+         return ((LockControlCommand) command).isUnlock() ? null : ((LockControlCommand) command).getKeys().toArray();
+      } else if (command instanceof WriteCommand) {
+         return ((WriteCommand) command).getAffectedKeys().toArray();
+      }
+      return null;
+   }
+
+   private static class LockPlaceHolderCollection implements LockPlaceHolder {
+
+      private final List<LockPlaceHolder> list;
+
+      private LockPlaceHolderCollection() {
+         list = new LinkedList<LockPlaceHolder>();
+      }
+
+      public void add(LockPlaceHolder lockPlaceHolder) {
+         list.add(lockPlaceHolder);
+      }
+
+      @Override
+      public boolean isReady() {
+         for (LockPlaceHolder holder : list) {
+            if (!holder.isReady()) {
+               return false;
+            }
+         }
+         return true;
+      }
+
+      @Override
+      public void awaitReady() throws InterruptedException {
+         for (LockPlaceHolder holder : list) {
+            holder.awaitReady();
+         }
       }
    }
 
