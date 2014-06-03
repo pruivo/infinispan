@@ -1,0 +1,1 @@
+<socket-binding name="modcluster" port="0" multicast-address="224.0.1.116" multicast-port="23365"/>
