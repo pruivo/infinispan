@@ -24,4 +24,6 @@ public interface ConsistentHash {
     * @return a non-null, non-negative normalized hash code for a given object
     */
    int getNormalizedHash(Object object);
+
+   SocketAddress[][] getSegmentOwners();
 }

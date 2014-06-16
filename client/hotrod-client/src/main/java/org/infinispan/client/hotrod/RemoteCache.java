@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.infinispan.client.hotrod.impl.consistenthash.ConsistentHash;
 import org.infinispan.commons.api.BasicCache;
 import org.infinispan.commons.util.concurrent.NotifyingFuture;
 
@@ -299,5 +300,7 @@ public interface RemoteCache<K, V> extends BasicCache<K, V> {
     * given cache.
     */
    Set<Object> getListeners();
+
+   ConsistentHash getConsistentHash();
 
 }

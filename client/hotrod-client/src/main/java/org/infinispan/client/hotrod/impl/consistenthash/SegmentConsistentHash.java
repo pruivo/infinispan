@@ -43,4 +43,10 @@ public final class SegmentConsistentHash implements ConsistentHash {
       return Util.getNormalizedHash(object, hash);
    }
 
+   @Override
+   public SocketAddress[][] getSegmentOwners() {
+      //little hack! danger: we are returning a mutable object!
+      return segmentOwners;
+   }
+
 }
