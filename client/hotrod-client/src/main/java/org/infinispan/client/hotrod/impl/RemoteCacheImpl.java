@@ -23,6 +23,7 @@ import org.infinispan.client.hotrod.VersionedValue;
 import org.infinispan.client.hotrod.event.ClientListenerNotifier;
 import org.infinispan.client.hotrod.exceptions.HotRodClientException;
 import org.infinispan.client.hotrod.exceptions.RemoteCacheManagerNotStartedException;
+import org.infinispan.client.hotrod.impl.consistenthash.ConsistentHash;
 import org.infinispan.client.hotrod.impl.operations.*;
 import org.infinispan.client.hotrod.logging.Log;
 import org.infinispan.client.hotrod.logging.LogFactory;
@@ -532,6 +533,11 @@ public class RemoteCacheImpl<K, V> extends RemoteCacheSupport<K, V> {
    public Set<Object> getListeners() {
       ClientListenerNotifier listenerNotifier = operationsFactory.getListenerNotifier();
       return listenerNotifier.getListeners(operationsFactory.getCacheName());
+   }
+
+   @Override
+   public ConsistentHash getConsistentHash() {
+      return operationsFactory.getConsistentHash();
    }
 
    @Override

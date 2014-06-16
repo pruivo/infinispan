@@ -120,4 +120,9 @@ public class ConsistentHashV1 implements ConsistentHash {
    public final int getNormalizedHash(Object object) {
       return Util.getNormalizedHash(object, hash);
    }
+
+   @Override
+   public SocketAddress[][] getSegmentOwners() {
+      return new SocketAddress[0][0];
+   }
 }

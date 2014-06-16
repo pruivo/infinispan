@@ -5,11 +5,13 @@ import net.jcip.annotations.Immutable;
 import org.infinispan.client.hotrod.Flag;
 import org.infinispan.client.hotrod.RemoteCacheManager;
 import org.infinispan.client.hotrod.event.ClientListenerNotifier;
+import org.infinispan.client.hotrod.impl.consistenthash.ConsistentHash;
 import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.protocol.HotRodConstants;
 import org.infinispan.client.hotrod.impl.query.RemoteQuery;
 import org.infinispan.client.hotrod.impl.transport.Transport;
 import org.infinispan.client.hotrod.impl.transport.TransportFactory;
+import org.infinispan.client.hotrod.impl.transport.tcp.TcpTransportFactory;
 import org.infinispan.commons.util.InfinispanCollections;
 
 import java.net.SocketAddress;
@@ -220,5 +222,10 @@ public class OperationsFactory implements HotRodConstants {
       for(Flag flag : flags)
          list.add(flag);
 
+   }
+
+   public ConsistentHash getConsistentHash() {
+      //little hack...
+      return ((TcpTransportFactory) transportFactory).getConsistentHash();
    }
 }

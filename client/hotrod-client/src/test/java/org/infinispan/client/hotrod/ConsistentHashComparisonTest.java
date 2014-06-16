@@ -181,5 +181,10 @@ public class ConsistentHashComparisonTest {
          return Util.getNormalizedHash(key, hash);
       }
 
+      @Override
+      public SocketAddress[][] getSegmentOwners() {
+         return new SocketAddress[0][0];
+      }
+
    }
 }
