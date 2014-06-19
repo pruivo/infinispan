@@ -33,7 +33,8 @@ public final class SegmentConsistentHash implements ConsistentHash {
       return segmentOwners[segmentId][0];
    }
 
-   private int getSegment(Object key) {
+   @Override
+   public int getSegment(Object key) {
       // The result must always be positive, so we make sure the dividend is positive first
       return getNormalizedHash(key) / segmentSize;
    }
