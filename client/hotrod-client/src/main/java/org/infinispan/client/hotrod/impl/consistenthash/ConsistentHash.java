@@ -26,4 +26,6 @@ public interface ConsistentHash {
    int getNormalizedHash(Object object);
 
    SocketAddress[][] getSegmentOwners();
+
+   int getSegment(Object key);
 }

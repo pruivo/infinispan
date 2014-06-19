@@ -186,5 +186,10 @@ public class ConsistentHashComparisonTest {
          return new SocketAddress[0][0];
       }
 
+      @Override
+      public int getSegment(Object key) {
+         return 0;  // TODO: Customise this generated block
+      }
+
    }
 }

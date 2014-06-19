@@ -125,4 +125,9 @@ public class ConsistentHashV1 implements ConsistentHash {
    public SocketAddress[][] getSegmentOwners() {
       return new SocketAddress[0][0];
    }
+
+   @Override
+   public int getSegment(Object key) {
+      return 0;  // TODO: Customise this generated block
+   }
 }
