@@ -101,6 +101,8 @@ public class HeaderParams {
             return HotRodConstants.REMOVE_CLIENT_LISTENER_RESPONSE;
          case HotRodConstants.SIZE_REQUEST:
             return HotRodConstants.SIZE_RESPONSE;
+         case HotRodConstants.GET_SEGMENT_REQUEST:
+            return HotRodConstants.GET_SEGMENT_RESPONSE;
          default:
             throw new IllegalStateException("Unknown operation code: " + opCode);
       }

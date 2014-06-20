@@ -189,6 +189,11 @@ public class OperationsFactory implements HotRodConstants {
             codec, transportFactory, cacheNameBytes, topologyId, flags(), remoteQuery);
    }
 
+   public GetSegmentOperation newGetSegmentOperation(int segmentId) {
+      return new GetSegmentOperation(
+            codec, transportFactory, cacheNameBytes, topologyId, flags(), segmentId);
+   }
+
    public SizeOperation newSizeOperation() {
       return new SizeOperation(codec, transportFactory, cacheNameBytes, topologyId, flags());
    }

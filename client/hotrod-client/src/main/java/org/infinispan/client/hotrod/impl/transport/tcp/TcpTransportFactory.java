@@ -232,6 +232,25 @@ public class TcpTransportFactory implements TransportFactory {
    }
 
    @Override
+   public Transport getTransport(int segmentId, Set<SocketAddress> failedServers) {
+      SocketAddress server;
+      synchronized (lock) {
+         if (consistentHash != null) {
+            server = consistentHash.getSegmentOwners()[segmentId][0];
+            if (log.isTraceEnabled()) {
+               log.tracef("Using consistent hash for determining the server: " + server);
+            }
+         } else {
+            server = balancer.nextServer(failedServers);
+            if (log.isTraceEnabled()) {
+               log.tracef("Using the balancer for determining the server: %s", server);
+            }
+         }
+      }
+      return borrowTransportFromPool(server);
+   }
+
+   @Override
    public Transport getAddressTransport(SocketAddress server) {
       return borrowTransportFromPool(server);
    }

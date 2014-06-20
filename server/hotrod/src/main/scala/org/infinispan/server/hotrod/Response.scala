@@ -234,3 +234,17 @@ case class HashDistAware20Response(override val topologyId: Int,
         override val serverEndpointsMap : Map[Address, ServerAddress],
         hashFunction: Byte)
         extends AbstractTopologyResponse(topologyId, serverEndpointsMap)
+
+class GetSegmentResponse(override val version: Byte, override val messageId: Long, override val cacheName: String,
+                         override val clientIntel: Short, override val operation: OperationResponse,
+                         override val status: OperationStatus, override val topologyId: Int, val segmentId: Int)
+      extends Response(version, messageId, cacheName, clientIntel, operation, status, topologyId) {
+   override def toString = {
+      new StringBuilder().append("GetSegmentResponse").append("{")
+            .append("version=").append(version)
+            .append(", messageId=").append(messageId)
+            .append(", operation=").append(operation)
+            .append(", status=").append(status)
+            .append(", segmentId=").append(segmentId).append("}").toString
+   }
+}

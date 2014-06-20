@@ -78,6 +78,7 @@ object Decoder2x extends AbstractVersionedDecoder with ServerConstants with Log 
          case 0x25 => (AddClientListenerRequest, false)
          case 0x27 => (RemoveClientListenerRequest, false)
          case 0x29 => (SizeRequest, true)
+         case 0x30 => (GetSegmentRequest, false)
          case _ => throw new HotRodUnknownOperationException(
             "Unknown operation: " + streamOp, version, messageId)
       }
@@ -351,6 +352,11 @@ object Decoder2x extends AbstractVersionedDecoder with ServerConstants with Log 
                createSuccessResponse(h, null)
             else
                createNotExecutedResponse(h, null)
+         case GetSegmentRequest =>
+            val segmentId = readUnsignedInt(buffer)
+            if (isTrace) trace("About to create get segment response, segmentId = %d", segmentId)
+            new GetSegmentResponse(h.version, h.messageId, h.cacheName, h.clientIntel,
+                                   GetSegmentResponse, Success, h.topologyId, segmentId)
       }
    }
 
@@ -468,7 +474,8 @@ object Decoder2x extends AbstractVersionedDecoder with ServerConstants with Log 
                  | ContainsKeyRequest
                  | BulkGetRequest
                  | GetWithMetadataRequest
-                 | BulkGetKeysRequest =>
+                 | BulkGetKeysRequest
+                 | GetSegmentRequest =>
                optCache = optCache.withFlags(SKIP_CACHE_LOAD)
             case _ =>
          }

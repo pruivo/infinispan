@@ -271,6 +271,22 @@ object Encoder2x extends AbstractVersionedEncoder with Constants with Log {
          }
          case s: SizeResponse => writeUnsignedLong(s.size, buf)
          case e: ErrorResponse => writeString(e.msg, buf)
+         case g: GetSegmentResponse => {
+            log.trace("About to respond to get segment request")
+            if (g.status == Success) {
+               val cache: Cache = server.getCacheInstance(g.cacheName, cacheManager, false)
+               val ch = cache.getDistributionManager.getConsistentHash;
+               val iterator = asScalaIterator(cache.entrySet.iterator)
+               for (entry <- iterator) {
+                  if (ch.getSegment(entry.getKey) == g.segmentId) {
+                     buf.writeByte(1) // Not done
+                     writeRangedBytes(entry.getKey, buf)
+                     writeRangedBytes(entry.getValue, buf)
+                  }
+               }
+               buf.writeByte(0) // Done
+            }
+         }
          case _ => if (buf == null)
             throw new IllegalArgumentException("Response received is unknown: " + r)
       }
