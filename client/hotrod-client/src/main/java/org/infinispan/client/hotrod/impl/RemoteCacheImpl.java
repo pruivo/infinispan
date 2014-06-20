@@ -446,6 +446,21 @@ public class RemoteCacheImpl<K, V> extends RemoteCacheSupport<K, V> {
       return Collections.unmodifiableMap(toReturn);
    }
 
+
+   @Override
+   public Map<K, V> getSegment(int segmentId) {
+      assertRemoteCacheManagerIsStarted();
+      GetSegmentOperation op = operationsFactory.newGetSegmentOperation(segmentId);
+      Map<byte[], byte[]> result = op.execute();
+      Map<K, V> toReturn = new HashMap<K, V>();
+      for (Map.Entry<byte[], byte[]> entry : result.entrySet()) {
+         V value = MarshallerUtil.bytes2obj(marshaller, entry.getValue());
+         K key = MarshallerUtil.bytes2obj(marshaller, entry.getKey());
+         toReturn.put(key, value);
+      }
+      return Collections.unmodifiableMap(toReturn);
+   }
+
    @Override
    public V remove(Object key) {
       assertRemoteCacheManagerIsStarted();

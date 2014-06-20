@@ -189,6 +189,11 @@ public class OperationsFactory implements HotRodConstants {
             codec, transportFactory, cacheNameBytes, topologyId, flags(), remoteQuery);
    }
 
+   public GetSegmentOperation newGetSegmentOperation(int segmentId) {
+      return new GetSegmentOperation(
+            codec, transportFactory, cacheNameBytes, topologyId, flags(), segmentId);
+   }
+
    private Flag[] flags() {
       List<Flag> flags = this.flagsMap.get();
       this.flagsMap.remove();

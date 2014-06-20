@@ -22,6 +22,11 @@ public final class MockTransportFactory implements TransportFactory {
    }
 
    @Override
+   public Transport getTransport(int segmentId, Set<SocketAddress> failedServers) {
+      return null;
+   }
+
+   @Override
    public void releaseTransport(final Transport transport) {
    }
 

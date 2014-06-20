@@ -271,6 +271,8 @@ public interface RemoteCache<K, V> extends BasicCache<K, V> {
     */
    Map<K, V> getBulk(int size);
 
+   Map<K, V> getSegment(int segmentId);
+
 
    /**
     * Returns the HotRod protocol version supported by this RemoteCache implementation

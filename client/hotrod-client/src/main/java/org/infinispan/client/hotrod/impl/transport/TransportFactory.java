@@ -22,6 +22,8 @@ public interface TransportFactory {
 
    Transport getTransport(Set<SocketAddress> failedServers, byte[] cacheName);
 
+   Transport getTransport(int segmentId, Set<SocketAddress> failedServers);
+
    Transport getAddressTransport(SocketAddress server);
 
    void releaseTransport(Transport transport);

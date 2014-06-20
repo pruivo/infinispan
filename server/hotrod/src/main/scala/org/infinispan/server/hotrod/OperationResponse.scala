@@ -36,6 +36,7 @@ object OperationResponse extends Enumeration {
    val AuthResponse = Value(0x24)
    val AddClientListenerResponse = Value(0x26)
    val RemoveClientListenerResponse = Value(0x28)
+   val GetSegmentResponse = Value(0x2A)
    val CacheEntryCreatedEventResponse = Value(0x60)
    val CacheEntryModifiedEventResponse = Value(0x61)
    val CacheEntryRemovedEventResponse = Value(0x62)
@@ -62,6 +63,7 @@ object OperationResponse extends Enumeration {
          case AuthRequest => AuthResponse
          case AddClientListenerRequest => AddClientListenerResponse
          case RemoveClientListenerRequest => RemoveClientListenerResponse
+         case GetSegmentRequest => GetSegmentResponse
       }
    }
 

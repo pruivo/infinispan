@@ -99,6 +99,8 @@ public class HeaderParams {
             return HotRodConstants.ADD_CLIENT_LISTENER_RESPONSE;
          case HotRodConstants.REMOVE_CLIENT_LISTENER_REQUEST:
             return HotRodConstants.REMOVE_CLIENT_LISTENER_RESPONSE;
+         case HotRodConstants.GET_SEGMENT_REQUEST:
+            return HotRodConstants.GET_SEGMENT_RESPONSE;
          default:
             throw new IllegalStateException("Unknown operation code: " + opCode);
       }
