@@ -22,7 +22,7 @@ public final class MockTransportFactory implements TransportFactory {
    }
 
    @Override
-   public Transport getTransport(int segmentId, Set<SocketAddress> failedServers) {
+   public Transport getTransport(int segmentId, Set<SocketAddress> failedServers, byte[] cacheName) {
       return null;
    }
 

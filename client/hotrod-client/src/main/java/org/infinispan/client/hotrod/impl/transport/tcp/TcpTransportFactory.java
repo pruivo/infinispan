@@ -232,19 +232,17 @@ public class TcpTransportFactory implements TransportFactory {
    }
 
    @Override
-   public Transport getTransport(int segmentId, Set<SocketAddress> failedServers) {
+   public Transport getTransport(int segmentId, Set<SocketAddress> failedServers, byte[] cacheName) {
       SocketAddress server;
       synchronized (lock) {
+         ConsistentHash consistentHash = consistentHashes.get(cacheName);
          if (consistentHash != null) {
             server = consistentHash.getSegmentOwners()[segmentId][0];
             if (log.isTraceEnabled()) {
                log.tracef("Using consistent hash for determining the server: " + server);
             }
          } else {
-            server = balancer.nextServer(failedServers);
-            if (log.isTraceEnabled()) {
-               log.tracef("Using the balancer for determining the server: %s", server);
-            }
+            server = getNextServer(failedServers, cacheName);
          }
       }
       return borrowTransportFromPool(server);
