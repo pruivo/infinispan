@@ -78,7 +78,7 @@ object Decoder2x extends AbstractVersionedDecoder with ServerConstants with Log 
          case 0x25 => (AddClientListenerRequest, false)
          case 0x27 => (RemoveClientListenerRequest, false)
          case 0x29 => (SizeRequest, true)
-         case 0x30 => (GetSegmentRequest, false)
+         case 0x3A => (GetSegmentRequest, false)
          case _ => throw new HotRodUnknownOperationException(
             "Unknown operation: " + streamOp, version, messageId)
       }

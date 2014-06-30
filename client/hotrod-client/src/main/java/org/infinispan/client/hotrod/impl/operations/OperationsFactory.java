@@ -231,6 +231,6 @@ public class OperationsFactory implements HotRodConstants {
 
    public ConsistentHash getConsistentHash() {
       //little hack...
-      return ((TcpTransportFactory) transportFactory).getConsistentHash();
+      return ((TcpTransportFactory) transportFactory).getConsistentHash(cacheNameBytes);
    }
 }

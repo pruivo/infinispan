@@ -4,7 +4,7 @@
    <parent>
       <groupId>org.infinispan</groupId>
       <artifactId>infinispan-bom</artifactId>
-      <version>7.1.0-SNAPSHOT</version>
+      <version>7.1.0.hadoop-SNAPSHOT</version>
       <relativePath>../bom/pom.xml</relativePath>
    </parent>
    <artifactId>infinispan-parent</artifactId>
@@ -254,6 +254,11 @@
          <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>infinispan-ec2-demo</artifactId>
+            <version>${project.version}</version>
+         </dependency>
+         <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>hadoop-integration</artifactId>
             <version>${project.version}</version>
          </dependency>
          <dependency>

@@ -41,8 +41,8 @@ public interface HotRodConstants {
    static final byte AUTH_REQUEST = 0x23;
    static final byte ADD_CLIENT_LISTENER_REQUEST = 0x25;
    static final byte REMOVE_CLIENT_LISTENER_REQUEST = 0x27;
-   static final byte GET_SEGMENT_REQUEST = 0x29;
    static final byte SIZE_REQUEST = 0x29;
+   static final byte GET_SEGMENT_REQUEST = 0x3A;
 
    //responses
    static final byte PUT_RESPONSE = 0x02;
@@ -65,8 +65,8 @@ public interface HotRodConstants {
    static final byte AUTH_RESPONSE = 0x24;
    static final byte ADD_CLIENT_LISTENER_RESPONSE = 0x26;
    static final byte REMOVE_CLIENT_LISTENER_RESPONSE = 0x28;
-   static final byte GET_SEGMENT_RESPONSE = 0x2A;
    static final byte SIZE_RESPONSE = 0x2A;
+   static final byte GET_SEGMENT_RESPONSE = 0x2C;
    static final byte ERROR_RESPONSE = 0x50;
    static final byte CACHE_ENTRY_CREATED_EVENT_RESPONSE = 0x60;
    static final byte CACHE_ENTRY_MODIFIED_EVENT_RESPONSE = 0x61;
@@ -82,6 +82,10 @@ public interface HotRodConstants {
    static final int KEY_DOES_NOT_EXIST_STATUS = 0x02;
    static final int UNKNOWN_VERSION_STATUS = 0x83;
    static final int COMMAND_TIMEOUT_STATUS = 0x86;
+   static final int NODE_SUSPECTED = 0x87;
+   static final int ILLEGAL_LIFECYCLE_STATE = 0x88;
+   static final int SUCCESS_WITH_PREVIOUS = 0x03;
+   static final int NOT_EXECUTED_WITH_PREVIOUS = 0x04;
 
 
    static final byte CLIENT_INTELLIGENCE_BASIC = 0x01;

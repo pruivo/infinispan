@@ -31,7 +31,7 @@ public class GetSegmentOperation extends RetryOnFailureOperation<Map<byte[], byt
 
    @Override
    protected Transport getTransport(int retryCount, Set<SocketAddress> failedServers) {
-      return transportFactory.getTransport(segmentId, failedServers);
+      return transportFactory.getTransport(segmentId, failedServers, cacheName);
    }
 
    @Override
