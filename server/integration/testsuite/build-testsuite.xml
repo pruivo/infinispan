@@ -15,7 +15,7 @@
     <property name="leveldb.patch" value="false" />
     <property name="zip.dist" value="false" />
     <property name="zip.dist.old" value="false" />
-    <property name="log.level.infinispan" value="INFO"/>
+    <property name="log.level.infinispan" value="TRACE"/>
     <property name="log.level.jgroups" value="INFO"/>
     <property name="log.level.console" value="INFO"/>
 

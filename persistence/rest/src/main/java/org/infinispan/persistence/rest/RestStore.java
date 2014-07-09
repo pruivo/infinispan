@@ -218,6 +218,7 @@ public class RestStore implements AdvancedLoadWriteStore {
    public MarshalledEntry load(Object key) {
       HttpGet get = new HttpGet(keyToUri(key));
       try {
+         log.debug("LOADING KEY " + key + ". HOST=" + httpHost.toURI() + " URL=" + get.getURI());
          HttpResponse response = httpClient.execute(httpHost, get);
          switch (response.getStatusLine().getStatusCode()) {
          case HttpStatus.SC_OK:

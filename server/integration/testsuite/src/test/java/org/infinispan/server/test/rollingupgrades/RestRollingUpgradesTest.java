@@ -172,6 +172,10 @@ public class RestRollingUpgradesTest {
             invokeOperation(provider1, rollMan1.toString(), "disconnectSource", new Object[]{"rest"},
                     new String[]{"java.lang.String"});
 
+           invokeOperation(new MBeanServerConnectionProvider(s2.server.getRESTEndpoint().getInetAddress().getHostName(),
+                                                             10099), rollMan1.toString(), "disconnectSource", new Object[]{"rest"},
+                           new String[]{"java.lang.String"});
+
             // 2 puts into source cluster
             post(fullPathKey(0, DEFAULT_CACHE_NAME, "disconnected", PORT_OFFSET_200), "source", "text/html");
             post(fullPathKey(1, DEFAULT_CACHE_NAME, "disconnectedx", PORT_OFFSET_300), "sourcex", "text/html");
