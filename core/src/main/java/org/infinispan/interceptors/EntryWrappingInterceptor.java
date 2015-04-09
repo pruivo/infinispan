@@ -325,10 +325,6 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
       return null;
    }
 
-   private boolean isClearCommand(FlagAffectedCommand command) {
-      return command instanceof ClearCommand;
-   }
-
    protected final void commitContextEntries(InvocationContext ctx, FlagAffectedCommand command, Metadata metadata) {
       final Flag stateTransferFlag = extractStateTransferFlag(ctx, command);
 
@@ -366,7 +362,7 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    private void stopStateTransferIfNeeded(FlagAffectedCommand command) {
-      if (isClearCommand(command)) {
+      if (command instanceof ClearCommand) {
          // If we are committing a ClearCommand now then no keys should be written by state transfer from
          // now on until current rebalance ends.
          if (stateConsumer != null) {
@@ -455,11 +451,6 @@ public class EntryWrappingInterceptor extends CommandInterceptor {
    }
 
    private final class EntryWrappingVisitor extends AbstractVisitor {
-
-      @Override
-      public Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
-         throw new IllegalStateException("No ClearCommand is allowed in Transaction");
-      }
 
       @Override
       public Object visitPutMapCommand(InvocationContext ctx, PutMapCommand command) throws Throwable {

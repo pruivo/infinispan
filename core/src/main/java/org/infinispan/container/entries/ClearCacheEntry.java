@@ -4,21 +4,24 @@ import org.infinispan.container.DataContainer;
 import org.infinispan.metadata.Metadata;
 
 /**
- * // TODO: Document this
+ * Used in {@link org.infinispan.context.impl.ClearInvocationContext} to process the {@link
+ * org.infinispan.commands.write.ClearCommand}.
  *
  * @author Pedro Ruivo
- * @since 7.0
+ * @since 7.2
  */
 public class ClearCacheEntry<K, V> implements CacheEntry<K, V> {
 
+   //singleton, we have no state
    private static final ClearCacheEntry INSTANCE = new ClearCacheEntry();
 
-   public static <K,V> ClearCacheEntry<K, V> getInstance() {
+   private ClearCacheEntry() {
+   }
+
+   public static <K, V> ClearCacheEntry<K, V> getInstance() {
       //noinspection unchecked
       return INSTANCE;
    }
-
-   private ClearCacheEntry() {}
 
    @Override
    public boolean isNull() {
@@ -136,14 +139,10 @@ public class ClearCacheEntry<K, V> implements CacheEntry<K, V> {
       return false;
    }
 
+   @SuppressWarnings("CloneDoesntCallSuperClone")
    @Override
    public CacheEntry<K, V> clone() {
-      try {
-         //noinspection unchecked
-         return (CacheEntry<K, V>) super.clone();
-      } catch (CloneNotSupportedException e) {
-         throw new IllegalStateException(e);
-      }
+      return getInstance(); //no clone. singleton
    }
 
    @Override

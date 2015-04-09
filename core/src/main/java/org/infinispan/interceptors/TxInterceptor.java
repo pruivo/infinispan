@@ -117,7 +117,7 @@ public class TxInterceptor extends CommandInterceptor implements JmxStatisticsEx
          ((RemoteTransaction) ctx.getCacheTransaction()).setLookedUpEntriesTopology(command.getTopologyId());
       } else {
          if (ctx.getCacheTransaction().hasModification(ClearCommand.class)) {
-            throw new IllegalStateException("No ClearCommand is allowed in Transaction");
+            throw new IllegalStateException("No ClearCommand is allowed in Transaction.");
          }
       }
       Object result = invokeNextInterceptorAndVerifyTransaction(ctx, command);

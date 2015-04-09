@@ -9,12 +9,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * // TODO: Document this
+ * Implementation of {@link org.infinispan.context.InvocationContext} used by the {@link
+ * org.infinispan.commands.write.ClearCommand}.
  *
  * @author Pedro Ruivo
- * @since 7.0
+ * @since 7.2
  */
 public class ClearInvocationContext extends AbstractInvocationContext implements Cloneable {
+
+   private static final Map<Object, CacheEntry> LOOKUP_ENTRIES = Collections.singletonMap((Object) "_clear_", (CacheEntry) ClearCacheEntry.getInstance());
 
    @Override
    public boolean isInTxScope() {
@@ -70,7 +73,7 @@ public class ClearInvocationContext extends AbstractInvocationContext implements
 
    @Override
    public Map<Object, CacheEntry> getLookedUpEntries() {
-      return Collections.singletonMap((Object) "_clear_", (CacheEntry) ClearCacheEntry.getInstance());
+      return LOOKUP_ENTRIES;
    }
 
    @Override

@@ -119,6 +119,7 @@ public interface CacheEntry<K, V> extends Cloneable, Map.Entry<K, V>, MetadataAw
 
    /**
     * See {@link #skipLookup()}.
+    * @param skipLookup
     */
    void setSkipLookup(boolean skipLookup);
 
@@ -128,6 +129,6 @@ public interface CacheEntry<K, V> extends Cloneable, Map.Entry<K, V>, MetadataAw
     */
    boolean undelete(boolean doUndelete);
 
-   CacheEntry<K, V> clone();
+   public CacheEntry<K, V> clone();
 
 }
