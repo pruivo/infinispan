@@ -6,6 +6,7 @@ import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.commands.remote.GetKeysInGroupCommand;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.distribution.group.GroupManager;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.iteration.impl.EntryRequestCommand;
 import org.infinispan.iteration.impl.EntryResponseCommand;
 import org.infinispan.iteration.impl.EntryRetriever;
@@ -144,6 +145,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
    private XSiteStateTransferManager xSiteStateTransferManager;
    private EntryRetriever entryRetriever;
    private GroupManager groupManager;
+   private ClusteringDependentLogic clusteringDependentLogic;
 
    private Map<Byte, ModuleCommandInitializer> moduleCommandInitializers;
 
@@ -156,7 +158,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
                                  LockManager lockManager, InternalEntryFactory entryFactory, MapReduceManager mapReduceManager, 
                                  StateTransferManager stm, BackupSender backupSender, CancellationService cancellationService,
                                  TimeService timeService, XSiteStateProvider xSiteStateProvider, XSiteStateConsumer xSiteStateConsumer,
-                                 XSiteStateTransferManager xSiteStateTransferManager, EntryRetriever entryRetriever, GroupManager groupManager, PartitionHandlingManager partitionHandlingManager) {
+                                 XSiteStateTransferManager xSiteStateTransferManager, EntryRetriever entryRetriever, GroupManager groupManager,
+                                 ClusteringDependentLogic clusteringDependentLogic) {
       this.dataContainer = container;
       this.notifier = notifier;
       this.cache = cache;
@@ -180,6 +183,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
       this.xSiteStateTransferManager = xSiteStateTransferManager;
       this.entryRetriever = entryRetriever;
       this.groupManager = groupManager;
+      this.clusteringDependentLogic = clusteringDependentLogic;
    }
 
    @Start(priority = 1)
@@ -324,16 +328,16 @@ public class CommandsFactoryImpl implements CommandsFactory {
       if (c == null) return;
       switch (c.getCommandId()) {
          case PutKeyValueCommand.COMMAND_ID:
-            ((PutKeyValueCommand) c).init(notifier, configuration);
+            ((PutKeyValueCommand) c).init(notifier, configuration, clusteringDependentLogic);
             break;
          case ReplaceCommand.COMMAND_ID:
-            ((ReplaceCommand) c).init(notifier, configuration);
+            ((ReplaceCommand) c).init(notifier, configuration, clusteringDependentLogic);
             break;
          case PutMapCommand.COMMAND_ID:
             ((PutMapCommand) c).init(notifier);
             break;
          case RemoveCommand.COMMAND_ID:
-            ((RemoveCommand) c).init(notifier, configuration);
+            ((RemoveCommand) c).init(notifier, configuration, clusteringDependentLogic);
             break;
          case MultipleRpcCommand.COMMAND_ID:
             MultipleRpcCommand rc = (MultipleRpcCommand) c;
@@ -352,11 +356,11 @@ public class CommandsFactoryImpl implements CommandsFactory {
             break;
          case InvalidateCommand.COMMAND_ID:
             InvalidateCommand ic = (InvalidateCommand) c;
-            ic.init(notifier, configuration);
+            ic.init(notifier, configuration, clusteringDependentLogic);
             break;
          case InvalidateL1Command.COMMAND_ID:
             InvalidateL1Command ilc = (InvalidateL1Command) c;
-            ilc.init(configuration, distributionManager, notifier, dataContainer);
+            ilc.init(configuration, distributionManager, notifier, dataContainer, clusteringDependentLogic);
             break;
          case PrepareCommand.COMMAND_ID:
          case VersionedPrepareCommand.COMMAND_ID:

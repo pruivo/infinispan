@@ -7,6 +7,7 @@ import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.lifecycle.ComponentStatus;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
@@ -45,7 +46,8 @@ public class RemoveCommand extends AbstractDataWriteCommand {
       this.valueMatcher = value != null ? ValueMatcher.MATCH_EXPECTED : ValueMatcher.MATCH_ALWAYS;
    }
 
-   public void init(CacheNotifier notifier, Configuration configuration) {
+   public void init(CacheNotifier notifier, Configuration configuration, ClusteringDependentLogic clusteringDependentLogic) {
+      inject(clusteringDependentLogic, configuration);
       this.notifier = notifier;
       this.valueEquivalence = configuration.dataContainer().valueEquivalence();
    }

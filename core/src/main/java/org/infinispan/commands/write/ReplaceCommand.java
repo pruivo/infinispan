@@ -7,6 +7,7 @@ import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
 
@@ -45,7 +46,8 @@ public class ReplaceCommand extends AbstractDataWriteCommand implements Metadata
       this.valueEquivalence = valueEquivalence;
    }
    
-   public void init(CacheNotifier notifier, Configuration cfg) {
+   public void init(CacheNotifier notifier, Configuration cfg, ClusteringDependentLogic clusteringDependentLogic) {
+      inject(clusteringDependentLogic, cfg);
       this.notifier = notifier;
       this.valueEquivalence = cfg.dataContainer().valueEquivalence();
    }

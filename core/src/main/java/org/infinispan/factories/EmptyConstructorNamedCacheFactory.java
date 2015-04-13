@@ -40,6 +40,9 @@ import org.infinispan.transaction.impl.TransactionCoordinator;
 import org.infinispan.transaction.totalorder.TotalOrderManager;
 import org.infinispan.transaction.xa.TransactionFactory;
 import org.infinispan.transaction.xa.recovery.RecoveryAdminOperations;
+import org.infinispan.util.concurrent.locks.order.PerEntryRemoteLockOrderManager;
+import org.infinispan.util.concurrent.locks.order.RemoteLockOrderManager;
+import org.infinispan.util.concurrent.locks.order.StripedRemoteLockOrderManager;
 import org.infinispan.xsite.BackupSender;
 import org.infinispan.xsite.BackupSenderImpl;
 import org.infinispan.xsite.statetransfer.XSiteStateConsumer;
@@ -66,7 +69,8 @@ import static org.infinispan.commons.util.Util.getInstance;
                               ClusteringDependentLogic.class, L1Manager.class, TransactionFactory.class, BackupSender.class,
                               TotalOrderManager.class, ByteBufferFactory.class, MarshalledEntryFactory.class,
                               RemoteValueRetrievedListener.class, InvocationContextFactory.class, CommitManager.class,
-                              XSiteStateTransferManager.class, XSiteStateConsumer.class, XSiteStateProvider.class})
+                              XSiteStateTransferManager.class, XSiteStateConsumer.class, XSiteStateProvider.class,
+                              RemoteLockOrderManager.class})
 public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheComponentFactory implements AutoInstantiableFactory {
 
    @Override
@@ -140,6 +144,10 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
             return (T) new XSiteStateConsumerImpl();
          } else if (componentType.equals(XSiteStateProvider.class)) {
             return (T) new XSiteStateProviderImpl();
+         }else if (componentType.equals(RemoteLockOrderManager.class)) {
+            return (T) (configuration.locking().useLockStriping() ?
+                              new StripedRemoteLockOrderManager() :
+                              new PerEntryRemoteLockOrderManager());
          }
       }
 

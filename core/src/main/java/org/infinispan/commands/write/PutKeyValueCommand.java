@@ -3,6 +3,7 @@ package org.infinispan.commands.write;
 import org.infinispan.atomic.CopyableDeltaAware;
 import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.atomic.Delta;
 import org.infinispan.atomic.DeltaAware;
@@ -50,7 +51,8 @@ public class PutKeyValueCommand extends AbstractDataWriteCommand implements Meta
       this.valueEquivalence = valueEquivalence;
    }
 
-   public void init(CacheNotifier notifier, Configuration cfg) {
+   public void init(CacheNotifier notifier, Configuration cfg, ClusteringDependentLogic clusteringDependentLogic) {
+      inject(clusteringDependentLogic, cfg);
       this.notifier = notifier;
       this.valueEquivalence = cfg.dataContainer().valueEquivalence();
    }

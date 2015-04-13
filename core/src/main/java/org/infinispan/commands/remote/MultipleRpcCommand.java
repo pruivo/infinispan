@@ -4,11 +4,15 @@ import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.tx.TransactionBoundaryCommand;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Command that implements cluster replication logic.
@@ -20,7 +24,7 @@ import java.util.List;
  * @author Mircea.Markus@jboss.com
  * @since 4.0
  */
-public class MultipleRpcCommand extends BaseRpcInvokingCommand {
+public class MultipleRpcCommand extends BaseRpcInvokingCommand implements RemoteLockCommand {
 
    public static final byte COMMAND_ID = 2;
 
@@ -127,5 +131,21 @@ public class MultipleRpcCommand extends BaseRpcInvokingCommand {
          }
       }
       return false;
+   }
+
+   @Override
+   public Collection<Object> getKeysToLock() {
+      Set<Object> keysToLock = new HashSet<>();
+      for (ReplicableCommand command : commands) {
+         if (command instanceof RemoteLockCommand) {
+            Collection<Object> keys = ((RemoteLockCommand) command).getKeysToLock();
+            if (keys == ALL_KEYS) {
+               return ALL_KEYS;
+            } else {
+               keysToLock.addAll(keys);
+            }
+         }
+      }
+      return keysToLock;
    }
 }

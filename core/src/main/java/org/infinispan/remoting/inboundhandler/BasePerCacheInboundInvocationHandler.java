@@ -10,7 +10,6 @@ import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commons.CacheException;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
-import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.ResponseGenerator;
@@ -20,8 +19,6 @@ import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.logging.Log;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.infinispan.factories.KnownComponentNames.REMOTE_COMMAND_EXECUTOR;
 
@@ -82,13 +79,16 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
          if (cmd instanceof CancellableCommand) {
             cancellationService.register(Thread.currentThread(), ((CancellableCommand) cmd).getUUID());
          }
-         Response response = responseGenerator.getResponse(cmd, cmd.perform(null));
-         return response;
+         return responseGenerator.getResponse(cmd, cmd.perform(null));
       } finally {
          if (cmd instanceof CancellableCommand) {
             cancellationService.unregister(((CancellableCommand) cmd).getUUID());
          }
       }
+   }
+
+   final StateTransferLock getStateTransferLock() {
+      return stateTransferLock;
    }
 
    final ExceptionResponse exceptionHandlingCommand(CacheRpcCommand command, Throwable throwable) {
@@ -126,80 +126,10 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
    protected final BlockingRunnable createDefaultRunnable(final CacheRpcCommand command, final Reply reply,
                                                           final int commandTopologyId, final boolean waitTransactionalData,
                                                           final boolean onExecutorService) {
-      // Always wait for the first topology (i.e. for the join to finish)
-      final int waitTopologyId = Math.max(commandTopologyId, 0);
-      if (onExecutorService) {
-         if (waitTransactionalData) {
-            return new DefaultTopologyRunnable(this, command, reply, commandTopologyId) {
-               @Override
-               public boolean isReady() {
-                  return stateTransferLock.transactionDataReceived(waitTopologyId);
-               }
-            };
-         } else {
-            return new DefaultTopologyRunnable(this, command, reply, commandTopologyId) {
-               @Override
-               public boolean isReady() {
-                  return stateTransferLock.topologyReceived(waitTopologyId);
-               }
-            };
-         }
-      } else {
-         if (waitTransactionalData) {
-            return new DefaultTopologyRunnable(this, command, reply, commandTopologyId) {
-               @Override
-               public boolean isReady() {
-                  return true; //it doesn't matter
-               }
-
-               @Override
-               protected Response beforeInvoke() throws Exception {
-                  // We still have to wait for the topology to be installed
-                  stateTransferLock.waitForTransactionData(waitTopologyId, 1, TimeUnit.DAYS);
-                  return super.beforeInvoke();
-               }
-            };
-         } else {
-            return new DefaultTopologyRunnable(this, command, reply, commandTopologyId) {
-               @Override
-               public boolean isReady() {
-                  return true; //it doesn't matter
-               }
-
-               @Override
-               protected Response beforeInvoke() throws Exception {
-                  stateTransferLock.waitForTopology(waitTopologyId, 1, TimeUnit.DAYS);
-                  return super.beforeInvoke();
-               }
-            };
-         }
-      }
+      return new DefaultTopologyRunnable(this, command, reply, TopologyMode.create(onExecutorService, waitTransactionalData), commandTopologyId);
    }
 
    protected abstract Log getLog();
 
    protected abstract boolean isTraceEnabled();
-
-   private static abstract class DefaultTopologyRunnable extends BaseBlockingRunnable {
-
-      private final int commandTopologyId;
-
-      protected DefaultTopologyRunnable(BasePerCacheInboundInvocationHandler handler, CacheRpcCommand command, Reply reply, int commandTopologyId) {
-         super(handler, command, reply);
-         this.commandTopologyId = commandTopologyId;
-      }
-
-      @Override
-      protected Response beforeInvoke() throws Exception {
-         if (0 <= commandTopologyId && commandTopologyId < handler.stateTransferManager.getFirstTopologyAsMember()) {
-            if (handler.isTraceEnabled()) {
-               handler.getLog().tracef("Ignoring command sent before the local node was a member " +
-                                             "(command topology id is %d)", commandTopologyId);
-            }
-            // Skip invocation
-            return CacheNotFoundResponse.INSTANCE;
-         }
-         return null;
-      }
-   }
 }

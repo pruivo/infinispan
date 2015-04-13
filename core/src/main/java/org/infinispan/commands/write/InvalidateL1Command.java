@@ -2,6 +2,7 @@ package org.infinispan.commands.write;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.locks.LockSupport;
 
@@ -14,6 +15,7 @@ import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.distribution.DataLocality;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
@@ -68,8 +70,8 @@ public class InvalidateL1Command extends InvalidateCommand {
       return COMMAND_ID;
    }
 
-   public void init(Configuration config, DistributionManager dm, CacheNotifier n, DataContainer dc) {
-      super.init(n, config);
+   public void init(Configuration config, DistributionManager dm, CacheNotifier n, DataContainer dc, ClusteringDependentLogic clusteringDependentLogic) {
+      super.init(n, config, clusteringDependentLogic);
       this.dm = dm;
       this.config = config;
       this.dataContainer = dc;
@@ -109,6 +111,12 @@ public class InvalidateL1Command extends InvalidateCommand {
          if (!locality.isLocal() || locality.isUncertain()) return true;
       }
       return false;
+   }
+
+   @Override
+   public Collection<Object> getKeysToLock() {
+      //no keys to lock
+      return Collections.emptyList();
    }
 
    @Override

@@ -2,6 +2,7 @@ package org.infinispan.util.concurrent.locks.containers;
 
 import net.jcip.annotations.ThreadSafe;
 import org.infinispan.commons.equivalence.Equivalence;
+import org.infinispan.util.StrippedHashFunction;
 import org.infinispan.util.concurrent.locks.OwnableReentrantLock;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -36,15 +37,15 @@ public class OwnableReentrantStripedLockContainer extends AbstractStripedLockCon
     *                         with a minimum of concurrencyLevel created.
     */
    public OwnableReentrantStripedLockContainer(int concurrencyLevel, Equivalence<Object> keyEquivalence) {
-      super(keyEquivalence);
-      int numLocks = calculateNumberOfSegments(concurrencyLevel);
+      this.hashFunction = new StrippedHashFunction<>(keyEquivalence, concurrencyLevel);
+      int numLocks = hashFunction.getNumSegments();
       sharedLocks = new OwnableReentrantLock[numLocks];
       for (int i = 0; i < numLocks; i++) sharedLocks[i] = new OwnableReentrantLock();
    }
 
    @Override
    public final OwnableReentrantLock getLock(Object object) {
-      return sharedLocks[hashToIndex(object)];
+      return sharedLocks[hashFunction.hashToSegment(object)];
    }
 
    @Override

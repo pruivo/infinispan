@@ -1,11 +1,18 @@
 package org.infinispan.remoting.inboundhandler;
 
 import org.infinispan.commands.TopologyAffectedCommand;
+import org.infinispan.commands.control.LockControlCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
+import org.infinispan.commands.tx.PrepareCommand;
+import org.infinispan.commands.tx.VersionedPrepareCommand;
+import org.infinispan.factories.annotations.Inject;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
+import org.infinispan.util.concurrent.locks.order.LockLatch;
+import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
+import org.infinispan.util.concurrent.locks.order.RemoteLockOrderManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -21,6 +28,13 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    private static final Log log = LogFactory.getLog(NonTotalOrderPerCacheInboundInvocationHandler.class);
    private static final boolean trace = log.isTraceEnabled();
 
+   private RemoteLockOrderManager remoteLockOrderManager;
+
+   @Inject
+   public void inject(RemoteLockOrderManager remoteLockOrderManager) {
+      this.remoteLockOrderManager = remoteLockOrderManager;
+   }
+
    @Override
    public void handle(CacheRpcCommand command, Reply reply, DeliverOrder order) {
       if (order == DeliverOrder.TOTAL) {
@@ -32,18 +46,27 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
 
          switch (command.getCommandId()) {
             case SingleRpcCommand.COMMAND_ID:
-               runnable = createDefaultRunnable(command, reply, extractCommandTopologyId((SingleRpcCommand) command),
-                                                true, onExecutorService);
+               runnable = createLockAwareRunnable(command, (RemoteLockCommand) command, reply,
+                                                  extractCommandTopologyId((SingleRpcCommand) command), true, onExecutorService);
                break;
             case MultipleRpcCommand.COMMAND_ID:
-               runnable = createDefaultRunnable(command, reply, extractCommandTopologyId((MultipleRpcCommand) command),
-                                                true, onExecutorService);
+               runnable = createLockAwareRunnable(command, (RemoteLockCommand) command, reply,
+                                                  extractCommandTopologyId((MultipleRpcCommand) command), true, onExecutorService);
                break;
             case StateRequestCommand.COMMAND_ID:
                // StateRequestCommand is special in that it doesn't need transaction data
                // In fact, waiting for transaction data could cause a deadlock
                runnable = createDefaultRunnable(command, reply,
-                     extractCommandTopologyId(((StateRequestCommand) command)), false, onExecutorService);
+                                                extractCommandTopologyId(((StateRequestCommand) command)), false, onExecutorService);
+               break;
+            case PrepareCommand.COMMAND_ID:
+            case VersionedPrepareCommand.COMMAND_ID:
+               runnable = createDefaultRunnable(command, reply, extractCommandTopologyId((PrepareCommand) command),
+                                                true, onExecutorService);
+               break;
+            case LockControlCommand.COMMAND_ID:
+               runnable = createDefaultRunnable(command, reply, extractCommandTopologyId((LockControlCommand) command),
+                                                true, onExecutorService);
                break;
             default:
                int commandTopologyId = NO_TOPOLOGY_COMMAND;
@@ -67,5 +90,28 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    @Override
    protected boolean isTraceEnabled() {
       return trace;
+   }
+
+   protected final BlockingRunnable createLockAwareRunnable(CacheRpcCommand command, RemoteLockCommand remoteLockCommand, Reply reply,
+                                                            int commandTopologyId, boolean waitTransactionalData,
+                                                            boolean onExecutorService) {
+      final TopologyMode topologyMode = TopologyMode.create(onExecutorService, waitTransactionalData);
+      if (onExecutorService) {
+         final LockLatch lockLatch = remoteLockOrderManager.order(remoteLockCommand);
+         return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId) {
+            @Override
+            public boolean isReady() {
+               return super.isReady() && lockLatch.isReady();
+            }
+
+            @Override
+            protected void onFinally() {
+               super.onFinally();
+               lockLatch.release();
+            }
+         };
+      } else {
+         return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId);
+      }
    }
 }

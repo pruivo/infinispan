@@ -2,6 +2,10 @@ package org.infinispan.commands.remote;
 
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
+
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * Similar to {@link org.infinispan.commands.remote.MultipleRpcCommand}, but it only aggregates a single command for
@@ -9,7 +13,7 @@ import org.infinispan.context.InvocationContext;
  *
  * @author Mircea.Markus@jboss.com
  */
-public class SingleRpcCommand extends BaseRpcInvokingCommand {
+public class SingleRpcCommand extends BaseRpcInvokingCommand implements RemoteLockCommand {
    public static final int COMMAND_ID = 1;
 
    private ReplicableCommand command;
@@ -91,5 +95,12 @@ public class SingleRpcCommand extends BaseRpcInvokingCommand {
    @Override
    public boolean canBlock() {
       return command.canBlock();
+   }
+
+   @Override
+   public Collection<Object> getKeysToLock() {
+      return command instanceof RemoteLockCommand ?
+            ((RemoteLockCommand) command).getKeysToLock() :
+            Collections.emptyList();
    }
 }

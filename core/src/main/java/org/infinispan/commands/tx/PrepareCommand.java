@@ -18,10 +18,12 @@ import org.infinispan.notifications.cachelistener.CacheNotifier;
 import org.infinispan.transaction.impl.RemoteTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.transaction.xa.recovery.RecoveryManager;
+import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -34,7 +36,7 @@ import java.util.Set;
  * @author Mircea.Markus@jboss.com
  * @since 4.0
  */
-public class PrepareCommand extends AbstractTransactionBoundaryCommand {
+public class PrepareCommand extends AbstractTransactionBoundaryCommand implements RemoteLockCommand {
 
    private static final Log log = LogFactory.getLog(PrepareCommand.class);
    private boolean trace = log.isTraceEnabled();
@@ -111,6 +113,12 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand {
          log.tracef("Invoking remotely originated prepare: %s with invocation context: %s", this, ctx);
       notifier.notifyTransactionRegistered(ctx.getGlobalTransaction(), false);
       return invoker.invoke(ctx, this);
+   }
+
+   @Override
+   public Collection<Object> getKeysToLock() {
+      Object[] keys = getAffectedKeysToLock(false);
+      return keys == null ? RemoteLockCommand.ALL_KEYS : Arrays.asList(keys);
    }
 
    @Override

@@ -3,8 +3,10 @@ package org.infinispan.commands.write;
 import org.infinispan.atomic.Delta;
 import org.infinispan.atomic.DeltaCompositeKey;
 import org.infinispan.commands.Visitor;
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.lifecycle.ComponentStatus;
 
 import java.util.Collection;
@@ -39,6 +41,10 @@ public class ApplyDeltaCommand extends AbstractDataWriteCommand {
 
    public Delta getDelta(){
       return delta;
+   }
+
+   public void init(ClusteringDependentLogic clusteringDependentLogic, Configuration configuration) {
+      inject(clusteringDependentLogic, configuration);
    }
 
    /**

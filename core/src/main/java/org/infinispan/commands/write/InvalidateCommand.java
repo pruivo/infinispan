@@ -12,6 +12,7 @@ import org.infinispan.util.logging.LogFactory;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 
 
@@ -127,6 +128,12 @@ public class InvalidateCommand extends RemoveCommand {
 
    public Object[] getKeys() {
       return keys;
+   }
+
+   @Override
+   public Collection<Object> getKeysToLock() {
+      //TODO multi-key to implement
+      return Collections.emptyList();
    }
 
    @Override

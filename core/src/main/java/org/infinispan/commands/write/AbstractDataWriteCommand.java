@@ -1,8 +1,12 @@
 package org.infinispan.commands.write;
 
 import org.infinispan.commands.read.AbstractDataCommand;
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.Flag;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
+import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
@@ -12,7 +16,10 @@ import java.util.Set;
  * @author Manik Surtani
  * @since 4.0
  */
-public abstract class AbstractDataWriteCommand extends AbstractDataCommand implements DataWriteCommand {
+public abstract class AbstractDataWriteCommand extends AbstractDataCommand implements DataWriteCommand, RemoteLockCommand {
+
+   protected ClusteringDependentLogic clusteringDependentLogic;
+   protected Configuration configuration;
 
    protected AbstractDataWriteCommand() {
    }
@@ -34,6 +41,17 @@ public abstract class AbstractDataWriteCommand extends AbstractDataCommand imple
 
    @Override
    public boolean canBlock() {
-      return true;
+      return key == null || configuration.transaction().transactionMode().isTransactional() ||
+            clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+   }
+
+   protected void inject(ClusteringDependentLogic clusteringDependentLogic, Configuration configuration) {
+      this.clusteringDependentLogic = clusteringDependentLogic;
+      this.configuration = configuration;
+   }
+
+   @Override
+   public Collection<Object> getKeysToLock() {
+      return Collections.singletonList(key);
    }
 }
