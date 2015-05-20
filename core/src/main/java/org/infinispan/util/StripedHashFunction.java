@@ -9,14 +9,14 @@ import org.infinispan.configuration.cache.Configuration;
  * @author Pedro Ruivo
  * @since 7.0
  */
-public class StrippedHashFunction<T> {
+public class StripedHashFunction<T> {
 
    private final Equivalence<T> equivalence;
    private final int lockSegmentMask;
    private final int lockSegmentShift;
    private final int numSegments;
 
-   public StrippedHashFunction(Equivalence<T> equivalence, int concurrencyLevel) {
+   public StripedHashFunction(Equivalence<T> equivalence, int concurrencyLevel) {
       this.equivalence = equivalence;
       int tempLockSegShift = 0;
       int tmpNumSegments = 1;
@@ -30,8 +30,8 @@ public class StrippedHashFunction<T> {
    }
 
    @SuppressWarnings("unchecked")
-   public static <T> StrippedHashFunction<T> buildFromConfiguration(Configuration configuration) {
-      return new StrippedHashFunction<>((Equivalence<T>) configuration.dataContainer().keyEquivalence(),
+   public static <T> StripedHashFunction<T> buildFromConfiguration(Configuration configuration) {
+      return new StripedHashFunction<>((Equivalence<T>) configuration.dataContainer().keyEquivalence(),
                                         configuration.locking().concurrencyLevel());
    }
 

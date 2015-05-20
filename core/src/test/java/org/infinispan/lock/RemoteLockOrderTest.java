@@ -5,7 +5,7 @@ import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.test.AbstractInfinispanTest;
-import org.infinispan.util.StrippedHashFunction;
+import org.infinispan.util.StripedHashFunction;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.concurrent.locks.order.LockLatch;
 import org.infinispan.util.concurrent.locks.order.PerEntryRemoteLockOrderManager;
@@ -123,7 +123,7 @@ public class RemoteLockOrderTest extends AbstractInfinispanTest {
    }
 
    private void doSimpleMultipleLockTest(RemoteLockOrderManager lockOrderManager, Configuration configuration) {
-      List<Object> keys = findObjects(3, StrippedHashFunction.buildFromConfiguration(configuration));
+      List<Object> keys = findObjects(3, StripedHashFunction.buildFromConfiguration(configuration));
       RemoteLockCommand command = mockCommand(Collections.singleton(keys.get(0)));
       LockLatch lockLatch = lockOrderManager.order(command);
 
@@ -210,7 +210,7 @@ public class RemoteLockOrderTest extends AbstractInfinispanTest {
       AssertJUnit.assertSame(LockLatch.NO_OP, lockOrderManager.order(mockCommand(Collections.<Object>singleton("key"))));
    }
 
-   private List<Object> findObjects(int size, StrippedHashFunction<Object> hashFunction) {
+   private List<Object> findObjects(int size, StripedHashFunction<Object> hashFunction) {
       List<Object> objectList = new ArrayList<>(size);
       Set<Integer> usedSegments = new HashSet<>();
       for (int i = 0; i < size; ++i) {

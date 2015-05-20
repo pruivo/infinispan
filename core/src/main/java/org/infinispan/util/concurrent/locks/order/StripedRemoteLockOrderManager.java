@@ -5,7 +5,7 @@ import org.infinispan.factories.KnownComponentNames;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
-import org.infinispan.util.StrippedHashFunction;
+import org.infinispan.util.StripedHashFunction;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -28,7 +28,7 @@ public class StripedRemoteLockOrderManager extends BaseRemoteLockOrderManager<In
    private static final Log log = LogFactory.getLog(StripedRemoteLockOrderManager.class);
    private static final boolean trace = log.isTraceEnabled();
 
-   private StrippedHashFunction<Object> hashFunction;
+   private StripedHashFunction<Object> hashFunction;
    private Queue<IndexBasedLockLatch>[] queues;
 
    @Inject
@@ -38,7 +38,7 @@ public class StripedRemoteLockOrderManager extends BaseRemoteLockOrderManager<In
          throw new IllegalArgumentException("Wrong executor type. expects BlockingTaskAwareExecutorService but was" + executorService.getClass());
       }
       initialize(clusteringDependentLogic, (BlockingTaskAwareExecutorService) executorService);
-      this.hashFunction = StrippedHashFunction.buildFromConfiguration(configuration);
+      this.hashFunction = StripedHashFunction.buildFromConfiguration(configuration);
       int segments = hashFunction.getNumSegments();
       //noinspection unchecked
       queues = new Queue[segments];

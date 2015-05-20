@@ -3,6 +3,8 @@ package org.infinispan.util.concurrent.locks.impl;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,9 +21,12 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class InfinispanLock {
 
-   private final Queue<LockInfo> pendingRequest;
-   private final ConcurrentMap<Object, LockInfo> lockOwners;
-   private final AtomicReference<LockInfo> current;
+   private static final Log log = LogFactory.getLog(InfinispanLock.class);
+   private static final boolean trace = log.isTraceEnabled();
+
+   private final Queue<LockPlaceHolder> pendingRequest;
+   private final ConcurrentMap<Object, LockPlaceHolder> lockOwners;
+   private final AtomicReference<LockPlaceHolder> current;
    private final TimeService timeService;
    private final Runnable releaseRunnable;
 
@@ -42,50 +47,70 @@ public class InfinispanLock {
    }
 
    public LockPromise acquire(Object lockOwner, long time, TimeUnit timeUnit) {
-      LockInfo lockInfo = lockOwners.get(lockOwner);
-      if (lockInfo != null) {
-         return lockInfo;
+      if (trace) {
+         log.tracef("Acquire lock for %s. Timeout=%s (%s)", lockOwner, time, timeUnit);
       }
-      lockInfo = createLockInfo(lockOwner, time, timeUnit);
-      LockInfo other = lockOwners.putIfAbsent(lockOwner, lockInfo);
+      LockPlaceHolder lockPlaceHolder = lockOwners.get(lockOwner);
+      if (lockPlaceHolder != null) {
+         if (trace) {
+            log.tracef("Lock owner already exists: %s", lockPlaceHolder);
+         }
+         return lockPlaceHolder;
+      }
+      lockPlaceHolder = createLockInfo(lockOwner, time, timeUnit);
+      LockPlaceHolder other = lockOwners.putIfAbsent(lockOwner, lockPlaceHolder);
       if (other != null) {
+         if (trace) {
+            log.tracef("Lock owner already exists: %s", other);
+         }
          return other;
       }
-      pendingRequest.add(lockInfo);
+      if (trace) {
+         log.tracef("Created a new one: %s", lockPlaceHolder);
+      }
+      pendingRequest.add(lockPlaceHolder);
       tryAcquire();
-      return lockInfo;
+      return lockPlaceHolder;
    }
 
    public void release(Object lockOwner) {
-      LockInfo wantToRelease = lockOwners.remove(lockOwner);
+      if (trace) {
+         log.tracef("Release lock for %s.", lockOwner);
+      }
+      LockPlaceHolder wantToRelease = lockOwners.get(lockOwner);
       if (wantToRelease == null) {
+         if (trace) {
+            log.tracef("%s not found!", lockOwner);
+         }
          //nothing to release
          return;
       }
-      boolean released = false;
-      LockInfo currentLocked = current.get();
+      final boolean released = wantToRelease.release();
+      if (trace) {
+         log.tracef("Release lock for %s? %s", wantToRelease, released);
+      }
+      LockPlaceHolder currentLocked = current.get();
       if (currentLocked == wantToRelease) {
          if (!current.compareAndSet(currentLocked, null)) {
+            if (trace) {
+               log.tracef("Releasing lock for %s. It is the current lock owner but another thread changed it.", lockOwner);
+            }
             //another thread already released!
             return;
-         }
-         released = wantToRelease.release();
-         //no need to iterate
-         tryAcquire();
-         if (released) {
-            triggerReleased();
-         }
-         return;
-      }
-      for (LockInfo lockInfo : pendingRequest) {
-         if (lockInfo.lockOwner.equals(lockOwner)) {
-            released = lockInfo.release();
-            break;
+         } else {
+            tryAcquire();
          }
       }
 
-      //we could change the state of the current owner if the release happens at the same time as acquisition.
+      if (released) {
+         triggerReleased();
+      }
+
+      /*//we could change the state of the current owner if the release happens at the same time as acquisition.
       currentLocked = current.get();
+      if (trace) {
+         log.tracef("Releasing lock for %s. It is the current lock owner but another thread changed it.", lockOwner);
+      }
       if (currentLocked != null && currentLocked.isComplete()) {
          if (current.compareAndSet(currentLocked, null)) {
             //we removed the owner and we will find another one
@@ -94,7 +119,16 @@ public class InfinispanLock {
       }
       if (released) {
          triggerReleased();
-      }
+      }*/
+   }
+
+   public boolean isEmpty() {
+      //debug only
+      return isFree() && lockOwners.isEmpty();
+   }
+
+   private void remove(Object lockOwner) {
+      lockOwners.remove(lockOwner);
    }
 
    private void triggerReleased() {
@@ -108,46 +142,52 @@ public class InfinispanLock {
    }
 
    public Object getLockOwner() {
-      LockInfo lockInfo = current.get();
-      return lockInfo == null ? null : lockInfo.lockOwner;
+      LockPlaceHolder lockPlaceHolder = current.get();
+      return lockPlaceHolder == null ? null : lockPlaceHolder.lockOwner;
    }
 
    private void tryAcquire() {
       do {
-         LockInfo nextPending = pendingRequest.peek();
+         LockPlaceHolder nextPending = pendingRequest.peek();
+         if (trace) {
+            log.tracef("Try acquire. Next in queue=%s. Current=%s", nextPending, current.get());
+         }
          if (nextPending == null) {
             return;
          }
          if (current.compareAndSet(null, nextPending)) {
             //we set the current lock owner, so we must remove it from the queue
-            pendingRequest.remove();
+            pendingRequest.remove(nextPending);
             if (nextPending.acquire()) {
+               if (trace) {
+                  log.tracef("%s successfully acquired the lock.", nextPending);
+               }
                //successfully acquired
                return;
             }
+            if (trace) {
+               log.tracef("%s failed to acquire (invalid state). Retrying.", nextPending);
+            }
             //oh oh, probably the next in queue Timed-Out. we are going to retry with the next in queue
-            current.set(null);
+            current.compareAndSet(nextPending, null);
          } else {
+            if (trace) {
+               log.tracef("Unable to acquire. Lock is held.");
+            }
             //other thread already set the current lock owner
             return;
          }
       } while (true);
    }
 
-   private LockInfo createLockInfo(Object lockOwner, long time, TimeUnit timeUnit) {
-      return new LockInfo(lockOwner, timeService.expectedEndTime(time, timeUnit));
+   private LockPlaceHolder createLockInfo(Object lockOwner, long time, TimeUnit timeUnit) {
+      return new LockPlaceHolder(lockOwner, timeService.expectedEndTime(time, timeUnit));
    }
 
-   private void onTimeout(LockInfo lockInfo) {
-      lockOwners.remove(lockInfo);
-      LockInfo currentLocked = current.get();
-      if (currentLocked == lockInfo) {
-         if (!current.compareAndSet(currentLocked, null)) {
-            //another thread already released!
-            triggerReleased();
-            return;
-         }
-         tryAcquire();
+   private void onTimeout(LockPlaceHolder lockPlaceHolder) {
+      //only invoked if the lock state changed to TIMED_OUT. So, it is never acquired.
+      if (trace) {
+         log.tracef("Timeout happened in %s", lockPlaceHolder);
       }
       triggerReleased();
    }
@@ -156,13 +196,14 @@ public class InfinispanLock {
       WAITING, ACQUIRED, TIMED_OUT, RELEASED
    }
 
-   private class LockInfo implements LockPromise {
+   private class LockPlaceHolder implements LockPromise {
 
       private final AtomicReference<LockState> lockState;
       private final Object lockOwner;
       private final long timeout;
+      private volatile boolean cleanup;
 
-      private LockInfo(Object lockOwner, long timeout) {
+      private LockPlaceHolder(Object lockOwner, long timeout) {
          this.lockOwner = lockOwner;
          this.timeout = timeout;
          lockState = new AtomicReference<>(LockState.WAITING);
@@ -177,24 +218,30 @@ public class InfinispanLock {
       @Override
       public void lock() throws InterruptedException, TimeoutException {
          checkTimeout();
-         LockState state = lockState.get();
-         switch (state) {
-            case WAITING:
-               await();
-               break;
-            case ACQUIRED:
-               return; //already acquired
-            case RELEASED:
-               throw new IllegalStateException("Lock already released!");
-            case TIMED_OUT:
-               throw new TimeoutException("Timeout waiting for lock.");
-            default:
-               throw new IllegalStateException("Unknown lock state: " + state);
+         while (true) {
+            LockState state = lockState.get();
+            switch (state) {
+               case WAITING:
+                  await();
+                  break;
+               case ACQUIRED:
+                  return; //already acquired
+               case RELEASED:
+                  throw new IllegalStateException("Lock already released!");
+               case TIMED_OUT:
+                  cleanup();
+                  throw new TimeoutException("Timeout waiting for lock.");
+               default:
+                  throw new IllegalStateException("Unknown lock state: " + state);
+            }
          }
       }
 
       public boolean acquire() {
          if (lockState.compareAndSet(LockState.WAITING, LockState.ACQUIRED)) {
+            if (trace) {
+               log.tracef("State changed for %s. %s => %s", this, LockState.WAITING, LockState.ACQUIRED);
+            }
             notifyStateChanged();
          }
          return lockState.get() == LockState.ACQUIRED;
@@ -205,7 +252,11 @@ public class InfinispanLock {
          switch (state) {
             case WAITING:
             case ACQUIRED:
+               cleanup();
                if (lockState.compareAndSet(state, LockState.RELEASED)) {
+                  if (trace) {
+                     log.tracef("State changed for %s. %s => %s", this, state, LockState.RELEASED);
+                  }
                   notifyStateChanged();
                   return true;
                }
@@ -217,6 +268,13 @@ public class InfinispanLock {
       public boolean isComplete() {
          LockState state = lockState.get();
          return state == LockState.RELEASED || state == LockState.TIMED_OUT;
+      }
+
+      private void cleanup() {
+         if (!cleanup) {
+            cleanup = true;
+            remove(lockOwner);
+         }
       }
 
       private void await() throws InterruptedException {
@@ -232,7 +290,6 @@ public class InfinispanLock {
       }
 
       private void notifyStateChanged() {
-
          synchronized (this) {
             this.notifyAll();
          }
@@ -244,10 +301,21 @@ public class InfinispanLock {
          }
          if (timeService.isTimeExpired(timeout)) {
             if (lockState.compareAndSet(LockState.WAITING, LockState.TIMED_OUT)) {
+               if (trace) {
+                  log.tracef("State changed for %s. %s => %s", this, LockState.WAITING, LockState.TIMED_OUT);
+               }
                onTimeout(this); //we release before notify (notify can check the remote executor and we need to be ready)
                notifyStateChanged();
             }
          }
+      }
+
+      @Override
+      public String toString() {
+         return "LockPlaceHolder{" +
+               "lockState=" + lockState.get() +
+               ", lockOwner=" + lockOwner +
+               '}';
       }
    }
 }

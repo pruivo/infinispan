@@ -55,6 +55,7 @@ public class InfinispanLockTest {
       //no side effects
       lock.release(lockOwner2);
       AssertJUnit.assertTrue(lock.isFree());
+      AssertJUnit.assertTrue(lock.isEmpty());
       AssertJUnit.assertNull(lock.getLockOwner());
    }
 
@@ -92,6 +93,7 @@ public class InfinispanLockTest {
       //no side effects
       lock.release(lockOwner2);
       AssertJUnit.assertTrue(lock.isFree());
+      AssertJUnit.assertTrue(lock.isEmpty());
       AssertJUnit.assertNull(lock.getLockOwner());
    }
 
@@ -130,6 +132,7 @@ public class InfinispanLockTest {
       //no side effects
       lock.release(lockOwner2);
       AssertJUnit.assertTrue(lock.isFree());
+      AssertJUnit.assertTrue(lock.isEmpty());
       AssertJUnit.assertNull(lock.getLockOwner());
    }
 
@@ -180,6 +183,9 @@ public class InfinispanLockTest {
       for (int i = 0; i < maxCounterValue; ++i) {
          AssertJUnit.assertTrue(seenResults.contains(i));
       }
+
+      AssertJUnit.assertTrue(counterLock.isFree());
+      AssertJUnit.assertTrue(counterLock.isEmpty());
    }
 
    private static class NotThreadSafeCounter {

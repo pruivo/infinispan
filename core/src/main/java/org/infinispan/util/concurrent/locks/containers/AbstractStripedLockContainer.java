@@ -1,7 +1,7 @@
 package org.infinispan.util.concurrent.locks.containers;
 
 import net.jcip.annotations.ThreadSafe;
-import org.infinispan.util.StrippedHashFunction;
+import org.infinispan.util.StripedHashFunction;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -14,7 +14,7 @@ import java.util.concurrent.locks.Lock;
  */
 @ThreadSafe
 public abstract class AbstractStripedLockContainer<L extends Lock> extends AbstractLockContainer<L> {
-   protected StrippedHashFunction<Object> hashFunction;
+   protected StripedHashFunction<Object> hashFunction;
 
    @Override
    public L acquireLock(Object lockOwner, Object key, long timeout, TimeUnit unit) throws InterruptedException {
