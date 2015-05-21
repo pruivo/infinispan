@@ -5,7 +5,11 @@ import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.commons.util.concurrent.jdk8backported.EquivalentConcurrentHashMapV8;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.TimeService;
+import org.infinispan.util.concurrent.locks.CancellableLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainerV8;
+
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * // TODO: Document this
@@ -15,7 +19,7 @@ import org.infinispan.util.concurrent.locks.LockContainerV8;
  */
 public class PerKeyLockContainer implements LockContainerV8 {
 
-   private final EquivalentConcurrentHashMapV8<Object, LockWrapper> lockMap;
+   private final EquivalentConcurrentHashMapV8<Object, InfinispanLock> lockMap;
    private TimeService timeService;
 
    public PerKeyLockContainer(Equivalence<Object> keyEquivalence) {
@@ -28,31 +32,42 @@ public class PerKeyLockContainer implements LockContainerV8 {
    }
 
    @Override
-   public InfinispanLock get(Object key) {
-      return lockMap.compute(key, new EquivalentConcurrentHashMapV8.BiFun<Object, LockWrapper, LockWrapper>() {
+   public CancellableLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit) {
+      AtomicReference<CancellableLockPromise> reference = new AtomicReference<>();
+      lockMap.compute(key, new EquivalentConcurrentHashMapV8.BiFun<Object, InfinispanLock, InfinispanLock>() {
          @Override
-         public LockWrapper apply(Object o, LockWrapper lockWrapper) {
-            LockWrapper retVal = lockWrapper;
-            if (retVal == null) {
-               retVal = new LockWrapper(PerKeyLockContainer.this.createInfinispanLock(o));
+         public InfinispanLock apply(Object key, InfinispanLock lock) {
+            if (lock == null) {
+               lock = createInfinispanLock(key);
             }
-            retVal.increment();
-            return retVal;
+            reference.set(lock.acquire(lockOwner, time, timeUnit));
+            return lock;
          }
-      }).getLock();
+      });
+      return reference.get();
    }
 
    @Override
-   public InfinispanLock peek(Object key) {
-      LockWrapper wrapper = lockMap.get(key);
-      return wrapper == null ? null : wrapper.getLock();
+   public InfinispanLock getLock(Object key) {
+      return lockMap.get(key);
+   }
+
+   @Override
+   public void release(Object key, Object lockOwner) {
+      lockMap.computeIfPresent(key, new EquivalentConcurrentHashMapV8.BiFun<Object, InfinispanLock, InfinispanLock>() {
+         @Override
+         public InfinispanLock apply(Object key, InfinispanLock lock) {
+            lock.release(lockOwner);
+            return lock.isEmpty() ? null : lock; //remove it if emptu
+         }
+      });
    }
 
    @Override
    public int getNumLocksHeld() {
       int count = 0;
-      for (LockWrapper wrapper : lockMap.values()) {
-         if (!wrapper.getLock().isFree()) {
+      for (InfinispanLock lock : lockMap.values()) {
+         if (!lock.isFree()) {
             count++;
          }
       }
@@ -68,44 +83,14 @@ public class PerKeyLockContainer implements LockContainerV8 {
       return new InfinispanLock(timeService, new Runnable() {
          @Override
          public void run() {
-            lockMap.compute(key, new EquivalentConcurrentHashMapV8.BiFun<Object, LockWrapper, LockWrapper>() {
+            lockMap.computeIfPresent(key, new EquivalentConcurrentHashMapV8.BiFun<Object, InfinispanLock, InfinispanLock>() {
                @Override
-               public LockWrapper apply(Object o, LockWrapper lockWrapper) {
-                  if (lockWrapper != null) {
-                     lockWrapper.decrement();
-                     if (lockWrapper.get() == 0) {
-                        return null;
-                     }
-                  }
-                  return lockWrapper;
+               public InfinispanLock apply(Object key, InfinispanLock lock) {
+                  return lock.isFree() ? null : lock;
                }
             });
          }
       });
    }
 
-   private static class LockWrapper {
-      private final InfinispanLock lock;
-      private int refCount;
-
-      private LockWrapper(InfinispanLock lock) {
-         this.lock = lock;
-      }
-
-      public InfinispanLock getLock() {
-         return lock;
-      }
-
-      public void increment() {
-         refCount++;
-      }
-
-      public void decrement() {
-         refCount--;
-      }
-
-      public int get() {
-         return refCount;
-      }
-   }
 }

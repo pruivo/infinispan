@@ -45,13 +45,13 @@ public class LockContainerV8Test {
    }
 
    public void testSingleLockWithStriped() throws InterruptedException {
-      StripedLockContainer lockContainer = new StripedLockContainer(10, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
-      doSingleLockTest(lockContainer, 10);
+      StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
+      doSingleLockTest(lockContainer, 16);
    }
 
    public void testSingleCounterWithStriped() throws ExecutionException, InterruptedException {
-      StripedLockContainer lockContainer = new StripedLockContainer(10, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
-      doSingleCounterTest(lockContainer, 10);
+      StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
+      doSingleCounterTest(lockContainer, 16);
    }
 
    private void doSingleCounterTest(LockContainerV8 lockContainer, int poolSize) throws InterruptedException, ExecutionException {
@@ -70,8 +70,8 @@ public class LockContainerV8Test {
             List<Integer> seenValues = new LinkedList<>();
             barrier.await();
             while (true) {
-               lockContainer.get(key).acquire(lockOwner, 1, TimeUnit.DAYS).lock();
-               AssertJUnit.assertEquals(lockOwner, lockContainer.peek(key).getLockOwner());
+               lockContainer.acquire(key, lockOwner, 1, TimeUnit.DAYS).lock();
+               AssertJUnit.assertEquals(lockOwner, lockContainer.getLock(key).getLockOwner());
                try {
                   int value = counter.getCount();
                   if (value == maxCounterValue) {
@@ -80,7 +80,7 @@ public class LockContainerV8Test {
                   seenValues.add(value);
                   counter.setCount(value + 1);
                } finally {
-                  lockContainer.peek(key).release(lockOwner);
+                  lockContainer.release(key, lockOwner);
                }
             }
          }));
@@ -115,9 +115,9 @@ public class LockContainerV8Test {
       final String lockOwner2 = "LO2";
       final String lockOwner3 = "LO3";
 
-      final LockPromise lockPromise1 = container.get("key").acquire(lockOwner1, 0, TimeUnit.MILLISECONDS);
-      final LockPromise lockPromise2 = container.get("key").acquire(lockOwner2, 0, TimeUnit.MILLISECONDS);
-      final LockPromise lockPromise3 = container.get("key").acquire(lockOwner3, 0, TimeUnit.MILLISECONDS);
+      final LockPromise lockPromise1 = container.acquire("key", lockOwner1, 0, TimeUnit.MILLISECONDS);
+      final LockPromise lockPromise2 = container.acquire("key", lockOwner2, 0, TimeUnit.MILLISECONDS);
+      final LockPromise lockPromise3 = container.acquire("key", lockOwner3, 0, TimeUnit.MILLISECONDS);
 
       AssertJUnit.assertEquals(1, container.getNumLocksHeld());
       if (poolSize == -1) {
@@ -139,8 +139,8 @@ public class LockContainerV8Test {
          AssertJUnit.assertEquals(poolSize, container.size());
       }
 
-      container.peek("key").release(lockOwner2);
-      container.peek("key").release(lockOwner3);
+      container.release("key", lockOwner2);
+      container.release("key", lockOwner3);
 
       AssertJUnit.assertEquals(1, container.getNumLocksHeld());
       if (poolSize == -1) {
@@ -150,7 +150,7 @@ public class LockContainerV8Test {
          AssertJUnit.assertEquals(poolSize, container.size());
       }
 
-      container.peek("key").release(lockOwner1);
+      container.release("key", lockOwner1);
 
       AssertJUnit.assertEquals(0, container.getNumLocksHeld());
       if (poolSize == -1) {

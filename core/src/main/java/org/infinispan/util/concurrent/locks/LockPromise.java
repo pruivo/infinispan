@@ -30,4 +30,11 @@ public interface LockPromise {
     */
    void lock() throws InterruptedException, TimeoutException;
 
+   /**
+    * Sets a {@link Runnable} what will be invoked when the availability changes to available.
+    *
+    * @param runnable the {@link Runnable} to invoke.
+    */
+   void setAvailableRunnable(Runnable runnable);
+
 }

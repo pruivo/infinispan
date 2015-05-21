@@ -2,6 +2,7 @@ package org.infinispan.lock;
 
 import org.infinispan.test.AbstractCacheTest;
 import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.concurrent.locks.CancellableLockPromise;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.impl.InfinispanLock;
 import org.testng.AssertJUnit;
@@ -134,6 +135,40 @@ public class InfinispanLockTest {
       AssertJUnit.assertTrue(lock.isFree());
       AssertJUnit.assertTrue(lock.isEmpty());
       AssertJUnit.assertNull(lock.getLockOwner());
+   }
+
+   public void testCancel() {
+      final InfinispanLock lock = new InfinispanLock(AbstractCacheTest.TIME_SERVICE);
+      final String lockOwner1 = "LO1";
+      final String lockOwner2 = "LO2";
+      final String lockOwner3 = "LO3";
+
+      CancellableLockPromise lockPromise1 = lock.acquire(lockOwner1, 0, TimeUnit.MILLISECONDS); //will be acquired
+      CancellableLockPromise lockPromise2 = lock.acquire(lockOwner2, 0, TimeUnit.MILLISECONDS); //will be timed-out
+      CancellableLockPromise lockPromise3 = lock.acquire(lockOwner3, 1, TimeUnit.DAYS); //will be waiting
+
+      AssertJUnit.assertTrue(lockPromise1.isAvailable());
+      AssertJUnit.assertTrue(lockPromise2.isAvailable());
+      AssertJUnit.assertFalse(lockPromise3.isAvailable());
+
+      AssertJUnit.assertEquals(lockOwner1, lock.getLockOwner());
+
+      lockPromise1.cancel();
+      AssertJUnit.assertEquals(lockOwner3, lock.getLockOwner());
+
+      AssertJUnit.assertTrue(lockPromise2.isAvailable());
+      AssertJUnit.assertTrue(lockPromise3.isAvailable());
+
+      lockPromise2.cancel();
+      AssertJUnit.assertEquals(lockOwner3, lock.getLockOwner());
+
+      AssertJUnit.assertTrue(lockPromise3.isAvailable());
+
+      lockPromise3.cancel();
+
+      AssertJUnit.assertNull(lock.getLockOwner());
+      AssertJUnit.assertTrue(lock.isFree());
+      AssertJUnit.assertTrue(lock.isEmpty());
    }
 
    public void testSingleCounter() throws ExecutionException, InterruptedException {

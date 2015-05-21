@@ -3,7 +3,10 @@ package org.infinispan.util.concurrent.locks.impl;
 import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.util.StripedHashFunction;
 import org.infinispan.util.TimeService;
+import org.infinispan.util.concurrent.locks.CancellableLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainerV8;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * // TODO: Document this
@@ -24,12 +27,17 @@ public class StripedLockContainer implements LockContainerV8 {
    }
 
    @Override
-   public InfinispanLock get(Object key) {
-      return peek(key);
+   public CancellableLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit) {
+      return getLock(key).acquire(lockOwner, time, timeUnit);
    }
 
    @Override
-   public InfinispanLock peek(Object key) {
+   public void release(Object key, Object lockOwner) {
+      getLock(key).release(lockOwner);
+   }
+
+   @Override
+   public InfinispanLock getLock(Object key) {
       return sharedLocks[hashFunction.hashToSegment(key)];
    }
 
