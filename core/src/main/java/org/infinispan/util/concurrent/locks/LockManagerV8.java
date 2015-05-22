@@ -38,7 +38,7 @@ public interface LockManagerV8 {
     * @param unit      the time unit of the {@code time} argument
     * @return the {@link LockPromise} associated to this keys.
     */
-   LockPromise lockAll(Collection<Object> keys, Object lockOwner, long time, TimeUnit unit);
+   LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit);
 
    /**
     * Releases the lock for the {@code key} if the {@code lockOwner} is the lock owner.
@@ -54,7 +54,7 @@ public interface LockManagerV8 {
     * @param keys      keys to unlock.
     * @param lockOwner the owner of the lock.
     */
-   void unlockAll(Collection<Object> keys, Object lockOwner);
+   void unlockAll(Collection<?> keys, Object lockOwner);
 
    /**
     * Tests if the {@code lockOwner} owns a lock on the {@code key}.

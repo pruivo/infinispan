@@ -36,18 +36,17 @@ public class DefaultLockManager implements LockManagerV8 {
    }
 
    @Override
-   public LockPromise lockAll(Collection<Object> keys, Object lockOwner, long time, TimeUnit unit) {
+   public LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
       final Set<Object> uniqueKeys = new HashSet<>(keys);
       if (uniqueKeys.isEmpty()) {
          return null;
       } else if (uniqueKeys.size() == 1) {
          return lock(uniqueKeys.iterator().next(), lockOwner, time, unit);
       }
-      final LockContainerV8 copyContainer = container;
       final CompositeLockPromise compositeLockPromise = new CompositeLockPromise(uniqueKeys.size());
-      synchronized (copyContainer) {
+      synchronized (this) {
          for (Object key : uniqueKeys) {
-            compositeLockPromise.addLock(copyContainer.acquire(key, lockOwner, time, unit));
+            compositeLockPromise.addLock(container.acquire(key, lockOwner, time, unit));
          }
       }
       return compositeLockPromise;
@@ -59,7 +58,7 @@ public class DefaultLockManager implements LockManagerV8 {
    }
 
    @Override
-   public void unlockAll(Collection<Object> keys, Object lockOwner) {
+   public void unlockAll(Collection<?> keys, Object lockOwner) {
       if (keys.isEmpty()) {
          return;
       }
