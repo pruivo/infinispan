@@ -22,22 +22,15 @@ public abstract class BaseRemoteLockOrderManager<L extends ExtendedLockLatch> im
    public final LockLatch order(RemoteLockCommand command) {
       Collection<Object> keysToLock = command.getKeysToLock();
       if (isTraceEnabled()) {
-         getLog().tracef("Ordering %s.", keysToLock == RemoteLockCommand.ALL_KEYS  ? "ALL_KEYS" : String.valueOf(keysToLock));
+         getLog().tracef("Ordering %s.", String.valueOf(keysToLock));
       }
-      if (keysToLock == RemoteLockCommand.ALL_KEYS) {
-         return orderAllKeys();
-      } else if (keysToLock.isEmpty()) {
+      if (keysToLock.isEmpty()) {
          return LockLatch.NO_OP;
       } else if (keysToLock.size() > 1) {
          return orderMultipleKeys(keysToLock);
       } else {
          return orderSingleKey(keysToLock.iterator().next());
       }
-   }
-
-   protected final LockLatch orderAllKeys() {
-      //TODO
-      return LockLatch.NO_OP;
    }
 
    protected abstract LockLatch orderMultipleKeys(Collection<Object> keys);

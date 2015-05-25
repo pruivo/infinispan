@@ -16,10 +16,10 @@ import java.util.Set;
 
 /**
  * Command that implements cluster replication logic.
- * <p/>
+ * <p>
  * This is not a {@link VisitableCommand} and hence not passed up the {@link org.infinispan.interceptors.base.CommandInterceptor}
  * chain.
- * <p/>
+ * <p>
  *
  * @author Mircea.Markus@jboss.com
  * @since 4.0
@@ -138,14 +138,24 @@ public class MultipleRpcCommand extends BaseRpcInvokingCommand implements Remote
       Set<Object> keysToLock = new HashSet<>();
       for (ReplicableCommand command : commands) {
          if (command instanceof RemoteLockCommand) {
-            Collection<Object> keys = ((RemoteLockCommand) command).getKeysToLock();
-            if (keys == ALL_KEYS) {
-               return ALL_KEYS;
-            } else {
-               keysToLock.addAll(keys);
-            }
+            keysToLock.addAll(((RemoteLockCommand) command).getKeysToLock());
          }
       }
       return keysToLock;
+   }
+
+   @Override
+   public Object getLockOwner() {
+      return null;  // TODO: Customise this generated block
+   }
+
+   @Override
+   public boolean hasZeroLockAcquisition() {
+      return false;  // TODO: Customise this generated block
+   }
+
+   @Override
+   public boolean hasSkipLocking() {
+      return false;  // TODO: Customise this generated block
    }
 }

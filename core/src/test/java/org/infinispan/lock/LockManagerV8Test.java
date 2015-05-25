@@ -2,7 +2,9 @@ package org.infinispan.lock;
 
 import org.infinispan.commons.equivalence.AnyEquivalence;
 import org.infinispan.test.AbstractCacheTest;
+import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManagerV8;
+import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.impl.DefaultLockManager;
 import org.infinispan.util.concurrent.locks.impl.PerKeyLockContainer;
 import org.infinispan.util.concurrent.locks.impl.StripedLockContainer;
@@ -63,6 +65,21 @@ public class LockManagerV8Test {
       doMultipleCounterTest(lockManager);
    }
 
+   public void testTimeoutPerKey() throws ExecutionException, InterruptedException {
+      DefaultLockManager lockManager = new DefaultLockManager();
+      PerKeyLockContainer lockContainer = new PerKeyLockContainer(AnyEquivalence.getInstance());
+      lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
+      lockManager.inject(lockContainer);
+      doTestWithFailAcquisition(lockManager);
+   }
+
+   public void testTimeoutStripped() throws ExecutionException, InterruptedException {
+      DefaultLockManager lockManager = new DefaultLockManager();
+      StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
+      lockManager.inject(lockContainer);
+      doTestWithFailAcquisition(lockManager);
+   }
+
    private void doSingleCounterTest(LockManagerV8 lockManager) throws ExecutionException, InterruptedException {
       final NotThreadSafeCounter counter = new NotThreadSafeCounter();
       final String key = "key";
@@ -79,7 +96,7 @@ public class LockManagerV8Test {
             List<Integer> seenValues = new LinkedList<>();
             barrier.await();
             while (true) {
-               lockManager.lock(key, lockOwner, 1, TimeUnit.DAYS).lock();
+               lockManager.lock(key, lockOwner, 1, TimeUnit.MINUTES).lock();
                AssertJUnit.assertEquals(lockOwner, lockManager.getOwner(key));
                AssertJUnit.assertTrue(lockManager.isLocked(key));
                AssertJUnit.assertTrue(lockManager.ownsLock(key, lockOwner));
@@ -140,7 +157,7 @@ public class LockManagerV8Test {
             List<Integer> seenValues = new LinkedList<>();
             barrier.await();
             while (true) {
-               lockManager.lockAll(threadKeys, lockOwner, 1, TimeUnit.DAYS).lock();
+               lockManager.lockAll(threadKeys, lockOwner, 1, TimeUnit.MINUTES).lock();
                for (String key : threadKeys) {
                   AssertJUnit.assertEquals(lockOwner, lockManager.getOwner(key));
                   AssertJUnit.assertTrue(lockManager.isLocked(key));
@@ -151,13 +168,13 @@ public class LockManagerV8Test {
                   for (NotThreadSafeCounter counter : counters) {
                      if (value == -1) {
                         value = counter.getCount();
+                        if (value == maxCounterValue) {
+                           return seenValues;
+                        }
+                        seenValues.add(value);
                      } else {
                         AssertJUnit.assertEquals(value, counter.getCount());
                      }
-                     if (value == maxCounterValue) {
-                        return seenValues;
-                     }
-                     seenValues.add(value);
                      counter.setCount(value + 1);
                   }
                } finally {
@@ -183,6 +200,47 @@ public class LockManagerV8Test {
          AssertJUnit.assertTrue(seenResults.contains(i));
       }
 
+      AssertJUnit.assertEquals(0, lockManager.getNumberOfLocksHeld());
+   }
+
+   private void doTestWithFailAcquisition(LockManagerV8 lockManager) throws InterruptedException {
+      final String lockOwner1 = "LO1";
+      final String lockOwner2 = "LO2";
+      final String key = "key";
+      final String key2 = "key2";
+      final String key3 = "key2";
+
+      lockManager.lock(key, lockOwner1, 0, TimeUnit.MILLISECONDS).lock();
+      AssertJUnit.assertEquals(lockOwner1, lockManager.getOwner(key));
+      AssertJUnit.assertTrue(lockManager.isLocked(key));
+      AssertJUnit.assertTrue(lockManager.ownsLock(key, lockOwner1));
+
+      try {
+         lockManager.lockAll(Arrays.asList(key, key2, key3), lockOwner2, 0, TimeUnit.MILLISECONDS).lock();
+         AssertJUnit.assertEquals(1, lockManager.getNumberOfLocksHeld());
+         AssertJUnit.fail();
+      } catch (TimeoutException t) {
+         //expected
+      }
+
+      AssertJUnit.assertEquals(lockOwner1, lockManager.getOwner(key));
+      AssertJUnit.assertTrue(lockManager.isLocked(key));
+      AssertJUnit.assertTrue(lockManager.ownsLock(key, lockOwner1));
+
+      LockPromise lockPromise = lockManager.lockAll(Arrays.asList(key, key2, key3), lockOwner2, 1, TimeUnit.MINUTES);
+
+      AssertJUnit.assertFalse(lockPromise.isAvailable());
+
+      lockManager.unlock(key, lockOwner1);
+
+      AssertJUnit.assertTrue(lockPromise.isAvailable());
+      lockPromise.lock();
+
+      AssertJUnit.assertEquals(lockOwner2, lockManager.getOwner(key));
+      AssertJUnit.assertTrue(lockManager.isLocked(key));
+      AssertJUnit.assertTrue(lockManager.ownsLock(key, lockOwner2));
+
+      lockManager.unlockAll(Arrays.asList(key, key2, key3), lockOwner2);
       AssertJUnit.assertEquals(0, lockManager.getNumberOfLocksHeld());
    }
 

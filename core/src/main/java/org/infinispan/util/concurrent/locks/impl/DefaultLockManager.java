@@ -49,6 +49,7 @@ public class DefaultLockManager implements LockManagerV8 {
             compositeLockPromise.addLock(container.acquire(key, lockOwner, time, unit));
          }
       }
+      compositeLockPromise.markListAsFinal();
       return compositeLockPromise;
    }
 
@@ -113,7 +114,12 @@ public class DefaultLockManager implements LockManagerV8 {
 
       public void addLock(CancellableLockPromise lockPromise) {
          lockPromiseList.add(lockPromise);
-         lockPromise.setAvailableRunnable(this);
+      }
+
+      public void markListAsFinal() {
+         for (LockPromise lockPromise : lockPromiseList) {
+            lockPromise.setAvailableRunnable(this);
+         }
       }
 
       @Override

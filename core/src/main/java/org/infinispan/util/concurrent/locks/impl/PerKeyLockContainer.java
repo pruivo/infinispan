@@ -10,6 +10,7 @@ import org.infinispan.util.concurrent.locks.LockContainerV8;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
 /**
  * // TODO: Document this
@@ -34,7 +35,7 @@ public class PerKeyLockContainer implements LockContainerV8 {
    @Override
    public CancellableLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit) {
       AtomicReference<CancellableLockPromise> reference = new AtomicReference<>();
-      lockMap.compute(key, new EquivalentConcurrentHashMapV8.BiFun<Object, InfinispanLock, InfinispanLock>() {
+      lockMap.compute(key, new BiFunction<Object, InfinispanLock, InfinispanLock>() {
          @Override
          public InfinispanLock apply(Object key, InfinispanLock lock) {
             if (lock == null) {
@@ -54,11 +55,11 @@ public class PerKeyLockContainer implements LockContainerV8 {
 
    @Override
    public void release(Object key, Object lockOwner) {
-      lockMap.computeIfPresent(key, new EquivalentConcurrentHashMapV8.BiFun<Object, InfinispanLock, InfinispanLock>() {
+      lockMap.computeIfPresent(key, new BiFunction<Object, InfinispanLock, InfinispanLock>() {
          @Override
          public InfinispanLock apply(Object key, InfinispanLock lock) {
             lock.release(lockOwner);
-            return lock.isEmpty() ? null : lock; //remove it if emptu
+            return lock.isEmpty() ? null : lock; //remove it if empty
          }
       });
    }
@@ -83,7 +84,7 @@ public class PerKeyLockContainer implements LockContainerV8 {
       return new InfinispanLock(timeService, new Runnable() {
          @Override
          public void run() {
-            lockMap.computeIfPresent(key, new EquivalentConcurrentHashMapV8.BiFun<Object, InfinispanLock, InfinispanLock>() {
+            lockMap.computeIfPresent(key, new BiFunction<Object, InfinispanLock, InfinispanLock>() {
                @Override
                public InfinispanLock apply(Object key, InfinispanLock lock) {
                   return lock.isFree() ? null : lock;

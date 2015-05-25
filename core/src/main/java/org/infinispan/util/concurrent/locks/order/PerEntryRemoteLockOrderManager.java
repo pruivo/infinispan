@@ -15,6 +15,7 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BiFunction;
 
 import static org.infinispan.factories.KnownComponentNames.REMOTE_COMMAND_EXECUTOR;
 
@@ -91,7 +92,7 @@ public class PerEntryRemoteLockOrderManager extends BaseRemoteLockOrderManager<K
       return function.notify;
    }
 
-   private class InsertFunction implements EquivalentConcurrentHashMapV8.BiFun<Object, Queue<KeyBasedLockLatch>, Queue<KeyBasedLockLatch>> {
+   private class InsertFunction implements BiFunction<Object, Queue<KeyBasedLockLatch>, Queue<KeyBasedLockLatch>> {
 
       private KeyBasedLockLatch lockLatch;
 
@@ -106,7 +107,7 @@ public class PerEntryRemoteLockOrderManager extends BaseRemoteLockOrderManager<K
       }
    }
 
-   private class ReleaseFunction implements EquivalentConcurrentHashMapV8.BiFun<Object, Queue<KeyBasedLockLatch>, Queue<KeyBasedLockLatch>> {
+   private class ReleaseFunction implements BiFunction<Object, Queue<KeyBasedLockLatch>, Queue<KeyBasedLockLatch>> {
 
       private final KeyBasedLockLatch lockLatch;
       private boolean notify;

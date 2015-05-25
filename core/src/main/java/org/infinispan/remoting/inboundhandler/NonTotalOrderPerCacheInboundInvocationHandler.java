@@ -10,11 +10,15 @@ import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
-import org.infinispan.util.concurrent.locks.order.LockLatch;
+import org.infinispan.util.concurrent.locks.LockManagerV8;
+import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
-import org.infinispan.util.concurrent.locks.order.RemoteLockOrderManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A {@link org.infinispan.remoting.inboundhandler.PerCacheInboundInvocationHandler} implementation for non-total order
@@ -28,11 +32,11 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    private static final Log log = LogFactory.getLog(NonTotalOrderPerCacheInboundInvocationHandler.class);
    private static final boolean trace = log.isTraceEnabled();
 
-   private RemoteLockOrderManager remoteLockOrderManager;
+   private LockManagerV8 lockManager;
 
    @Inject
-   public void inject(RemoteLockOrderManager remoteLockOrderManager) {
-      this.remoteLockOrderManager = remoteLockOrderManager;
+   public void inject(LockManagerV8 lockManager) {
+      this.lockManager = lockManager;
    }
 
    @Override
@@ -96,22 +100,25 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                                                             int commandTopologyId, boolean waitTransactionalData,
                                                             boolean onExecutorService) {
       final TopologyMode topologyMode = TopologyMode.create(onExecutorService, waitTransactionalData);
-      if (onExecutorService) {
-         final LockLatch lockLatch = remoteLockOrderManager.order(remoteLockCommand);
+      Collection<Object> keysToLock = getKeysToLock(remoteLockCommand);
+      if (onExecutorService && !keysToLock.isEmpty()) {
+         final long timeoutMillis = remoteLockCommand.hasZeroLockAcquisition() ? 0 : lockManager.getDefaultTimeoutMillis();
+         final LockPromise lockPromise = lockManager.lockAll(keysToLock, remoteLockCommand.getLockOwner(), timeoutMillis, TimeUnit.MILLISECONDS);
          return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId) {
             @Override
             public boolean isReady() {
-               return super.isReady() && lockLatch.isReady();
-            }
-
-            @Override
-            protected void onFinally() {
-               super.onFinally();
-               lockLatch.release();
+               return super.isReady() && lockPromise.isAvailable();
             }
          };
       } else {
          return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId);
       }
+   }
+
+   private Collection<Object> getKeysToLock(RemoteLockCommand command) {
+      if (command.hasSkipLocking()) {
+         return Collections.emptyList();
+      }
+      return command.getKeysToLock();
    }
 }

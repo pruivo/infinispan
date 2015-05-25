@@ -117,8 +117,22 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand implement
 
    @Override
    public Collection<Object> getKeysToLock() {
-      Object[] keys = getAffectedKeysToLock(false);
-      return keys == null ? RemoteLockCommand.ALL_KEYS : Arrays.asList(keys);
+      return Arrays.asList(getAffectedKeysToLock(false));
+   }
+
+   @Override
+   public Object getLockOwner() {
+      return globalTx;
+   }
+
+   @Override
+   public boolean hasZeroLockAcquisition() {
+      return false;
+   }
+
+   @Override
+   public boolean hasSkipLocking() {
+      return false;
    }
 
    @Override

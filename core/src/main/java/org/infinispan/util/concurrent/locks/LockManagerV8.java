@@ -94,4 +94,6 @@ public interface LockManagerV8 {
 
    @Deprecated
    int getLockId(Object key);
+
+   long getDefaultTimeoutMillis();
 }
