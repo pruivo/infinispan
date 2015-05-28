@@ -63,6 +63,21 @@ public class PutMapCommand extends AbstractFlagAffectedCommand implements WriteC
       return isForwarded ? Collections.emptyList() : Collections.unmodifiableCollection(map.keySet());
    }
 
+   @Override
+   public Object getLockOwner() {
+      return this;
+   }
+
+   @Override
+   public boolean hasZeroLockAcquisition() {
+      return hasFlag(Flag.ZERO_LOCK_ACQUISITION_TIMEOUT);
+   }
+
+   @Override
+   public boolean hasSkipLocking() {
+      return hasFlag(Flag.SKIP_LOCKING);
+   }
+
    private MVCCEntry lookupMvccEntry(InvocationContext ctx, Object key) {
       return (MVCCEntry) ctx.lookupEntry(key);
    }

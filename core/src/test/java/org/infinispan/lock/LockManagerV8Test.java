@@ -39,14 +39,14 @@ public class LockManagerV8Test {
       DefaultLockManager lockManager = new DefaultLockManager();
       PerKeyLockContainer lockContainer = new PerKeyLockContainer(AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer);
+      lockManager.inject(lockContainer, null);
       doSingleCounterTest(lockManager);
    }
 
    public void testSingleCounterStripped() throws ExecutionException, InterruptedException {
       DefaultLockManager lockManager = new DefaultLockManager();
       StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer);
+      lockManager.inject(lockContainer, null);
       doSingleCounterTest(lockManager);
    }
 
@@ -54,14 +54,14 @@ public class LockManagerV8Test {
       DefaultLockManager lockManager = new DefaultLockManager();
       PerKeyLockContainer lockContainer = new PerKeyLockContainer(AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer);
+      lockManager.inject(lockContainer, null);
       doMultipleCounterTest(lockManager);
    }
 
    public void testMultipleCounterStripped() throws ExecutionException, InterruptedException {
       DefaultLockManager lockManager = new DefaultLockManager();
       StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer);
+      lockManager.inject(lockContainer, null);
       doMultipleCounterTest(lockManager);
    }
 
@@ -69,14 +69,14 @@ public class LockManagerV8Test {
       DefaultLockManager lockManager = new DefaultLockManager();
       PerKeyLockContainer lockContainer = new PerKeyLockContainer(AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer);
+      lockManager.inject(lockContainer, null);
       doTestWithFailAcquisition(lockManager);
    }
 
    public void testTimeoutStripped() throws ExecutionException, InterruptedException {
       DefaultLockManager lockManager = new DefaultLockManager();
       StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer);
+      lockManager.inject(lockContainer, null);
       doTestWithFailAcquisition(lockManager);
    }
 
