@@ -13,7 +13,7 @@ import java.util.Collections;
  *
  * @author Mircea.Markus@jboss.com
  */
-public class SingleRpcCommand extends BaseRpcInvokingCommand implements RemoteLockCommand {
+public class SingleRpcCommand extends BaseRpcInvokingCommand {
    public static final int COMMAND_ID = 1;
 
    private ReplicableCommand command;
@@ -97,10 +97,4 @@ public class SingleRpcCommand extends BaseRpcInvokingCommand implements RemoteLo
       return command.canBlock();
    }
 
-   @Override
-   public Collection<Object> getKeysToLock() {
-      return command instanceof RemoteLockCommand ?
-            ((RemoteLockCommand) command).getKeysToLock() :
-            Collections.emptyList();
-   }
 }

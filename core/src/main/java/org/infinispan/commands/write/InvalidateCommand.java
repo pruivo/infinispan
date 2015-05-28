@@ -132,8 +132,7 @@ public class InvalidateCommand extends RemoveCommand {
 
    @Override
    public Collection<Object> getKeysToLock() {
-      //TODO multi-key to implement
-      return Collections.emptyList();
+      return Arrays.asList(keys);
    }
 
    @Override

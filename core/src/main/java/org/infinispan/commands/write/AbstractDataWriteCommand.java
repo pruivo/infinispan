@@ -54,4 +54,19 @@ public abstract class AbstractDataWriteCommand extends AbstractDataCommand imple
    public Collection<Object> getKeysToLock() {
       return Collections.singletonList(key);
    }
+
+   @Override
+   public final Object getLockOwner() {
+      return this;
+   }
+
+   @Override
+   public final boolean hasZeroLockAcquisition() {
+      return hasFlag(Flag.ZERO_LOCK_ACQUISITION_TIMEOUT);
+   }
+
+   @Override
+   public final boolean hasSkipLocking() {
+      return hasFlag(Flag.SKIP_LOCKING);
+   }
 }

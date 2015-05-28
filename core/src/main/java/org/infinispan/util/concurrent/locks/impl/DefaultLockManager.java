@@ -1,5 +1,6 @@
 package org.infinispan.util.concurrent.locks.impl;
 
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.CancellableLockPromise;
@@ -24,10 +25,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class DefaultLockManager implements LockManagerV8 {
 
    private LockContainerV8 container;
+   private Configuration configuration;
 
    @Inject
-   public void inject(LockContainerV8 container) {
+   public void inject(LockContainerV8 container, Configuration configuration) {
       this.container = container;
+      this.configuration = configuration;
    }
 
    @Override
@@ -99,6 +102,11 @@ public class DefaultLockManager implements LockManagerV8 {
    public int getLockId(Object key) {
       InfinispanLock lock = container.getLock(key);
       return lock == null ? 0 : lock.hashCode();
+   }
+
+   @Override
+   public long getDefaultTimeoutMillis() {
+      return configuration.locking().lockAcquisitionTimeout();
    }
 
    private static class CompositeLockPromise implements LockPromise, Runnable {

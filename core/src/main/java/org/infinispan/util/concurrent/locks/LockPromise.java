@@ -10,6 +10,19 @@ import org.infinispan.util.concurrent.TimeoutException;
  */
 public interface LockPromise {
 
+   LockPromise NO_OP = new LockPromise() {
+      @Override
+      public boolean isAvailable() {
+         return true;
+      }
+
+      @Override
+      public void lock() throws InterruptedException, TimeoutException {/*no-op*/}
+
+      @Override
+      public void setAvailableRunnable(Runnable runnable) {/*no-op*/}
+   };
+
    /**
     * It tests if the lock is available.
     * <p/>

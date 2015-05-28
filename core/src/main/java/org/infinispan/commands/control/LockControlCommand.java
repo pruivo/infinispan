@@ -11,12 +11,14 @@ import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.transaction.impl.RemoteTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
+import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,7 @@ import java.util.Set;
  * @author Mircea.Markus@jboss.com
  * @since 4.0
  */
-public class LockControlCommand extends AbstractTransactionBoundaryCommand implements FlagAffectedCommand {
+public class LockControlCommand extends AbstractTransactionBoundaryCommand implements FlagAffectedCommand, RemoteLockCommand {
 
    private static final Log log = LogFactory.getLog(LockControlCommand.class);
 
@@ -234,4 +236,23 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
       // no-op
    }
 
+   @Override
+   public Collection<Object> getKeysToLock() {
+      return Collections.unmodifiableCollection(keys);
+   }
+
+   @Override
+   public Object getLockOwner() {
+      return globalTx;
+   }
+
+   @Override
+   public boolean hasZeroLockAcquisition() {
+      return hasFlag(Flag.ZERO_LOCK_ACQUISITION_TIMEOUT);
+   }
+
+   @Override
+   public boolean hasSkipLocking() {
+      return hasFlag(Flag.SKIP_LOCKING); //is it possible??
+   }
 }

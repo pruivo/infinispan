@@ -24,7 +24,7 @@ import java.util.Set;
  * @author Mircea.Markus@jboss.com
  * @since 4.0
  */
-public class MultipleRpcCommand extends BaseRpcInvokingCommand implements RemoteLockCommand {
+public class MultipleRpcCommand extends BaseRpcInvokingCommand {
 
    public static final byte COMMAND_ID = 2;
 
@@ -133,29 +133,4 @@ public class MultipleRpcCommand extends BaseRpcInvokingCommand implements Remote
       return false;
    }
 
-   @Override
-   public Collection<Object> getKeysToLock() {
-      Set<Object> keysToLock = new HashSet<>();
-      for (ReplicableCommand command : commands) {
-         if (command instanceof RemoteLockCommand) {
-            keysToLock.addAll(((RemoteLockCommand) command).getKeysToLock());
-         }
-      }
-      return keysToLock;
-   }
-
-   @Override
-   public Object getLockOwner() {
-      return null;  // TODO: Customise this generated block
-   }
-
-   @Override
-   public boolean hasZeroLockAcquisition() {
-      return false;  // TODO: Customise this generated block
-   }
-
-   @Override
-   public boolean hasSkipLocking() {
-      return false;  // TODO: Customise this generated block
-   }
 }
