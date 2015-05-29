@@ -1,7 +1,6 @@
 package org.infinispan.executors;
 
 import org.infinispan.test.AbstractInfinispanTest;
-import org.infinispan.util.DefaultTimeService;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorServiceImpl;
@@ -89,7 +88,7 @@ public class BlockingTaskAwareExecutorServiceTest extends AbstractInfinispanTest
 
    private BlockingTaskAwareExecutorServiceImpl createExecutorService() {
       return new BlockingTaskAwareExecutorServiceImpl(new ThreadPoolExecutor(1, 2, 60, TimeUnit.SECONDS,
-                                                                             new LinkedBlockingQueue<Runnable>(1000),
+                                                                             new LinkedBlockingQueue<>(1000),
                                                                              new DummyThreadFactory()),
                                                       TIME_SERVICE);
    }

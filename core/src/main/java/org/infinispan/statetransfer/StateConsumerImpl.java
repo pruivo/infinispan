@@ -304,12 +304,7 @@ public class StateConsumerImpl implements StateConsumer {
       }
       stateTransferLock.releaseExclusiveTopologyLock();
       stateTransferLock.notifyTopologyInstalled(cacheTopology.getTopologyId());
-      remoteCommandsExecutor.submit(new Runnable() {
-         @Override
-         public void run() {
-            remoteCommandsExecutor.checkForReadyTasks();
-         }
-      });
+      remoteCommandsExecutor.checkForReadyTasks();
 
       try {
          // fetch transactions and data segments from other owners if this is enabled
@@ -395,12 +390,7 @@ public class StateConsumerImpl implements StateConsumer {
          }
       } finally {
          stateTransferLock.notifyTransactionDataReceived(cacheTopology.getTopologyId());
-         remoteCommandsExecutor.submit(new Runnable() {
-            @Override
-            public void run() {
-               remoteCommandsExecutor.checkForReadyTasks();
-            }
-         });
+         remoteCommandsExecutor.checkForReadyTasks();
 
          // Only set the flag here, after all the transfers have been added to the transfersBySource map
          if (stateTransferTopologyId.get() != NO_REBALANCE_IN_PROGRESS && isMember) {

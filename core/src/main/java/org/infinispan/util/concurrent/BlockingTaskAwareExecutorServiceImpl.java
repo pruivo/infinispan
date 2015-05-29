@@ -4,7 +4,6 @@ import org.infinispan.util.TimeService;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -13,6 +12,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,13 +29,16 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
    private final BlockingQueue<BlockingRunnable> blockedTasks;
    private final ExecutorService executorService;
    private final TimeService timeService;
+   private final ControllerThread controllerThread;
    private volatile boolean shutdown;
 
    public BlockingTaskAwareExecutorServiceImpl(ExecutorService executorService, TimeService timeService) {
-      this.blockedTasks = new LinkedBlockingQueue<BlockingRunnable>();
+      this.blockedTasks = new LinkedBlockingQueue<>();
       this.executorService = executorService;
       this.timeService = timeService;
       this.shutdown = false;
+      this.controllerThread = new ControllerThread();
+      controllerThread.start();
    }
 
    @Override
@@ -47,21 +50,7 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
          doExecute(runnable);
       } else {
          blockedTasks.offer(runnable);
-         //case: T1 is adding a task and T2 is releasing one. problem to solve:
-         //T1: is adding a new task. runnable.isReady() returns false
-         //T2: meanwhile, T2 releases a resources that is blocking the T1's runnable
-         //T2: also, T2 invokes checkForReadyTasks(), that does nothing because the queue is empty
-         //T1: continues and add the runnable to the queue
-         //problem: if no more interaction with this object is done, the runnable will be kept in the queue forever.
-
-         boolean checkPendingTasks;
-         synchronized (blockedTasks) {
-            //to synchronize with the thread invoking checkForReadyTasks();
-            checkPendingTasks = runnable.isReady();
-         }
-         if (checkPendingTasks) {
-            checkForReadyTasks();
-         }
+         controllerThread.checkForReadyTask();
       }
       if (log.isTraceEnabled()) {
          log.tracef("Added a new task: %s task(s) are waiting", blockedTasks.size());
@@ -76,9 +65,10 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
    @Override
    public List<Runnable> shutdownNow() {
       shutdown = true;
-      List<Runnable> runnableList = new LinkedList<Runnable>();
+      List<Runnable> runnableList = new LinkedList<>();
       runnableList.addAll(executorService.shutdownNow());
       runnableList.addAll(blockedTasks);
+      controllerThread.interrupt();
       return runnableList;
    }
 
@@ -106,24 +96,7 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
 
    @Override
    public final void checkForReadyTasks() {
-      List<BlockingRunnable> runnableReadyList = new ArrayList<BlockingRunnable>(blockedTasks.size());
-      synchronized (blockedTasks) {
-         for (Iterator<BlockingRunnable> iterator = blockedTasks.iterator(); iterator.hasNext(); ) {
-            BlockingRunnable runnable = iterator.next();
-            if (runnable.isReady()) {
-               iterator.remove();
-               runnableReadyList.add(runnable);
-            }
-         }
-      }
-
-      if (log.isTraceEnabled()) {
-         log.tracef("Tasks executed=%s, still pending=%s", runnableReadyList.size(), blockedTasks.size());
-      }
-
-      for (BlockingRunnable runnable : runnableReadyList) {
-         doExecute(runnable);
-      }
+      controllerThread.checkForReadyTask();
    }
 
    @Override
@@ -140,6 +113,56 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       } catch (RejectedExecutionException rejected) {
          //put it back!
          blockedTasks.offer(runnable);
+      }
+   }
+
+   private class ControllerThread extends Thread {
+
+      private final LinkedList<BlockingRunnable> readList;
+      private final Semaphore semaphore;
+      private volatile boolean interrupted;
+
+      public ControllerThread() {
+         super("Controller-Thread");
+         readList = new LinkedList<>();
+         semaphore = new Semaphore(0);
+      }
+
+      public void checkForReadyTask() {
+         semaphore.release();
+      }
+
+      @Override
+      public void interrupt() {
+         interrupted = true;
+         super.interrupt();
+      }
+
+      @Override
+      public void run() {
+         while (!interrupted) {
+            try {
+               semaphore.acquire();
+            } catch (InterruptedException e) {
+               return;
+            }
+            semaphore.drainPermits();
+            for (Iterator<BlockingRunnable> iterator = blockedTasks.iterator(); iterator.hasNext(); ) {
+               BlockingRunnable runnable = iterator.next();
+               if (runnable.isReady()) {
+                  iterator.remove();
+                  readList.add(runnable);
+               }
+            }
+
+            if (log.isTraceEnabled()) {
+               log.tracef("Tasks executed=%s, still pending=%s", readList.size(), blockedTasks.size());
+            }
+
+            while (!readList.isEmpty()) {
+               doExecute(readList.pop());
+            }
+         }
       }
    }
 }

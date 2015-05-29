@@ -11,6 +11,8 @@ import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
+import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.concurrent.locks.CancellableLockPromise;
 import org.infinispan.util.concurrent.locks.LockManagerV8;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
@@ -22,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link org.infinispan.remoting.inboundhandler.PerCacheInboundInvocationHandler} implementation for non-total order
@@ -104,6 +107,12 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                                                             LockPromise lockPromise) {
       final TopologyMode topologyMode = TopologyMode.create(onExecutorService, waitTransactionalData);
       if (onExecutorService) {
+         lockPromise.setAvailableRunnable(new Runnable() {
+            @Override
+            public void run() {
+               remoteCommandsExecutor.checkForReadyTasks();
+            }
+         });
          return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId) {
             @Override
             public boolean isReady() {
@@ -141,7 +150,50 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
             lockPromiseList.add(getLockPromise((RemoteLockCommand) command));
          }
       }
-      return lockPromiseList.isEmpty() ? LockPromise.NO_OP : null; //TODO collection!
+      return lockPromiseList.isEmpty() ? LockPromise.NO_OP : new CompositeLockPromise(lockPromiseList);
+   }
+
+   /**
+    * Only used to check when all the {@link LockPromise} are available.
+    */
+   private static class CompositeLockPromise implements LockPromise, Runnable {
+
+      private final List<LockPromise> lockPromiseList;
+      private final AtomicBoolean notify;
+      private volatile Runnable availableRunnable;
+
+      private CompositeLockPromise(List<LockPromise> lockPromiseList) {
+         this.lockPromiseList = lockPromiseList;
+         notify = new AtomicBoolean(false);
+      }
+
+
+      @Override
+      public boolean isAvailable() {
+         for (LockPromise lockPromise : lockPromiseList) {
+            if (!lockPromise.isAvailable()) {
+               return false;
+            }
+         }
+         return true;
+      }
+
+      @Override
+      public void lock() throws InterruptedException, TimeoutException {/*no-op*/}
+
+      @Override
+      public void setAvailableRunnable(Runnable runnable) {
+         this.availableRunnable = runnable;
+         run();
+      }
+
+      @Override
+      public void run() {
+         Runnable runnable = availableRunnable;
+         if (isAvailable() && runnable != null && notify.compareAndSet(false, true)) {
+            runnable.run();
+         }
+      }
    }
 
 
