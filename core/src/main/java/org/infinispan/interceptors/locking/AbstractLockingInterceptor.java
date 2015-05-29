@@ -2,6 +2,7 @@ package org.infinispan.interceptors.locking;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 import org.infinispan.commands.DataCommand;
 import org.infinispan.commands.FlagAffectedCommand;
@@ -163,6 +164,8 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
    }
 
    protected final void lockKey(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException {
-      lockManager.acquireLockNoCheck(ctx, key, timeoutMillis, skipLocking);
+      if (!skipLocking) {
+         lockManager.lock(key, ctx.getLockOwner(), timeoutMillis, TimeUnit.MILLISECONDS);
+      }
    }
 }

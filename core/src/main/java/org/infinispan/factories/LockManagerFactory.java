@@ -1,9 +1,8 @@
 package org.infinispan.factories;
 
 import org.infinispan.factories.annotations.DefaultFactoryFor;
-import org.infinispan.util.concurrent.locks.DeadlockDetectingLockManager;
 import org.infinispan.util.concurrent.locks.LockManager;
-import org.infinispan.util.concurrent.locks.LockManagerImpl;
+import org.infinispan.util.concurrent.locks.impl.DefaultLockManager;
 
 /**
  * Factory class that creates instances of {@link LockManager}.
@@ -13,12 +12,14 @@ import org.infinispan.util.concurrent.locks.LockManagerImpl;
  */
 @DefaultFactoryFor(classes = LockManager.class)
 public class LockManagerFactory extends AbstractNamedCacheComponentFactory implements AutoInstantiableFactory {
+   @SuppressWarnings("unchecked")
    @Override
    public <T> T construct(Class<T> componentType) {
       if (configuration.deadlockDetection().enabled()) {
-         return (T) new DeadlockDetectingLockManager();
+         //TODO
+         return (T) new DefaultLockManager();
       } else {
-         return (T) new LockManagerImpl();
+         return (T) new DefaultLockManager();
       }
    }
 }

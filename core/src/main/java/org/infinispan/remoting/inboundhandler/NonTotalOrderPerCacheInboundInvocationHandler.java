@@ -12,8 +12,7 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.TimeoutException;
-import org.infinispan.util.concurrent.locks.CancellableLockPromise;
-import org.infinispan.util.concurrent.locks.LockManagerV8;
+import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
@@ -21,7 +20,6 @@ import org.infinispan.util.logging.LogFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,15 +31,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author Pedro Ruivo
  * @since 7.1
  */
-public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheInboundInvocationHandler {
+public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheInboundInvocationHandler implements Runnable {
 
    private static final Log log = LogFactory.getLog(NonTotalOrderPerCacheInboundInvocationHandler.class);
    private static final boolean trace = log.isTraceEnabled();
 
-   private LockManagerV8 lockManager;
+   private LockManager lockManager;
 
    @Inject
-   public void inject(LockManagerV8 lockManager) {
+   public void inject(LockManager lockManager) {
       this.lockManager = lockManager;
    }
 
@@ -93,6 +91,11 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    }
 
    @Override
+   public void run() {
+      remoteCommandsExecutor.checkForReadyTasks();
+   }
+
+   @Override
    protected Log getLog() {
       return log;
    }
@@ -107,12 +110,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                                                             LockPromise lockPromise) {
       final TopologyMode topologyMode = TopologyMode.create(onExecutorService, waitTransactionalData);
       if (onExecutorService) {
-         lockPromise.setAvailableRunnable(new Runnable() {
-            @Override
-            public void run() {
-               remoteCommandsExecutor.checkForReadyTasks();
-            }
-         });
+         lockPromise.setAvailableRunnable(this);
          return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId) {
             @Override
             public boolean isReady() {

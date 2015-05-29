@@ -1,11 +1,12 @@
 package org.infinispan.util.concurrent.locks.impl;
 
 import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.CancellableLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainerV8;
-import org.infinispan.util.concurrent.locks.LockManagerV8;
+import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 
 import java.util.ArrayList;
@@ -22,10 +23,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author Pedro Ruivo
  * @since 8.0
  */
-public class DefaultLockManager implements LockManagerV8 {
+public class DefaultLockManager implements LockManager {
 
    private LockContainerV8 container;
-   private Configuration configuration;
+   protected Configuration configuration;
 
    @Inject
    public void inject(LockContainerV8 container, Configuration configuration) {
@@ -72,6 +73,11 @@ public class DefaultLockManager implements LockManagerV8 {
    }
 
    @Override
+   public void unlockAll(InvocationContext context) {
+      unlockAll(context.getLockedKeys(), context.getLockOwner());
+   }
+
+   @Override
    public boolean ownsLock(Object key, Object lockOwner) {
       Object currentOwner = getOwner(key);
       return currentOwner != null && currentOwner.equals(lockOwner);
@@ -96,6 +102,16 @@ public class DefaultLockManager implements LockManagerV8 {
    @Override
    public int getNumberOfLocksHeld() {
       return container.getNumLocksHeld();
+   }
+
+   @Override
+   public int getConcurrencyLevel() {
+      return configuration.locking().concurrencyLevel();
+   }
+
+   @Override
+   public int getNumberOfLocksAvailable() {
+      return container.size() - container.getNumLocksHeld();
    }
 
    @Override

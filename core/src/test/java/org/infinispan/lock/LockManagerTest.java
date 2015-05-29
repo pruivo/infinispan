@@ -3,7 +3,7 @@ package org.infinispan.lock;
 import org.infinispan.commons.equivalence.AnyEquivalence;
 import org.infinispan.test.AbstractCacheTest;
 import org.infinispan.util.concurrent.TimeoutException;
-import org.infinispan.util.concurrent.locks.LockManagerV8;
+import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.impl.DefaultLockManager;
 import org.infinispan.util.concurrent.locks.impl.PerKeyLockContainer;
@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
  * @since 8.0
  */
 @Test(groups = "unit", testName = "lock.LockManagerV8Test")
-public class LockManagerV8Test {
+public class LockManagerTest {
 
    public void testSingleCounterPerKey() throws ExecutionException, InterruptedException {
       DefaultLockManager lockManager = new DefaultLockManager();
@@ -80,7 +80,7 @@ public class LockManagerV8Test {
       doTestWithFailAcquisition(lockManager);
    }
 
-   private void doSingleCounterTest(LockManagerV8 lockManager) throws ExecutionException, InterruptedException {
+   private void doSingleCounterTest(LockManager lockManager) throws ExecutionException, InterruptedException {
       final NotThreadSafeCounter counter = new NotThreadSafeCounter();
       final String key = "key";
       final int numThreads = 8;
@@ -133,7 +133,7 @@ public class LockManagerV8Test {
       AssertJUnit.assertEquals(0, lockManager.getNumberOfLocksHeld());
    }
 
-   private void doMultipleCounterTest(LockManagerV8 lockManager) throws ExecutionException, InterruptedException {
+   private void doMultipleCounterTest(LockManager lockManager) throws ExecutionException, InterruptedException {
       final int numCounters = 8;
       final NotThreadSafeCounter[] counters = new NotThreadSafeCounter[numCounters];
       final String[] keys = new String[numCounters];
@@ -203,7 +203,7 @@ public class LockManagerV8Test {
       AssertJUnit.assertEquals(0, lockManager.getNumberOfLocksHeld());
    }
 
-   private void doTestWithFailAcquisition(LockManagerV8 lockManager) throws InterruptedException {
+   private void doTestWithFailAcquisition(LockManager lockManager) throws InterruptedException {
       final String lockOwner1 = "LO1";
       final String lockOwner2 = "LO2";
       final String key = "key";

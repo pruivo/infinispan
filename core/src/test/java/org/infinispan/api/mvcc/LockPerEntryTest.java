@@ -1,7 +1,6 @@
 package org.infinispan.api.mvcc;
 
 import org.infinispan.configuration.cache.ConfigurationBuilder;
-import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.test.SingleCacheManagerTest;
 import org.infinispan.test.TestingUtil;
@@ -80,7 +79,7 @@ public class LockPerEntryTest extends SingleCacheManagerTest {
       LockManager lm = TestingUtil.extractLockManager(cache);
       LockAssert.assertNoLocks(lm);
 
-      LockContainer lc = (LockContainer) TestingUtil.extractField(lm, "lockContainer");
+      LockContainer lc = TestingUtil.extractField(lm, "lockContainer");
       assert lc.size() == 0;
    }
 }

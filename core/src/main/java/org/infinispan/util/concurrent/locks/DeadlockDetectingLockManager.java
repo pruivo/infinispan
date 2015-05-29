@@ -9,6 +9,7 @@ import org.infinispan.jmx.annotations.ManagedOperation;
 import org.infinispan.jmx.annotations.MeasurementType;
 import org.infinispan.transaction.xa.DldGlobalTransaction;
 import org.infinispan.util.TimeService;
+import org.infinispan.util.concurrent.locks.impl.DefaultLockManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -32,9 +33,10 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * @author Mircea.Markus@jboss.com
  */
 @MBean(objectName = "DeadlockDetectingLockManager", description = "Information about the number of deadlocks that were detected")
-public class DeadlockDetectingLockManager extends LockManagerImpl {
+public class DeadlockDetectingLockManager extends DefaultLockManager {
 
    private static final Log log = LogFactory.getLog(DeadlockDetectingLockManager.class);
+   private static final boolean trace = log.isTraceEnabled();
 
    protected volatile long spinDuration;
 
@@ -58,7 +60,7 @@ public class DeadlockDetectingLockManager extends LockManagerImpl {
    public void injectTimeService(TimeService timeService) {
       this.timeService = timeService;
    }
-
+/*
    @Override
    public boolean lockAndRecord(Object key, InvocationContext ctx, long lockTimeout) throws InterruptedException {
       if (trace) log.tracef("Attempting to lock %s with acquisition timeout of %s millis", key, lockTimeout);
@@ -98,6 +100,7 @@ public class DeadlockDetectingLockManager extends LockManagerImpl {
       // couldn't acquire lock!
       return false;
    }
+   */
 
    private boolean isDeadlockAndIAmLoosing(DldGlobalTransaction lockOwnerTx, DldGlobalTransaction thisTx, Object key) {
       //run the lose check first as it is cheaper

@@ -177,12 +177,12 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
             log.tracef("Finished waiting for other potential lockers, trying to acquire the lock on %s", toStr(key));
 
          final long remaining = timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
-         lockManager.acquireLock(ctx, key, remaining, skipLocking);
+         lockKey(ctx, key, remaining, skipLocking);
       } else {
          if (trace)
             log.tracef("Locking key %s, no need to check for pending locks.", toStr(key));
 
-         lockManager.acquireLock(ctx, key, lockTimeout, skipLocking);
+         lockKey(ctx, key, lockTimeout, skipLocking);
       }
    }
 

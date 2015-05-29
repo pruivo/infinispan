@@ -68,7 +68,6 @@ import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.filter.Converter;
 import org.infinispan.filter.KeyValueFilter;
-import org.infinispan.partitionhandling.impl.PartitionHandlingManager;
 import org.infinispan.statetransfer.StateProvider;
 import org.infinispan.statetransfer.StateConsumer;
 import org.infinispan.statetransfer.StateRequestCommand;
