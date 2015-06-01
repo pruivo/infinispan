@@ -1,9 +1,5 @@
 package org.infinispan.interceptors.locking;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
-
 import org.infinispan.commands.DataCommand;
 import org.infinispan.commands.FlagAffectedCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
@@ -15,14 +11,22 @@ import org.infinispan.commands.write.InvalidateL1Command;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
-import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.EntryFactory;
+import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Base class for various locking interceptors in this package.
@@ -81,14 +85,13 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
    protected abstract Object visitDataWriteCommand(InvocationContext ctx, DataWriteCommand command) throws Throwable;
 
    // We need this method in here because of putForExternalRead
-   protected Object visitNonTxDataWriteCommand(InvocationContext ctx, DataWriteCommand command) throws Throwable {
+   protected final Object visitNonTxDataWriteCommand(InvocationContext ctx, DataWriteCommand command) throws Throwable {
       try {
-         if (!shouldLock(command.getKey(), command))
+         if (hasSkipLocking(command) && shouldLockKey(command.getKey())) {
             return invokeNextInterceptor(ctx, command);
-         lockKey(ctx, command);
+         }
+         lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
          return invokeNextInterceptor(ctx, command);
-      } catch (Throwable te) {
-         throw cleanLocksAndRethrow(ctx, te);
       } finally {
          lockManager.unlockAll(ctx);
       }
@@ -97,14 +100,15 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
    @Override
    public final Object visitInvalidateCommand(InvocationContext ctx, InvalidateCommand command) throws Throwable {
       try {
-         boolean skipLocking = hasSkipLocking(command);
-         long lockTimeout = getLockAcquisitionTimeout(command, skipLocking);
-         for (Object key : command.getKeys()) {
-            lockKey(ctx, key, lockTimeout, skipLocking);
+         if (hasSkipLocking(command)) {
+            return invokeNextInterceptor(ctx, command);
          }
+         lockAllAndRecord(ctx, Arrays.asList(command.getKeys()), getLockTimeoutMillis(command));
          return invokeNextInterceptor(ctx, command);
       } finally {
-         if (!ctx.isInTxScope()) lockManager.unlockAll(ctx);
+         if (!ctx.isInTxScope()) {
+            lockManager.unlockAll(ctx);
+         }
       }
    }
 
@@ -115,28 +119,29 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
          return null;
       }
 
-      Object[] keys = command.getKeys();
+      if (hasSkipLocking(command)) {
+         return invokeNextInterceptor(ctx, command);
+      }
+
+      final Object[] keys = command.getKeys();
       try {
          if (keys != null && keys.length >= 1) {
-            ArrayList<Object> keysCopy = new ArrayList<>(Arrays.asList(keys));
-            boolean skipLocking = hasSkipLocking(command);
-            for (Object key : command.getKeys()) {
+            ArrayList<Object> keysToInvalidate = new ArrayList<>(keys.length);
+            for (Object key : keys) {
                try {
-                  lockKey(ctx, key, 0, skipLocking);
+                  lockAndRecord(ctx, key, 0);
+                  keysToInvalidate.add(key);
                } catch (TimeoutException te) {
                   getLog().unableToLockToInvalidate(key, cdl.getAddress());
-                  keysCopy.remove(key);
-                  if (keysCopy.isEmpty())
-                     return null;
                }
             }
-            command.setKeys(keysCopy.toArray());
+            if (keysToInvalidate.isEmpty()) {
+               return null;
+            }
+            command.setKeys(keysToInvalidate.toArray());
          }
          return invokeNextInterceptor(ctx, command);
-      } catch (Throwable te) {
-         throw cleanLocksAndRethrow(ctx, te);
-      }
-      finally {
+      } finally {
          command.setKeys(keys);
          if (!ctx.isInTxScope()) lockManager.unlockAll(ctx);
       }
@@ -147,25 +152,39 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
       return te;
    }
 
-   protected final boolean shouldLock(Object key, FlagAffectedCommand command) {
-      if (hasSkipLocking(command))
-         return false;
-      if (cacheConfiguration.clustering().cacheMode() == CacheMode.LOCAL)
-         return true;
+   protected final long getLockTimeoutMillis(FlagAffectedCommand command) {
+      return command.hasFlag(Flag.ZERO_LOCK_ACQUISITION_TIMEOUT) ? 0 : lockManager.getDefaultTimeoutMillis();
+   }
+
+   protected final boolean shouldLockKey(Object key) {
+      //only the primary owner acquires the lock.
       boolean shouldLock = cdl.localNodeIsPrimaryOwner(key);
       getLog().tracef("Are (%s) we the lock owners for key '%s'? %s", cdl.getAddress(), key, shouldLock);
       return shouldLock;
    }
 
-   protected final void lockKey(InvocationContext ctx, DataWriteCommand command) throws InterruptedException {
-      boolean skipLocking = hasSkipLocking(command);
-      long lockTimeout = getLockAcquisitionTimeout(command, skipLocking);
-      lockKey(ctx, command.getKey(), lockTimeout, skipLocking);
-   }
-
    protected final void lockKey(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException {
       if (!skipLocking) {
-         lockManager.lock(key, ctx.getLockOwner(), timeoutMillis, TimeUnit.MILLISECONDS);
+         lockManager.lock(key, ctx.getLockOwner(), timeoutMillis, TimeUnit.MILLISECONDS).lock();
       }
+   }
+
+   protected final void lockAndRecord(InvocationContext context, Object key, long timeout) throws InterruptedException {
+      lockManager.lock(key, context.getLockOwner(), timeout, TimeUnit.MILLISECONDS).lock();
+      context.addLockedKey(key);
+   }
+
+   protected final void lockAllAndRecord(InvocationContext context, Collection<Object> keys, long timeout) throws InterruptedException {
+      lockManager.lockAll(keys, context.getLockOwner(), timeout, TimeUnit.MILLISECONDS).lock();
+      keys.forEach(context::addLockedKey);
+   }
+
+   protected final Collection<Object> filterKeysToLock(Collection<Object> keys) {
+      if (keys == null || keys.isEmpty()) {
+         return Collections.emptyList();
+      }
+      Collection<Object> filteredKeys =  keys.stream().filter(this::shouldLockKey)
+            .collect(Collectors.toCollection(LinkedList::new));
+      return filteredKeys.isEmpty() ? Collections.emptyList() : filteredKeys;
    }
 }
