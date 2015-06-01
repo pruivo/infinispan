@@ -10,6 +10,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -125,6 +126,10 @@ public class InfinispanLock {
       return lockPlaceHolder == null ? null : lockPlaceHolder.lockOwner;
    }
 
+   public boolean isLocked() {
+      return current != null;
+   }
+
    private boolean casAquire(LockPlaceHolder lockPlaceHolder) {
       return fieldUpdater.compareAndSet(this, null, lockPlaceHolder);
    }
@@ -200,9 +205,9 @@ public class InfinispanLock {
       private final Object lockOwner;
       private final long timeout;
       private final AtomicBoolean cleanup;
-      private final AtomicBoolean notify;
+      @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
+      private final CopyOnWriteArrayList<Listener> listeners;
       private volatile LockState lockState;
-      private volatile Runnable availableRunnable;
 
       private LockPlaceHolder(Object lockOwner, long timeout) {
          this.lockOwner = lockOwner;
@@ -210,7 +215,7 @@ public class InfinispanLock {
          lockState = LockState.WAITING;
          stateUpdater = AtomicReferenceFieldUpdater.newUpdater(LockPlaceHolder.class, LockState.class, "lockState");
          cleanup = new AtomicBoolean(false);
-         notify = new AtomicBoolean(false);
+         listeners = new CopyOnWriteArrayList<>();
       }
 
       @Override
@@ -241,9 +246,9 @@ public class InfinispanLock {
       }
 
       @Override
-      public void setAvailableRunnable(Runnable runnable) {
-         this.availableRunnable = runnable;
-         notifyRunnable();
+      public void addListener(Listener listener) {
+         listeners.add(listener);
+         notifyListeners();
       }
 
       public boolean acquire() {
@@ -318,7 +323,7 @@ public class InfinispanLock {
          synchronized (this) {
             this.notifyAll();
          }
-         notifyRunnable();
+         notifyListeners();
       }
 
       private void checkTimeout() {
@@ -336,10 +341,12 @@ public class InfinispanLock {
          }
       }
 
-      private void notifyRunnable() {
-         Runnable runnable = availableRunnable;
-         if (lockState != LockState.WAITING && runnable != null && notify.compareAndSet(false, true)) {
-            runnable.run();
+      private void notifyListeners() {
+         if (lockState != LockState.WAITING) {
+            listeners.removeIf(listener -> {
+               listener.onEvent(lockState == LockState.ACQUIRED);
+               return true;
+            });
          }
       }
    }

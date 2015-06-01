@@ -5,7 +5,7 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.CancellableLockPromise;
-import org.infinispan.util.concurrent.locks.LockContainerV8;
+import org.infinispan.util.concurrent.locks.LockContainer;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 
@@ -14,8 +14,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * // TODO: Document this
@@ -25,11 +25,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class DefaultLockManager implements LockManager {
 
-   private LockContainerV8 container;
+   protected LockContainer container;
    protected Configuration configuration;
 
    @Inject
-   public void inject(LockContainerV8 container, Configuration configuration) {
+   public void inject(LockContainer container, Configuration configuration) {
       this.container = container;
       this.configuration = configuration;
    }
@@ -115,25 +115,20 @@ public class DefaultLockManager implements LockManager {
    }
 
    @Override
-   public int getLockId(Object key) {
-      InfinispanLock lock = container.getLock(key);
-      return lock == null ? 0 : lock.hashCode();
-   }
-
-   @Override
    public long getDefaultTimeoutMillis() {
       return configuration.locking().lockAcquisitionTimeout();
    }
 
-   private static class CompositeLockPromise implements LockPromise, Runnable {
+   private static class CompositeLockPromise implements LockPromise, LockPromise.Listener {
 
       private final List<CancellableLockPromise> lockPromiseList;
-      private final AtomicBoolean notify;
-      private volatile Runnable availableRunnable;
+      @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
+      private final CopyOnWriteArrayList<Listener> listeners;
+      private volatile boolean acquired = true;
 
       private CompositeLockPromise(int size) {
          lockPromiseList = new ArrayList<>(size);
-         notify = new AtomicBoolean(false);
+         listeners = new CopyOnWriteArrayList<>();
       }
 
       public void addLock(CancellableLockPromise lockPromise) {
@@ -142,7 +137,7 @@ public class DefaultLockManager implements LockManager {
 
       public void markListAsFinal() {
          for (LockPromise lockPromise : lockPromiseList) {
-            lockPromise.setAvailableRunnable(this);
+            lockPromise.addListener(this);
          }
       }
 
@@ -181,9 +176,7 @@ public class DefaultLockManager implements LockManager {
             }
          }
          if (exception != null) {
-            for (CancellableLockPromise lockPromise : lockPromiseList) {
-               lockPromise.cancel();
-            }
+            lockPromiseList.forEach(org.infinispan.util.concurrent.locks.CancellableLockPromise::cancel);
             switch (exceptionType) {
                case INTERRUPTED:
                   throw (InterruptedException) exception;
@@ -198,20 +191,25 @@ public class DefaultLockManager implements LockManager {
       }
 
       @Override
-      public void setAvailableRunnable(Runnable runnable) {
-         this.availableRunnable = runnable;
+      public void addListener(Listener listener) {
+         listeners.add(listener);
          notifyAvailable();
       }
 
       @Override
-      public void run() {
+      public void onEvent(boolean acquired) {
+         if (!acquired) {
+            this.acquired = false;
+         }
          notifyAvailable();
       }
 
       private void notifyAvailable() {
-         Runnable runnable = availableRunnable;
-         if (isAvailable() && runnable != null && notify.compareAndSet(false, true)) {
-            runnable.run();
+         if (isAvailable()) {
+            listeners.removeIf(listener -> {
+               listener.onEvent(acquired);
+               return true;
+            });
          }
       }
 

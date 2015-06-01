@@ -5,8 +5,8 @@ import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.test.SingleCacheManagerTest;
 import org.infinispan.test.TestingUtil;
 import org.infinispan.test.fwk.TestCacheManagerFactory;
+import org.infinispan.util.concurrent.locks.LockContainer;
 import org.infinispan.util.concurrent.locks.LockManager;
-import org.infinispan.util.concurrent.locks.containers.LockContainer;
 import org.testng.annotations.Test;
 
 import java.util.LinkedList;
@@ -36,7 +36,7 @@ public class LockPerEntryTest extends SingleCacheManagerTest {
       final int NUM_THREADS = 10;
       final CountDownLatch l = new CountDownLatch(1);
       final int numLoops = 1000;
-      final List<Exception> exceptions = new LinkedList<Exception>();
+      final List<Exception> exceptions = new LinkedList<>();
 
       Thread[] t = new Thread[NUM_THREADS];
       for (int i = 0; i < NUM_THREADS; i++)

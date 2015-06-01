@@ -3,8 +3,9 @@ package org.infinispan.api.tree;
 import org.infinispan.commons.equivalence.AnyEquivalence;
 import org.infinispan.tree.Fqn;
 import org.infinispan.tree.impl.NodeKey;
-import org.infinispan.util.concurrent.locks.containers.LockContainer;
-import org.infinispan.util.concurrent.locks.containers.ReentrantStripedLockContainer;
+import org.infinispan.util.concurrent.locks.LockContainer;
+import org.infinispan.util.concurrent.locks.impl.InfinispanLock;
+import org.infinispan.util.concurrent.locks.impl.PerKeyLockContainer;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
@@ -34,8 +35,8 @@ public class TreeStructureHashCodeTest {
    }
 
    private void doTest(List<Fqn> fqns) {
-      LockContainer container = new ReentrantStripedLockContainer(512, AnyEquivalence.getInstance());
-      Map<Lock, Integer> distribution = new HashMap<Lock, Integer>();
+      LockContainer container = new PerKeyLockContainer(512, AnyEquivalence.getInstance());
+      Map<InfinispanLock, Integer> distribution = new HashMap<>();
       for (Fqn f : fqns) {
          NodeKey dataKey = new NodeKey(f, NodeKey.Type.DATA);
          NodeKey structureKey = new NodeKey(f, NodeKey.Type.STRUCTURE);
@@ -51,7 +52,7 @@ public class TreeStructureHashCodeTest {
 
    }
 
-   private void addToDistribution(Lock lock, Map<Lock, Integer> map) {
+   private void addToDistribution(InfinispanLock lock, Map<InfinispanLock, Integer> map) {
       int count = 1;
       if (map.containsKey(lock)) count = map.get(lock) + 1;
       map.put(lock, count);

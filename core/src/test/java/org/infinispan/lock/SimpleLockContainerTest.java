@@ -2,19 +2,19 @@ package org.infinispan.lock;
 
 import org.infinispan.commons.equivalence.AnyEquivalence;
 import org.infinispan.test.AbstractInfinispanTest;
-import org.infinispan.util.concurrent.locks.OwnableReentrantLock;
-import org.infinispan.util.concurrent.locks.containers.OwnableReentrantPerEntryLockContainer;
+import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.concurrent.locks.LockContainer;
+import org.infinispan.util.concurrent.locks.impl.PerKeyLockContainer;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 @Test (groups = "functional", testName = "lock.SimpleLockContainerTest")
 public class SimpleLockContainerTest extends AbstractInfinispanTest {
 
-   OwnableReentrantPerEntryLockContainer lc = new OwnableReentrantPerEntryLockContainer(1000, AnyEquivalence.getInstance());
+   LockContainer lc = new PerKeyLockContainer(1000, AnyEquivalence.getInstance());
 
    public void simpleTest() throws Exception {
       final String k1 = ab();
@@ -22,8 +22,8 @@ public class SimpleLockContainerTest extends AbstractInfinispanTest {
       assert k1 != k2 && k1.equals(k2);
 
       Object owner = new Object();
-      lc.acquireLock(owner, k1, 0, TimeUnit.MILLISECONDS);
-      assert lc.isLocked(k1);
+      lc.acquire(k1, owner, 0, TimeUnit.MILLISECONDS).lock();
+      assert lc.getLock(k1).isLocked();
 
 
       Future<Void> f = fork(new Callable<Void>() {
@@ -31,16 +31,19 @@ public class SimpleLockContainerTest extends AbstractInfinispanTest {
          public Void call() throws InterruptedException, TimeoutException {
             final Object otherOwner = new Object();
             for (int i =0; i < 10; i++) {
-               final OwnableReentrantLock ownableReentrantLock = lc.acquireLock(otherOwner, k2, 500, TimeUnit.MILLISECONDS);
-               log.trace("ownableReentrantLock = " + ownableReentrantLock);
-               if (ownableReentrantLock != null) return null;
+               try {
+                  lc.acquire(k2, otherOwner, 500, TimeUnit.MILLISECONDS).lock();
+                  return null;
+               } catch (TimeoutException e) {
+                  //ignored
+               }
             }
             throw new TimeoutException("We should have acquired lock!");
          }
       });
 
       Thread.sleep(200);
-      lc.releaseLock(owner, k1);
+      lc.release(k1, owner);
 
       f.get(10, TimeUnit.SECONDS);
    }

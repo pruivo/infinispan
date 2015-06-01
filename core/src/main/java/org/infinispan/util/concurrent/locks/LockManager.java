@@ -110,8 +110,5 @@ public interface LockManager {
    @ManagedAttribute(description = "The number of exclusive locks that are available.", displayName = "Number of locks available")
    int getNumberOfLocksAvailable();
 
-   @Deprecated
-   int getLockId(Object key);
-
    long getDefaultTimeoutMillis();
 }

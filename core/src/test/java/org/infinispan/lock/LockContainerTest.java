@@ -3,7 +3,7 @@ package org.infinispan.lock;
 import org.infinispan.commons.equivalence.AnyEquivalence;
 import org.infinispan.test.AbstractCacheTest;
 import org.infinispan.util.concurrent.TimeoutException;
-import org.infinispan.util.concurrent.locks.LockContainerV8;
+import org.infinispan.util.concurrent.locks.LockContainer;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.impl.PerKeyLockContainer;
 import org.infinispan.util.concurrent.locks.impl.StripedLockContainer;
@@ -30,31 +30,33 @@ import java.util.concurrent.TimeUnit;
  * @since 8.0
  */
 @Test(groups = "unit", testName = "lock.LockContainerV8Test")
-public class LockContainerV8Test {
+public class LockContainerTest {
 
    public void testSingleLockWithPerEntry() throws InterruptedException {
-      PerKeyLockContainer lockContainer = new PerKeyLockContainer(AnyEquivalence.getInstance());
+      PerKeyLockContainer lockContainer = new PerKeyLockContainer(16, AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
       doSingleLockTest(lockContainer, -1);
    }
 
    public void testSingleCounterTestPerEntry() throws ExecutionException, InterruptedException {
-      PerKeyLockContainer lockContainer = new PerKeyLockContainer(AnyEquivalence.getInstance());
+      PerKeyLockContainer lockContainer = new PerKeyLockContainer(16, AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
       doSingleCounterTest(lockContainer, -1);
    }
 
    public void testSingleLockWithStriped() throws InterruptedException {
-      StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
+      StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance());
+      lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
       doSingleLockTest(lockContainer, 16);
    }
 
    public void testSingleCounterWithStriped() throws ExecutionException, InterruptedException {
-      StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance(), AbstractCacheTest.TIME_SERVICE);
+      StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance());
+      lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
       doSingleCounterTest(lockContainer, 16);
    }
 
-   private void doSingleCounterTest(LockContainerV8 lockContainer, int poolSize) throws InterruptedException, ExecutionException {
+   private void doSingleCounterTest(LockContainer lockContainer, int poolSize) throws InterruptedException, ExecutionException {
       final NotThreadSafeCounter counter = new NotThreadSafeCounter();
       final String key = "key";
       final int numThreads = 8;
@@ -110,7 +112,7 @@ public class LockContainerV8Test {
       }
    }
 
-   private void doSingleLockTest(LockContainerV8 container, int poolSize) throws InterruptedException {
+   private void doSingleLockTest(LockContainer container, int poolSize) throws InterruptedException {
       final String lockOwner1 = "LO1";
       final String lockOwner2 = "LO2";
       final String lockOwner3 = "LO3";

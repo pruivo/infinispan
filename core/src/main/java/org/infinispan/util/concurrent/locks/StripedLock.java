@@ -25,7 +25,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @since 4.0
  */
 @ThreadSafe
-public class StripedLock {
+public class
+      StripedLock {
 
    private static final Log log = LogFactory.getLog(StripedLock.class);
    private static final boolean trace = log.isTraceEnabled();

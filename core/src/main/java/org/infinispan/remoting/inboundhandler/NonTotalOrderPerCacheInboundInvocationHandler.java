@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author Pedro Ruivo
  * @since 7.1
  */
-public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheInboundInvocationHandler implements Runnable {
+public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheInboundInvocationHandler implements LockPromise.Listener {
 
    private static final Log log = LogFactory.getLog(NonTotalOrderPerCacheInboundInvocationHandler.class);
    private static final boolean trace = log.isTraceEnabled();
@@ -91,7 +91,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    }
 
    @Override
-   public void run() {
+   public void onEvent(boolean acquired) {
       remoteCommandsExecutor.checkForReadyTasks();
    }
 
@@ -110,7 +110,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                                                             LockPromise lockPromise) {
       final TopologyMode topologyMode = TopologyMode.create(onExecutorService, waitTransactionalData);
       if (onExecutorService) {
-         lockPromise.setAvailableRunnable(this);
+         lockPromise.addListener(this);
          return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId) {
             @Override
             public boolean isReady() {
@@ -154,11 +154,11 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    /**
     * Only used to check when all the {@link LockPromise} are available.
     */
-   private static class CompositeLockPromise implements LockPromise, Runnable {
+   private static class CompositeLockPromise implements LockPromise, LockPromise.Listener {
 
       private final List<LockPromise> lockPromiseList;
       private final AtomicBoolean notify;
-      private volatile Runnable availableRunnable;
+      private volatile Listener checkReadyTasks;
 
       private CompositeLockPromise(List<LockPromise> lockPromiseList) {
          this.lockPromiseList = lockPromiseList;
@@ -180,16 +180,15 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       public void lock() throws InterruptedException, TimeoutException {/*no-op*/}
 
       @Override
-      public void setAvailableRunnable(Runnable runnable) {
-         this.availableRunnable = runnable;
-         run();
+      public void addListener(Listener listener) {
+         this.checkReadyTasks = listener;
       }
 
       @Override
-      public void run() {
-         Runnable runnable = availableRunnable;
-         if (isAvailable() && runnable != null && notify.compareAndSet(false, true)) {
-            runnable.run();
+      public void onEvent(boolean acquired) {
+         Listener listener = checkReadyTasks;
+         if (isAvailable() && listener != null && notify.compareAndSet(false, true)) {
+            listener.onEvent(acquired); //it doesn't matter the acquired value.
          }
       }
    }

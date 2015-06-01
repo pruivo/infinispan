@@ -20,12 +20,14 @@ public interface LockPromise {
       public void lock() throws InterruptedException, TimeoutException {/*no-op*/}
 
       @Override
-      public void setAvailableRunnable(Runnable runnable) {/*no-op*/}
+      public void addListener(Listener listener) {
+         listener.onEvent(true);
+      }
    };
 
    /**
     * It tests if the lock is available.
-    * <p/>
+    * <p>
     * The lock is consider available when it is successfully acquired or the timeout is expired. In any case, when it
     * returns {@code true}, the {@link #lock()} will never block.
     *
@@ -35,7 +37,7 @@ public interface LockPromise {
 
    /**
     * It locks the key (or keys) associated to this promise.
-    * <p/>
+    * <p>
     * This method will block until the lock is available or the timeout is expired.
     *
     * @throws InterruptedException if the current thread is interrupted while acquiring the lock
@@ -44,10 +46,23 @@ public interface LockPromise {
    void lock() throws InterruptedException, TimeoutException;
 
    /**
-    * Sets a {@link Runnable} what will be invoked when the availability changes to available.
+    * Adds a {@link org.infinispan.util.concurrent.locks.LockPromise.Listener} to be invoked when the lock is
+    * available.
+    * <p>
+    * The {@code acquired} parameter indicates that the lock is acquired (when it is {@code true}) or it timed out (when
+    * it is {@code false}).
     *
-    * @param runnable the {@link Runnable} to invoke.
+    * @param listener the {@link org.infinispan.util.concurrent.locks.LockPromise.Listener} to invoke.
     */
-   void setAvailableRunnable(Runnable runnable);
+   void addListener(Listener listener);
+
+   interface Listener {
+
+      /**
+       * Invoked when the lock is available.
+       * @param acquired {@code true} if the lock is acquired, {@code false} otherwise.
+       */
+      void onEvent(boolean acquired);
+   }
 
 }

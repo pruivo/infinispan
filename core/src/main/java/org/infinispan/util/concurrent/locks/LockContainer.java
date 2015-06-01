@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
  * @author Pedro Ruivo
  * @since 4.0
  */
-public interface LockContainerV8 {
+public interface LockContainer {
 
    /**
     * @param key the key to lock.
@@ -32,6 +32,12 @@ public interface LockContainerV8 {
     * @return number of locks held
     */
    int getNumLocksHeld();
+
+   /**
+    * @param key the key to test.
+    * @return {@code true} if the key is locked, {@code false} otherwise.
+    */
+   boolean isLocked(Object key);
 
    /**
     * @return the size of the shared lock pool

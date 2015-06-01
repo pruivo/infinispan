@@ -6,7 +6,7 @@ import org.infinispan.commons.util.concurrent.jdk8backported.EquivalentConcurren
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.locks.CancellableLockPromise;
-import org.infinispan.util.concurrent.locks.LockContainerV8;
+import org.infinispan.util.concurrent.locks.LockContainer;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -18,13 +18,14 @@ import java.util.function.BiFunction;
  * @author Pedro Ruivo
  * @since 8.0
  */
-public class PerKeyLockContainer implements LockContainerV8 {
+public class PerKeyLockContainer implements LockContainer {
 
+   private static final int INITIAL_CAPACITY = 32;
    private final EquivalentConcurrentHashMapV8<Object, InfinispanLock> lockMap;
    private TimeService timeService;
 
-   public PerKeyLockContainer(Equivalence<Object> keyEquivalence) {
-      lockMap = new EquivalentConcurrentHashMapV8<>(keyEquivalence, AnyEquivalence.getInstance());
+   public PerKeyLockContainer(int concurrencyLevel, Equivalence<Object> keyEquivalence) {
+      lockMap = new EquivalentConcurrentHashMapV8<>(INITIAL_CAPACITY, concurrencyLevel, keyEquivalence, AnyEquivalence.getInstance());
    }
 
    @Inject
@@ -73,6 +74,12 @@ public class PerKeyLockContainer implements LockContainerV8 {
          }
       }
       return count;
+   }
+
+   @Override
+   public boolean isLocked(Object key) {
+      InfinispanLock lock = lockMap.get(key);
+      return lock != null && lock.isLocked();
    }
 
    @Override

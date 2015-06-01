@@ -4,8 +4,8 @@ import org.infinispan.Cache;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.test.TestingUtil;
+import org.infinispan.util.concurrent.locks.LockContainer;
 import org.infinispan.util.concurrent.locks.LockManager;
-import org.infinispan.util.concurrent.locks.containers.LockContainer;
 
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;

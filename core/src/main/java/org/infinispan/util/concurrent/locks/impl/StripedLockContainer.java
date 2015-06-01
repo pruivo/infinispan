@@ -1,10 +1,11 @@
 package org.infinispan.util.concurrent.locks.impl;
 
 import org.infinispan.commons.equivalence.Equivalence;
+import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.StripedHashFunction;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.locks.CancellableLockPromise;
-import org.infinispan.util.concurrent.locks.LockContainerV8;
+import org.infinispan.util.concurrent.locks.LockContainer;
 
 import java.util.concurrent.TimeUnit;
 
@@ -14,16 +15,24 @@ import java.util.concurrent.TimeUnit;
  * @author Pedro Ruivo
  * @since 8.0
  */
-public class StripedLockContainer implements LockContainerV8 {
+public class StripedLockContainer implements LockContainer {
 
    private final InfinispanLock[] sharedLocks;
    private final StripedHashFunction<Object> hashFunction;
 
-   public StripedLockContainer(int concurrencyLevel, Equivalence<Object> keyEquivalence, TimeService timeService) {
+   public StripedLockContainer(int concurrencyLevel, Equivalence<Object> keyEquivalence) {
       this.hashFunction = new StripedHashFunction<>(keyEquivalence, concurrencyLevel);
       int numLocks = hashFunction.getNumSegments();
       sharedLocks = new InfinispanLock[numLocks];
-      for (int i = 0; i < numLocks; i++) sharedLocks[i] = new InfinispanLock(timeService);
+   }
+
+   @Inject
+   public void inject(TimeService timeService) {
+      for (int i = 0; i < sharedLocks.length; i++) {
+         if (sharedLocks[i] != null) {
+            sharedLocks[i] = new InfinispanLock(timeService);
+         }
+      }
    }
 
    @Override
@@ -50,6 +59,11 @@ public class StripedLockContainer implements LockContainerV8 {
          }
       }
       return count;
+   }
+
+   @Override
+   public boolean isLocked(Object key) {
+      return getLock(key).isLocked();
    }
 
    @Override
