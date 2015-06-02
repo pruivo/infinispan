@@ -5,6 +5,7 @@ import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.container.versioning.EntryVersionsMap;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,7 +65,7 @@ public interface CacheTransaction {
 
    Set<Object> getBackupLockedKeys();
 
-   void addBackupLockForKey(Object key);
+   void addBackupLockForKey(Collection<Object> keys);
 
    /**
     * @see org.infinispan.interceptors.locking.AbstractTxLockingInterceptor#lockKeyAndCheckOwnership(org.infinispan.context.InvocationContext, Object)

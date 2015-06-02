@@ -2,6 +2,7 @@ package org.infinispan.interceptors.locking;
 
 import org.infinispan.commands.DataCommand;
 import org.infinispan.commands.FlagAffectedCommand;
+import org.infinispan.commands.LocalFlagAffectedCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.commands.write.ClearCommand;
@@ -152,7 +153,7 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
       return te;
    }
 
-   protected final long getLockTimeoutMillis(FlagAffectedCommand command) {
+   protected final long getLockTimeoutMillis(LocalFlagAffectedCommand command) {
       return command.hasFlag(Flag.ZERO_LOCK_ACQUISITION_TIMEOUT) ? 0 : lockManager.getDefaultTimeoutMillis();
    }
 

@@ -24,6 +24,7 @@ import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.logging.Log;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.infinispan.commons.util.Util.toStr;
@@ -115,9 +116,9 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
             ((DeltaCompositeKey) key).getDeltaAwareValueKey() :
             key;
       if (cdl.localNodeIsPrimaryOwner(keyToCheck)) {
-         lockKeyAndCheckOwnership(ctx, key, lockTimeout, skipLocking);
+         lockKeyAndCheckOwnership(ctx, key, lockTimeout);
       } else if (cdl.localNodeIsOwner(keyToCheck)) {
-         ctx.getCacheTransaction().addBackupLockForKey(key);
+         ctx.getCacheTransaction().addBackupLockForKey(Collections.singletonList(key));
       }
    }
 
@@ -141,7 +142,7 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
     * Note: The algorithm described below only when nodes leave the cluster, so it doesn't add a performance burden
     * when the cluster is stable.
     */
-   protected final void lockKeyAndCheckOwnership(InvocationContext ctx, Object key, long lockTimeout, boolean skipLocking) throws InterruptedException {
+   protected final void lockKeyAndCheckOwnership(InvocationContext ctx, Object key, long lockTimeout) throws InterruptedException {
       TxInvocationContext txContext = (TxInvocationContext) ctx;
       int transactionTopologyId = -1;
       boolean checkForPendingLocks = false;
@@ -163,8 +164,7 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
          if (trace)
             log.tracef("Checking for pending locks and then locking key %s", toStr(key));
 
-         final long expectedEndTime = timeService.expectedEndTime(cacheConfiguration.locking().lockAcquisitionTimeout(),
-                                                                  TimeUnit.MILLISECONDS);
+         final long expectedEndTime = timeService.expectedEndTime(lockTimeout, TimeUnit.MILLISECONDS);
 
          // Check local transactions first
          waitForTransactionsToComplete(txContext, txTable.getLocalTransactions(), key, transactionTopologyId, expectedEndTime);
@@ -177,12 +177,62 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
             log.tracef("Finished waiting for other potential lockers, trying to acquire the lock on %s", toStr(key));
 
          final long remaining = timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
-         lockKey(ctx, key, remaining, skipLocking);
+         lockAndRecord(ctx, key, remaining);
       } else {
          if (trace)
             log.tracef("Locking key %s, no need to check for pending locks.", toStr(key));
 
-         lockKey(ctx, key, lockTimeout, skipLocking);
+         lockAndRecord(ctx, key, lockTimeout);
+      }
+   }
+
+   protected final void lockAllAndCheckOwnership(InvocationContext ctx, Collection<Object> keys, long lockTimeout)
+         throws InterruptedException {
+      TxInvocationContext txContext = (TxInvocationContext) ctx;
+      int transactionTopologyId = -1;
+      boolean checkForPendingLocks = false;
+      if (clustered) {
+         CacheTransaction tx = txContext.getCacheTransaction();
+         boolean isFromStateTransfer = txContext.isOriginLocal() && ((LocalTransaction)tx).isFromStateTransfer();
+         // if the transaction is from state transfer it should not wait for the backup locks of other transactions
+         if (!isFromStateTransfer) {
+            transactionTopologyId = tx.getTopologyId();
+            if (transactionTopologyId != TransactionTable.CACHE_STOPPED_TOPOLOGY_ID) {
+               checkForPendingLocks = txTable.getMinTopologyId() < transactionTopologyId;
+            }
+         }
+      }
+
+      final Log log = getLog();
+      final boolean trace = log.isTraceEnabled();
+
+      if (checkForPendingLocks) {
+         if (trace)
+            log.tracef("Checking for pending locks and then locking key %s", toStr(keys));
+
+         final long expectedEndTime = timeService.expectedEndTime(lockTimeout, TimeUnit.MILLISECONDS);
+
+         // Check local transactions first
+         for (Object key : keys) {
+            waitForTransactionsToComplete(txContext, txTable.getLocalTransactions(), key, transactionTopologyId, expectedEndTime);
+         }
+
+         // ... then remote ones
+         for (Object key : keys){
+            waitForTransactionsToComplete(txContext, txTable.getRemoteTransactions(), key, transactionTopologyId, expectedEndTime);
+         }
+
+         // Then try to acquire a lock
+         if (trace)
+            log.tracef("Finished waiting for other potential lockers, trying to acquire the lock on %s", toStr(keys));
+
+         final long remaining = timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
+         lockAllAndRecord(txContext, keys, remaining);
+      } else {
+         if (trace)
+            log.tracef("Locking key %s, no need to check for pending locks.", toStr(keys));
+
+         lockAllAndRecord(txContext, keys, lockTimeout);
       }
    }
 
