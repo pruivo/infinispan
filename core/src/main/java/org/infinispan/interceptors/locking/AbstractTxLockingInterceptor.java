@@ -1,6 +1,5 @@
 package org.infinispan.interceptors.locking;
 
-import org.infinispan.atomic.DeltaCompositeKey;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.read.GetAllCommand;
 import org.infinispan.commands.tx.CommitCommand;
@@ -21,8 +20,10 @@ import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.concurrent.locks.LockUtil;
 import org.infinispan.util.logging.Log;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -110,15 +111,53 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
     * locks to be released. The backup lock will be released either by a commit/rollback/unlock command or by
     * the originator leaving the cluster (if recovery is disabled).
     */
-   protected final void lockAndRegisterBackupLock(TxInvocationContext ctx, Object key, long lockTimeout, boolean skipLocking) throws InterruptedException {
-      //with DeltaCompositeKey, the locks should be acquired in the owner of the delta aware key.
-      Object keyToCheck = key instanceof DeltaCompositeKey ?
-            ((DeltaCompositeKey) key).getDeltaAwareValueKey() :
-            key;
-      if (cdl.localNodeIsPrimaryOwner(keyToCheck)) {
-         lockKeyAndCheckOwnership(ctx, key, lockTimeout);
-      } else if (cdl.localNodeIsOwner(keyToCheck)) {
-         ctx.getCacheTransaction().addBackupLockForKey(Collections.singletonList(key));
+   protected final void lockAndRegisterBackupLock(TxInvocationContext<?> ctx, Object key, long lockTimeout, Action action)
+         throws InterruptedException {
+      switch (LockUtil.getLockOwnership(key, cdl)) {
+         case PRIMARY:
+            lockKeyAndCheckPending(ctx, key, lockTimeout);
+            if (action != null) {
+               action.execute(ctx, key);
+            }
+            break;
+         case BACKUP:
+            ctx.getCacheTransaction().addBackupLockForKeys(Collections.singletonList(key));
+            break;
+      }
+      ctx.addAllAffectedKeys(Collections.singleton(key));
+   }
+
+   /**
+    * Same as {@link #lockAndRegisterBackupLock(TxInvocationContext, Object, long, Action)}
+    */
+   protected final void lockAllAndRegisterBackupLock(TxInvocationContext<?> ctx, Collection<?> keys, long lockTimeout,
+                                                     Action action) throws InterruptedException {
+      Collection<Object> primary = new ArrayList<>(keys.size());
+      Collection<Object> backup = new ArrayList<>(keys.size());
+
+      LockUtil.filterByLockOwnership(keys, primary, backup, cdl);
+
+      final Log log = getLog();
+      final boolean trace = log.isTraceEnabled();
+
+      if (trace) {
+         log.tracef("Acquiring locks on %s.", primary);
+         log.tracef("Acquiring backup locks on %s.", backup);
+      }
+
+      ctx.addAllAffectedKeys(keys);
+
+      if (!backup.isEmpty()) {
+         ctx.getCacheTransaction().addBackupLockForKeys(backup);
+      }
+
+      if (!primary.isEmpty()) {
+         lockAllAndCheckPending(ctx, primary, lockTimeout);
+         if (action != null) {
+            for (Object key : primary) {
+               action.execute(ctx, key);
+            }
+         }
       }
    }
 
@@ -142,7 +181,7 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
     * Note: The algorithm described below only when nodes leave the cluster, so it doesn't add a performance burden
     * when the cluster is stable.
     */
-   protected final void lockKeyAndCheckOwnership(InvocationContext ctx, Object key, long lockTimeout) throws InterruptedException {
+   private void lockKeyAndCheckPending(InvocationContext ctx, Object key, long lockTimeout) throws InterruptedException {
       TxInvocationContext txContext = (TxInvocationContext) ctx;
       int transactionTopologyId = -1;
       boolean checkForPendingLocks = false;
@@ -186,7 +225,7 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
       }
    }
 
-   protected final void lockAllAndCheckOwnership(InvocationContext ctx, Collection<Object> keys, long lockTimeout)
+   private void lockAllAndCheckPending(InvocationContext ctx, Collection<?> keys, long lockTimeout)
          throws InterruptedException {
       TxInvocationContext txContext = (TxInvocationContext) ctx;
       int transactionTopologyId = -1;
@@ -270,5 +309,9 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
    private boolean releaseLockOnTxCompletion(TxInvocationContext ctx) {
       return (ctx.isOriginLocal() && !partitionHandlingManager.isTransactionPartiallyCommitted(ctx.getGlobalTransaction()) ||
                     (!ctx.isOriginLocal() && Configurations.isSecondPhaseAsync(cacheConfiguration)));
+   }
+
+   protected interface Action {
+      void execute(TxInvocationContext<?> ctx, Object lockedKey);
    }
 }

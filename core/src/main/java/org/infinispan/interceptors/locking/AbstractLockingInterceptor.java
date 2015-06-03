@@ -20,6 +20,7 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
+import org.infinispan.util.concurrent.locks.LockUtil;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,7 +89,7 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
    // We need this method in here because of putForExternalRead
    protected final Object visitNonTxDataWriteCommand(InvocationContext ctx, DataWriteCommand command) throws Throwable {
       try {
-         if (hasSkipLocking(command) && shouldLockKey(command.getKey())) {
+         if (hasSkipLocking(command) || !shouldLockKey(command.getKey())) {
             return invokeNextInterceptor(ctx, command);
          }
          lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
@@ -159,7 +160,7 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
 
    protected final boolean shouldLockKey(Object key) {
       //only the primary owner acquires the lock.
-      boolean shouldLock = cdl.localNodeIsPrimaryOwner(key);
+      boolean shouldLock = LockUtil.getLockOwnership(key, cdl) == LockUtil.LockOwnership.PRIMARY;
       getLog().tracef("Are (%s) we the lock owners for key '%s'? %s", cdl.getAddress(), key, shouldLock);
       return shouldLock;
    }
@@ -175,7 +176,7 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
       context.addLockedKey(key);
    }
 
-   protected final void lockAllAndRecord(InvocationContext context, Collection<Object> keys, long timeout) throws InterruptedException {
+   protected final void lockAllAndRecord(InvocationContext context, Collection<?> keys, long timeout) throws InterruptedException {
       lockManager.lockAll(keys, context.getLockOwner(), timeout, TimeUnit.MILLISECONDS).lock();
       keys.forEach(context::addLockedKey);
    }

@@ -7,7 +7,6 @@ import org.infinispan.commands.write.InvalidateCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commons.CacheException;
 import org.infinispan.commons.util.InfinispanCollections;
-import org.infinispan.commons.util.concurrent.ParallelIterableMap;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
@@ -634,9 +633,7 @@ public class StateConsumerImpl implements StateConsumer {
                   ((RemoteTransaction) tx).setLookedUpEntriesTopology(topologyId - 1);
                }
             }
-            for (Object key : transactionInfo.getLockedKeys()) {
-               tx.addBackupLockForKey(key);
-            }
+            tx.addBackupLockForKeys(transactionInfo.getLockedKeys());
          }
       }
    }

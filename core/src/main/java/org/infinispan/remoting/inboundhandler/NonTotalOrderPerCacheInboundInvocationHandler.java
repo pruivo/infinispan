@@ -9,11 +9,13 @@ import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockUtil;
 import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -37,10 +39,12 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    private static final boolean trace = log.isTraceEnabled();
 
    private LockManager lockManager;
+   private ClusteringDependentLogic clusteringDependentLogic;
 
    @Inject
-   public void inject(LockManager lockManager) {
+   public void inject(LockManager lockManager, ClusteringDependentLogic clusteringDependentLogic) {
       this.lockManager = lockManager;
+      this.clusteringDependentLogic = clusteringDependentLogic;
    }
 
    @Override
@@ -130,9 +134,10 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       if (keys.isEmpty()) {
          return LockPromise.NO_OP;
       }
-      //TODO filter primary owner only!
+      Collection<Object> keysToLock = new ArrayList<>(keys.size());
+      LockUtil.filterByLockOwnership(keys, keysToLock, null, clusteringDependentLogic);
       final long timeoutMillis = command.hasZeroLockAcquisition() ? 0 : lockManager.getDefaultTimeoutMillis();
-      return lockManager.lockAll(keys, command.getLockOwner(), timeoutMillis, TimeUnit.MILLISECONDS);
+      return lockManager.lockAll(keysToLock, command.getLockOwner(), timeoutMillis, TimeUnit.MILLISECONDS);
    }
 
    private LockPromise getLockPromise(SingleRpcCommand singleRpcCommand) {

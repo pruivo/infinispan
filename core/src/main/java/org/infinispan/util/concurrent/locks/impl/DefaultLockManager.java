@@ -43,7 +43,7 @@ public class DefaultLockManager implements LockManager {
    public LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
       final Set<Object> uniqueKeys = new HashSet<>(keys);
       if (uniqueKeys.isEmpty()) {
-         return null;
+         return LockPromise.NO_OP;
       } else if (uniqueKeys.size() == 1) {
          return lock(uniqueKeys.iterator().next(), lockOwner, time, unit);
       }

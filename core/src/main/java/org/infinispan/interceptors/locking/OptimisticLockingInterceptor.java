@@ -1,7 +1,6 @@
 package org.infinispan.interceptors.locking;
 
 import org.infinispan.InvalidCacheUsageException;
-import org.infinispan.atomic.DeltaCompositeKey;
 import org.infinispan.commands.DataCommand;
 import org.infinispan.commands.control.LockControlCommand;
 import org.infinispan.commands.read.GetAllCommand;
@@ -21,7 +20,6 @@ import org.infinispan.util.concurrent.IsolationLevel;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
-import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -33,7 +31,6 @@ import java.util.Collection;
 public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
 
    private static final Log log = LogFactory.getLog(OptimisticLockingInterceptor.class);
-   private static final boolean trace = log.isTraceEnabled();
    private boolean needToMarkReads;
 
    @Start
@@ -50,28 +47,9 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
       if (affectedKeys.isEmpty()) {
          return invokeNextAndCommitIf1Pc(ctx, command);
       }
-      final Collection<Object> keysToLock = new ArrayList<>(affectedKeys.size());
-      final Collection<Object> keysToBackupLock = new ArrayList<>(affectedKeys.size());
 
-      filterByLockAndBackupLock(affectedKeys, keysToLock, keysToBackupLock);
-
-      if (trace) {
-         log.tracef("Acquiring locks on %s.", keysToLock);
-         log.tracef("Acquiring backup locks on %s.", keysToBackupLock);
-      }
-
-      if (!keysToBackupLock.isEmpty()) {
-         ctx.getCacheTransaction().addBackupLockForKey(keysToBackupLock);
-      }
-
-      if (!keysToLock.isEmpty()) {
-         lockAllAndCheckOwnership(ctx, keysToLock, lockManager.getDefaultTimeoutMillis());
-         for (Object key : keysToLock) {
-            performLocalWriteSkewCheck(ctx, key);
-         }
-      }
-
-      ((TxInvocationContext<?>) ctx).addAllAffectedKeys(affectedKeys);
+      lockAllAndRegisterBackupLock(ctx, affectedKeys, lockManager.getDefaultTimeoutMillis(),
+                                   this::performLocalWriteSkewCheck);
 
       return invokeNextAndCommitIf1Pc(ctx, command);
    }
@@ -167,16 +145,4 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
       }
    }
 
-   private void filterByLockAndBackupLock(Collection<Object> keys, Collection<Object> lock, Collection<Object> backupLock) {
-      for (Object key : keys) {
-         Object keyToCheck = key instanceof DeltaCompositeKey ?
-               ((DeltaCompositeKey) key).getDeltaAwareValueKey() :
-               key;
-         if (cdl.localNodeIsPrimaryOwner(keyToCheck)) {
-            lock.add(key);
-         } else if (cdl.localNodeIsOwner(keyToCheck)) {
-            backupLock.add(key);
-         }
-      }
-   }
 }
