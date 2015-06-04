@@ -1,5 +1,6 @@
 package org.infinispan.commands.write;
 
+import org.infinispan.commands.CommandUUID;
 import org.infinispan.commands.Visitor;
 import org.infinispan.commons.util.Util;
 import org.infinispan.context.Flag;
@@ -12,7 +13,6 @@ import org.infinispan.util.logging.LogFactory;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Set;
 
 
@@ -33,16 +33,16 @@ public class InvalidateCommand extends RemoveCommand {
       this.valueMatcher = ValueMatcher.MATCH_ALWAYS;
    }
 
-   public InvalidateCommand(CacheNotifier notifier, Set<Flag> flags, Object... keys) {
+   public InvalidateCommand(CacheNotifier notifier, Set<Flag> flags, CommandUUID commandUUID, Object... keys) {
       //valueEquivalence can be null because this command never compares values.
-      super(null, null, notifier, flags, null);
+      super(null, null, notifier, flags, null, commandUUID);
       this.keys = keys;
       this.notifier = notifier;
    }
 
-   public InvalidateCommand(CacheNotifier notifier, Set<Flag> flags, Collection<Object> keys) {
+   public InvalidateCommand(CacheNotifier notifier, Set<Flag> flags, Collection<Object> keys, CommandUUID commandUUID) {
       //valueEquivalence can be null because this command never compares values.
-      super(null, null, notifier, flags, null);
+      super(null, null, notifier, flags, null, commandUUID);
       if (keys == null || keys.isEmpty())
          this.keys = Util.EMPTY_OBJECT_ARRAY;
       else
@@ -93,13 +93,14 @@ public class InvalidateCommand extends RemoveCommand {
    @Override
    public Object[] getParameters() {
       if (keys == null || keys.length == 0) {
-         return new Object[]{0};
+         return new Object[]{commandUUID, 0};
       } else if (keys.length == 1) {
-         return new Object[]{1, keys[0]};
+         return new Object[]{commandUUID, 1, keys[0]};
       } else {
-         Object[] retval = new Object[keys.length + 1];
-         retval[0] = keys.length;
-         System.arraycopy(keys, 0, retval, 1, keys.length);
+         Object[] retval = new Object[keys.length + 2];
+         retval[0] = commandUUID;
+         retval[1] = keys.length;
+         System.arraycopy(keys, 0, retval, 2, keys.length);
          return retval;
       }
    }
@@ -107,12 +108,14 @@ public class InvalidateCommand extends RemoveCommand {
    @Override
    public void setParameters(int commandId, Object[] args) {
       if (commandId != COMMAND_ID) throw new IllegalStateException("Invalid method id");
-      int size = (Integer) args[0];
+      int i = 0;
+      commandUUID = (CommandUUID) args[i++];
+      int size = (Integer) args[i++];
       keys = new Object[size];
       if (size == 1) {
-         keys[0] = args[1];
+         keys[0] = args[i];
       } else if (size > 0) {
-         System.arraycopy(args, 1, keys, 0, size);
+         System.arraycopy(args, i, keys, 0, size);
       }
    }
 

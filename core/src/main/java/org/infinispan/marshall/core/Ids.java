@@ -140,4 +140,5 @@ public interface Ids extends org.infinispan.commons.marshall.Ids {
    int COMPOSITE_KEY_FILTER = 143;
    int KEY_VALUE_FILTER_AS_KEY_FILTER = 144;
    int CACHE_EVENT_FILTER_CONVERTER_AS_KEY_VALUE_FILTER_CONVERTER = 145;
+   int COMMAND_UUID = 146;
 }

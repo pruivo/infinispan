@@ -35,6 +35,8 @@ public final class SingleKeyNonTxInvocationContext implements InvocationContext 
    //(verify if this is worth it by looking at object alignment - would need a different implementation as pointing to null wouldn't help)
    private Address origin;
 
+   private Object lockOwner;
+
    public SingleKeyNonTxInvocationContext(final boolean originLocal, final Equivalence keyEquivalence) {
       this.isOriginLocal = originLocal;
       this.keyEquivalence = keyEquivalence;
@@ -52,7 +54,12 @@ public final class SingleKeyNonTxInvocationContext implements InvocationContext 
 
    @Override
    public Object getLockOwner() {
-      return Thread.currentThread();
+      return lockOwner;
+   }
+
+   @Override
+   public void setLockOwner(Object lockOwner) {
+      this.lockOwner = lockOwner;
    }
 
    @Override

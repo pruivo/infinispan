@@ -46,12 +46,9 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       if (shutdown) {
          throw new RejectedExecutionException("Executor Service is already shutdown");
       }
-      if (runnable.isReady()) {
-         doExecute(runnable);
-      } else {
-         blockedTasks.offer(runnable);
-         controllerThread.checkForReadyTask();
-      }
+      //we no longer submit directly to the executor service.
+      blockedTasks.offer(runnable);
+      controllerThread.checkForReadyTask();
       if (log.isTraceEnabled()) {
          log.tracef("Added a new task: %s task(s) are waiting", blockedTasks.size());
       }
@@ -118,13 +115,13 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
 
    private class ControllerThread extends Thread {
 
-      private final LinkedList<BlockingRunnable> readList;
+      private final LinkedList<BlockingRunnable> readyList;
       private final Semaphore semaphore;
       private volatile boolean interrupted;
 
       public ControllerThread() {
          super("Controller-Thread");
-         readList = new LinkedList<>();
+         readyList = new LinkedList<>();
          semaphore = new Semaphore(0);
       }
 
@@ -151,16 +148,16 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
                BlockingRunnable runnable = iterator.next();
                if (runnable.isReady()) {
                   iterator.remove();
-                  readList.add(runnable);
+                  readyList.add(runnable);
                }
             }
 
             if (log.isTraceEnabled()) {
-               log.tracef("Tasks executed=%s, still pending=%s", readList.size(), blockedTasks.size());
+               log.tracef("Tasks to be executed=%s, still pending=%s", readyList.size(), blockedTasks.size());
             }
 
-            while (!readList.isEmpty()) {
-               doExecute(readList.pop());
+            while (!readyList.isEmpty()) {
+               doExecute(readyList.pop());
             }
          }
       }

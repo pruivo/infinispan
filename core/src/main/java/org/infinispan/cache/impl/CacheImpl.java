@@ -361,6 +361,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
    private boolean removeInternal(Object key, Object value, EnumSet<Flag> explicitFlags, InvocationContext ctx) {
       assertKeyValueNotNull(key, value);
       RemoveCommand command = commandsFactory.buildRemoveCommand(key, value, explicitFlags);
+      ctx.setLockOwner(command.getLockOwner());
       return (Boolean) executeCommandAndCommitIfNeeded(ctx, command);
    }
 
@@ -576,6 +577,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
    private V removeInternal(Object key, EnumSet<Flag> explicitFlags, InvocationContext ctx) {
       assertKeyNotNull(key);
       RemoveCommand command = commandsFactory.buildRemoveCommand(key, null, explicitFlags);
+      ctx.setLockOwner(command.getLockOwner());
       return (V) executeCommandAndCommitIfNeeded(ctx, command);
    }
 
@@ -828,6 +830,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
       }
       InvocationContext ctx = getInvocationContextForWrite(explicitClassLoader, UNBOUNDED, false);
       LockControlCommand command = commandsFactory.buildLockControlCommand(keys, explicitFlags);
+      ctx.setLockOwner(command.getLockOwner());
       return (Boolean) invoker.invoke(ctx, command);
    }
 
@@ -838,6 +841,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
       }
       InvocationContext ctx = getInvocationContextForWrite(null, UNBOUNDED, false);
       ApplyDeltaCommand command = commandsFactory.buildApplyDeltaCommand(deltaAwareValueKey, delta, Arrays.asList(locksToAcquire));
+      ctx.setLockOwner(command.getLockOwner());
       invoker.invoke(ctx, command);
    }
 
@@ -1090,6 +1094,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
          EnumSet<Flag> explicitFlags, InvocationContext ctx) {
       assertKeyValueNotNull(key, value);
       PutKeyValueCommand command = commandsFactory.buildPutKeyValueCommand(key, value, metadata, explicitFlags);
+      ctx.setLockOwner(command.getLockOwner());
       return (V) executeCommandAndCommitIfNeeded(ctx, command);
    }
 
@@ -1115,6 +1120,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
       PutKeyValueCommand command = commandsFactory.buildPutKeyValueCommand(key, value, metadata, explicitFlags);
       command.setPutIfAbsent(true);
       command.setValueMatcher(ValueMatcher.MATCH_EXPECTED);
+      ctx.setLockOwner(command.getLockOwner());
       return (V) executeCommandAndCommitIfNeeded(ctx, command);
    }
 
@@ -1134,6 +1140,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
    private void putAllInternal(Map<? extends K, ? extends V> map, Metadata metadata, EnumSet<Flag> explicitFlags, InvocationContext ctx) {
       assertKeysNotNull(map);
       PutMapCommand command = commandsFactory.buildPutMapCommand(map, metadata, explicitFlags);
+      ctx.setLockOwner(command.getLockOwner());
       executeCommandAndCommitIfNeeded(ctx, command);
    }
 
@@ -1155,6 +1162,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
    private V replaceInternal(K key, V value, Metadata metadata, EnumSet<Flag> explicitFlags, InvocationContext ctx) {
       assertKeyValueNotNull(key, value);
       ReplaceCommand command = commandsFactory.buildReplaceCommand(key, null, value, metadata, explicitFlags);
+      ctx.setLockOwner(command.getLockOwner());
       return (V) executeCommandAndCommitIfNeeded(ctx, command);
    }
 
@@ -1176,8 +1184,8 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
          EnumSet<Flag> explicitFlags, InvocationContext ctx) {
       assertKeyValueNotNull(key, value);
       assertValueNotNull(oldValue);
-      ReplaceCommand command = commandsFactory.buildReplaceCommand(
-            key, oldValue, value, metadata, explicitFlags);
+      ReplaceCommand command = commandsFactory.buildReplaceCommand(key, oldValue, value, metadata, explicitFlags);
+      ctx.setLockOwner(command.getLockOwner());
       return (Boolean) executeCommandAndCommitIfNeeded(ctx, command);
    }
 

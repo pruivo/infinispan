@@ -1,5 +1,6 @@
 package org.infinispan.commands.write;
 
+import org.infinispan.commands.CommandUUID;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.commands.AbstractFlagAffectedCommand;
 import org.infinispan.commands.MetadataAwareCommand;
@@ -30,15 +31,17 @@ public class PutMapCommand extends AbstractFlagAffectedCommand implements WriteC
    CacheNotifier notifier;
    Metadata metadata;
    boolean isForwarded = false;
+   private CommandUUID commandUUID;
 
    public PutMapCommand() {
    }
 
-   public PutMapCommand(Map<?, ?> map, CacheNotifier notifier, Metadata metadata, Set<Flag> flags) {
+   public PutMapCommand(Map<?, ?> map, CacheNotifier notifier, Metadata metadata, Set<Flag> flags, CommandUUID commandUUID) {
       this.map = (Map<Object, Object>) map;
       this.notifier = notifier;
       this.metadata = metadata;
       this.flags = flags;
+      this.commandUUID = commandUUID;
    }
 
    public PutMapCommand(PutMapCommand command) {
@@ -47,6 +50,7 @@ public class PutMapCommand extends AbstractFlagAffectedCommand implements WriteC
       this.metadata = command.metadata;
       this.flags = command.flags;
       this.isForwarded = command.isForwarded;
+      this.commandUUID = CommandUUID.generateUUIDFrom(command.commandUUID);
    }
 
    public void init(CacheNotifier notifier) {
@@ -114,17 +118,17 @@ public class PutMapCommand extends AbstractFlagAffectedCommand implements WriteC
 
    @Override
    public Object[] getParameters() {
-      return new Object[]{map, metadata, isForwarded, Flag.copyWithoutRemotableFlags(flags)};
+      return new Object[]{map, metadata, isForwarded, Flag.copyWithoutRemotableFlags(flags), commandUUID};
    }
 
+   @SuppressWarnings("unchecked")
    @Override
    public void setParameters(int commandId, Object[] parameters) {
       map = (Map<Object, Object>) parameters[0];
       metadata = (Metadata) parameters[1];
       isForwarded = (Boolean) parameters[2];
-      if (parameters.length > 3) {
-         this.flags = (Set<Flag>) parameters[3];
-      }
+      flags = (Set<Flag>) parameters[3];
+      commandUUID = (CommandUUID) parameters[4];
    }
 
    @Override

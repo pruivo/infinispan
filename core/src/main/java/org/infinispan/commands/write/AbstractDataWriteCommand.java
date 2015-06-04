@@ -1,5 +1,6 @@
 package org.infinispan.commands.write;
 
+import org.infinispan.commands.CommandUUID;
 import org.infinispan.commands.read.AbstractDataCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.Flag;
@@ -20,12 +21,14 @@ public abstract class AbstractDataWriteCommand extends AbstractDataCommand imple
 
    protected ClusteringDependentLogic clusteringDependentLogic;
    protected Configuration configuration;
+   protected CommandUUID commandUUID;
 
    protected AbstractDataWriteCommand() {
    }
 
-   protected AbstractDataWriteCommand(Object key, Set<Flag> flags) {
+   protected AbstractDataWriteCommand(Object key, Set<Flag> flags, CommandUUID commandUUID) {
       super(key, flags);
+      this.commandUUID = commandUUID;
    }
 
    @Override
@@ -57,7 +60,7 @@ public abstract class AbstractDataWriteCommand extends AbstractDataCommand imple
 
    @Override
    public final Object getLockOwner() {
-      return this;
+      return commandUUID;
    }
 
    @Override

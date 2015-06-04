@@ -38,6 +38,11 @@ public abstract class AbstractTxInvocationContext<T extends AbstractCacheTransac
    }
 
    @Override
+   public void setLockOwner(Object lockOwner) {
+      /*no-op*/
+   }
+
+   @Override
    public final Set<Object> getLockedKeys() {
       return cacheTransaction.getLockedKeys();
    }

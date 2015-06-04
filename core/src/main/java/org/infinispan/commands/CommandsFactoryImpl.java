@@ -195,32 +195,32 @@ public class CommandsFactoryImpl implements CommandsFactory {
    @Override
    public PutKeyValueCommand buildPutKeyValueCommand(Object key, Object value, Metadata metadata, Set<Flag> flags) {
       return new PutKeyValueCommand(key, value, false, notifier, metadata, flags,
-            configuration.dataContainer().valueEquivalence());
+            configuration.dataContainer().valueEquivalence(), generateUUID());
    }
 
    @Override
    public RemoveCommand buildRemoveCommand(Object key, Object value, Set<Flag> flags) {
-      return new RemoveCommand(key, value, notifier, flags, configuration.dataContainer().valueEquivalence());
+      return new RemoveCommand(key, value, notifier, flags, configuration.dataContainer().valueEquivalence(), generateUUID());
    }
 
    @Override
    public InvalidateCommand buildInvalidateCommand(Set<Flag> flags, Object... keys) {
-      return new InvalidateCommand(notifier, flags, keys);
+      return new InvalidateCommand(notifier, flags, generateUUID(), keys);
    }
 
    @Override
    public InvalidateCommand buildInvalidateFromL1Command(Set<Flag> flags, Collection<Object> keys) {
-      return new InvalidateL1Command(dataContainer, configuration, distributionManager, notifier, flags, keys);
+      return new InvalidateL1Command(dataContainer, distributionManager, notifier, flags, keys, generateUUID());
    }
 
    @Override
    public InvalidateCommand buildInvalidateFromL1Command(Address origin, Set<Flag> flags, Collection<Object> keys) {
-      return new InvalidateL1Command(origin, dataContainer, configuration, distributionManager, notifier, flags, keys);
+      return new InvalidateL1Command(origin, dataContainer, distributionManager, notifier, flags, keys, generateUUID());
    }
 
    @Override
    public ReplaceCommand buildReplaceCommand(Object key, Object oldValue, Object newValue, Metadata metadata, Set<Flag> flags) {
-      return new ReplaceCommand(key, oldValue, newValue, notifier, metadata, flags, configuration.dataContainer().valueEquivalence());
+      return new ReplaceCommand(key, oldValue, newValue, notifier, metadata, flags, configuration.dataContainer().valueEquivalence(), generateUUID());
    }
 
    @Override
@@ -261,7 +261,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
 
    @Override
    public PutMapCommand buildPutMapCommand(Map<?, ?> map, Metadata metadata, Set<Flag> flags) {
-      return new PutMapCommand(map, notifier, metadata, flags);
+      return new PutMapCommand(map, notifier, metadata, flags, generateUUID());
    }
 
    @Override
@@ -271,7 +271,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
 
    @Override
    public EvictCommand buildEvictCommand(Object key, Set<Flag> flags) {
-      return new EvictCommand(key, notifier, flags);
+      return new EvictCommand(key, notifier, flags, generateUUID());
    }
 
    @Override
@@ -574,7 +574,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
 
    @Override
    public ApplyDeltaCommand buildApplyDeltaCommand(Object deltaAwareValueKey, Delta delta, Collection keys) {
-      return new ApplyDeltaCommand(deltaAwareValueKey, delta, keys);
+      return new ApplyDeltaCommand(deltaAwareValueKey, delta, keys, generateUUID());
    }
 
    @Override
@@ -653,4 +653,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
       return new ClusteredGetAllCommand(cacheName, keys, flags, gtx, configuration.dataContainer().keyEquivalence());
    }
 
+   private CommandUUID generateUUID() {
+      return CommandUUID.generateUUID(clusteringDependentLogic.getAddress());
+   }
+   
 }

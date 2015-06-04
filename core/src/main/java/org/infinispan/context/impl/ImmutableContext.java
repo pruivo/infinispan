@@ -70,6 +70,11 @@ public final class ImmutableContext implements InvocationContext {
    }
 
    @Override
+   public void setLockOwner(Object lockOwner) {
+      throw newUnsupportedMethod();
+   }
+
+   @Override
    public Set<Object> getLockedKeys() {
       return InfinispanCollections.emptySet();
    }

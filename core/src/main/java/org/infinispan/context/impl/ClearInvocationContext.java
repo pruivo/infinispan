@@ -26,7 +26,12 @@ public class ClearInvocationContext extends AbstractInvocationContext implements
 
    @Override
    public Object getLockOwner() {
-      return Thread.currentThread();
+      return null;
+   }
+
+   @Override
+   public void setLockOwner(Object lockOwner) {
+      /*no-op*/
    }
 
    @Override

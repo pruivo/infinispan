@@ -6,6 +6,7 @@ import org.infinispan.util.concurrent.locks.CancellableLockPromise;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -52,6 +53,8 @@ public class InfinispanLock {
    }
 
    public CancellableLockPromise acquire(Object lockOwner, long time, TimeUnit timeUnit) {
+      Objects.requireNonNull(lockOwner, "Lock Owner should be non-null");
+      Objects.requireNonNull(timeUnit, "Time Unit should be non-null");
       if (trace) {
          log.tracef("Acquire lock for %s. Timeout=%s (%s)", lockOwner, time, timeUnit);
       }
@@ -79,6 +82,7 @@ public class InfinispanLock {
    }
 
    public void release(Object lockOwner) {
+      Objects.requireNonNull(lockOwner, "Lock Owner should be non-null");
       if (trace) {
          log.tracef("Release lock for %s.", lockOwner);
       }
@@ -130,7 +134,7 @@ public class InfinispanLock {
       return current != null;
    }
 
-   private boolean casAquire(LockPlaceHolder lockPlaceHolder) {
+   private boolean casAcquire(LockPlaceHolder lockPlaceHolder) {
       return fieldUpdater.compareAndSet(this, null, lockPlaceHolder);
    }
 
@@ -157,7 +161,7 @@ public class InfinispanLock {
          if (nextPending == null) {
             return;
          }
-         if (casAquire(nextPending)) {
+         if (casAcquire(nextPending)) {
             //we set the current lock owner, so we must remove it from the queue
             pendingRequest.remove(nextPending);
             if (nextPending.acquire()) {

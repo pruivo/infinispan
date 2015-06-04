@@ -4,7 +4,6 @@ import org.infinispan.batch.BatchContainer;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.write.EvictCommand;
 import org.infinispan.context.InvocationContext;
-import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.base.CommandInterceptor;

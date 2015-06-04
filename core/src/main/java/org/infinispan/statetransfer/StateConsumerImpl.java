@@ -588,6 +588,7 @@ public class StateConsumerImpl implements StateConsumer {
 
             boolean success = false;
             try {
+               ctx.setLockOwner(put.getLockOwner());
                interceptorChain.invoke(ctx, put);
                success = true;
             } finally {
@@ -946,6 +947,7 @@ public class StateConsumerImpl implements StateConsumer {
          try {
             InvalidateCommand invalidateCmd = commandsFactory.buildInvalidateCommand(EnumSet.of(CACHE_MODE_LOCAL, SKIP_LOCKING), keysToRemove.toArray());
             InvocationContext ctx = icf.createNonTxInvocationContext();
+            ctx.setLockOwner(invalidateCmd.getLockOwner());
             interceptorChain.invoke(ctx, invalidateCmd);
 
             if (trace) log.tracef("Removed %d keys, data container now has %d keys", keysToRemove.size(), dataContainer.size());

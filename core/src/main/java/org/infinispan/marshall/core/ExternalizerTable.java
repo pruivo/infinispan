@@ -6,6 +6,7 @@ import org.infinispan.atomic.impl.AtomicHashMapDelta;
 import org.infinispan.atomic.impl.ClearOperation;
 import org.infinispan.atomic.impl.PutOperation;
 import org.infinispan.atomic.impl.RemoveOperation;
+import org.infinispan.commands.CommandUUID;
 import org.infinispan.commands.RemoteCommandsFactory;
 import org.infinispan.commons.CacheConfigurationException;
 import org.infinispan.commons.hash.MurmurHash2;
@@ -347,6 +348,7 @@ public class ExternalizerTable implements ObjectTable {
       addInternalExternalizer(new AcceptAllKeyValueFilter.Externalizer());
       addInternalExternalizer(new ManagerStatusResponse.Externalizer());
       addInternalExternalizer(new MultiClusterEventCallable.Externalizer());
+      addInternalExternalizer(new CommandUUID.Externalizer());
    }
 
    void addInternalExternalizer(AdvancedExternalizer<?> ext) {
