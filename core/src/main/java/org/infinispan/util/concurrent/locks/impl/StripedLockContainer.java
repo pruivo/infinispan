@@ -29,7 +29,7 @@ public class StripedLockContainer implements LockContainer {
    @Inject
    public void inject(TimeService timeService) {
       for (int i = 0; i < sharedLocks.length; i++) {
-         if (sharedLocks[i] != null) {
+         if (sharedLocks[i] == null) {
             sharedLocks[i] = new InfinispanLock(timeService);
          }
       }

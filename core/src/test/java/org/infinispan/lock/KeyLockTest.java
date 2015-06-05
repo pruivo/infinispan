@@ -74,7 +74,7 @@ public class KeyLockTest extends SingleCacheManagerTest {
             for (int i = 0; i < RETRIES; ++i) {
                AssertJUnit.assertTrue(lockContainer.isLocked(byteArray()));
                try {
-                  lockContainer.acquire(byteArray(), lockOwner, 10, TimeUnit.MILLISECONDS).lock();
+                  lockContainer.acquire(byteArray(), new Object(), 10, TimeUnit.MILLISECONDS).lock();
                   AssertJUnit.fail();
                } catch (InterruptedException | TimeoutException e) {
                   //expected

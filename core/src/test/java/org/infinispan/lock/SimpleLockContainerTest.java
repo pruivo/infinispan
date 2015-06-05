@@ -14,9 +14,10 @@ import java.util.concurrent.TimeUnit;
 @Test (groups = "functional", testName = "lock.SimpleLockContainerTest")
 public class SimpleLockContainerTest extends AbstractInfinispanTest {
 
-   LockContainer lc = new PerKeyLockContainer(1000, AnyEquivalence.getInstance());
+   PerKeyLockContainer lc = new PerKeyLockContainer(1000, AnyEquivalence.getInstance());
 
    public void simpleTest() throws Exception {
+      lc.inject(TIME_SERVICE);
       final String k1 = ab();
       final String k2 = ab2();
       assert k1 != k2 && k1.equals(k2);
