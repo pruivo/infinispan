@@ -134,7 +134,7 @@ public class PessimisticLockingInterceptor extends AbstractTxLockingInterceptor 
       try {
          if (!hasSkipLocking(command)) {
             HashSet<Object> keysToLock = new HashSet<>(Arrays.asList(compositeKeys));
-            acquireRemoteIfNeeded(ctx, keysToLock, command);
+            acquireAllRemoteIfNeeded(ctx, keysToLock, command);
             if (cdl.localNodeIsOwner(command.getKey())) {
                lockAllAndRecord(ctx, keysToLock, getLockTimeoutMillis(command));
             }

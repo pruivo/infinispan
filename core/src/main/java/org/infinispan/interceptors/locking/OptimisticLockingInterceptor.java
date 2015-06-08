@@ -44,6 +44,7 @@ public class OptimisticLockingInterceptor extends AbstractTxLockingInterceptor {
    @Override
    public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
       final Collection<Object> affectedKeys = command.getKeysToLock();
+      ((TxInvocationContext<?>) ctx).addAllAffectedKeys(command.getAffectedKeys());
       if (affectedKeys.isEmpty()) {
          return invokeNextAndCommitIf1Pc(ctx, command);
       }

@@ -1,7 +1,6 @@
 package org.infinispan.interceptors.locking;
 
 import org.infinispan.commands.DataCommand;
-import org.infinispan.commands.FlagAffectedCommand;
 import org.infinispan.commands.LocalFlagAffectedCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
@@ -163,12 +162,6 @@ public abstract class AbstractLockingInterceptor extends CommandInterceptor {
       boolean shouldLock = LockUtil.getLockOwnership(key, cdl) == LockUtil.LockOwnership.PRIMARY;
       getLog().tracef("Are (%s) we the lock owners for key '%s'? %s", cdl.getAddress(), key, shouldLock);
       return shouldLock;
-   }
-
-   protected final void lockKey(InvocationContext ctx, Object key, long timeoutMillis, boolean skipLocking) throws InterruptedException {
-      if (!skipLocking) {
-         lockManager.lock(key, ctx.getLockOwner(), timeoutMillis, TimeUnit.MILLISECONDS).lock();
-      }
    }
 
    protected final void lockAndRecord(InvocationContext context, Object key, long timeout) throws InterruptedException {

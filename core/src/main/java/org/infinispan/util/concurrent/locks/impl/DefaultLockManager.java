@@ -2,12 +2,16 @@ package org.infinispan.util.concurrent.locks.impl;
 
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.factories.KnownComponentNames;
+import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.CancellableLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainer;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -15,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -25,23 +30,38 @@ import java.util.concurrent.TimeUnit;
  */
 public class DefaultLockManager implements LockManager {
 
+   private static final Log log = LogFactory.getLog(DefaultLockManager.class);
+   private static final boolean trace = log.isTraceEnabled();
+
+   private ScheduledExecutorService scheduler;
    protected LockContainer container;
    protected Configuration configuration;
 
    @Inject
-   public void inject(LockContainer container, Configuration configuration) {
+   public void inject(LockContainer container, Configuration configuration,
+                      @ComponentName(KnownComponentNames.EXPIRATION_SCHEDULED_EXECUTOR) ScheduledExecutorService executorService) {
       this.container = container;
       this.configuration = configuration;
+      this.scheduler = executorService;
    }
+
 
    @Override
    public LockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
-      return container.acquire(key, lockOwner, time, unit);
+      if (trace) {
+         log.tracef("Lock key=%s for owner=%s. timeout=%s (%s)", key, lockOwner, time, unit);
+      }
+      LockPromise promise = container.acquire(key, lockOwner, time, unit);
+      scheduleLockPromise(promise, time, unit);
+      return promise;
    }
 
    @Override
    public LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
       final Set<Object> uniqueKeys = new HashSet<>(keys);
+      if (trace) {
+         log.tracef("Lock all keys=%s for owner=%s. timeout=%s (%s)", uniqueKeys, lockOwner, time, unit);
+      }
       if (uniqueKeys.isEmpty()) {
          return LockPromise.NO_OP;
       } else if (uniqueKeys.size() == 1) {
@@ -54,16 +74,23 @@ public class DefaultLockManager implements LockManager {
          }
       }
       compositeLockPromise.markListAsFinal();
+      scheduleLockPromise(compositeLockPromise, time, unit);
       return compositeLockPromise;
    }
 
    @Override
    public void unlock(Object key, Object lockOwner) {
+      if (trace) {
+         log.tracef("Release lock for key=%s. owner=%s", key, lockOwner);
+      }
       container.release(key, lockOwner);
    }
 
    @Override
    public void unlockAll(Collection<?> keys, Object lockOwner) {
+      if (trace) {
+         log.tracef("Release locks for keys=%s. owner=%s", keys, lockOwner);
+      }
       if (keys.isEmpty()) {
          return;
       }
@@ -117,6 +144,12 @@ public class DefaultLockManager implements LockManager {
    @Override
    public long getDefaultTimeoutMillis() {
       return configuration.locking().lockAcquisitionTimeout();
+   }
+
+   private void scheduleLockPromise(LockPromise promise, long time, TimeUnit unit) {
+      if (!promise.isAvailable() && scheduler != null) {
+         scheduler.schedule(promise::isAvailable, time, unit);
+      }
    }
 
    private static class CompositeLockPromise implements LockPromise, LockPromise.Listener {

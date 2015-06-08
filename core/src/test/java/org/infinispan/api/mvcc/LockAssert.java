@@ -34,7 +34,7 @@ public class LockAssert {
    }
 
    public static void assertNoLocks(LockManager lockManager) {
-      LockContainer lc = TestingUtil.extractField(lockManager, "lockContainer");
+      LockContainer lc = TestingUtil.extractField(lockManager, "container");
       assertEquals("Stale locks exist! NumLocksHeld is " + lc.getNumLocksHeld() + " and lock info is " + lockManager.printLockInfo(),
             0, lc.getNumLocksHeld());
    }

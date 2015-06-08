@@ -8,9 +8,11 @@ import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.statetransfer.StateRequestCommand;
+import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
@@ -40,11 +42,13 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
 
    private LockManager lockManager;
    private ClusteringDependentLogic clusteringDependentLogic;
+   private boolean pessimisticLocking;
 
    @Inject
-   public void inject(LockManager lockManager, ClusteringDependentLogic clusteringDependentLogic) {
+   public void inject(LockManager lockManager, ClusteringDependentLogic clusteringDependentLogic, Configuration configuration) {
       this.lockManager = lockManager;
       this.clusteringDependentLogic = clusteringDependentLogic;
+      this.pessimisticLocking = configuration.transaction().lockingMode() == LockingMode.PESSIMISTIC;
    }
 
    @Override
@@ -73,8 +77,10 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                break;
             case PrepareCommand.COMMAND_ID:
             case VersionedPrepareCommand.COMMAND_ID:
+               //no need to acquire locks during prepare with pessimistic locking
+               LockPromise lockPromise = pessimisticLocking ? LockPromise.NO_OP : getLockPromise((PrepareCommand) command);
                runnable = createLockAwareRunnable(command, reply, extractCommandTopologyId((PrepareCommand) command),
-                                                  true, onExecutorService, getLockPromise((PrepareCommand) command));
+                                                  true, onExecutorService, lockPromise);
                break;
             case LockControlCommand.COMMAND_ID:
                runnable = createLockAwareRunnable(command, reply, extractCommandTopologyId((LockControlCommand) command),

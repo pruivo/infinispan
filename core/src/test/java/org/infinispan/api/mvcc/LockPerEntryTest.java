@@ -79,7 +79,7 @@ public class LockPerEntryTest extends SingleCacheManagerTest {
       LockManager lm = TestingUtil.extractLockManager(cache);
       LockAssert.assertNoLocks(lm);
 
-      LockContainer lc = TestingUtil.extractField(lm, "lockContainer");
+      LockContainer lc = TestingUtil.extractField(lm, "container");
       assert lc.size() == 0;
    }
 }

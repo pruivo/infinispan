@@ -39,7 +39,7 @@ public class LockManagerTest {
       DefaultLockManager lockManager = new DefaultLockManager();
       PerKeyLockContainer lockContainer = new PerKeyLockContainer(16, AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer, null);
+      lockManager.inject(lockContainer, null, null);
       doSingleCounterTest(lockManager);
    }
 
@@ -47,7 +47,7 @@ public class LockManagerTest {
       DefaultLockManager lockManager = new DefaultLockManager();
       StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer, null);
+      lockManager.inject(lockContainer, null, null);
       doSingleCounterTest(lockManager);
    }
 
@@ -55,7 +55,7 @@ public class LockManagerTest {
       DefaultLockManager lockManager = new DefaultLockManager();
       PerKeyLockContainer lockContainer = new PerKeyLockContainer(16, AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer, null);
+      lockManager.inject(lockContainer, null, null);
       doMultipleCounterTest(lockManager);
    }
 
@@ -63,7 +63,7 @@ public class LockManagerTest {
       DefaultLockManager lockManager = new DefaultLockManager();
       StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer, null);
+      lockManager.inject(lockContainer, null, null);
       doMultipleCounterTest(lockManager);
    }
 
@@ -71,7 +71,7 @@ public class LockManagerTest {
       DefaultLockManager lockManager = new DefaultLockManager();
       PerKeyLockContainer lockContainer = new PerKeyLockContainer(16, AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer, null);
+      lockManager.inject(lockContainer, null, null);
       doTestWithFailAcquisition(lockManager);
    }
 
@@ -79,7 +79,7 @@ public class LockManagerTest {
       DefaultLockManager lockManager = new DefaultLockManager();
       StripedLockContainer lockContainer = new StripedLockContainer(16, AnyEquivalence.getInstance());
       lockContainer.inject(AbstractCacheTest.TIME_SERVICE);
-      lockManager.inject(lockContainer, null);
+      lockManager.inject(lockContainer, null, null);
       doTestWithFailAcquisition(lockManager);
    }
 
