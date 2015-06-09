@@ -41,11 +41,11 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
       if (innerCmd instanceof TopologyAffectedCommand) {
          return extractCommandTopologyId((TopologyAffectedCommand) innerCmd);
       }
-      return -1;
+      return NO_TOPOLOGY_COMMAND;
    }
 
    protected static int extractCommandTopologyId(MultipleRpcCommand command) {
-      int commandTopologyId = -1;
+      int commandTopologyId = NO_TOPOLOGY_COMMAND;
       for (ReplicableCommand innerCmd : command.getCommands()) {
          if (innerCmd instanceof TopologyAffectedCommand) {
             commandTopologyId = Math.max(extractCommandTopologyId((TopologyAffectedCommand) innerCmd), commandTopologyId);
@@ -121,6 +121,17 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
       } else {
          runnable.run();
       }
+   }
+
+   protected final boolean isCommandSentBeforeFirstTopology(int commandTopologyId) {
+      if (0 <= commandTopologyId && commandTopologyId < stateTransferManager.getFirstTopologyAsMember()) {
+         if (isTraceEnabled()) {
+            getLog().tracef("Ignoring command sent before the local node was a member " +
+                                          "(command topology id is %d)", commandTopologyId);
+         }
+         return true;
+      }
+      return false;
    }
 
    protected final BlockingRunnable createDefaultRunnable(final CacheRpcCommand command, final Reply reply,

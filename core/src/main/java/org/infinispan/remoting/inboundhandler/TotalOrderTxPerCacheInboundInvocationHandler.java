@@ -13,6 +13,7 @@ import org.infinispan.commands.tx.totalorder.TotalOrderVersionedCommitCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderVersionedPrepareCommand;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.totalorder.RetryPrepareException;
+import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.transaction.impl.TotalOrderRemoteTransactionState;
@@ -50,13 +51,28 @@ public class TotalOrderTxPerCacheInboundInvocationHandler extends BasePerCacheIn
          switch (command.getCommandId()) {
             case MultipleRpcCommand.COMMAND_ID:
                commandTopologyId = extractCommandTopologyId((MultipleRpcCommand) command);
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
+               }
                runnable = createDefaultRunnable(command, reply, commandTopologyId, true, onExecutorService);
                break;
             case SingleRpcCommand.COMMAND_ID:
                commandTopologyId = extractCommandTopologyId((SingleRpcCommand) command);
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
+               }
                runnable = createDefaultRunnable(command, reply, commandTopologyId, true, onExecutorService);
                break;
             case StateRequestCommand.COMMAND_ID:
+               // StateRequestCommand is special in that it doesn't need transaction data
+               // In fact, waiting for transaction data could cause a deadlock
+               commandTopologyId = extractCommandTopologyId((StateRequestCommand) command);
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
+               }
                runnable = createDefaultRunnable(command, reply, commandTopologyId, false, onExecutorService);
                break;
             case TotalOrderVersionedPrepareCommand.COMMAND_ID:
@@ -79,6 +95,10 @@ public class TotalOrderTxPerCacheInboundInvocationHandler extends BasePerCacheIn
             default:
                if (command instanceof TopologyAffectedCommand) {
                   commandTopologyId = extractCommandTopologyId((TopologyAffectedCommand) command);
+               }
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
                }
                runnable = createDefaultRunnable(command, reply, commandTopologyId, true, onExecutorService);
                break;

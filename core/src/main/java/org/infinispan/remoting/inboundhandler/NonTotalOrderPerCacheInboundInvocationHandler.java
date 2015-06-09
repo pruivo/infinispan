@@ -11,6 +11,7 @@ import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
+import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.concurrent.BlockingRunnable;
@@ -59,37 +60,65 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       try {
          boolean onExecutorService = !order.preserveOrder() && command.canBlock();
          BlockingRunnable runnable;
+         int commandTopologyId;
 
          switch (command.getCommandId()) {
             case SingleRpcCommand.COMMAND_ID:
-               runnable = createLockAwareRunnable(command, reply, extractCommandTopologyId((SingleRpcCommand) command),
-                                                  true, onExecutorService, getLockPromise((SingleRpcCommand) command));
+               commandTopologyId = extractCommandTopologyId((SingleRpcCommand) command);
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
+               }
+               runnable = createLockAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
+                                                  getLockPromise((SingleRpcCommand) command));
                break;
             case MultipleRpcCommand.COMMAND_ID:
-               runnable = createLockAwareRunnable(command, reply, extractCommandTopologyId((MultipleRpcCommand) command),
-                                                  true, onExecutorService, getLockPromise((MultipleRpcCommand) command));
+               commandTopologyId = extractCommandTopologyId((MultipleRpcCommand) command);
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
+               }
+               runnable = createLockAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
+                                                  getLockPromise((MultipleRpcCommand) command));
                break;
             case StateRequestCommand.COMMAND_ID:
                // StateRequestCommand is special in that it doesn't need transaction data
                // In fact, waiting for transaction data could cause a deadlock
-               runnable = createDefaultRunnable(command, reply, extractCommandTopologyId(((StateRequestCommand) command)),
-                                                false, onExecutorService);
+               commandTopologyId = extractCommandTopologyId((StateRequestCommand) command);
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
+               }
+               runnable = createDefaultRunnable(command, reply, commandTopologyId, false, onExecutorService);
                break;
             case PrepareCommand.COMMAND_ID:
             case VersionedPrepareCommand.COMMAND_ID:
+               commandTopologyId = extractCommandTopologyId((PrepareCommand) command);
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
+               }
                //no need to acquire locks during prepare with pessimistic locking
                LockPromise lockPromise = pessimisticLocking ? LockPromise.NO_OP : getLockPromise((PrepareCommand) command);
-               runnable = createLockAwareRunnable(command, reply, extractCommandTopologyId((PrepareCommand) command),
-                                                  true, onExecutorService, lockPromise);
+               runnable = createLockAwareRunnable(command, reply, commandTopologyId, true, onExecutorService, lockPromise);
                break;
             case LockControlCommand.COMMAND_ID:
-               runnable = createLockAwareRunnable(command, reply, extractCommandTopologyId((LockControlCommand) command),
-                                                  true, onExecutorService, getLockPromise((LockControlCommand) command));
+               commandTopologyId = extractCommandTopologyId((LockControlCommand) command);
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
+               }
+               runnable = createLockAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
+                                                  getLockPromise((LockControlCommand) command));
                break;
             default:
-               int commandTopologyId = NO_TOPOLOGY_COMMAND;
+               commandTopologyId = NO_TOPOLOGY_COMMAND;
                if (command instanceof TopologyAffectedCommand) {
                   commandTopologyId = extractCommandTopologyId((TopologyAffectedCommand) command);
+               }
+               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+                  reply.reply(CacheNotFoundResponse.INSTANCE);
+                  return;
                }
                runnable = createDefaultRunnable(command, reply, commandTopologyId, true, onExecutorService);
                break;

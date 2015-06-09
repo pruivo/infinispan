@@ -78,16 +78,6 @@ public class TopKeyLockManager implements LockManager {
    }
 
    @Override
-   public int getConcurrencyLevel() {
-      return current.getConcurrencyLevel();
-   }
-
-   @Override
-   public int getNumberOfLocksAvailable() {
-      return current.getNumberOfLocksAvailable();
-   }
-
-   @Override
    public long getDefaultTimeoutMillis() {
       return current.getDefaultTimeoutMillis();
    }

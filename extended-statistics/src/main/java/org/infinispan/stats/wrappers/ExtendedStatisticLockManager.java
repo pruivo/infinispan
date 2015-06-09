@@ -128,16 +128,6 @@ public class ExtendedStatisticLockManager implements LockManager {
    }
 
    @Override
-   public int getConcurrencyLevel() {
-      return actual.getConcurrencyLevel();
-   }
-
-   @Override
-   public int getNumberOfLocksAvailable() {
-      return actual.getNumberOfLocksAvailable();
-   }
-
-   @Override
    public long getDefaultTimeoutMillis() {
       return actual.getDefaultTimeoutMillis();
    }

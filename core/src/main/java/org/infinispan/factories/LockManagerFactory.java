@@ -1,6 +1,7 @@
 package org.infinispan.factories;
 
 import org.infinispan.factories.annotations.DefaultFactoryFor;
+import org.infinispan.util.concurrent.locks.DeadlockDetectingLockManager;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.impl.DefaultLockManager;
 
@@ -16,8 +17,7 @@ public class LockManagerFactory extends AbstractNamedCacheComponentFactory imple
    @Override
    public <T> T construct(Class<T> componentType) {
       if (configuration.deadlockDetection().enabled()) {
-         //TODO
-         return (T) new DefaultLockManager();
+         return (T) new DeadlockDetectingLockManager();
       } else {
          return (T) new DefaultLockManager();
       }

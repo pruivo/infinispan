@@ -57,6 +57,14 @@ public class CommandUUID {
       return result;
    }
 
+   @Override
+   public String toString() {
+      return "CommandUUID{" +
+            "address=" + address +
+            ", id=" + id +
+            '}';
+   }
+
    public static class Externalizer extends AbstractExternalizer<CommandUUID> {
 
       @Override

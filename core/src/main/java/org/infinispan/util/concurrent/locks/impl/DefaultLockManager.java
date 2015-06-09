@@ -5,6 +5,9 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.KnownComponentNames;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.jmx.annotations.DataType;
+import org.infinispan.jmx.annotations.MBean;
+import org.infinispan.jmx.annotations.ManagedAttribute;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.CancellableLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainer;
@@ -28,6 +31,7 @@ import java.util.concurrent.TimeUnit;
  * @author Pedro Ruivo
  * @since 8.0
  */
+@MBean(objectName = "LockManager", description = "Manager that handles MVCC locks for entries")
 public class DefaultLockManager implements LockManager {
 
    private static final Log log = LogFactory.getLog(DefaultLockManager.class);
@@ -102,6 +106,7 @@ public class DefaultLockManager implements LockManager {
    @Override
    public void unlockAll(InvocationContext context) {
       unlockAll(context.getLockedKeys(), context.getLockOwner());
+      context.clearLockedKeys();
    }
 
    @Override
@@ -127,16 +132,17 @@ public class DefaultLockManager implements LockManager {
    }
 
    @Override
+   @ManagedAttribute(description = "The number of exclusive locks that are held.", displayName = "Number of locks held")
    public int getNumberOfLocksHeld() {
       return container.getNumLocksHeld();
    }
 
-   @Override
+   @ManagedAttribute(description = "The concurrency level that the MVCC Lock Manager has been configured with.", displayName = "Concurrency level", dataType = DataType.TRAIT)
    public int getConcurrencyLevel() {
       return configuration.locking().concurrencyLevel();
    }
 
-   @Override
+   @ManagedAttribute(description = "The number of exclusive locks that are available.", displayName = "Number of locks available")
    public int getNumberOfLocksAvailable() {
       return container.size() - container.getNumLocksHeld();
    }

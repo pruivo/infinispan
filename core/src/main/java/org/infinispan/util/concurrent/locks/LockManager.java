@@ -1,8 +1,6 @@
 package org.infinispan.util.concurrent.locks;
 
 import org.infinispan.context.InvocationContext;
-import org.infinispan.jmx.annotations.DataType;
-import org.infinispan.jmx.annotations.ManagedAttribute;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -101,14 +99,7 @@ public interface LockManager {
    /**
     * @return the number of locks held.
     */
-   @ManagedAttribute(description = "The number of exclusive locks that are held.", displayName = "Number of locks held")
    int getNumberOfLocksHeld();
-
-   @ManagedAttribute(description = "The concurrency level that the MVCC Lock Manager has been configured with.", displayName = "Concurrency level", dataType = DataType.TRAIT)
-   int getConcurrencyLevel();
-
-   @ManagedAttribute(description = "The number of exclusive locks that are available.", displayName = "Number of locks available")
-   int getNumberOfLocksAvailable();
 
    long getDefaultTimeoutMillis();
 }
