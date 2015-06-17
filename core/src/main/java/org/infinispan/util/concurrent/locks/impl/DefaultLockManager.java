@@ -1,5 +1,6 @@
 package org.infinispan.util.concurrent.locks.impl;
 
+import org.infinispan.commons.util.Notifier;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.KnownComponentNames;
@@ -21,7 +22,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -36,10 +36,9 @@ public class DefaultLockManager implements LockManager {
 
    private static final Log log = LogFactory.getLog(DefaultLockManager.class);
    private static final boolean trace = log.isTraceEnabled();
-
-   private ScheduledExecutorService scheduler;
    protected LockContainer container;
    protected Configuration configuration;
+   private ScheduledExecutorService scheduler;
 
    @Inject
    public void inject(LockContainer container, Configuration configuration,
@@ -158,16 +157,15 @@ public class DefaultLockManager implements LockManager {
       }
    }
 
-   private static class CompositeLockPromise implements LockPromise, LockPromise.Listener {
+   private static class CompositeLockPromise implements LockPromise, LockPromise.Listener, Notifier.Invoker<LockPromise.Listener> {
 
       private final List<CancellableLockPromise> lockPromiseList;
-      @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
-      private final CopyOnWriteArrayList<Listener> listeners;
+      private final Notifier<Listener> notifier;
       private volatile boolean acquired = true;
 
       private CompositeLockPromise(int size) {
          lockPromiseList = new ArrayList<>(size);
-         listeners = new CopyOnWriteArrayList<>();
+         notifier = new Notifier<>(this);
       }
 
       public void addLock(CancellableLockPromise lockPromise) {
@@ -231,8 +229,7 @@ public class DefaultLockManager implements LockManager {
 
       @Override
       public void addListener(Listener listener) {
-         listeners.add(listener);
-         notifyAvailable();
+         notifier.add(listener);
       }
 
       @Override
@@ -240,16 +237,15 @@ public class DefaultLockManager implements LockManager {
          if (!acquired) {
             this.acquired = false;
          }
-         notifyAvailable();
+         if (isAvailable()) {
+            //already available.
+            notifier.fireListener();
+         }
       }
 
-      private void notifyAvailable() {
-         if (isAvailable()) {
-            listeners.removeIf(listener -> {
-               listener.onEvent(acquired);
-               return true;
-            });
-         }
+      @Override
+      public void invoke(Listener invoker) {
+         invoker.onEvent(acquired);
       }
 
       private enum ExceptionType {

@@ -85,6 +85,10 @@ public interface CacheTransaction {
     */
    boolean waitForLockRelease(Object key, long lockAcquisitionTimeout) throws InterruptedException;
 
+   boolean containsLockOrBackupLock(Object key);
+
+   boolean containsAnyLockOrBackupLock(Collection<Object> keys);
+
    EntryVersionsMap getUpdatedEntryVersions();
 
    void setUpdatedEntryVersions(EntryVersionsMap updatedEntryVersions);

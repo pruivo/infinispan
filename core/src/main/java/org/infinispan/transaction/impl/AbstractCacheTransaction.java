@@ -251,6 +251,42 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
       lockedKeys = null;
    }
 
+   @Override
+   public boolean containsLockOrBackupLock(Object key) {
+      Set<Object> lockedKeysCopy = lockedKeys;
+      Set<Object> backupKeyLocksCopy = backupKeyLocks;
+      return (lockedKeysCopy != null && lockedKeysCopy.contains(key)) || (backupKeyLocksCopy != null && backupKeyLocksCopy.contains(key));
+   }
+
+   @Override
+   public boolean containsAnyLockOrBackupLock(Collection<Object> keys) {
+      if (keys.isEmpty()) {
+         return false;
+      }
+      Set<Object> lockedKeysCopy = lockedKeys;
+      Set<Object> backupKeyLocksCopy = backupKeyLocks;
+      if (lockedKeysCopy != null && backupKeyLocksCopy != null) {
+         for (Object key : keys) {
+            if (lockedKeysCopy.contains(key) || backupKeyLocksCopy.contains(key)) {
+               return true;
+            }
+         }
+      } else if (lockedKeysCopy != null) {
+         for (Object key : keys) {
+            if (lockedKeysCopy.contains(key)) {
+               return true;
+            }
+         }
+      } else {
+         for (Object key : keys) {
+            if (backupKeyLocksCopy.contains(key)) {
+               return true;
+            }
+         }
+      }
+      return false;
+   }
+
    private boolean hasLockOrIsLockBackup(Object key) {
       //stopgap fix for ISPN-2728. The real fix would be to synchronize this with the intrinsic lock.
       Set<Object> lockedKeysCopy = lockedKeys;

@@ -1,8 +1,10 @@
 package org.infinispan.util.concurrent.locks.impl;
 
+import org.infinispan.commons.util.Notifier;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.CancellableLockPromise;
+import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -11,7 +13,6 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -202,15 +203,14 @@ public class InfinispanLock {
       WAITING, ACQUIRED, TIMED_OUT, RELEASED
    }
 
-   private class LockPlaceHolder implements CancellableLockPromise {
+   private class LockPlaceHolder implements CancellableLockPromise, Notifier.Invoker<LockPromise.Listener> {
 
       private final AtomicReferenceFieldUpdater<LockPlaceHolder, LockState> stateUpdater;
 
       private final Object lockOwner;
       private final long timeout;
       private final AtomicBoolean cleanup;
-      @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
-      private final CopyOnWriteArrayList<Listener> listeners;
+      private final Notifier<Listener> notifier;
       private volatile LockState lockState;
 
       private LockPlaceHolder(Object lockOwner, long timeout) {
@@ -219,7 +219,7 @@ public class InfinispanLock {
          lockState = LockState.WAITING;
          stateUpdater = AtomicReferenceFieldUpdater.newUpdater(LockPlaceHolder.class, LockState.class, "lockState");
          cleanup = new AtomicBoolean(false);
-         listeners = new CopyOnWriteArrayList<>();
+         notifier = new Notifier<>(this);
       }
 
       @Override
@@ -251,8 +251,7 @@ public class InfinispanLock {
 
       @Override
       public void addListener(Listener listener) {
-         listeners.add(listener);
-         notifyListeners();
+         notifier.add(listener);
       }
 
       public boolean acquire() {
@@ -305,6 +304,11 @@ public class InfinispanLock {
                '}';
       }
 
+      @Override
+      public void invoke(Listener invoker) {
+         invoker.onEvent(lockState == LockState.ACQUIRED);
+      }
+
       private void cleanup() {
          if (cleanup.compareAndSet(false, true)) {
             remove(lockOwner);
@@ -347,10 +351,7 @@ public class InfinispanLock {
 
       private void notifyListeners() {
          if (lockState != LockState.WAITING) {
-            listeners.removeIf(listener -> {
-               listener.onEvent(lockState == LockState.ACQUIRED);
-               return true;
-            });
+            notifier.fireListener();
          }
       }
    }

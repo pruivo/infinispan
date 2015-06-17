@@ -16,6 +16,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import static org.infinispan.commons.util.Util.toStr;
 
@@ -39,7 +42,7 @@ public class DefaultPendingLockManager {
       this.timeService = timeService;
    }
 
-   public long checkAndAwaitPendingTxForKey(TxInvocationContext<?> ctx, Object key, long lockTimeout) throws InterruptedException {
+   public PendingLockPromise checkAndAwaitPendingTransactions(TxInvocationContext<?> ctx, Object key, long time, TimeUnit unit) throws InterruptedException {
       final CacheTransaction tx = ctx.getCacheTransaction();
       boolean isFromStateTransfer = ctx.isOriginLocal() && ((LocalTransaction) tx).isFromStateTransfer();
       // if the transaction is from state transfer it should not wait for the backup locks of other transactions
@@ -47,29 +50,31 @@ public class DefaultPendingLockManager {
          final int transactionTopologyId = tx.getTopologyId();
          if (transactionTopologyId != TransactionTable.CACHE_STOPPED_TOPOLOGY_ID) {
             if (transactionTable.getMinTopologyId() < transactionTopologyId) {
-               return checkForPendingLocks(key, ctx.getGlobalTransaction(), transactionTopologyId, lockTimeout);
+               return checkForPendingLocks(key, ctx.getGlobalTransaction(), transactionTopologyId, unit.toMillis(time));
             }
          }
       }
 
-      if (trace)
+      if (trace) {
          log.tracef("Locking key %s, no need to check for pending locks.", toStr(key));
-      return lockTimeout;
+      }
+      return new NoOpPendingLockPromise(unit.toMillis(time));
    }
 
-   private long checkForPendingLocks(Object key, GlobalTransaction globalTransaction, int transactionTopologyId, long lockTimeout) throws InterruptedException {
+   private PendingLockPromise checkForPendingLocks(Object key, GlobalTransaction globalTransaction, int transactionTopologyId, long lockTimeout) throws InterruptedException {
       if (trace)
          log.tracef("Checking for pending locks and then locking key %s", toStr(key));
 
       final long expectedEndTime = timeService.expectedEndTime(lockTimeout, TimeUnit.MILLISECONDS);
 
-      waitForTransactionsToComplete(globalTransaction, getAndFilterTransactions(transactionTopologyId, globalTransaction), key, expectedEndTime);
+      Collection<CacheTransaction> transactions = getTransactionWithLockedKey(transactionTopologyId, key, globalTransaction);
+      waitForTransactionsToComplete(globalTransaction, transactions, key, expectedEndTime);
 
       // Then try to acquire a lock
       if (trace)
          log.tracef("Finished waiting for other potential lockers, trying to acquire the lock on %s", toStr(key));
 
-      return timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
+      return new NoOpPendingLockPromise(timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS));
    }
 
    private void waitForTransactionsToComplete(GlobalTransaction thisGlobalTransaction, Collection<? extends CacheTransaction> transactionsToCheck,
@@ -99,31 +104,89 @@ public class DefaultPendingLockManager {
                                         thisGlobalTransaction + ". Waiting to complete tx: " + tx + ".");
    }
 
-   private Collection<CacheTransaction> getAndFilterTransactions(int transactionTopologyId,
-                                                                 GlobalTransaction globalTransaction) {
-      Collection<? extends CacheTransaction> localTransactions = transactionTable.getLocalTransactions();
-      Collection<? extends CacheTransaction> remoteTransactions = transactionTable.getRemoteTransactions();
-      List<CacheTransaction> allTransactions = new ArrayList<>(localTransactions.size() + remoteTransactions.size());
+   private Collection<CacheTransaction> getTransactionWithLockedKey(int transactionTopologyId,
+                                                                    Object key,
+                                                                    GlobalTransaction globalTransaction) {
 
-      filterAndAdd(localTransactions, transactionTopologyId, globalTransaction, allTransactions);
-      filterAndAdd(remoteTransactions, transactionTopologyId, globalTransaction, allTransactions);
+      Predicate<CacheTransaction> filter = transaction -> transaction.getTopologyId() < transactionTopologyId &&
+            !transaction.getGlobalTransaction().equals(globalTransaction) &&
+            transaction.containsLockOrBackupLock(key);
+
+      return filterAndCollectTransactions(filter);
+   }
+
+   private Collection<CacheTransaction> getTransactionWithAnyLockedKey(int transactionTopologyId,
+                                                                       Collection<Object> keys,
+                                                                       GlobalTransaction globalTransaction) {
+
+      Predicate<CacheTransaction> filter = transaction -> transaction.getTopologyId() < transactionTopologyId &&
+            !transaction.getGlobalTransaction().equals(globalTransaction) &&
+            transaction.containsAnyLockOrBackupLock(keys);
+
+      return filterAndCollectTransactions(filter);
+   }
+
+   private Collection<CacheTransaction> filterAndCollectTransactions(Predicate<CacheTransaction> filter) {
+      final Collection<? extends CacheTransaction> localTransactions = transactionTable.getLocalTransactions();
+      final Collection<? extends CacheTransaction> remoteTransactions = transactionTable.getRemoteTransactions();
+      final int totalSize = localTransactions.size() + remoteTransactions.size();
+      if (totalSize == 0) {
+         return Collections.emptyList();
+      }
+      final List<CacheTransaction> allTransactions = new ArrayList<>(totalSize);
+      final Collector<CacheTransaction, ?, Collection<CacheTransaction>> collector = Collectors.toCollection(() -> allTransactions);
+
+
+      if (!localTransactions.isEmpty()) {
+         localTransactions.stream().filter(filter).collect(collector);
+      }
+      if (!remoteTransactions.isEmpty()) {
+         remoteTransactions.stream().filter(filter).collect(collector);
+      }
 
       return allTransactions.isEmpty() ? Collections.emptyList() : allTransactions;
    }
 
-   private void filterAndAdd(Collection<? extends CacheTransaction> toFilter, int transactionTopologyId,
-                             GlobalTransaction thisGlobalTransaction, Collection<CacheTransaction> toAdd) {
-      if (toFilter.isEmpty()) {
-         return;
+   private static class PendingLock {
+      private final Collection<CacheTransaction> pendingTransactions;
+
+      private PendingLock(Collection<CacheTransaction> pendingTransactions) {
+         this.pendingTransactions = pendingTransactions;
       }
-      for (CacheTransaction transaction : toFilter) {
-         if (transaction.getTopologyId() < transactionTopologyId) {
-            // don't wait for the current transaction
-            if (transaction.getGlobalTransaction().equals(thisGlobalTransaction)) {
-               continue;
-            }
-            toAdd.add(transaction);
+
+      public void isReady() {
+         for (CacheTransaction transaction : pendingTransactions) {
+            //TODO check it!
          }
+      }
+
+
+   }
+
+   public static class NoOpPendingLockPromise implements PendingLockPromise {
+
+      private final long timeout;
+
+      public NoOpPendingLockPromise(long timeout) {
+         this.timeout = timeout;
+      }
+
+      @Override
+      public long getRemainingTimeout() {
+         return timeout;
+      }
+
+      @Override
+      public boolean isAvailable() {
+         return true;
+      }
+
+      @Override
+      public void lock() throws InterruptedException, TimeoutException {/*no-op*/}
+
+      @Override
+      public void addListener(Listener listener) {
+         listener.onEvent(true);
       }
    }
 }
