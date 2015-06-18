@@ -289,6 +289,13 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
       return false;
    }
 
+   @Override
+   public boolean areLocksReleased() {
+      synchronized (lockReleaseNotifier) {
+         return txComplete;
+      }
+   }
+
    private boolean hasLockOrIsLockBackup(Object key) {
       //stopgap fix for ISPN-2728. The real fix would be to synchronize this with the intrinsic lock.
       Set<Object> lockedKeysCopy = lockedKeys;
