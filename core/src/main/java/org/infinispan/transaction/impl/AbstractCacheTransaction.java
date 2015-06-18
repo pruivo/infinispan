@@ -262,6 +262,8 @@ public abstract class AbstractCacheTransaction implements CacheTransaction {
    public boolean containsAnyLockOrBackupLock(Collection<Object> keys) {
       if (keys.isEmpty()) {
          return false;
+      } else if (keys.size() == 1) {
+         return containsLockOrBackupLock(keys.iterator().next());
       }
       Set<Object> lockedKeysCopy = lockedKeys;
       Set<Object> backupKeyLocksCopy = backupKeyLocks;

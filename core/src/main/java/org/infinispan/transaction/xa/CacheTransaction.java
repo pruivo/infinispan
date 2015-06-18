@@ -89,6 +89,8 @@ public interface CacheTransaction {
 
    boolean containsAnyLockOrBackupLock(Collection<Object> keys);
 
+   boolean areLocksReleased();
+
    EntryVersionsMap getUpdatedEntryVersions();
 
    void setUpdatedEntryVersions(EntryVersionsMap updatedEntryVersions);

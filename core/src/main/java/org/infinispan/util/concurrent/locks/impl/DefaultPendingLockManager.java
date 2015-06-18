@@ -20,6 +20,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
 import static org.infinispan.commons.util.Util.toStr;
 
 /**
@@ -32,9 +33,24 @@ public class DefaultPendingLockManager {
 
    private static final Log log = LogFactory.getLog(DefaultPendingLockManager.class);
    private static final boolean trace = log.isTraceEnabled();
+   private static final int NO_PENDING_CHECK = -2;
 
    private TransactionTable transactionTable;
    private TimeService timeService;
+
+   private static <T> T findAnyCommon(Collection<T> c1, Collection<T> c2) {
+      if (c1.isEmpty()) {
+         return null;
+      } else if (c2.isEmpty()) {
+         return null;
+      }
+      for (T item : c1) {
+         if (c2.contains(item)) {
+            return item;
+         }
+      }
+      return null;
+   }
 
    @Inject
    public void inject(TransactionTable transactionTable, TimeService timeService) {
@@ -42,66 +58,128 @@ public class DefaultPendingLockManager {
       this.timeService = timeService;
    }
 
-   public PendingLockPromise checkAndAwaitPendingTransactions(TxInvocationContext<?> ctx, Object key, long time, TimeUnit unit) throws InterruptedException {
-      final CacheTransaction tx = ctx.getCacheTransaction();
-      boolean isFromStateTransfer = ctx.isOriginLocal() && ((LocalTransaction) tx).isFromStateTransfer();
-      // if the transaction is from state transfer it should not wait for the backup locks of other transactions
-      if (!isFromStateTransfer) {
-         final int transactionTopologyId = tx.getTopologyId();
-         if (transactionTopologyId != TransactionTable.CACHE_STOPPED_TOPOLOGY_ID) {
-            if (transactionTable.getMinTopologyId() < transactionTopologyId) {
-               return checkForPendingLocks(key, ctx.getGlobalTransaction(), transactionTopologyId, unit.toMillis(time));
-            }
-         }
+   public PendingLockPromise checkPendingForKey() {
+      return null;
+   }
+
+   public PendingLockPromise checkPendingForAnyKeys() {
+      return null;
+   }
+
+   public long awaitPendingTransactionsForKey(TxInvocationContext<?> ctx, Object key,
+                                              long time, TimeUnit unit) throws InterruptedException {
+      final int txTopologyId = getTopologyId(ctx);
+      if (txTopologyId != NO_PENDING_CHECK) {
+         return checkForPendingLock(key, ctx.getGlobalTransaction(), txTopologyId, unit.toMillis(time));
       }
 
       if (trace) {
          log.tracef("Locking key %s, no need to check for pending locks.", toStr(key));
       }
-      return new NoOpPendingLockPromise(unit.toMillis(time));
+      return unit.toMillis(time);
    }
 
-   private PendingLockPromise checkForPendingLocks(Object key, GlobalTransaction globalTransaction, int transactionTopologyId, long lockTimeout) throws InterruptedException {
-      if (trace)
+   public long awaitPendingTransactionsForAllKeys(TxInvocationContext<?> ctx, Collection<Object> keys,
+                                                  long time, TimeUnit unit) throws InterruptedException {
+      final int txTopologyId = getTopologyId(ctx);
+      if (txTopologyId != NO_PENDING_CHECK) {
+         return checkForPendingAnyLocks(keys, ctx.getGlobalTransaction(), txTopologyId, unit.toMillis(time));
+      }
+
+      if (trace) {
+         log.tracef("Locking keys %s, no need to check for pending locks.", toStr(keys));
+      }
+
+      return unit.toMillis(time);
+   }
+
+   private int getTopologyId(TxInvocationContext<?> context) {
+      final CacheTransaction tx = context.getCacheTransaction();
+      boolean isFromStateTransfer = context.isOriginLocal() && ((LocalTransaction) tx).isFromStateTransfer();
+      // if the transaction is from state transfer it should not wait for the backup locks of other transactions
+      if (!isFromStateTransfer) {
+         final int transactionTopologyId = tx.getTopologyId();
+         if (transactionTopologyId != TransactionTable.CACHE_STOPPED_TOPOLOGY_ID) {
+            if (transactionTable.getMinTopologyId() < transactionTopologyId) {
+               return transactionTopologyId;
+            }
+         }
+      }
+      return NO_PENDING_CHECK;
+   }
+
+   private long checkForPendingLock(Object key, GlobalTransaction globalTransaction, int transactionTopologyId, long lockTimeout) throws InterruptedException {
+      if (trace) {
          log.tracef("Checking for pending locks and then locking key %s", toStr(key));
+      }
 
       final long expectedEndTime = timeService.expectedEndTime(lockTimeout, TimeUnit.MILLISECONDS);
 
-      Collection<CacheTransaction> transactions = getTransactionWithLockedKey(transactionTopologyId, key, globalTransaction);
-      waitForTransactionsToComplete(globalTransaction, transactions, key, expectedEndTime);
+      final CacheTransaction lockOwner = waitForTransactionsToComplete(getTransactionWithLockedKey(transactionTopologyId, key, globalTransaction),
+                                                                       expectedEndTime);
 
       // Then try to acquire a lock
-      if (trace)
+      if (trace) {
          log.tracef("Finished waiting for other potential lockers, trying to acquire the lock on %s", toStr(key));
+      }
 
-      return new NoOpPendingLockPromise(timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS));
+      if (lockOwner != null) {
+         timeoutForKey(key, lockOwner, globalTransaction);
+      }
+
+      return timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
    }
 
-   private void waitForTransactionsToComplete(GlobalTransaction thisGlobalTransaction, Collection<? extends CacheTransaction> transactionsToCheck,
-                                              Object key, long expectedEndTime) throws InterruptedException {
+   private long checkForPendingAnyLocks(Collection<Object> keys, GlobalTransaction globalTransaction, int transactionTopologyId, long lockTimeout) throws InterruptedException {
+      if (trace)
+         log.tracef("Checking for pending locks and then locking key %s", toStr(keys));
+
+      final long expectedEndTime = timeService.expectedEndTime(lockTimeout, TimeUnit.MILLISECONDS);
+
+      final CacheTransaction lockOwner = waitForTransactionsToComplete(getTransactionWithAnyLockedKey(transactionTopologyId, keys, globalTransaction),
+                                                                       expectedEndTime);
+
+      // Then try to acquire a lock
+      if (trace) {
+         log.tracef("Finished waiting for other potential lockers. Timed-Out? %b. trying to acquire the lock on %s",
+                    lockOwner != null, toStr(keys));
+      }
+
+      if (lockOwner != null) {
+         timeoutForAnyKey(keys, lockOwner, globalTransaction);
+      }
+
+      return timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
+   }
+
+   private CacheTransaction waitForTransactionsToComplete(Collection<? extends CacheTransaction> transactionsToCheck,
+                                                          long expectedEndTime) throws InterruptedException {
       if (transactionsToCheck.isEmpty()) {
-         return;
+         return null;
       }
       for (CacheTransaction tx : transactionsToCheck) {
-         boolean txCompleted = false;
-
          long remaining;
          while ((remaining = timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS)) > 0) {
-            if (tx.waitForLockRelease(key, remaining)) {
-               txCompleted = true;
-               break;
-            }
+            tx.waitForLockRelease(null, remaining);
          }
-
-         if (!txCompleted) {
-            throw newTimeoutException(key, tx, thisGlobalTransaction);
+         if (!tx.areLocksReleased()) {
+            return tx;
          }
       }
+      return null;
    }
 
-   private TimeoutException newTimeoutException(Object key, CacheTransaction tx, GlobalTransaction thisGlobalTransaction) {
-      return new TimeoutException("Could not acquire lock on " + key + " on behalf of transaction " +
-                                        thisGlobalTransaction + ". Waiting to complete tx: " + tx + ".");
+   private void timeoutForKey(Object key, CacheTransaction tx, GlobalTransaction thisGlobalTransaction) {
+      throw new TimeoutException(format("Could not acquire lock on %s in behalf of transaction %s. Current owner %s.",
+                                        key, thisGlobalTransaction, tx.getGlobalTransaction()));
+   }
+
+   private void timeoutForAnyKey(Collection<Object> keys, CacheTransaction tx, GlobalTransaction thisGlobalTransaction) {
+      Object key = findAnyCommon(keys, tx.getLockedKeys());
+      if (key == null) {
+         key = findAnyCommon(keys, tx.getBackupLockedKeys());
+      }
+      timeoutForKey(key, tx, thisGlobalTransaction);
    }
 
    private Collection<CacheTransaction> getTransactionWithLockedKey(int transactionTopologyId,
@@ -147,46 +225,24 @@ public class DefaultPendingLockManager {
       return allTransactions.isEmpty() ? Collections.emptyList() : allTransactions;
    }
 
-   private static class PendingLock {
+   private static class PendingLockPromiseImpl implements PendingLockPromise {
+
       private final Collection<CacheTransaction> pendingTransactions;
+      private final long expectedEndTime;
 
-      private PendingLock(Collection<CacheTransaction> pendingTransactions) {
+      private PendingLockPromiseImpl(Collection<CacheTransaction> pendingTransactions, long expectedEndTime) {
          this.pendingTransactions = pendingTransactions;
+         this.expectedEndTime = expectedEndTime;
       }
 
-      public void isReady() {
-         for (CacheTransaction transaction : pendingTransactions) {
-            //TODO check it!
+      @Override
+      public boolean isReady() {
+         for (CacheTransaction cacheTransaction : pendingTransactions) {
+            if (!cacheTransaction.areLocksReleased()) {
+               return false;
+            }
          }
-      }
-
-
-   }
-
-   public static class NoOpPendingLockPromise implements PendingLockPromise {
-
-      private final long timeout;
-
-      public NoOpPendingLockPromise(long timeout) {
-         this.timeout = timeout;
-      }
-
-      @Override
-      public long getRemainingTimeout() {
-         return timeout;
-      }
-
-      @Override
-      public boolean isAvailable() {
          return true;
-      }
-
-      @Override
-      public void lock() throws InterruptedException, TimeoutException {/*no-op*/}
-
-      @Override
-      public void addListener(Listener listener) {
-         listener.onEvent(true);
       }
    }
 }
