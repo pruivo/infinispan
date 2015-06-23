@@ -42,7 +42,7 @@ public class DefaultLockManager implements LockManager {
 
    @Inject
    public void inject(LockContainer container, Configuration configuration,
-                      @ComponentName(KnownComponentNames.EXPIRATION_SCHEDULED_EXECUTOR) ScheduledExecutorService executorService) {
+                      @ComponentName(KnownComponentNames.TIMEOUT_SCHEDULE_EXECUTOR) ScheduledExecutorService executorService) {
       this.container = container;
       this.configuration = configuration;
       this.scheduler = executorService;

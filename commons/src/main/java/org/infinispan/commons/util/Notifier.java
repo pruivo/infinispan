@@ -3,6 +3,8 @@ package org.infinispan.commons.util;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * // TODO: Document this
@@ -14,6 +16,7 @@ public class Notifier<T> {
 
    private final Invoker<T> invoker;
    private final Queue<T> listeners;
+   private final CountDownLatch waiter;
    private volatile boolean notify;
 
    public Notifier(Invoker<T> invoker) {
@@ -21,18 +24,29 @@ public class Notifier<T> {
       this.invoker = invoker;
       this.listeners = new ConcurrentLinkedQueue<>();
       this.notify = false;
+      this.waiter = new CountDownLatch(1);
    }
 
    public void add(T listener) {
+      Objects.requireNonNull(listener, "Listener must be non-null");
       listeners.add(listener);
       if (notify) {
          trigger();
       }
    }
 
+   public boolean await(long time, TimeUnit unit) throws InterruptedException {
+      Objects.requireNonNull(unit, "TimeUnit must be non-null");
+      return waiter.await(time, unit);
+   }
+
    public void fireListener() {
-      this.notify = true;
-      trigger();
+      if (!notify) {
+         //avoid CPU cache invalidation.
+         this.notify = true;
+         waiter.countDown();
+         trigger();
+      }
    }
 
    private void trigger() {

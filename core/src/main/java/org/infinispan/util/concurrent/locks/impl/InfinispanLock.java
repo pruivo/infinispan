@@ -230,11 +230,11 @@ public class InfinispanLock {
 
       @Override
       public void lock() throws InterruptedException, TimeoutException {
-         checkTimeout();
          while (true) {
+            checkTimeout();
             switch (lockState) {
                case WAITING:
-                  await();
+                  notifier.await(timeService.remainingTime(timeout, TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
                   break;
                case ACQUIRED:
                   return; //already acquired
@@ -259,7 +259,7 @@ public class InfinispanLock {
             if (trace) {
                log.tracef("State changed for %s. %s => %s", this, LockState.WAITING, LockState.ACQUIRED);
             }
-            notifyStateChanged();
+            notifyListeners();
          }
          return lockState == LockState.ACQUIRED;
       }
@@ -274,7 +274,7 @@ public class InfinispanLock {
                   if (trace) {
                      log.tracef("State changed for %s. %s => %s", this, state, LockState.RELEASED);
                   }
-                  notifyStateChanged();
+                  notifyListeners();
                   return true;
                }
                break;
@@ -315,25 +315,6 @@ public class InfinispanLock {
          }
       }
 
-      private void await() throws InterruptedException {
-         synchronized (this) {
-            while (lockState == LockState.WAITING) {
-               long waitTime = timeService.remainingTime(timeout, TimeUnit.MILLISECONDS);
-               if (waitTime > 0) {
-                  this.wait(timeService.remainingTime(timeout, TimeUnit.MILLISECONDS));
-               }
-               checkTimeout();
-            }
-         }
-      }
-
-      private void notifyStateChanged() {
-         synchronized (this) {
-            this.notifyAll();
-         }
-         notifyListeners();
-      }
-
       private void checkTimeout() {
          if (lockState != LockState.WAITING) {
             return;
@@ -344,7 +325,7 @@ public class InfinispanLock {
                   log.tracef("State changed for %s. %s => %s", this, LockState.WAITING, LockState.TIMED_OUT);
                }
                onTimeout(this); //we release before notify (notify can check the remote executor and we need to be ready)
-               notifyStateChanged();
+               notifyListeners();
             }
          }
       }

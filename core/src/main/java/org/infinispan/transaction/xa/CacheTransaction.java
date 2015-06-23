@@ -83,7 +83,7 @@ public interface CacheTransaction {
     *
     * @see org.infinispan.interceptors.locking.AbstractTxLockingInterceptor#lockKeyAndCheckOwnership(org.infinispan.context.InvocationContext, Object)
     */
-   boolean waitForLockRelease(Object key, long lockAcquisitionTimeout) throws InterruptedException;
+   boolean waitForLockRelease(long lockAcquisitionTimeout) throws InterruptedException;
 
    boolean containsLockOrBackupLock(Object key);
 
@@ -132,4 +132,10 @@ public interface CacheTransaction {
    EntryVersionsMap getVersionsRead();
 
    long getCreationTime();
+
+   void addListener(TransactionCompletedListener listener);
+
+   interface TransactionCompletedListener {
+      void onCompletion();
+   }
 }

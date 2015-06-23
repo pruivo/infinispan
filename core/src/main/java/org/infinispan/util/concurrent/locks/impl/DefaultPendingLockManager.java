@@ -1,6 +1,8 @@
 package org.infinispan.util.concurrent.locks.impl;
 
+import org.infinispan.commons.util.Notifier;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.transaction.impl.LocalTransaction;
 import org.infinispan.transaction.impl.TransactionTable;
@@ -15,6 +17,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collector;
@@ -22,6 +27,7 @@ import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static org.infinispan.commons.util.Util.toStr;
+import static org.infinispan.factories.KnownComponentNames.TIMEOUT_SCHEDULE_EXECUTOR;
 
 /**
  * // TODO: Document this
@@ -37,6 +43,12 @@ public class DefaultPendingLockManager {
 
    private TransactionTable transactionTable;
    private TimeService timeService;
+   private ScheduledExecutorService timeoutExecutor;
+   private final Map<GlobalTransaction, PendingLockPromiseImpl> pendingLockPromiseMap;
+
+   public DefaultPendingLockManager() {
+      pendingLockPromiseMap = new ConcurrentHashMap<>();
+   }
 
    private static <T> T findAnyCommon(Collection<T> c1, Collection<T> c2) {
       if (c1.isEmpty()) {
@@ -53,13 +65,32 @@ public class DefaultPendingLockManager {
    }
 
    @Inject
-   public void inject(TransactionTable transactionTable, TimeService timeService) {
+   public void inject(TransactionTable transactionTable, TimeService timeService,
+                      @ComponentName(TIMEOUT_SCHEDULE_EXECUTOR) ScheduledExecutorService timeoutExecutor) {
       this.transactionTable = transactionTable;
       this.timeService = timeService;
+      this.timeoutExecutor = timeoutExecutor;
    }
 
-   public PendingLockPromise checkPendingForKey() {
-      return null;
+   public PendingLockPromise checkPendingForKey(TxInvocationContext<?> ctx, Object key,
+                                                long time, TimeUnit unit) {
+      final int txTopologyId = getTopologyId(ctx);
+      if (txTopologyId != NO_PENDING_CHECK) {
+         if (trace) {
+            log.tracef("Checking for pending locks and then locking key %s", toStr(key));
+         }
+
+         final long expectedEndTime = timeService.expectedEndTime(time, unit);
+         Collection<CacheTransaction> transactions = getTransactionWithLockedKey(txTopologyId, key, ctx.getGlobalTransaction());
+         if (transactions.isEmpty()) {
+            return PendingLockPromise.NO_OP;
+         }
+
+         PendingLockPromiseImpl pendingLockPromise = new PendingLockPromiseImpl(transactions, expectedEndTime);
+         pendingLockPromiseMap.put(ctx.getGlobalTransaction(), pendingLockPromise);
+         return pendingLockPromise;
+      }
+      return PendingLockPromise.NO_OP;
    }
 
    public PendingLockPromise checkPendingForAnyKeys() {
@@ -68,6 +99,10 @@ public class DefaultPendingLockManager {
 
    public long awaitPendingTransactionsForKey(TxInvocationContext<?> ctx, Object key,
                                               long time, TimeUnit unit) throws InterruptedException {
+      PendingLockPromiseImpl pendingLockPromise = pendingLockPromiseMap.remove(ctx.getGlobalTransaction());
+      if (pendingLockPromise != null) {
+         return pendingLockPromise.await();
+      }
       final int txTopologyId = getTopologyId(ctx);
       if (txTopologyId != NO_PENDING_CHECK) {
          return checkForPendingLock(key, ctx.getGlobalTransaction(), txTopologyId, unit.toMillis(time));
@@ -81,6 +116,10 @@ public class DefaultPendingLockManager {
 
    public long awaitPendingTransactionsForAllKeys(TxInvocationContext<?> ctx, Collection<Object> keys,
                                                   long time, TimeUnit unit) throws InterruptedException {
+      PendingLockPromiseImpl pendingLockPromise = pendingLockPromiseMap.remove(ctx.getGlobalTransaction());
+      if (pendingLockPromise != null) {
+         return pendingLockPromise.await();
+      }
       final int txTopologyId = getTopologyId(ctx);
       if (txTopologyId != NO_PENDING_CHECK) {
          return checkForPendingAnyLocks(keys, ctx.getGlobalTransaction(), txTopologyId, unit.toMillis(time));
@@ -160,7 +199,7 @@ public class DefaultPendingLockManager {
       for (CacheTransaction tx : transactionsToCheck) {
          long remaining;
          while ((remaining = timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS)) > 0) {
-            tx.waitForLockRelease(null, remaining);
+            tx.waitForLockRelease(remaining);
          }
          if (!tx.areLocksReleased()) {
             return tx;
@@ -225,14 +264,22 @@ public class DefaultPendingLockManager {
       return allTransactions.isEmpty() ? Collections.emptyList() : allTransactions;
    }
 
-   private static class PendingLockPromiseImpl implements PendingLockPromise {
+   private class PendingLockPromiseImpl implements PendingLockPromise, Notifier.Invoker<PendingLockPromise.Listener>, CacheTransaction.TransactionCompletedListener {
 
       private final Collection<CacheTransaction> pendingTransactions;
       private final long expectedEndTime;
+      private final Notifier<PendingLockPromise.Listener> notifier;
 
       private PendingLockPromiseImpl(Collection<CacheTransaction> pendingTransactions, long expectedEndTime) {
          this.pendingTransactions = pendingTransactions;
          this.expectedEndTime = expectedEndTime;
+         this.notifier = new Notifier<>(this);
+      }
+
+      public void registerListenerInCacheTransactions() {
+         for (CacheTransaction transaction : pendingTransactions) {
+            transaction.addListener(this);
+         }
       }
 
       @Override
@@ -243,6 +290,28 @@ public class DefaultPendingLockManager {
             }
          }
          return true;
+      }
+
+      @Override
+      public void addListener(Listener listener) {
+         notifier.add(listener);
+      }
+
+      public long await() throws InterruptedException {
+         notifier.await(timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+         return timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
+      }
+
+      @Override
+      public void invoke(Listener invoker) {
+         invoker.onReady();
+      }
+
+      @Override
+      public void onCompletion() {
+         if (isReady()) {
+            notifier.fireListener();
+         }
       }
    }
 }

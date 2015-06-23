@@ -288,7 +288,7 @@ public abstract class AbstractTxLockingInterceptor extends AbstractLockingInterc
 
             long remaining;
             while ((remaining = timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS)) > 0) {
-               if (tx.waitForLockRelease(key, remaining)) {
+               if (tx.waitForLockRelease(remaining)) {
                   txCompleted = true;
                   break;
                }
