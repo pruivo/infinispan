@@ -19,6 +19,7 @@ public class LockContainerHashingTest extends AbstractInfinispanTest {
    @BeforeMethod
    public void setUp() {
       stripedLock = new StripedLockContainer(500, AnyEquivalence.getInstance());
+      stripedLock.inject(TIME_SERVICE);
    }
 
    public void testHashingDistribution() {
@@ -29,6 +30,7 @@ public class LockContainerHashingTest extends AbstractInfinispanTest {
 
       for (String s : keys) {
          InfinispanLock lock = stripedLock.getLock(s);
+         log.tracef("Lock for %s is %s", s, lock);
          if (distribution.containsKey(lock)) {
             int count = distribution.get(lock) + 1;
             distribution.put(lock, count);

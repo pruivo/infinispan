@@ -25,6 +25,7 @@ import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorServiceImpl;
 import org.jgroups.Address;
 import org.jgroups.Message;
+import org.jgroups.blocks.Response;
 import org.jgroups.blocks.RpcDispatcher;
 import org.jgroups.util.Buffer;
 import org.mockito.Matchers;
@@ -36,6 +37,8 @@ import org.testng.annotations.Test;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.infinispan.test.TestingUtil.extractCommandsFactory;
@@ -125,6 +128,7 @@ public class AsynchronousInvocationTest extends AbstractInfinispanTest {
    @AfterClass
    public void tearDown() {
       if (cacheManager != null) {
+         cacheManager.getGlobalComponentRegistry().getComponent(ExecutorService.class, KnownComponentNames.REMOTE_COMMAND_EXECUTOR).shutdownNow();
          cacheManager.stop();
       }
    }
@@ -173,7 +177,9 @@ public class AsynchronousInvocationTest extends AbstractInfinispanTest {
          return;
       }
       executorService.reset();
-      commandAwareRpcDispatcher.handle(oobRequest, null);
+      CountDownLatchResponse response = new CountDownLatchResponse();
+      commandAwareRpcDispatcher.handle(oobRequest, response);
+      response.await(30, TimeUnit.SECONDS);
       Assert.assertEquals(executorService.hasExecutedCommand, expected,
                           "Command " + command.getClass() + " dispatched wrongly.");
 
@@ -183,7 +189,9 @@ public class AsynchronousInvocationTest extends AbstractInfinispanTest {
          return;
       }
       executorService.reset();
-      commandAwareRpcDispatcher.handle(nonOobRequest, null);
+      response = new CountDownLatchResponse();
+      commandAwareRpcDispatcher.handle(nonOobRequest, response);
+      response.await(30, TimeUnit.SECONDS);
       Assert.assertFalse(executorService.hasExecutedCommand, "Command " + command.getClass() + " dispatched wrongly.");
    }
 
@@ -210,6 +218,7 @@ public class AsynchronousInvocationTest extends AbstractInfinispanTest {
       @Override
       public void execute(Runnable command) {
          hasExecutedCommand = true;
+         command.run();
       }
 
       public void reset() {
@@ -239,6 +248,29 @@ public class AsynchronousInvocationTest extends AbstractInfinispanTest {
       @Override
       public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
          return false; //no-op
+      }
+   }
+
+   private static class CountDownLatchResponse implements Response {
+
+      private final CountDownLatch countDownLatch;
+
+      private CountDownLatchResponse() {
+         countDownLatch = new CountDownLatch(1);
+      }
+
+      @Override
+      public void send(Object reply, boolean is_exception) {
+         countDownLatch.countDown();
+      }
+
+      @Override
+      public void send(Message reply, boolean is_exception) {
+         countDownLatch.countDown();
+      }
+
+      public boolean await(long time, TimeUnit unit) throws InterruptedException {
+         return countDownLatch.await(time, unit);
       }
    }
 }

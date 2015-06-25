@@ -137,6 +137,8 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       public void interrupt() {
          interrupted = true;
          super.interrupt();
+         semaphore.release();
+
       }
 
       @Override

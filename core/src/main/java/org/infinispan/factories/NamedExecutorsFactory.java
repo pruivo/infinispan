@@ -176,6 +176,8 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
       if (expirationExecutor != null) expirationExecutor.shutdownNow();
       if (totalOrderExecutor != null) totalOrderExecutor.shutdownNow();
       if (stateTransferExecutor != null) stateTransferExecutor.shutdownNow();
+      if (timeoutExecutor != null) timeoutExecutor.shutdownNow();
+      if (asyncOperationsExecutor != null) asyncOperationsExecutor.shutdownNow();
    }
 
    @SuppressWarnings("unchecked")
