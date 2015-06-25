@@ -101,7 +101,11 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       if (shutdown) {
          throw new RejectedExecutionException("Executor Service is already shutdown");
       }
-      executorService.execute(command);
+      if (command instanceof BlockingRunnable) {
+         execute((BlockingRunnable) command);
+      } else {
+         execute(new RunnableWrapper(command));
+      }
    }
 
    private void doExecute(BlockingRunnable runnable) {
@@ -160,6 +164,25 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
                doExecute(readyList.pop());
             }
          }
+      }
+   }
+
+   private static class RunnableWrapper implements BlockingRunnable {
+
+      private final Runnable runnable;
+
+      private RunnableWrapper(Runnable runnable) {
+         this.runnable = runnable;
+      }
+
+      @Override
+      public boolean isReady() {
+         return true;
+      }
+
+      @Override
+      public void run() {
+         runnable.run();
       }
    }
 }

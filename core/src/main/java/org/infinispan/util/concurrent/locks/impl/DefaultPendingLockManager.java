@@ -10,6 +10,7 @@ import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.concurrent.locks.PendingLockManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -35,16 +36,15 @@ import static org.infinispan.factories.KnownComponentNames.TIMEOUT_SCHEDULE_EXEC
  * @author Pedro Ruivo
  * @since 8.0
  */
-public class DefaultPendingLockManager {
+public class DefaultPendingLockManager implements PendingLockManager {
 
    private static final Log log = LogFactory.getLog(DefaultPendingLockManager.class);
    private static final boolean trace = log.isTraceEnabled();
    private static final int NO_PENDING_CHECK = -2;
-
+   private final Map<GlobalTransaction, PendingLockPromiseImpl> pendingLockPromiseMap;
    private TransactionTable transactionTable;
    private TimeService timeService;
    private ScheduledExecutorService timeoutExecutor;
-   private final Map<GlobalTransaction, PendingLockPromiseImpl> pendingLockPromiseMap;
 
    public DefaultPendingLockManager() {
       pendingLockPromiseMap = new ConcurrentHashMap<>();
@@ -72,36 +72,53 @@ public class DefaultPendingLockManager {
       this.timeoutExecutor = timeoutExecutor;
    }
 
-   public PendingLockPromise checkPendingForKey(TxInvocationContext<?> ctx, Object key,
-                                                long time, TimeUnit unit) {
+   @Override
+   public PendingLockPromise checkPendingForKey(TxInvocationContext<?> ctx, Object key, long time, TimeUnit unit) {
+      final GlobalTransaction globalTransaction = ctx.getGlobalTransaction();
+      PendingLockPromiseImpl existing = pendingLockPromiseMap.get(globalTransaction);
+      if (existing != null) {
+         return existing;
+      }
       final int txTopologyId = getTopologyId(ctx);
       if (txTopologyId != NO_PENDING_CHECK) {
          if (trace) {
             log.tracef("Checking for pending locks and then locking key %s", toStr(key));
          }
-
-         final long expectedEndTime = timeService.expectedEndTime(time, unit);
-         Collection<CacheTransaction> transactions = getTransactionWithLockedKey(txTopologyId, key, ctx.getGlobalTransaction());
-         if (transactions.isEmpty()) {
-            return PendingLockPromise.NO_OP;
-         }
-
-         PendingLockPromiseImpl pendingLockPromise = new PendingLockPromiseImpl(transactions, expectedEndTime);
-         pendingLockPromiseMap.put(ctx.getGlobalTransaction(), pendingLockPromise);
-         return pendingLockPromise;
+         return createAndStore(getTransactionWithLockedKey(txTopologyId, key, globalTransaction),
+                               globalTransaction, time, unit);
       }
       return PendingLockPromise.NO_OP;
    }
 
-   public PendingLockPromise checkPendingForAnyKeys() {
-      return null;
+   @Override
+   public PendingLockPromise checkPendingForAllKeys(TxInvocationContext<?> ctx, Collection<Object> keys,
+                                                    long time, TimeUnit unit) {
+      final GlobalTransaction globalTransaction = ctx.getGlobalTransaction();
+      PendingLockPromiseImpl existing = pendingLockPromiseMap.get(globalTransaction);
+      if (existing != null) {
+         return existing;
+      }
+      final int txTopologyId = getTopologyId(ctx);
+      if (txTopologyId != NO_PENDING_CHECK) {
+         if (trace) {
+            log.tracef("Checking for pending locks and then locking keys %s", toStr(keys));
+         }
+         return createAndStore(getTransactionWithAnyLockedKey(txTopologyId, keys, globalTransaction),
+                               globalTransaction, time, unit);
+      }
+      return PendingLockPromise.NO_OP;
    }
 
+   @Override
    public long awaitPendingTransactionsForKey(TxInvocationContext<?> ctx, Object key,
                                               long time, TimeUnit unit) throws InterruptedException {
       PendingLockPromiseImpl pendingLockPromise = pendingLockPromiseMap.remove(ctx.getGlobalTransaction());
       if (pendingLockPromise != null) {
-         return pendingLockPromise.await();
+         pendingLockPromise.await();
+         if (pendingLockPromise.hasTimedOut()) {
+            timeoutForKey(key, pendingLockPromise.getTimedOutTransaction(), ctx.getGlobalTransaction());
+         }
+         return pendingLockPromise.getRemainingTime();
       }
       final int txTopologyId = getTopologyId(ctx);
       if (txTopologyId != NO_PENDING_CHECK) {
@@ -114,11 +131,16 @@ public class DefaultPendingLockManager {
       return unit.toMillis(time);
    }
 
+   @Override
    public long awaitPendingTransactionsForAllKeys(TxInvocationContext<?> ctx, Collection<Object> keys,
                                                   long time, TimeUnit unit) throws InterruptedException {
       PendingLockPromiseImpl pendingLockPromise = pendingLockPromiseMap.remove(ctx.getGlobalTransaction());
       if (pendingLockPromise != null) {
-         return pendingLockPromise.await();
+         pendingLockPromise.await();
+         if (pendingLockPromise.hasTimedOut()) {
+            timeoutForAnyKey(keys, pendingLockPromise.getTimedOutTransaction(), ctx.getGlobalTransaction());
+         }
+         return pendingLockPromise.getRemainingTime();
       }
       final int txTopologyId = getTopologyId(ctx);
       if (txTopologyId != NO_PENDING_CHECK) {
@@ -130,6 +152,24 @@ public class DefaultPendingLockManager {
       }
 
       return unit.toMillis(time);
+   }
+
+   private PendingLockPromise createAndStore(Collection<CacheTransaction> transactions,
+                                             GlobalTransaction globalTransaction, long time, TimeUnit unit) {
+      if (transactions.isEmpty()) {
+         return PendingLockPromise.NO_OP;
+      }
+
+      PendingLockPromiseImpl pendingLockPromise = new PendingLockPromiseImpl(transactions, timeService.expectedEndTime(time, unit));
+      PendingLockPromiseImpl existing = pendingLockPromiseMap.putIfAbsent(globalTransaction, pendingLockPromise);
+      if (existing != null) {
+         return existing;
+      }
+      pendingLockPromise.registerListenerInCacheTransactions();
+      if (!pendingLockPromise.isReady()) {
+         timeoutExecutor.schedule(pendingLockPromise, time, unit);
+      }
+      return pendingLockPromise;
    }
 
    private int getTopologyId(TxInvocationContext<?> context) {
@@ -198,11 +238,10 @@ public class DefaultPendingLockManager {
       }
       for (CacheTransaction tx : transactionsToCheck) {
          long remaining;
-         while ((remaining = timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS)) > 0) {
-            tx.waitForLockRelease(remaining);
-         }
-         if (!tx.areLocksReleased()) {
-            return tx;
+         if ((remaining = timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS)) > 0) {
+            if (!tx.waitForLockRelease(remaining)) {
+               return tx;
+            }
          }
       }
       return null;
@@ -264,11 +303,12 @@ public class DefaultPendingLockManager {
       return allTransactions.isEmpty() ? Collections.emptyList() : allTransactions;
    }
 
-   private class PendingLockPromiseImpl implements PendingLockPromise, Notifier.Invoker<PendingLockPromise.Listener>, CacheTransaction.TransactionCompletedListener {
+   private class PendingLockPromiseImpl implements PendingLockPromise, Notifier.Invoker<PendingLockPromise.Listener>, CacheTransaction.TransactionCompletedListener, Runnable {
 
       private final Collection<CacheTransaction> pendingTransactions;
       private final long expectedEndTime;
       private final Notifier<PendingLockPromise.Listener> notifier;
+      private volatile CacheTransaction timedOutTransaction;
 
       private PendingLockPromiseImpl(Collection<CacheTransaction> pendingTransactions, long expectedEndTime) {
          this.pendingTransactions = pendingTransactions;
@@ -284,9 +324,15 @@ public class DefaultPendingLockManager {
 
       @Override
       public boolean isReady() {
+         if (timedOutTransaction != null) {
+            return true;
+         }
          for (CacheTransaction cacheTransaction : pendingTransactions) {
             if (!cacheTransaction.areLocksReleased()) {
-               return false;
+               if (timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS) <= 0) {
+                  timedOutTransaction = cacheTransaction;
+               }
+               return timedOutTransaction != null;
             }
          }
          return true;
@@ -297,9 +343,20 @@ public class DefaultPendingLockManager {
          notifier.add(listener);
       }
 
-      public long await() throws InterruptedException {
+      public void await() throws InterruptedException {
          notifier.await(timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+      }
+
+      public boolean hasTimedOut() {
+         return timedOutTransaction != null;
+      }
+
+      public long getRemainingTime() {
          return timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
+      }
+
+      public CacheTransaction getTimedOutTransaction() {
+         return timedOutTransaction;
       }
 
       @Override
@@ -312,6 +369,11 @@ public class DefaultPendingLockManager {
          if (isReady()) {
             notifier.fireListener();
          }
+      }
+
+      @Override
+      public void run() {
+         isReady();
       }
    }
 }
