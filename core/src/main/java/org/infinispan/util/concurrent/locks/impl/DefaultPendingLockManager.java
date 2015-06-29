@@ -118,7 +118,7 @@ public class DefaultPendingLockManager implements PendingLockManager {
          if (pendingLockPromise.hasTimedOut()) {
             timeoutForKey(key, pendingLockPromise.getTimedOutTransaction(), ctx.getGlobalTransaction());
          }
-         return pendingLockPromise.getRemainingTime();
+         return pendingLockPromise.getRemainingTimeout();
       }
       final int txTopologyId = getTopologyId(ctx);
       if (txTopologyId != NO_PENDING_CHECK) {
@@ -140,7 +140,7 @@ public class DefaultPendingLockManager implements PendingLockManager {
          if (pendingLockPromise.hasTimedOut()) {
             timeoutForAnyKey(keys, pendingLockPromise.getTimedOutTransaction(), ctx.getGlobalTransaction());
          }
-         return pendingLockPromise.getRemainingTime();
+         return pendingLockPromise.getRemainingTimeout();
       }
       final int txTopologyId = getTopologyId(ctx);
       if (txTopologyId != NO_PENDING_CHECK) {
@@ -351,7 +351,8 @@ public class DefaultPendingLockManager implements PendingLockManager {
          return timedOutTransaction != null;
       }
 
-      public long getRemainingTime() {
+      @Override
+      public long getRemainingTimeout() {
          return timeService.remainingTime(expectedEndTime, TimeUnit.MILLISECONDS);
       }
 

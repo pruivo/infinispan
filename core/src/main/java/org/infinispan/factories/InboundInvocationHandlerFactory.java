@@ -4,6 +4,7 @@ import org.infinispan.factories.annotations.DefaultFactoryFor;
 import org.infinispan.remoting.inboundhandler.NonTotalOrderPerCacheInboundInvocationHandler;
 import org.infinispan.remoting.inboundhandler.PerCacheInboundInvocationHandler;
 import org.infinispan.remoting.inboundhandler.TotalOrderTxPerCacheInboundInvocationHandler;
+import org.infinispan.remoting.inboundhandler.TxNonTotalOrderPerCacheInboundInvocationHandler;
 
 /**
  * Factory class that creates instances of {@link org.infinispan.remoting.inboundhandler.PerCacheInboundInvocationHandler}.
@@ -22,6 +23,9 @@ public class InboundInvocationHandlerFactory extends AbstractNamedCacheComponent
             configuration.transaction().transactionProtocol().isTotalOrder()) {
          //noinspection unchecked
          return (T) new TotalOrderTxPerCacheInboundInvocationHandler();
+      } else if (configuration.transaction().transactionMode().isTransactional()){
+         //noinspection unchecked
+         return (T) new TxNonTotalOrderPerCacheInboundInvocationHandler();
       } else {
          //noinspection unchecked
          return (T) new NonTotalOrderPerCacheInboundInvocationHandler();

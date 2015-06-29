@@ -8,7 +8,7 @@ package org.infinispan.util.concurrent.locks.impl;
  */
 public interface PendingLockPromise {
 
-   public static PendingLockPromise NO_OP = new PendingLockPromise() {
+   PendingLockPromise NO_OP = new PendingLockPromise() {
       @Override
       public boolean isReady() {
          return true;
@@ -18,11 +18,27 @@ public interface PendingLockPromise {
       public void addListener(Listener listener) {
          listener.onReady();
       }
+
+      @Override
+      public boolean hasTimedOut() {
+         return false;
+      }
+
+      @Override
+      public long getRemainingTimeout() {
+         return Long.MAX_VALUE;
+      }
+
+
    };
 
    boolean isReady();
 
    void addListener(Listener listener);
+
+   boolean hasTimedOut();
+
+   long getRemainingTimeout();
 
    interface Listener {
       void onReady();

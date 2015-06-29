@@ -94,6 +94,18 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand implement
       if (ignored != null)
          throw new IllegalStateException("Expected null context!");
 
+      RemoteTxInvocationContext ctx = createContext();
+      if (ctx == null) {
+         return null;
+      }
+
+      if (trace)
+         log.tracef("Invoking remotely originated prepare: %s with invocation context: %s", this, ctx);
+      notifier.notifyTransactionRegistered(ctx.getGlobalTransaction(), false);
+      return invoker.invoke(ctx, this);
+   }
+
+   public RemoteTxInvocationContext createContext() {
       if (recoveryManager != null && recoveryManager.isTransactionPrepared(globalTx)) {
          log.tracef("The transaction %s is already prepared. Skipping prepare call.", globalTx);
          return null;
@@ -108,12 +120,7 @@ public class PrepareCommand extends AbstractTransactionBoundaryCommand implement
       }
 
       // 2. then set it on the invocation context
-      RemoteTxInvocationContext ctx = icf.createRemoteTxInvocationContext(remoteTransaction, getOrigin());
-
-      if (trace)
-         log.tracef("Invoking remotely originated prepare: %s with invocation context: %s", this, ctx);
-      notifier.notifyTransactionRegistered(ctx.getGlobalTransaction(), false);
-      return invoker.invoke(ctx, this);
+      return icf.createRemoteTxInvocationContext(remoteTransaction, getOrigin());
    }
 
    @Override

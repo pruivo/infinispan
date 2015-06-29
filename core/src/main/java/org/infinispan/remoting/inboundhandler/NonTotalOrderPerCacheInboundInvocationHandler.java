@@ -6,20 +6,25 @@ import org.infinispan.commands.control.LockControlCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.MultipleRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
+import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
+import org.infinispan.commands.tx.RollbackCommand;
+import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
-import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.commands.tx.totalorder.TotalOrderCommitCommand;
+import org.infinispan.commands.tx.totalorder.TotalOrderNonVersionedPrepareCommand;
+import org.infinispan.commands.tx.totalorder.TotalOrderRollbackCommand;
+import org.infinispan.commands.tx.totalorder.TotalOrderVersionedCommitCommand;
+import org.infinispan.commands.tx.totalorder.TotalOrderVersionedPrepareCommand;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.statetransfer.StateRequestCommand;
-import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.LockUtil;
-import org.infinispan.util.concurrent.locks.impl.PendingLockPromise;
 import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -41,25 +46,14 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
 
    private static final Log log = LogFactory.getLog(NonTotalOrderPerCacheInboundInvocationHandler.class);
    private static final boolean trace = log.isTraceEnabled();
-   private static final ReadyAction NO_OP_READY_ACTION = new ReadyAction() {
-      @Override
-      public boolean isReady() {
-         return true;
-      }
-   };
 
    private LockManager lockManager;
-   private PendingLockPromise pendingLockPromise;
    private ClusteringDependentLogic clusteringDependentLogic;
-   private boolean pessimisticLocking;
 
    @Inject
-   public void inject(LockManager lockManager, ClusteringDependentLogic clusteringDependentLogic, Configuration configuration,
-                      PendingLockPromise pendingLockPromise) {
+   public void inject(LockManager lockManager, ClusteringDependentLogic clusteringDependentLogic) {
       this.lockManager = lockManager;
       this.clusteringDependentLogic = clusteringDependentLogic;
-      this.pessimisticLocking = configuration.transaction().lockingMode() == LockingMode.PESSIMISTIC;
-      this.pendingLockPromise = pendingLockPromise;
    }
 
    @Override
@@ -79,8 +73,8 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                   reply.reply(CacheNotFoundResponse.INSTANCE);
                   return;
                }
-               runnable = createReadyActionAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
-                                                         getLockPromise((SingleRpcCommand) command));
+               runnable = createLockAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
+                                                  getLockPromise((SingleRpcCommand) command));
                break;
             case MultipleRpcCommand.COMMAND_ID:
                commandTopologyId = extractCommandTopologyId((MultipleRpcCommand) command);
@@ -88,8 +82,8 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                   reply.reply(CacheNotFoundResponse.INSTANCE);
                   return;
                }
-               runnable = createReadyActionAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
-                                                         getLockPromise((MultipleRpcCommand) command));
+               runnable = createLockAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
+                                                  getLockPromise((MultipleRpcCommand) command));
                break;
             case StateRequestCommand.COMMAND_ID:
                // StateRequestCommand is special in that it doesn't need transaction data
@@ -103,24 +97,16 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                break;
             case PrepareCommand.COMMAND_ID:
             case VersionedPrepareCommand.COMMAND_ID:
-               commandTopologyId = extractCommandTopologyId((PrepareCommand) command);
-               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
-                  reply.reply(CacheNotFoundResponse.INSTANCE);
-                  return;
-               }
-               //no need to acquire locks during prepare with pessimistic locking
-               LockPromise lockPromise = pessimisticLocking ? LockPromise.NO_OP : getLockPromise((PrepareCommand) command);
-               runnable = createReadyActionAwareRunnable(command, reply, commandTopologyId, true, onExecutorService, lockPromise);
-               break;
+            case TotalOrderNonVersionedPrepareCommand.COMMAND_ID:
+            case TotalOrderVersionedPrepareCommand.COMMAND_ID:
+            case CommitCommand.COMMAND_ID:
+            case VersionedCommitCommand.COMMAND_ID:
+            case TotalOrderCommitCommand.COMMAND_ID:
+            case TotalOrderVersionedCommitCommand.COMMAND_ID:
+            case RollbackCommand.COMMAND_ID:
+            case TotalOrderRollbackCommand.COMMAND_ID:
             case LockControlCommand.COMMAND_ID:
-               commandTopologyId = extractCommandTopologyId((LockControlCommand) command);
-               if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
-                  reply.reply(CacheNotFoundResponse.INSTANCE);
-                  return;
-               }
-               runnable = createReadyActionAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
-                                                         getLockPromise((LockControlCommand) command));
-               break;
+               throw new IllegalArgumentException("Illegal Command ID: " + command.getCommandId());
             default:
                commandTopologyId = NO_TOPOLOGY_COMMAND;
                if (command instanceof TopologyAffectedCommand) {
@@ -154,15 +140,15 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       return trace;
    }
 
-   protected final BlockingRunnable createReadyActionAwareRunnable(CacheRpcCommand command, Reply reply, int commandTopologyId,
-                                                                   boolean waitTransactionalData, boolean onExecutorService,
-                                                                   ReadyAction readyAction) {
+   protected final BlockingRunnable createLockAwareRunnable(CacheRpcCommand command, Reply reply, int commandTopologyId,
+                                                            boolean waitTransactionalData, boolean onExecutorService,
+                                                            LockPromise lockPromise) {
       final TopologyMode topologyMode = TopologyMode.create(onExecutorService, waitTransactionalData);
       if (onExecutorService) {
          return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId) {
             @Override
             public boolean isReady() {
-               return super.isReady() && readyAction.isReady();
+               return super.isReady() && lockPromise.isAvailable();
             }
          };
       } else {
@@ -197,7 +183,14 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
             lockPromiseList.add(getLockPromise((RemoteLockCommand) command));
          }
       }
-      return lockPromiseList.isEmpty() ? LockPromise.NO_OP : new CompositeLockPromise(lockPromiseList);
+      if (lockPromiseList.isEmpty()) {
+         return LockPromise.NO_OP;
+      } else if (lockPromiseList.size() == 1) {
+         return lockPromiseList.get(0);
+      }
+      CompositeLockPromise promise = new CompositeLockPromise(lockPromiseList);
+      promise.registerListener();
+      return promise;
    }
 
    /**
@@ -214,6 +207,11 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
          notify = new AtomicBoolean(false);
       }
 
+      public void registerListener() {
+         for (LockPromise lockPromise : lockPromiseList) {
+            lockPromise.addListener(this);
+         }
+      }
 
       @Override
       public boolean isAvailable() {
@@ -239,24 +237,6 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
          if (isAvailable() && listener != null && notify.compareAndSet(false, true)) {
             listener.onEvent(acquired); //it doesn't matter the acquired value.
          }
-      }
-   }
-
-   private interface ReadyAction {
-      boolean isReady();
-   }
-
-   private class LockReadyAction implements ReadyAction {
-
-      private final LockPromise lockPromise;
-
-      private LockReadyAction(LockPromise lockPromise) {
-         this.lockPromise = lockPromise;
-      }
-
-      @Override
-      public boolean isReady() {
-         return lockPromise.isAvailable();
       }
    }
 }
