@@ -145,6 +145,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                                                             LockPromise lockPromise) {
       final TopologyMode topologyMode = TopologyMode.create(onExecutorService, waitTransactionalData);
       if (onExecutorService) {
+         lockPromise.addListener(this);
          return new DefaultTopologyRunnable(this, command, reply, topologyMode, commandTopologyId) {
             @Override
             public boolean isReady() {
@@ -229,6 +230,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       @Override
       public void addListener(Listener listener) {
          this.checkReadyTasks = listener;
+         onEvent(false); //check if available
       }
 
       @Override

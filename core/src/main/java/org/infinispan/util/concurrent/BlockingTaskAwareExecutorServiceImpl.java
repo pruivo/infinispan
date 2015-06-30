@@ -32,12 +32,12 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
    private final ControllerThread controllerThread;
    private volatile boolean shutdown;
 
-   public BlockingTaskAwareExecutorServiceImpl(ExecutorService executorService, TimeService timeService) {
+   public BlockingTaskAwareExecutorServiceImpl(String controllerThreadName, ExecutorService executorService, TimeService timeService) {
       this.blockedTasks = new LinkedBlockingQueue<>();
       this.executorService = executorService;
       this.timeService = timeService;
       this.shutdown = false;
-      this.controllerThread = new ControllerThread();
+      this.controllerThread = new ControllerThread(controllerThreadName);
       controllerThread.start();
    }
 
@@ -123,8 +123,8 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       private final Semaphore semaphore;
       private volatile boolean interrupted;
 
-      public ControllerThread() {
-         super("Controller-Thread");
+      public ControllerThread(String controllerThreadName) {
+         super(controllerThreadName);
          readyList = new LinkedList<>();
          semaphore = new Semaphore(0);
       }

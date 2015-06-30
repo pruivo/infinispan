@@ -87,9 +87,9 @@ public class BlockingTaskAwareExecutorServiceTest extends AbstractInfinispanTest
    }
 
    private BlockingTaskAwareExecutorServiceImpl createExecutorService() {
-      return new BlockingTaskAwareExecutorServiceImpl(new ThreadPoolExecutor(1, 2, 60, TimeUnit.SECONDS,
-                                                                             new LinkedBlockingQueue<>(1000),
-                                                                             new DummyThreadFactory()),
+      return new BlockingTaskAwareExecutorServiceImpl("BlockingAwareTest-Controller", new ThreadPoolExecutor(1, 2, 60, TimeUnit.SECONDS,
+                                                                                                             new LinkedBlockingQueue<>(1000),
+                                                                                                             new DummyThreadFactory()),
                                                       TIME_SERVICE);
    }
 
