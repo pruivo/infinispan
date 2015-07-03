@@ -21,7 +21,7 @@ public interface LockPromise {
 
       @Override
       public void addListener(Listener listener) {
-         listener.onEvent(true);
+         listener.onEvent(LockState.AVAILABLE);
       }
    };
 
@@ -60,9 +60,11 @@ public interface LockPromise {
 
       /**
        * Invoked when the lock is available.
-       * @param acquired {@code true} if the lock is acquired, {@code false} otherwise.
+       *
+       * @param state the current lock state. It can be {@link LockState#AVAILABLE}, {@link LockState#TIMED_OUT} or
+       *              {@link LockState#DEADLOCKED}.
        */
-      void onEvent(boolean acquired);
+      void onEvent(LockState state);
    }
 
 }

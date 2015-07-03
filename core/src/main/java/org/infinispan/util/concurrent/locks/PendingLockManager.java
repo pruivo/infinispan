@@ -1,7 +1,6 @@
 package org.infinispan.util.concurrent.locks;
 
 import org.infinispan.context.impl.TxInvocationContext;
-import org.infinispan.util.concurrent.locks.impl.PendingLockPromise;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;

@@ -5,7 +5,7 @@ import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.commons.util.concurrent.jdk8backported.EquivalentConcurrentHashMapV8;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.TimeService;
-import org.infinispan.util.concurrent.locks.CancellableLockPromise;
+import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainer;
 
 import java.util.concurrent.TimeUnit;
@@ -34,8 +34,8 @@ public class PerKeyLockContainer implements LockContainer {
    }
 
    @Override
-   public CancellableLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit) {
-      AtomicReference<CancellableLockPromise> reference = new AtomicReference<>();
+   public ExtendedLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit) {
+      AtomicReference<ExtendedLockPromise> reference = new AtomicReference<>();
       lockMap.compute(key, new BiFunction<Object, InfinispanLock, InfinispanLock>() {
          @Override
          public InfinispanLock apply(Object key, InfinispanLock lock) {

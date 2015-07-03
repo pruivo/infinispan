@@ -4,7 +4,7 @@ import org.infinispan.commons.equivalence.Equivalence;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.util.StripedHashFunction;
 import org.infinispan.util.TimeService;
-import org.infinispan.util.concurrent.locks.CancellableLockPromise;
+import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainer;
 
 import java.util.concurrent.TimeUnit;
@@ -36,7 +36,7 @@ public class StripedLockContainer implements LockContainer {
    }
 
    @Override
-   public CancellableLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit) {
+   public ExtendedLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit) {
       return getLock(key).acquire(lockOwner, time, timeUnit);
    }
 

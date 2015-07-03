@@ -6,8 +6,11 @@ package org.infinispan.util.concurrent.locks;
  * @author Pedro Ruivo
  * @since 8.0
  */
-public interface CancellableLockPromise extends LockPromise {
-
-   void cancel();
-
+public enum LockState {
+   WAITING,
+   AVAILABLE,
+   ACQUIRED,
+   TIMED_OUT,
+   DEADLOCKED,
+   RELEASED
 }

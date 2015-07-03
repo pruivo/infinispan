@@ -19,9 +19,10 @@ import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockState;
 import org.infinispan.util.concurrent.locks.LockUtil;
 import org.infinispan.util.concurrent.locks.PendingLockManager;
-import org.infinispan.util.concurrent.locks.impl.PendingLockPromise;
+import org.infinispan.util.concurrent.locks.PendingLockPromise;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -384,7 +385,7 @@ public class TxNonTotalOrderPerCacheInboundInvocationHandler extends BasePerCach
       }
 
       @Override
-      public void onEvent(boolean acquired) {
+      public void onEvent(LockState state) {
          isReady();
       }
 

@@ -7,6 +7,7 @@ import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockState;
 
 import java.util.Collection;
 import java.util.concurrent.ConcurrentMap;
@@ -51,7 +52,7 @@ public class ExtendedStatisticLockManager implements LockManager {
 
       final long start = timeService.time();
       final LockPromise lockPromise = actual.lock(key, lockOwner, time, unit);
-      lockPromise.addListener(acquired -> {
+      lockPromise.addListener(state -> {
          long end = timeService.time();
          lockInfo.lockTimeStamp = end;
          if (lockInfo.contention) {
@@ -59,7 +60,7 @@ public class ExtendedStatisticLockManager implements LockManager {
          }
 
          //if some owner tries to acquire the lock twice, we don't added it
-         if (acquired) {
+         if (state == LockState.AVAILABLE) {
             lockInfoMap.putIfAbsent(key, lockInfo);
          } else {
             lockInfo.updateStats(null); //null == not locked

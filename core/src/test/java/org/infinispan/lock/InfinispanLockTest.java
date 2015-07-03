@@ -2,10 +2,11 @@ package org.infinispan.lock;
 
 import org.infinispan.test.AbstractCacheTest;
 import org.infinispan.util.concurrent.TimeoutException;
-import org.infinispan.util.concurrent.locks.CancellableLockPromise;
+import org.infinispan.util.concurrent.locks.DeadlockDetectedException;
+import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockState;
 import org.infinispan.util.concurrent.locks.impl.InfinispanLock;
-import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
@@ -20,6 +21,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertFalse;
+import static org.testng.AssertJUnit.assertNull;
+import static org.testng.AssertJUnit.assertTrue;
+import static org.testng.AssertJUnit.fail;
 
 /**
  * Some unit tests for the InfinispanLock
@@ -38,26 +45,26 @@ public class InfinispanLockTest {
       final LockPromise lockPromise1 = lock.acquire(lockOwner1, 0, TimeUnit.MILLISECONDS);
       final LockPromise lockPromise2 = lock.acquire(lockOwner2, 0, TimeUnit.MILLISECONDS);
 
-      AssertJUnit.assertTrue(lockPromise1.isAvailable());
-      AssertJUnit.assertTrue(lockPromise2.isAvailable());
+      assertTrue(lockPromise1.isAvailable());
+      assertTrue(lockPromise2.isAvailable());
 
       lockPromise1.lock();
-      AssertJUnit.assertEquals(lockOwner1, lock.getLockOwner());
+      assertEquals(lockOwner1, lock.getLockOwner());
       try {
          lockPromise2.lock();
-         AssertJUnit.fail();
+         fail();
       } catch (TimeoutException e) {
          //expected!
       }
       lock.release(lockOwner1);
-      AssertJUnit.assertNull(lock.getLockOwner());
-      AssertJUnit.assertTrue(lock.isFree());
+      assertNull(lock.getLockOwner());
+      assertTrue(lock.isFree());
 
       //no side effects
       lock.release(lockOwner2);
-      AssertJUnit.assertTrue(lock.isFree());
-      AssertJUnit.assertTrue(lock.isEmpty());
-      AssertJUnit.assertNull(lock.getLockOwner());
+      assertTrue(lock.isFree());
+      assertTrue(lock.isEmpty());
+      assertNull(lock.getLockOwner());
    }
 
    public void testTimeout2() throws InterruptedException {
@@ -70,32 +77,32 @@ public class InfinispanLockTest {
       final LockPromise lockPromise2 = lock.acquire(lockOwner2, 0, TimeUnit.MILLISECONDS);
       final LockPromise lockPromise3 = lock.acquire(lockOwner3, 1, TimeUnit.DAYS);
 
-      AssertJUnit.assertTrue(lockPromise1.isAvailable());
-      AssertJUnit.assertTrue(lockPromise2.isAvailable());
-      AssertJUnit.assertFalse(lockPromise3.isAvailable());
+      assertTrue(lockPromise1.isAvailable());
+      assertTrue(lockPromise2.isAvailable());
+      assertFalse(lockPromise3.isAvailable());
 
       lockPromise1.lock();
-      AssertJUnit.assertEquals(lockOwner1, lock.getLockOwner());
+      assertEquals(lockOwner1, lock.getLockOwner());
       try {
          lockPromise2.lock();
-         AssertJUnit.fail();
+         fail();
       } catch (TimeoutException e) {
          //expected!
       }
       lock.release(lockOwner1);
-      AssertJUnit.assertFalse(lock.isFree());
+      assertFalse(lock.isFree());
 
-      AssertJUnit.assertTrue(lockPromise3.isAvailable());
+      assertTrue(lockPromise3.isAvailable());
       lockPromise3.lock();
-      AssertJUnit.assertEquals(lockOwner3, lock.getLockOwner());
+      assertEquals(lockOwner3, lock.getLockOwner());
       lock.release(lockOwner3);
-      AssertJUnit.assertTrue(lock.isFree());
+      assertTrue(lock.isFree());
 
       //no side effects
       lock.release(lockOwner2);
-      AssertJUnit.assertTrue(lock.isFree());
-      AssertJUnit.assertTrue(lock.isEmpty());
-      AssertJUnit.assertNull(lock.getLockOwner());
+      assertTrue(lock.isFree());
+      assertTrue(lock.isEmpty());
+      assertNull(lock.getLockOwner());
    }
 
    public void testTimeout3() throws InterruptedException {
@@ -108,67 +115,141 @@ public class InfinispanLockTest {
       final LockPromise lockPromise2 = lock.acquire(lockOwner2, 1, TimeUnit.DAYS);
       final LockPromise lockPromise3 = lock.acquire(lockOwner3, 1, TimeUnit.DAYS);
 
-      AssertJUnit.assertTrue(lockPromise1.isAvailable());
-      AssertJUnit.assertFalse(lockPromise2.isAvailable());
-      AssertJUnit.assertFalse(lockPromise3.isAvailable());
+      assertTrue(lockPromise1.isAvailable());
+      assertFalse(lockPromise2.isAvailable());
+      assertFalse(lockPromise3.isAvailable());
 
       lockPromise1.lock();
-      AssertJUnit.assertEquals(lockOwner1, lock.getLockOwner());
+      assertEquals(lockOwner1, lock.getLockOwner());
 
       //premature release. the lock is never acquired by owner 2
       //when the owner 1 releases, owner 3 is able to acquire it
       lock.release(lockOwner2);
-      AssertJUnit.assertFalse(lock.isFree());
-      AssertJUnit.assertEquals(lockOwner1, lock.getLockOwner());
+      assertFalse(lock.isFree());
+      assertEquals(lockOwner1, lock.getLockOwner());
 
       lock.release(lockOwner1);
-      AssertJUnit.assertFalse(lock.isFree());
+      assertFalse(lock.isFree());
 
-      AssertJUnit.assertTrue(lockPromise3.isAvailable());
+      assertTrue(lockPromise3.isAvailable());
       lockPromise3.lock();
-      AssertJUnit.assertEquals(lockOwner3, lock.getLockOwner());
+      assertEquals(lockOwner3, lock.getLockOwner());
       lock.release(lockOwner3);
-      AssertJUnit.assertTrue(lock.isFree());
+      assertTrue(lock.isFree());
 
       //no side effects
       lock.release(lockOwner2);
-      AssertJUnit.assertTrue(lock.isFree());
-      AssertJUnit.assertTrue(lock.isEmpty());
-      AssertJUnit.assertNull(lock.getLockOwner());
+      assertTrue(lock.isFree());
+      assertTrue(lock.isEmpty());
+      assertNull(lock.getLockOwner());
    }
 
-   public void testCancel() {
+   public void testCancel() throws InterruptedException {
       final InfinispanLock lock = new InfinispanLock(AbstractCacheTest.TIME_SERVICE);
       final String lockOwner1 = "LO1";
       final String lockOwner2 = "LO2";
       final String lockOwner3 = "LO3";
 
-      CancellableLockPromise lockPromise1 = lock.acquire(lockOwner1, 0, TimeUnit.MILLISECONDS); //will be acquired
-      CancellableLockPromise lockPromise2 = lock.acquire(lockOwner2, 0, TimeUnit.MILLISECONDS); //will be timed-out
-      CancellableLockPromise lockPromise3 = lock.acquire(lockOwner3, 1, TimeUnit.DAYS); //will be waiting
+      ExtendedLockPromise lockPromise1 = lock.acquire(lockOwner1, 0, TimeUnit.MILLISECONDS); //will be acquired
+      ExtendedLockPromise lockPromise2 = lock.acquire(lockOwner2, 0, TimeUnit.MILLISECONDS); //will be timed-out
+      ExtendedLockPromise lockPromise3 = lock.acquire(lockOwner3, 1, TimeUnit.DAYS); //will be waiting
 
-      AssertJUnit.assertTrue(lockPromise1.isAvailable());
-      AssertJUnit.assertTrue(lockPromise2.isAvailable());
-      AssertJUnit.assertFalse(lockPromise3.isAvailable());
+      assertTrue(lockPromise1.isAvailable());
+      assertTrue(lockPromise2.isAvailable());
+      assertFalse(lockPromise3.isAvailable());
 
-      AssertJUnit.assertEquals(lockOwner1, lock.getLockOwner());
+      assertEquals(lockOwner1, lock.getLockOwner());
 
-      lockPromise1.cancel();
-      AssertJUnit.assertEquals(lockOwner3, lock.getLockOwner());
+      lockPromise1.cancel(LockState.TIMED_OUT);
+      try {
+         lockPromise1.lock();
+         fail("TimeoutException expected");
+      } catch (TimeoutException e) {
+         //expected
+      }
 
-      AssertJUnit.assertTrue(lockPromise2.isAvailable());
-      AssertJUnit.assertTrue(lockPromise3.isAvailable());
+      try {
+         lockPromise2.lock();
+         fail("TimeoutException expected");
+      } catch (TimeoutException e) {
+         //expected
+      }
 
-      lockPromise2.cancel();
-      AssertJUnit.assertEquals(lockOwner3, lock.getLockOwner());
+      assertEquals(lockOwner3, lock.getLockOwner());
 
-      AssertJUnit.assertTrue(lockPromise3.isAvailable());
+      assertTrue(lockPromise2.isAvailable());
+      assertTrue(lockPromise3.isAvailable());
 
-      lockPromise3.cancel();
+      lockPromise2.cancel(LockState.DEADLOCKED);
 
-      AssertJUnit.assertNull(lock.getLockOwner());
-      AssertJUnit.assertTrue(lock.isFree());
-      AssertJUnit.assertTrue(lock.isEmpty());
+      try {
+         //check state didn't change
+         lockPromise2.lock();
+         fail("TimeoutException expected");
+      } catch (TimeoutException e) {
+         //expected
+      }
+
+      assertEquals(lockOwner3, lock.getLockOwner());
+
+      assertTrue(lockPromise3.isAvailable());
+
+      lockPromise3.cancel(LockState.DEADLOCKED);
+
+      try {
+         lockPromise3.lock();
+         fail("DeadlockDetectedException expected");
+      } catch (DeadlockDetectedException e) {
+         //expected
+      }
+
+      assertNull(lock.getLockOwner());
+      assertTrue(lock.isFree());
+      assertTrue(lock.isEmpty());
+
+      lockPromise1 = lock.acquire(lockOwner1, 0, TimeUnit.MILLISECONDS);
+      lockPromise2 = lock.acquire(lockOwner2, 1, TimeUnit.DAYS);
+
+      lockPromise1.lock();
+      lockPromise1.cancel(LockState.TIMED_OUT);
+
+      lockPromise1.lock(); //should not throw anything
+
+      //lock2 is in WAITING state
+      lockPromise2.cancel(LockState.TIMED_OUT);
+      assertTrue(lockPromise2.isAvailable());
+
+      lock.release(lockOwner1);
+      try {
+         lockPromise2.lock();
+         fail("TimeoutException expected");
+      } catch (TimeoutException e) {
+         //expected
+      }
+
+      assertNull(lock.getLockOwner());
+      assertTrue(lock.isFree());
+      assertTrue(lock.isEmpty());
+
+      lockPromise1 = lock.acquire(lockOwner1, 0, TimeUnit.MILLISECONDS);
+      lockPromise2 = lock.acquire(lockOwner2, 1, TimeUnit.DAYS);
+
+      lockPromise1.cancel(LockState.TIMED_OUT);
+      assertTrue(lockPromise2.isAvailable());
+
+      lockPromise2.lock(); //should succeed
+
+      try {
+         lockPromise1.lock();
+         fail("TimeoutException expected");
+      } catch (TimeoutException e) {
+         //expected
+      }
+
+      lock.release(lockOwner2);
+      assertNull(lock.getLockOwner());
+      assertTrue(lock.isFree());
+      assertTrue(lock.isEmpty());
    }
 
    public void testSingleCounter() throws ExecutionException, InterruptedException {
@@ -183,12 +264,12 @@ public class InfinispanLockTest {
       for (int i = 0; i < numThreads; ++i) {
          callableResults.add(executorService.submit(() -> {
             final Thread lockOwner = Thread.currentThread();
-            AssertJUnit.assertEquals(0, counter.getCount());
+            assertEquals(0, counter.getCount());
             List<Integer> seenValues = new LinkedList<>();
             barrier.await();
             while (true) {
                counterLock.acquire(lockOwner, 1, TimeUnit.DAYS).lock();
-               AssertJUnit.assertEquals(lockOwner, counterLock.getLockOwner());
+               assertEquals(lockOwner, counterLock.getLockOwner());
                try {
                   int value = counter.getCount();
                   if (value == maxCounterValue) {
@@ -207,20 +288,20 @@ public class InfinispanLockTest {
       try {
          for (Future<Collection<Integer>> future : callableResults) {
             for (Integer integer : future.get()) {
-               AssertJUnit.assertTrue(seenResults.add(integer));
+               assertTrue(seenResults.add(integer));
             }
          }
       } finally {
          executorService.shutdown();
          executorService.awaitTermination(30, TimeUnit.SECONDS);
       }
-      AssertJUnit.assertEquals(maxCounterValue, seenResults.size());
+      assertEquals(maxCounterValue, seenResults.size());
       for (int i = 0; i < maxCounterValue; ++i) {
-         AssertJUnit.assertTrue(seenResults.contains(i));
+         assertTrue(seenResults.contains(i));
       }
 
-      AssertJUnit.assertTrue(counterLock.isFree());
-      AssertJUnit.assertTrue(counterLock.isEmpty());
+      assertTrue(counterLock.isFree());
+      assertTrue(counterLock.isEmpty());
    }
 
    private static class NotThreadSafeCounter {

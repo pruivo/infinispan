@@ -4,6 +4,7 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.stats.topK.StreamSummaryContainer;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockState;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -28,7 +29,7 @@ public class TopKeyLockManager implements LockManager {
    public LockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
       LockPromise lockPromise = current.lock(key, lockOwner, time, unit);
       final boolean contented = !lockOwner.equals(current.getOwner(key));
-      lockPromise.addListener(acquired -> container.addLockInformation(key, contented, !acquired));
+      lockPromise.addListener(state -> container.addLockInformation(key, contented, state != LockState.AVAILABLE));
       return lockPromise;
    }
 

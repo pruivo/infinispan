@@ -10,10 +10,12 @@ import org.infinispan.jmx.annotations.DataType;
 import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.jmx.annotations.ManagedAttribute;
 import org.infinispan.util.concurrent.TimeoutException;
-import org.infinispan.util.concurrent.locks.CancellableLockPromise;
+import org.infinispan.util.concurrent.locks.DeadlockDetectedException;
+import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainer;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockState;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -23,7 +25,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 /**
  * // TODO: Document this
@@ -152,23 +156,26 @@ public class DefaultLockManager implements LockManager {
    }
 
    private void scheduleLockPromise(LockPromise promise, long time, TimeUnit unit) {
-      if (!promise.isAvailable() && scheduler != null) {
-         scheduler.schedule(promise::isAvailable, time, unit);
+      if (!promise.isAvailable() && time > 0 && scheduler != null) {
+         final ScheduledFuture<?> future = scheduler.schedule(promise::isAvailable, time, unit);
+         promise.addListener(state -> future.cancel(false));
       }
    }
 
    private static class CompositeLockPromise implements LockPromise, LockPromise.Listener, Notifier.Invoker<LockPromise.Listener> {
 
-      private final List<CancellableLockPromise> lockPromiseList;
+      private final List<ExtendedLockPromise> lockPromiseList;
       private final Notifier<Listener> notifier;
-      private volatile boolean acquired = true;
+      private final AtomicReferenceFieldUpdater<CompositeLockPromise, LockState> stateUpdater;
+      private volatile LockState lockState = LockState.AVAILABLE;
 
       private CompositeLockPromise(int size) {
          lockPromiseList = new ArrayList<>(size);
          notifier = new Notifier<>(this);
+         stateUpdater = AtomicReferenceFieldUpdater.newUpdater(CompositeLockPromise.class, LockState.class, "lockState");
       }
 
-      public void addLock(CancellableLockPromise lockPromise) {
+      public void addLock(ExtendedLockPromise lockPromise) {
          lockPromiseList.add(lockPromise);
       }
 
@@ -192,8 +199,9 @@ public class DefaultLockManager implements LockManager {
       public void lock() throws InterruptedException, TimeoutException {
          Exception exception = null;
          ExceptionType exceptionType = ExceptionType.NONE;
-         for (CancellableLockPromise lockPromise : lockPromiseList) {
+         for (ExtendedLockPromise lockPromise : lockPromiseList) {
             try {
+               //we still need to invoke lock in all the locks.
                lockPromise.lock();
             } catch (InterruptedException e) {
                if (exception == null) {
@@ -205,6 +213,11 @@ public class DefaultLockManager implements LockManager {
                   exception = e;
                   exceptionType = ExceptionType.TIMEOUT;
                }
+            } catch (DeadlockDetectedException e) {
+               if (exception == null) {
+                  exception = e;
+                  exceptionType = ExceptionType.DEADLOCK;
+               }
             } catch (RuntimeException e) {
                if (exception == null) {
                   exception = e;
@@ -213,7 +226,6 @@ public class DefaultLockManager implements LockManager {
             }
          }
          if (exception != null) {
-            lockPromiseList.forEach(org.infinispan.util.concurrent.locks.CancellableLockPromise::cancel);
             switch (exceptionType) {
                case INTERRUPTED:
                   throw (InterruptedException) exception;
@@ -221,6 +233,8 @@ public class DefaultLockManager implements LockManager {
                   throw (TimeoutException) exception;
                case RUNTIME:
                   throw (RuntimeException) exception;
+               case DEADLOCK:
+                  throw (DeadlockDetectedException) exception;
                default:
                   break;
             }
@@ -233,23 +247,24 @@ public class DefaultLockManager implements LockManager {
       }
 
       @Override
-      public void onEvent(boolean acquired) {
-         if (!acquired) {
-            this.acquired = false;
+      public void onEvent(LockState state) {
+         if (state != LockState.AVAILABLE && stateUpdater.compareAndSet(this, LockState.AVAILABLE, state)) {
+            for (ExtendedLockPromise lockPromise : lockPromiseList) {
+               lockPromise.cancel(state);
+            }
          }
          if (isAvailable()) {
-            //already available.
             notifier.fireListener();
          }
       }
 
       @Override
       public void invoke(Listener invoker) {
-         invoker.onEvent(acquired);
+         invoker.onEvent(lockState);
       }
 
       private enum ExceptionType {
-         RUNTIME, INTERRUPTED, TIMEOUT, NONE
+         RUNTIME, INTERRUPTED, TIMEOUT, DEADLOCK, NONE
       }
 
    }

@@ -3,8 +3,11 @@ package org.infinispan.util.concurrent.locks.impl;
 import org.infinispan.commons.util.Notifier;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.TimeoutException;
-import org.infinispan.util.concurrent.locks.CancellableLockPromise;
+import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
+import org.infinispan.util.concurrent.locks.DeadlockChecker;
+import org.infinispan.util.concurrent.locks.DeadlockDetectedException;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockState;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -53,7 +56,7 @@ public class InfinispanLock {
       this.releaseRunnable = releaseRunnable;
    }
 
-   public CancellableLockPromise acquire(Object lockOwner, long time, TimeUnit timeUnit) {
+   public ExtendedLockPromise acquire(Object lockOwner, long time, TimeUnit timeUnit) {
       Objects.requireNonNull(lockOwner, "Lock Owner should be non-null");
       Objects.requireNonNull(timeUnit, "Time Unit should be non-null");
       if (trace) {
@@ -95,7 +98,7 @@ public class InfinispanLock {
          //nothing to release
          return;
       }
-      final boolean released = wantToRelease.release();
+      final boolean released = wantToRelease.setReleased();
       if (trace) {
          log.tracef("Release lock for %s? %s", wantToRelease, released);
       }
@@ -106,14 +109,9 @@ public class InfinispanLock {
                log.tracef("Releasing lock for %s. It is the current lock owner but another thread changed it.", lockOwner);
             }
             //another thread already released!
-            return;
          } else {
             tryAcquire();
          }
-      }
-
-      if (released) {
-         triggerReleased();
       }
    }
 
@@ -165,11 +163,12 @@ public class InfinispanLock {
          if (casAcquire(nextPending)) {
             //we set the current lock owner, so we must remove it from the queue
             pendingRequest.remove(nextPending);
-            if (nextPending.acquire()) {
+            if (nextPending.setAvailable()) {
                if (trace) {
                   log.tracef("%s successfully acquired the lock.", nextPending);
                }
                //successfully acquired
+               checkDeadlock();
                return;
             }
             if (trace) {
@@ -187,23 +186,20 @@ public class InfinispanLock {
       } while (true);
    }
 
+   private void checkDeadlock() {
+      LockPlaceHolder holder = current;
+      if (holder != null) {
+         for (LockPlaceHolder pending : pendingRequest) {
+            pending.checkDeadlock(holder.lockOwner);
+         }
+      }
+   }
+
    private LockPlaceHolder createLockInfo(Object lockOwner, long time, TimeUnit timeUnit) {
       return new LockPlaceHolder(lockOwner, timeService.expectedEndTime(time, timeUnit));
    }
 
-   private void onTimeout(LockPlaceHolder lockPlaceHolder) {
-      //only invoked if the lock state changed to TIMED_OUT. So, it is never acquired.
-      if (trace) {
-         log.tracef("Timeout happened in %s", lockPlaceHolder);
-      }
-      triggerReleased();
-   }
-
-   private enum LockState {
-      WAITING, ACQUIRED, TIMED_OUT, RELEASED
-   }
-
-   private class LockPlaceHolder implements CancellableLockPromise, Notifier.Invoker<LockPromise.Listener> {
+   private class LockPlaceHolder implements ExtendedLockPromise, Notifier.Invoker<LockPromise.Listener> {
 
       private final AtomicReferenceFieldUpdater<LockPlaceHolder, LockState> stateUpdater;
 
@@ -212,6 +208,7 @@ public class InfinispanLock {
       private final AtomicBoolean cleanup;
       private final Notifier<Listener> notifier;
       private volatile LockState lockState;
+      private volatile DeadlockChecker deadlockChecker;
 
       private LockPlaceHolder(Object lockOwner, long timeout) {
          this.lockOwner = lockOwner;
@@ -231,18 +228,26 @@ public class InfinispanLock {
       @Override
       public void lock() throws InterruptedException, TimeoutException {
          while (true) {
-            checkTimeout();
             switch (lockState) {
                case WAITING:
+                  checkTimeout();
                   notifier.await(timeService.remainingTime(timeout, TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
                   break;
+               case AVAILABLE:
+                  if (casState(LockState.AVAILABLE, LockState.ACQUIRED)) {
+                     return; //acquired!
+                  }
+                  break;
                case ACQUIRED:
-                  return; //already acquired
+                  return; //acquired!
                case RELEASED:
                   throw new IllegalStateException("Lock already released!");
                case TIMED_OUT:
                   cleanup();
                   throw new TimeoutException("Timeout waiting for lock.");
+               case DEADLOCKED:
+                  cleanup();
+                  throw new DeadlockDetectedException("DeadLock detected");
                default:
                   throw new IllegalStateException("Unknown lock state: " + lockState);
             }
@@ -254,45 +259,40 @@ public class InfinispanLock {
          notifier.add(listener);
       }
 
-      public boolean acquire() {
-         if (stateUpdater.compareAndSet(this, LockState.WAITING, LockState.ACQUIRED)) {
-            if (trace) {
-               log.tracef("State changed for %s. %s => %s", this, LockState.WAITING, LockState.ACQUIRED);
+      @Override
+      public void cancel(LockState state) {
+         checkValidCancelState(state);
+         out: do {
+            LockState currentState = lockState;
+            switch (currentState) {
+               case WAITING:
+                  if (casState(LockState.WAITING, state)) {
+                     notifyListeners();
+                     break out;
+                  }
+                  break;
+               case ACQUIRED: //no-op, a thread is inside the critical section.
+               case TIMED_OUT:
+               case DEADLOCKED:
+               case RELEASED:
+                  return; //no-op, the lock is in final state.
+               default:
+                  if (casState(currentState, state)) {
+                     break out;
+                  }
+
             }
-            notifyListeners();
-         }
-         return lockState == LockState.ACQUIRED;
+         } while (true);
+         InfinispanLock.this.release(lockOwner);
       }
 
-      public boolean release() {
-         LockState state = lockState;
+      private void checkValidCancelState(LockState state) {
          switch (state) {
             case WAITING:
+            case AVAILABLE:
             case ACQUIRED:
-               cleanup();
-               if (stateUpdater.compareAndSet(this, state, LockState.RELEASED)) {
-                  if (trace) {
-                     log.tracef("State changed for %s. %s => %s", this, state, LockState.RELEASED);
-                  }
-                  notifyListeners();
-                  return true;
-               }
-               break;
-         }
-         return false;
-      }
-
-      public boolean isComplete() {
-         LockState state = lockState;
-         return state == LockState.RELEASED || state == LockState.TIMED_OUT;
-      }
-
-      @Override
-      public void cancel() {
-         InfinispanLock.this.release(lockOwner);
-         if (lockState == LockState.TIMED_OUT) {
-            //perform the cleanup
-            cleanup();
+            case RELEASED:
+               throw new IllegalArgumentException("LockState "  +state + " is not valid to cancel.");
          }
       }
 
@@ -306,28 +306,88 @@ public class InfinispanLock {
 
       @Override
       public void invoke(Listener invoker) {
-         invoker.onEvent(lockState == LockState.ACQUIRED);
+         LockState state = lockState;
+         switch (state) {
+            case WAITING:
+               throw new IllegalStateException("WAITING is not a valid state to invoke the listener");
+            case ACQUIRED:
+            case RELEASED:
+               invoker.onEvent(LockState.AVAILABLE);
+               break;
+            default:
+               invoker.onEvent(state);
+               break;
+         }
+      }
+
+      public void setDeadlockChecker(DeadlockChecker deadlockChecker) {
+         this.deadlockChecker = deadlockChecker;
+         LockPlaceHolder currentHolder = current;
+         if (currentHolder != null) {
+            checkDeadlock(currentHolder.lockOwner);
+         }
+      }
+
+      private void checkDeadlock(Object currentOwner) {
+         DeadlockChecker checker = deadlockChecker;
+         if (checker != null && //we have a deadlock checker installed
+               lockState == LockState.WAITING && //we are waiting for a lock
+               !lockOwner.equals(currentOwner) && //needed? just to be safe
+               checker.deadlockDetected(lockOwner, currentOwner) && //deadlock has been detected!
+               casState(LockState.WAITING, LockState.DEADLOCKED)) { //state could have been changed to available or timed_out
+                  notifyListeners();
+         }
+      }
+
+      private boolean setAvailable() {
+         if (casState(LockState.WAITING, LockState.AVAILABLE)) {
+            notifyListeners();
+         }
+         LockState state = lockState;
+         return state == LockState.AVAILABLE || state == LockState.ACQUIRED;
+      }
+
+      private boolean setReleased() {
+         do {
+            LockState state = lockState;
+            switch (state) {
+               case WAITING:
+               case AVAILABLE:
+               case ACQUIRED:
+                  if (casState(state, LockState.RELEASED)) {
+                     cleanup();
+                     notifyListeners();
+                     return true;
+                  }
+                  break;
+               default:
+                  return false;
+            }
+         } while (true);
+      }
+
+      private boolean casState(LockState expect, LockState update) {
+         boolean updated = stateUpdater.compareAndSet(this, expect, update);
+         if (updated && trace) {
+            log.tracef("State changed for %s. %s => %s", this, expect, update);
+         }
+         return updated;
       }
 
       private void cleanup() {
          if (cleanup.compareAndSet(false, true)) {
             remove(lockOwner);
+            triggerReleased();
          }
       }
 
       private void checkTimeout() {
-         if (lockState != LockState.WAITING) {
-            return;
+         if (lockState == LockState.WAITING &&
+               timeService.isTimeExpired(timeout) &&
+               casState(LockState.WAITING, LockState.TIMED_OUT)) {
+            notifyListeners();
          }
-         if (timeService.isTimeExpired(timeout)) {
-            if (stateUpdater.compareAndSet(this, LockState.WAITING, LockState.TIMED_OUT)) {
-               if (trace) {
-                  log.tracef("State changed for %s. %s => %s", this, LockState.WAITING, LockState.TIMED_OUT);
-               }
-               onTimeout(this); //we release before notify (notify can check the remote executor and we need to be ready)
-               notifyListeners();
-            }
-         }
+
       }
 
       private void notifyListeners() {

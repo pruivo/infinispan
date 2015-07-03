@@ -1,4 +1,4 @@
-package org.infinispan.util.concurrent.locks.impl;
+package org.infinispan.util.concurrent.locks;
 
 /**
  * // TODO: Document this

@@ -18,7 +18,7 @@ public interface LockContainer {
     * @param key the key to lock.
     * @return the lock for a specific object to be acquired. If the lock does not exists, it is created.
     */
-   CancellableLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit);
+   ExtendedLockPromise acquire(Object key, Object lockOwner, long time, TimeUnit timeUnit);
 
    /**
     * @param key the key to lock.

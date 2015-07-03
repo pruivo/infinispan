@@ -24,6 +24,7 @@ import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockState;
 import org.infinispan.util.concurrent.locks.LockUtil;
 import org.infinispan.util.concurrent.locks.order.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
@@ -126,7 +127,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    }
 
    @Override
-   public void onEvent(boolean acquired) {
+   public void onEvent(LockState state) {
       remoteCommandsExecutor.checkForReadyTasks();
    }
 
@@ -230,14 +231,14 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       @Override
       public void addListener(Listener listener) {
          this.checkReadyTasks = listener;
-         onEvent(false); //check if available
+         onEvent(null); //check if available
       }
 
       @Override
-      public void onEvent(boolean acquired) {
+      public void onEvent(LockState ignored) {
          Listener listener = checkReadyTasks;
          if (isAvailable() && listener != null && notify.compareAndSet(false, true)) {
-            listener.onEvent(acquired); //it doesn't matter the acquired value.
+            listener.onEvent(null); //it doesn't matter the acquired value.
          }
       }
    }
