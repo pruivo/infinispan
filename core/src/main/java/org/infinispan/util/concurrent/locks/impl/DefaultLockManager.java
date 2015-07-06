@@ -10,6 +10,7 @@ import org.infinispan.jmx.annotations.DataType;
 import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.jmx.annotations.ManagedAttribute;
 import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.concurrent.locks.DeadlockChecker;
 import org.infinispan.util.concurrent.locks.DeadlockDetectedException;
 import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainer;
@@ -244,6 +245,13 @@ public class DefaultLockManager implements LockManager {
       @Override
       public void addListener(Listener listener) {
          notifier.add(listener);
+      }
+
+      @Override
+      public void setDeadlockChecker(DeadlockChecker deadlockChecker) {
+         for (LockPromise lockPromise : lockPromiseList) {
+            lockPromise.setDeadlockChecker(deadlockChecker);
+         }
       }
 
       @Override

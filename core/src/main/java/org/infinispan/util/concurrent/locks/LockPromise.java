@@ -23,6 +23,9 @@ public interface LockPromise {
       public void addListener(Listener listener) {
          listener.onEvent(LockState.AVAILABLE);
       }
+
+      @Override
+      public void setDeadlockChecker(DeadlockChecker deadlockChecker) {/*no-op*/}
    };
 
    /**
@@ -55,6 +58,8 @@ public interface LockPromise {
     * @param listener the {@link org.infinispan.util.concurrent.locks.LockPromise.Listener} to invoke.
     */
    void addListener(Listener listener);
+
+   void setDeadlockChecker(DeadlockChecker deadlockChecker);
 
    interface Listener {
 

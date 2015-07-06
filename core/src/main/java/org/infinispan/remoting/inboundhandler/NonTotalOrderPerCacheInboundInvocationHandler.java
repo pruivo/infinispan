@@ -22,6 +22,7 @@ import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.concurrent.locks.DeadlockChecker;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.LockState;
@@ -233,6 +234,9 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
          this.checkReadyTasks = listener;
          onEvent(null); //check if available
       }
+
+      @Override
+      public void setDeadlockChecker(DeadlockChecker deadlockChecker) {/*no-op*/}
 
       @Override
       public void onEvent(LockState ignored) {

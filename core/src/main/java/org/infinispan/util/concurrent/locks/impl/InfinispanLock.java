@@ -320,6 +320,7 @@ public class InfinispanLock {
          }
       }
 
+      @Override
       public void setDeadlockChecker(DeadlockChecker deadlockChecker) {
          this.deadlockChecker = deadlockChecker;
          LockPlaceHolder currentHolder = current;

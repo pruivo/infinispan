@@ -109,7 +109,6 @@ public class DeadlockDetectingLockManagerTest extends AbstractInfinispanTest {
       private boolean ownsLock;
 
       public DeadlockDetectingLockManagerMock(long spinDuration, boolean exposeJmxStats, LockContainer lockContainer, Configuration configuration) {
-         this.spinDuration = spinDuration;
          this.exposeJmxStats = exposeJmxStats;
          super.container = lockContainer;
          this.configuration = configuration;

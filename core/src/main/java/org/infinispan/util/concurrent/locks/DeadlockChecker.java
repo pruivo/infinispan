@@ -8,6 +8,6 @@ package org.infinispan.util.concurrent.locks;
  */
 public interface DeadlockChecker {
 
-   boolean deadlockDetected(Object thisOwner, Object currentOwner);
+   boolean deadlockDetected(Object pendingOwner, Object currentOwner);
 
 }
