@@ -43,4 +43,6 @@ public interface LockContainer {
     * @return the size of the shared lock pool
     */
    int size();
+
+   void deadlockCheck();
 }

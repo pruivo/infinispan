@@ -87,6 +87,11 @@ public class PerKeyLockContainer implements LockContainer {
       return lockMap.size();
    }
 
+   @Override
+   public void deadlockCheck() {
+      lockMap.values().forEach(InfinispanLock::deadlockCheck);
+   }
+
    private InfinispanLock createInfinispanLock(Object key) {
       return new InfinispanLock(timeService, new Runnable() {
          @Override

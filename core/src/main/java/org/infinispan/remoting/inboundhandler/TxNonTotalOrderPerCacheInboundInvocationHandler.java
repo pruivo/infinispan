@@ -152,6 +152,7 @@ public class TxNonTotalOrderPerCacheInboundInvocationHandler extends BasePerCach
       }
       final long timeoutMillis = command.hasZeroLockAcquisition() ? 0 : lockManager.getDefaultTimeoutMillis();
       final RemoteTxInvocationContext context = command.createContext();
+      keysToLock.forEach(context::addLockedKey);
       if (keysToLock.size() == 1) {
          return new SingleKeyReadyAction(context, timeoutMillis, keysToLock.get(0));
       }
@@ -176,6 +177,7 @@ public class TxNonTotalOrderPerCacheInboundInvocationHandler extends BasePerCach
       if (context == null) {
          return null;
       }
+      keysToLock.forEach(context::addLockedKey);
       if (keysToLock.size() == 1) {
          return new SingleKeyReadyAction(context, timeoutMillis, keysToLock.get(0));
       }

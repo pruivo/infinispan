@@ -70,4 +70,11 @@ public class StripedLockContainer implements LockContainer {
    public int size() {
       return sharedLocks.length;
    }
+
+   @Override
+   public void deadlockCheck() {
+      for (InfinispanLock lock : sharedLocks) {
+         lock.deadlockCheck();
+      }
+   }
 }

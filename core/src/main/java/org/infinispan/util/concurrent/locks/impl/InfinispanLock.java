@@ -3,9 +3,9 @@ package org.infinispan.util.concurrent.locks.impl;
 import org.infinispan.commons.util.Notifier;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.TimeoutException;
-import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
 import org.infinispan.util.concurrent.locks.DeadlockChecker;
 import org.infinispan.util.concurrent.locks.DeadlockDetectedException;
+import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.LockState;
 import org.infinispan.util.logging.Log;
@@ -133,6 +133,40 @@ public class InfinispanLock {
       return current != null;
    }
 
+   public void deadlockCheck() {
+      LockPlaceHolder holder = current;
+      if (holder != null) {
+         for (LockPlaceHolder pending : pendingRequest) {
+            pending.checkDeadlock(holder.lockOwner);
+         }
+      }
+   }
+
+   private void onCanceled(LockPlaceHolder canceled) {
+      if (trace) {
+         log.tracef("Release lock for %s. It was canceled.", canceled.lockOwner);
+      }
+      LockPlaceHolder wantToRelease = lockOwners.get(canceled.lockOwner);
+      if (wantToRelease == null) {
+         if (trace) {
+            log.tracef("%s not found!", canceled.lockOwner);
+         }
+         //nothing to release
+         return;
+      }
+      LockPlaceHolder currentLocked = current;
+      if (currentLocked == wantToRelease) {
+         if (!casRelease(currentLocked)) {
+            if (trace) {
+               log.tracef("Releasing lock for %s. It is the current lock owner but another thread changed it.", canceled.lockOwner);
+            }
+            //another thread already released!
+         } else {
+            tryAcquire();
+         }
+      }
+   }
+
    private boolean casAcquire(LockPlaceHolder lockPlaceHolder) {
       return fieldUpdater.compareAndSet(this, null, lockPlaceHolder);
    }
@@ -168,7 +202,7 @@ public class InfinispanLock {
                   log.tracef("%s successfully acquired the lock.", nextPending);
                }
                //successfully acquired
-               checkDeadlock();
+               deadlockCheck();
                return;
             }
             if (trace) {
@@ -184,15 +218,6 @@ public class InfinispanLock {
             return;
          }
       } while (true);
-   }
-
-   private void checkDeadlock() {
-      LockPlaceHolder holder = current;
-      if (holder != null) {
-         for (LockPlaceHolder pending : pendingRequest) {
-            pending.checkDeadlock(holder.lockOwner);
-         }
-      }
    }
 
    private LockPlaceHolder createLockInfo(Object lockOwner, long time, TimeUnit timeUnit) {
@@ -262,7 +287,8 @@ public class InfinispanLock {
       @Override
       public void cancel(LockState state) {
          checkValidCancelState(state);
-         out: do {
+         out:
+         do {
             LockState currentState = lockState;
             switch (currentState) {
                case WAITING:
@@ -283,17 +309,7 @@ public class InfinispanLock {
 
             }
          } while (true);
-         InfinispanLock.this.release(lockOwner);
-      }
-
-      private void checkValidCancelState(LockState state) {
-         switch (state) {
-            case WAITING:
-            case AVAILABLE:
-            case ACQUIRED:
-            case RELEASED:
-               throw new IllegalArgumentException("LockState "  +state + " is not valid to cancel.");
-         }
+         onCanceled(this);
       }
 
       @Override
@@ -329,6 +345,16 @@ public class InfinispanLock {
          }
       }
 
+      private void checkValidCancelState(LockState state) {
+         switch (state) {
+            case WAITING:
+            case AVAILABLE:
+            case ACQUIRED:
+            case RELEASED:
+               throw new IllegalArgumentException("LockState " + state + " is not valid to cancel.");
+         }
+      }
+
       private void checkDeadlock(Object currentOwner) {
          DeadlockChecker checker = deadlockChecker;
          if (checker != null && //we have a deadlock checker installed
@@ -336,7 +362,8 @@ public class InfinispanLock {
                !lockOwner.equals(currentOwner) && //needed? just to be safe
                checker.deadlockDetected(lockOwner, currentOwner) && //deadlock has been detected!
                casState(LockState.WAITING, LockState.DEADLOCKED)) { //state could have been changed to available or timed_out
-                  notifyListeners();
+            onCanceled(this);
+            notifyListeners();
          }
       }
 
@@ -358,6 +385,13 @@ public class InfinispanLock {
                   if (casState(state, LockState.RELEASED)) {
                      cleanup();
                      notifyListeners();
+                     return true;
+                  }
+                  break;
+               case TIMED_OUT:
+               case DEADLOCKED:
+                  if (casState(state, LockState.RELEASED)) {
+                     cleanup();
                      return true;
                   }
                   break;
@@ -386,6 +420,7 @@ public class InfinispanLock {
          if (lockState == LockState.WAITING &&
                timeService.isTimeExpired(timeout) &&
                casState(LockState.WAITING, LockState.TIMED_OUT)) {
+            onCanceled(this);
             notifyListeners();
          }
 

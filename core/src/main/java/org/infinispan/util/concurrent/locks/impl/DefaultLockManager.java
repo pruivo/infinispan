@@ -43,7 +43,7 @@ public class DefaultLockManager implements LockManager {
    private static final boolean trace = log.isTraceEnabled();
    protected LockContainer container;
    protected Configuration configuration;
-   private ScheduledExecutorService scheduler;
+   protected ScheduledExecutorService scheduler;
 
    @Inject
    public void inject(LockContainer container, Configuration configuration,

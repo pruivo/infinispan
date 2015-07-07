@@ -2,6 +2,7 @@ package org.infinispan.util.concurrent.locks;
 
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
+import org.infinispan.factories.annotations.Stop;
 import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.jmx.annotations.ManagedAttribute;
 import org.infinispan.jmx.annotations.ManagedOperation;
@@ -16,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -40,6 +42,7 @@ public class DeadlockDetectingLockManager extends DefaultLockManager implements 
    private static final boolean trace = log.isTraceEnabled();
 
    //protected volatile long spinDuration;
+   private ScheduledFuture<?> scheduledFuture;
 
    protected volatile boolean exposeJmxStats;
 
@@ -51,8 +54,17 @@ public class DeadlockDetectingLockManager extends DefaultLockManager implements 
 
    @Start
    public void init() {
-      //spinDuration = configuration.deadlockDetection().spinDuration();
+      long spinDuration = configuration.deadlockDetection().spinDuration();
       exposeJmxStats = configuration.jmxStatistics().enabled();
+      scheduledFuture = scheduler.scheduleWithFixedDelay(container::deadlockCheck, spinDuration, spinDuration, TimeUnit.MILLISECONDS);
+   }
+
+   @Stop
+   public void stopScheduler() {
+      if (scheduledFuture != null) {
+         scheduledFuture.cancel(false);
+         scheduledFuture = null;
+      }
    }
 
    @Inject
