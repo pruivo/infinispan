@@ -6,7 +6,7 @@ import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.DeadlockChecker;
 import org.infinispan.util.concurrent.locks.DeadlockDetectedException;
 import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
-import org.infinispan.util.concurrent.locks.LockPromise;
+import org.infinispan.util.concurrent.locks.LockListener;
 import org.infinispan.util.concurrent.locks.LockState;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -224,14 +224,14 @@ public class InfinispanLock {
       return new LockPlaceHolder(lockOwner, timeService.expectedEndTime(time, timeUnit));
    }
 
-   private class LockPlaceHolder implements ExtendedLockPromise, Notifier.Invoker<LockPromise.Listener> {
+   private class LockPlaceHolder implements ExtendedLockPromise, Notifier.Invoker<LockListener> {
 
       private final AtomicReferenceFieldUpdater<LockPlaceHolder, LockState> stateUpdater;
 
       private final Object lockOwner;
       private final long timeout;
       private final AtomicBoolean cleanup;
-      private final Notifier<Listener> notifier;
+      private final Notifier<LockListener> notifier;
       private volatile LockState lockState;
       private volatile DeadlockChecker deadlockChecker;
 
@@ -280,7 +280,7 @@ public class InfinispanLock {
       }
 
       @Override
-      public void addListener(Listener listener) {
+      public void addListener(LockListener listener) {
          notifier.add(listener);
       }
 
@@ -321,7 +321,7 @@ public class InfinispanLock {
       }
 
       @Override
-      public void invoke(Listener invoker) {
+      public void invoke(LockListener invoker) {
          LockState state = lockState;
          switch (state) {
             case WAITING:

@@ -5,11 +5,13 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.stats.CacheStatisticManager;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.TimeService;
+import org.infinispan.util.concurrent.locks.KeyAwareLockPromise;
 import org.infinispan.util.concurrent.locks.LockManager;
-import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.LockState;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
@@ -46,13 +48,13 @@ public class ExtendedStatisticLockManager implements LockManager {
    }
 
    @Override
-   public LockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
+   public KeyAwareLockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
       LockInfo lockInfo = new LockInfo(lockOwner instanceof GlobalTransaction ? (GlobalTransaction) lockOwner : null);
       updateContentionStats(key, lockInfo);
 
       final long start = timeService.time();
-      final LockPromise lockPromise = actual.lock(key, lockOwner, time, unit);
-      lockPromise.addListener(state -> {
+      final KeyAwareLockPromise lockPromise = actual.lock(key, lockOwner, time, unit);
+      lockPromise.addListener((lockedKey, state) -> {
          long end = timeService.time();
          lockInfo.lockTimeStamp = end;
          if (lockInfo.contention) {
@@ -61,7 +63,7 @@ public class ExtendedStatisticLockManager implements LockManager {
 
          //if some owner tries to acquire the lock twice, we don't added it
          if (state == LockState.AVAILABLE) {
-            lockInfoMap.putIfAbsent(key, lockInfo);
+            lockInfoMap.putIfAbsent(lockedKey, lockInfo);
          } else {
             lockInfo.updateStats(null); //null == not locked
          }
@@ -70,8 +72,36 @@ public class ExtendedStatisticLockManager implements LockManager {
    }
 
    @Override
-   public LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
-      return null;  // TODO: Customise this generated block
+   public KeyAwareLockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
+      if (keys.size() == 1) {
+         return lock(keys.iterator().next(), lockOwner, time, unit);
+      }
+      final Map<Object, LockInfo> tmpMap = new HashMap<>();
+      for (Object key : keys) {
+         LockInfo lockInfo = new LockInfo(lockOwner instanceof GlobalTransaction ? (GlobalTransaction) lockOwner : null);
+         updateContentionStats(key, lockInfo);
+         tmpMap.put(key, lockInfo);
+      }
+
+
+      final long start = timeService.time();
+      final KeyAwareLockPromise lockPromise = actual.lockAll(keys, lockOwner, time, unit);
+      lockPromise.addListener((lockedKey, state) -> {
+         long end = timeService.time();
+         LockInfo lockInfo = tmpMap.get(lockedKey);
+         lockInfo.lockTimeStamp = end;
+         if (lockInfo.contention) {
+            lockInfo.lockWaiting = timeService.timeDuration(start, end, NANOSECONDS);
+         }
+
+         //if some owner tries to acquire the lock twice, we don't added it
+         if (state == LockState.AVAILABLE) {
+            lockInfoMap.putIfAbsent(lockedKey, lockInfo);
+         } else {
+            lockInfo.updateStats(null); //null == not locked
+         }
+      });
+      return lockPromise;
    }
 
    @Override

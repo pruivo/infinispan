@@ -25,9 +25,9 @@ public interface LockManager {
     * @param lockOwner the owner of the lock.
     * @param time      the maximum time to wait for the lock
     * @param unit      the time unit of the {@code time} argument
-    * @return the {@link LockPromise} associated to this keys.
+    * @return the {@link KeyAwareLockPromise} associated to this keys.
     */
-   LockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit);
+   KeyAwareLockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit);
 
    /**
     * Same as {@link #lock(Object, Object, long, TimeUnit)} but for multiple keys.
@@ -38,9 +38,9 @@ public interface LockManager {
     * @param lockOwner the owner of the lock.
     * @param time      the maximum time to wait for the lock
     * @param unit      the time unit of the {@code time} argument
-    * @return the {@link LockPromise} associated to this keys.
+    * @return the {@link KeyAwareLockPromise} associated to this keys.
     */
-   LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit);
+   KeyAwareLockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit);
 
    /**
     * Releases the lock for the {@code key} if the {@code lockOwner} is the lock owner.

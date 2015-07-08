@@ -17,6 +17,7 @@ import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.concurrent.BlockingRunnable;
+import org.infinispan.util.concurrent.locks.LockListener;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.LockState;
@@ -323,7 +324,7 @@ public class TxNonTotalOrderPerCacheInboundInvocationHandler extends BasePerCach
       }
    }
 
-   private abstract class BaseReadyAction implements ReadyAction, PendingLockPromise.Listener, LockPromise.Listener, Notifier.Invoker<ReadyActionListener> {
+   private abstract class BaseReadyAction implements ReadyAction, PendingLockPromise.Listener, LockListener, Notifier.Invoker<ReadyActionListener> {
       private final RemoteTxInvocationContext context;
       private final long timeout; //millis
       private final AtomicReferenceFieldUpdater<BaseReadyAction, ReadyActionStatus> statusFieldUpdater;

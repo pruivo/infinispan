@@ -72,10 +72,10 @@ public class DeadlockDetectingLockManager extends DefaultLockManager implements 
    }
 
    @Override
-   public LockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
+   public KeyAwareLockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
       if (lockOwner instanceof DldGlobalTransaction) {
          ((DldGlobalTransaction) lockOwner).setLockIntention(Collections.singleton(key));
-         LockPromise promise = super.lock(key, lockOwner, time, unit);
+         KeyAwareLockPromise promise = super.lock(key, lockOwner, time, unit);
          promise.setDeadlockChecker(this);
          return promise;
       }
@@ -83,10 +83,10 @@ public class DeadlockDetectingLockManager extends DefaultLockManager implements 
    }
 
    @Override
-   public LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
+   public KeyAwareLockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
       if (lockOwner instanceof DldGlobalTransaction) {
          ((DldGlobalTransaction) lockOwner).setLockIntention(new HashSet<>(keys));
-         LockPromise promise = super.lockAll(keys, lockOwner, time, unit);
+         KeyAwareLockPromise promise = super.lockAll(keys, lockOwner, time, unit);
          promise.setDeadlockChecker(this);
          return promise;
       }

@@ -23,6 +23,7 @@ import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.DeadlockChecker;
+import org.infinispan.util.concurrent.locks.LockListener;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.LockState;
@@ -44,7 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author Pedro Ruivo
  * @since 7.1
  */
-public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheInboundInvocationHandler implements LockPromise.Listener {
+public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheInboundInvocationHandler implements LockListener {
 
    private static final Log log = LogFactory.getLog(NonTotalOrderPerCacheInboundInvocationHandler.class);
    private static final boolean trace = log.isTraceEnabled();
@@ -199,11 +200,11 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    /**
     * Only used to check when all the {@link LockPromise} are available.
     */
-   private static class CompositeLockPromise implements LockPromise, LockPromise.Listener {
+   private static class CompositeLockPromise implements LockPromise, LockListener {
 
       private final List<LockPromise> lockPromiseList;
       private final AtomicBoolean notify;
-      private volatile Listener checkReadyTasks;
+      private volatile LockListener checkReadyTasks;
 
       private CompositeLockPromise(List<LockPromise> lockPromiseList) {
          this.lockPromiseList = lockPromiseList;
@@ -230,7 +231,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       public void lock() throws InterruptedException, TimeoutException {/*no-op*/}
 
       @Override
-      public void addListener(Listener listener) {
+      public void addListener(LockListener listener) {
          this.checkReadyTasks = listener;
          onEvent(null); //check if available
       }
@@ -240,7 +241,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
 
       @Override
       public void onEvent(LockState ignored) {
-         Listener listener = checkReadyTasks;
+         LockListener listener = checkReadyTasks;
          if (isAvailable() && listener != null && notify.compareAndSet(false, true)) {
             listener.onEvent(null); //it doesn't matter the acquired value.
          }

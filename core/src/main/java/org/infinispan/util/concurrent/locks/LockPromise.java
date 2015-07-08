@@ -20,7 +20,7 @@ public interface LockPromise {
       public void lock() throws InterruptedException, TimeoutException {/*no-op*/}
 
       @Override
-      public void addListener(Listener listener) {
+      public void addListener(LockListener listener) {
          listener.onEvent(LockState.AVAILABLE);
       }
 
@@ -49,27 +49,16 @@ public interface LockPromise {
    void lock() throws InterruptedException, TimeoutException;
 
    /**
-    * Adds a {@link org.infinispan.util.concurrent.locks.LockPromise.Listener} to be invoked when the lock is
+    * Adds a {@link LockListener} to be invoked when the lock is
     * available.
     * <p>
     * The {@code acquired} parameter indicates that the lock is acquired (when it is {@code true}) or it timed out (when
     * it is {@code false}).
     *
-    * @param listener the {@link org.infinispan.util.concurrent.locks.LockPromise.Listener} to invoke.
+    * @param listener the {@link LockListener} to invoke.
     */
-   void addListener(Listener listener);
+   void addListener(LockListener listener);
 
    void setDeadlockChecker(DeadlockChecker deadlockChecker);
-
-   interface Listener {
-
-      /**
-       * Invoked when the lock is available.
-       *
-       * @param state the current lock state. It can be {@link LockState#AVAILABLE}, {@link LockState#TIMED_OUT} or
-       *              {@link LockState#DEADLOCKED}.
-       */
-      void onEvent(LockState state);
-   }
 
 }

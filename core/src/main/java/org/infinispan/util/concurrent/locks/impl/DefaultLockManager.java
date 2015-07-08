@@ -13,7 +13,10 @@ import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.DeadlockChecker;
 import org.infinispan.util.concurrent.locks.DeadlockDetectedException;
 import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
+import org.infinispan.util.concurrent.locks.KeyAwareLockListener;
+import org.infinispan.util.concurrent.locks.KeyAwareLockPromise;
 import org.infinispan.util.concurrent.locks.LockContainer;
+import org.infinispan.util.concurrent.locks.LockListener;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.LockState;
@@ -24,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -55,30 +59,42 @@ public class DefaultLockManager implements LockManager {
 
 
    @Override
-   public LockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
+   public KeyAwareLockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
+      Objects.requireNonNull(key, "Key must be non null");
+      Objects.requireNonNull(lockOwner, "Lock owner must be non null");
+      Objects.requireNonNull(unit, "Time unit must be non null");
+
       if (trace) {
          log.tracef("Lock key=%s for owner=%s. timeout=%s (%s)", key, lockOwner, time, unit);
       }
-      LockPromise promise = container.acquire(key, lockOwner, time, unit);
+
+      ExtendedLockPromise promise = container.acquire(key, lockOwner, time, unit);
       scheduleLockPromise(promise, time, unit);
-      return promise;
+      return new KeyAwareExtendedLockPromise(promise, key);
    }
 
    @Override
-   public LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
+   public KeyAwareLockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
+      Objects.requireNonNull(keys, "Keys must be non null");
+      Objects.requireNonNull(lockOwner, "Lock owner must be non null");
+      Objects.requireNonNull(unit, "Time unit must be non null");
+
+      if (keys.isEmpty()) {
+         return KeyAwareLockPromise.NO_OP;
+      }
+
       final Set<Object> uniqueKeys = new HashSet<>(keys);
       if (trace) {
          log.tracef("Lock all keys=%s for owner=%s. timeout=%s (%s)", uniqueKeys, lockOwner, time, unit);
       }
-      if (uniqueKeys.isEmpty()) {
-         return LockPromise.NO_OP;
-      } else if (uniqueKeys.size() == 1) {
+
+      if (uniqueKeys.size() == 1) {
          return lock(uniqueKeys.iterator().next(), lockOwner, time, unit);
       }
       final CompositeLockPromise compositeLockPromise = new CompositeLockPromise(uniqueKeys.size());
       synchronized (this) {
          for (Object key : uniqueKeys) {
-            compositeLockPromise.addLock(container.acquire(key, lockOwner, time, unit));
+            compositeLockPromise.addLock(new KeyAwareExtendedLockPromise(container.acquire(key, lockOwner, time, unit), key));
          }
       }
       compositeLockPromise.markListAsFinal();
@@ -163,10 +179,51 @@ public class DefaultLockManager implements LockManager {
       }
    }
 
-   private static class CompositeLockPromise implements LockPromise, LockPromise.Listener, Notifier.Invoker<LockPromise.Listener> {
+   private static class KeyAwareExtendedLockPromise implements KeyAwareLockPromise, ExtendedLockPromise {
 
-      private final List<ExtendedLockPromise> lockPromiseList;
-      private final Notifier<Listener> notifier;
+      private final ExtendedLockPromise lockPromise;
+      private final Object key;
+
+      private KeyAwareExtendedLockPromise(ExtendedLockPromise lockPromise, Object key) {
+         this.lockPromise = lockPromise;
+         this.key = key;
+      }
+
+      @Override
+      public void cancel(LockState cause) {
+         lockPromise.cancel(cause);
+      }
+
+      @Override
+      public boolean isAvailable() {
+         return lockPromise.isAvailable();
+      }
+
+      @Override
+      public void lock() throws InterruptedException, TimeoutException {
+         lockPromise.lock();
+      }
+
+      @Override
+      public void addListener(LockListener listener) {
+         lockPromise.addListener(listener);
+      }
+
+      @Override
+      public void setDeadlockChecker(DeadlockChecker deadlockChecker) {
+         lockPromise.setDeadlockChecker(deadlockChecker);
+      }
+
+      @Override
+      public void addListener(KeyAwareLockListener listener) {
+         lockPromise.addListener(state -> listener.onEvent(key, state));
+      }
+   }
+
+   private static class CompositeLockPromise implements KeyAwareLockPromise, LockListener, Notifier.Invoker<LockListener> {
+
+      private final List<KeyAwareExtendedLockPromise> lockPromiseList;
+      private final Notifier<LockListener> notifier;
       private final AtomicReferenceFieldUpdater<CompositeLockPromise, LockState> stateUpdater;
       private volatile LockState lockState = LockState.AVAILABLE;
 
@@ -176,7 +233,7 @@ public class DefaultLockManager implements LockManager {
          stateUpdater = AtomicReferenceFieldUpdater.newUpdater(CompositeLockPromise.class, LockState.class, "lockState");
       }
 
-      public void addLock(ExtendedLockPromise lockPromise) {
+      public void addLock(KeyAwareExtendedLockPromise lockPromise) {
          lockPromiseList.add(lockPromise);
       }
 
@@ -243,7 +300,7 @@ public class DefaultLockManager implements LockManager {
       }
 
       @Override
-      public void addListener(Listener listener) {
+      public void addListener(LockListener listener) {
          notifier.add(listener);
       }
 
@@ -267,8 +324,15 @@ public class DefaultLockManager implements LockManager {
       }
 
       @Override
-      public void invoke(Listener invoker) {
+      public void invoke(LockListener invoker) {
          invoker.onEvent(lockState);
+      }
+
+      @Override
+      public void addListener(KeyAwareLockListener listener) {
+         for (KeyAwareExtendedLockPromise lockPromise : lockPromiseList) {
+            lockPromise.addListener(listener);
+         }
       }
 
       private enum ExceptionType {

@@ -2,12 +2,14 @@ package org.infinispan.stats.wrappers;
 
 import org.infinispan.context.InvocationContext;
 import org.infinispan.stats.topK.StreamSummaryContainer;
+import org.infinispan.util.concurrent.locks.KeyAwareLockPromise;
 import org.infinispan.util.concurrent.locks.LockManager;
-import org.infinispan.util.concurrent.locks.LockPromise;
 import org.infinispan.util.concurrent.locks.LockState;
 
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Top-key stats about locks.
@@ -26,16 +28,19 @@ public class TopKeyLockManager implements LockManager {
    }
 
    @Override
-   public LockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
-      LockPromise lockPromise = current.lock(key, lockOwner, time, unit);
+   public KeyAwareLockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
+      KeyAwareLockPromise lockPromise = current.lock(key, lockOwner, time, unit);
       final boolean contented = !lockOwner.equals(current.getOwner(key));
       lockPromise.addListener(state -> container.addLockInformation(key, contented, state != LockState.AVAILABLE));
       return lockPromise;
    }
 
    @Override
-   public LockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
-      return null;  // TODO: Customise this generated block
+   public KeyAwareLockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
+      final KeyAwareLockPromise lockPromise = current.lockAll(keys, lockOwner, time, unit);
+      final Set<Object> contentedKeys = keys.stream().filter(key -> !lockOwner.equals(current.getOwner(key))).collect(Collectors.toSet());
+      lockPromise.addListener((lockedKey, state) -> container.addLockInformation(lockedKey, contentedKeys.contains(lockedKey), state != LockState.AVAILABLE));
+      return lockPromise;
    }
 
    @Override
