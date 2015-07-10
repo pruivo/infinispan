@@ -5,6 +5,7 @@ import org.infinispan.stats.topK.StreamSummaryContainer;
 import org.infinispan.util.concurrent.locks.KeyAwareLockPromise;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockState;
+import org.infinispan.util.concurrent.locks.impl.InfinispanLock;
 
 import java.util.Collection;
 import java.util.Set;
@@ -29,6 +30,9 @@ public class TopKeyLockManager implements LockManager {
 
    @Override
    public KeyAwareLockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
+      if (lockOwnerAlreadyExists(key, lockOwner)) {
+         return current.lock(key, lockOwner, time, unit);
+      }
       KeyAwareLockPromise lockPromise = current.lock(key, lockOwner, time, unit);
       final boolean contented = !lockOwner.equals(current.getOwner(key));
       lockPromise.addListener(state -> container.addLockInformation(key, contented, state != LockState.AVAILABLE));
@@ -37,9 +41,14 @@ public class TopKeyLockManager implements LockManager {
 
    @Override
    public KeyAwareLockPromise lockAll(Collection<?> keys, Object lockOwner, long time, TimeUnit unit) {
+      final Set<Object> keysToTrack = keys.stream().filter(key -> !lockOwnerAlreadyExists(key, lockOwner)).collect(Collectors.toSet());
       final KeyAwareLockPromise lockPromise = current.lockAll(keys, lockOwner, time, unit);
       final Set<Object> contentedKeys = keys.stream().filter(key -> !lockOwner.equals(current.getOwner(key))).collect(Collectors.toSet());
-      lockPromise.addListener((lockedKey, state) -> container.addLockInformation(lockedKey, contentedKeys.contains(lockedKey), state != LockState.AVAILABLE));
+      lockPromise.addListener((lockedKey, state) -> {
+         if (keysToTrack.contains(lockedKey)) {
+            container.addLockInformation(lockedKey, contentedKeys.contains(lockedKey), state != LockState.AVAILABLE);
+         }
+      });
       return lockPromise;
    }
 
@@ -86,5 +95,15 @@ public class TopKeyLockManager implements LockManager {
    @Override
    public long getDefaultTimeoutMillis() {
       return current.getDefaultTimeoutMillis();
+   }
+
+   @Override
+   public InfinispanLock getLock(Object key) {
+      return current.getLock(key);
+   }
+
+   private boolean lockOwnerAlreadyExists(Object key, Object lockOwner) {
+      final InfinispanLock lock = current.getLock(key);
+      return lock != null && lock.containsLockOwner(lockOwner);
    }
 }

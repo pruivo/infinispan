@@ -1,6 +1,7 @@
 package org.infinispan.util.concurrent.locks.impl;
 
 import org.infinispan.commons.util.Notifier;
+import org.infinispan.commons.util.Util;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.KnownComponentNames;
@@ -70,7 +71,7 @@ public class DefaultLockManager implements LockManager {
 
       ExtendedLockPromise promise = container.acquire(key, lockOwner, time, unit);
       scheduleLockPromise(promise, time, unit);
-      return new KeyAwareExtendedLockPromise(promise, key);
+      return new KeyAwareExtendedLockPromise(promise, key, unit.toMillis(time));
    }
 
    @Override
@@ -94,7 +95,7 @@ public class DefaultLockManager implements LockManager {
       final CompositeLockPromise compositeLockPromise = new CompositeLockPromise(uniqueKeys.size());
       synchronized (this) {
          for (Object key : uniqueKeys) {
-            compositeLockPromise.addLock(new KeyAwareExtendedLockPromise(container.acquire(key, lockOwner, time, unit), key));
+            compositeLockPromise.addLock(new KeyAwareExtendedLockPromise(container.acquire(key, lockOwner, time, unit), key, unit.toMillis(time)));
          }
       }
       compositeLockPromise.markListAsFinal();
@@ -172,6 +173,11 @@ public class DefaultLockManager implements LockManager {
       return configuration.locking().lockAcquisitionTimeout();
    }
 
+   @Override
+   public InfinispanLock getLock(Object key) {
+      return container.getLock(key);
+   }
+
    private void scheduleLockPromise(LockPromise promise, long time, TimeUnit unit) {
       if (!promise.isAvailable() && time > 0 && scheduler != null) {
          final ScheduledFuture<?> future = scheduler.schedule(promise::isAvailable, time, unit);
@@ -183,15 +189,27 @@ public class DefaultLockManager implements LockManager {
 
       private final ExtendedLockPromise lockPromise;
       private final Object key;
+      private final long timeoutMillis;
 
-      private KeyAwareExtendedLockPromise(ExtendedLockPromise lockPromise, Object key) {
+      private KeyAwareExtendedLockPromise(ExtendedLockPromise lockPromise, Object key, long timeoutMillis) {
          this.lockPromise = lockPromise;
          this.key = key;
+         this.timeoutMillis = timeoutMillis;
       }
 
       @Override
       public void cancel(LockState cause) {
          lockPromise.cancel(cause);
+      }
+
+      @Override
+      public Object getRequestor() {
+         return lockPromise.getRequestor();
+      }
+
+      @Override
+      public Object getOwner() {
+         return lockPromise.getOwner();
       }
 
       @Override
@@ -201,7 +219,11 @@ public class DefaultLockManager implements LockManager {
 
       @Override
       public void lock() throws InterruptedException, TimeoutException {
-         lockPromise.lock();
+         try {
+            lockPromise.lock();
+         } catch (TimeoutException e) {
+            throw log.unableToAcquireLock(Util.prettyPrintTime(timeoutMillis), key, lockPromise.getRequestor(), lockPromise.getOwner());
+         }
       }
 
       @Override

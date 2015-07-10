@@ -31,6 +31,8 @@ public class StripedLockContainer implements LockContainer {
       for (int i = 0; i < sharedLocks.length; i++) {
          if (sharedLocks[i] == null) {
             sharedLocks[i] = new InfinispanLock(timeService);
+         } else {
+            sharedLocks[i].setTimeService(timeService);
          }
       }
    }

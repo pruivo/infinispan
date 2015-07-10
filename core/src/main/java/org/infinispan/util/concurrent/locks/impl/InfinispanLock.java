@@ -34,8 +34,8 @@ public class InfinispanLock {
    private final Queue<LockPlaceHolder> pendingRequest;
    private final ConcurrentMap<Object, LockPlaceHolder> lockOwners;
    private final AtomicReferenceFieldUpdater<InfinispanLock, LockPlaceHolder> fieldUpdater;
-   private final TimeService timeService;
    private final Runnable releaseRunnable;
+   private volatile TimeService timeService;
    private volatile LockPlaceHolder current;
 
    public InfinispanLock(TimeService timeService) {
@@ -54,6 +54,15 @@ public class InfinispanLock {
       current = null;
       fieldUpdater = AtomicReferenceFieldUpdater.newUpdater(InfinispanLock.class, LockPlaceHolder.class, "current");
       this.releaseRunnable = releaseRunnable;
+   }
+
+   /**
+    * Tests purpose only!
+    */
+   public void setTimeService(TimeService timeService) {
+      if (timeService != null) {
+         this.timeService = timeService;
+      }
    }
 
    public ExtendedLockPromise acquire(Object lockOwner, long time, TimeUnit timeUnit) {
@@ -140,6 +149,24 @@ public class InfinispanLock {
             pending.checkDeadlock(holder.lockOwner);
          }
       }
+   }
+
+   public boolean containsLockOwner(Object lockOwner) {
+      LockPlaceHolder holder = current;
+      if (holder != null && holder.lockOwner.equals(lockOwner)) {
+         return true;
+      }
+      if (pendingRequest.isEmpty()) {
+         return false;
+      }
+
+      for(LockPlaceHolder pendingHolder : pendingRequest) {
+         if (pendingHolder.lockOwner.equals(lockOwner)) {
+            return true;
+         }
+      }
+      holder = current;
+      return holder != null && holder.lockOwner.equals(lockOwner);
    }
 
    private void onCanceled(LockPlaceHolder canceled) {
@@ -313,6 +340,17 @@ public class InfinispanLock {
       }
 
       @Override
+      public Object getRequestor() {
+         return lockOwner;
+      }
+
+      @Override
+      public Object getOwner() {
+         LockPlaceHolder owner = current;
+         return owner != null ? owner.lockOwner : null;
+      }
+
+      @Override
       public String toString() {
          return "LockPlaceHolder{" +
                "lockState=" + lockState +
@@ -357,6 +395,7 @@ public class InfinispanLock {
 
       private void checkDeadlock(Object currentOwner) {
          DeadlockChecker checker = deadlockChecker;
+         checkTimeout(); //check timeout before checking the deadlock. check deadlock are more expensive.
          if (checker != null && //we have a deadlock checker installed
                lockState == LockState.WAITING && //we are waiting for a lock
                !lockOwner.equals(currentOwner) && //needed? just to be safe

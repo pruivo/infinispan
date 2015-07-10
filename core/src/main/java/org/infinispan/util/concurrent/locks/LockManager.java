@@ -1,6 +1,7 @@
 package org.infinispan.util.concurrent.locks;
 
 import org.infinispan.context.InvocationContext;
+import org.infinispan.util.concurrent.locks.impl.InfinispanLock;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -102,4 +103,6 @@ public interface LockManager {
    int getNumberOfLocksHeld();
 
    long getDefaultTimeoutMillis();
+
+   InfinispanLock getLock(Object key);
 }

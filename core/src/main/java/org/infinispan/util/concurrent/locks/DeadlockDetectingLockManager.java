@@ -67,10 +67,6 @@ public class DeadlockDetectingLockManager extends DefaultLockManager implements 
       }
    }
 
-   @Inject
-   public void injectTimeService(TimeService timeService) {
-   }
-
    @Override
    public KeyAwareLockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
       if (lockOwner instanceof DldGlobalTransaction) {

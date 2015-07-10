@@ -125,7 +125,7 @@ public class DldGlobalTransaction extends GlobalTransaction {
    }
 
    public void setLocksHeldAtOrigin(Set<Object> locksAtOrigin) {
-      Objects.requireNonNull(lockIntention, "Locks at origin must be non-null.");
+      Objects.requireNonNull(locksAtOrigin, "Locks at origin must be non-null.");
       if (trace) log.tracef("Setting locks at origin for (%s) to %s", this, locksAtOrigin);
       this.locksAtOrigin = locksAtOrigin;
    }

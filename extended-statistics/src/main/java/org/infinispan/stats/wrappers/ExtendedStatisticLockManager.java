@@ -8,6 +8,7 @@ import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.locks.KeyAwareLockPromise;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockState;
+import org.infinispan.util.concurrent.locks.impl.InfinispanLock;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -49,6 +50,10 @@ public class ExtendedStatisticLockManager implements LockManager {
 
    @Override
    public KeyAwareLockPromise lock(Object key, Object lockOwner, long time, TimeUnit unit) {
+      if (lockOwnerAlreadyExists(key, lockOwner)) {
+         return actual.lock(key, lockOwner, time, unit);
+      }
+
       LockInfo lockInfo = new LockInfo(lockOwner instanceof GlobalTransaction ? (GlobalTransaction) lockOwner : null);
       updateContentionStats(key, lockInfo);
 
@@ -78,6 +83,9 @@ public class ExtendedStatisticLockManager implements LockManager {
       }
       final Map<Object, LockInfo> tmpMap = new HashMap<>();
       for (Object key : keys) {
+         if (lockOwnerAlreadyExists(key, lockOwner)) {
+            continue;
+         }
          LockInfo lockInfo = new LockInfo(lockOwner instanceof GlobalTransaction ? (GlobalTransaction) lockOwner : null);
          updateContentionStats(key, lockInfo);
          tmpMap.put(key, lockInfo);
@@ -88,7 +96,10 @@ public class ExtendedStatisticLockManager implements LockManager {
       final KeyAwareLockPromise lockPromise = actual.lockAll(keys, lockOwner, time, unit);
       lockPromise.addListener((lockedKey, state) -> {
          long end = timeService.time();
-         LockInfo lockInfo = tmpMap.get(lockedKey);
+         final LockInfo lockInfo = tmpMap.get(lockedKey);
+         if (lockInfo == null) {
+            return;
+         }
          lockInfo.lockTimeStamp = end;
          if (lockInfo.contention) {
             lockInfo.lockWaiting = timeService.timeDuration(start, end, NANOSECONDS);
@@ -161,6 +172,16 @@ public class ExtendedStatisticLockManager implements LockManager {
    @Override
    public long getDefaultTimeoutMillis() {
       return actual.getDefaultTimeoutMillis();
+   }
+
+   @Override
+   public InfinispanLock getLock(Object key) {
+      return actual.getLock(key);
+   }
+
+   private boolean lockOwnerAlreadyExists(Object key, Object lockOwner) {
+      final InfinispanLock lock = actual.getLock(key);
+      return lock != null && lock.containsLockOwner(lockOwner);
    }
 
    private void updateContentionStats(Object key, LockInfo lockInfo) {

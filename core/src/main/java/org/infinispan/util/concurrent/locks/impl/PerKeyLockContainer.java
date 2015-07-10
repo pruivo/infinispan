@@ -31,6 +31,9 @@ public class PerKeyLockContainer implements LockContainer {
    @Inject
    public void inject(TimeService timeService) {
       this.timeService = timeService;
+      for (InfinispanLock lock : lockMap.values()) {
+         lock.setTimeService(timeService);
+      }
    }
 
    @Override

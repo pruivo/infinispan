@@ -10,4 +10,8 @@ public interface ExtendedLockPromise extends LockPromise {
 
    void cancel(LockState cause);
 
+   Object getRequestor();
+
+   Object getOwner();
+
 }
