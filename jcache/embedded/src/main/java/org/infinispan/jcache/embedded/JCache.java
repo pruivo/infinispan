@@ -77,6 +77,7 @@ public class JCache<K, V> extends AbstractJCache<K, V> {
       super(c.getConfiguration(), cacheManager, new JCacheNotifier<K, V>());
       this.cache = cache;
       this.processorLocks = new PerKeyLockContainer(32, cache.getCacheConfiguration().dataContainer().keyEquivalence());
+      ((PerKeyLockContainer) processorLocks).inject(cache.getComponentRegistry().getTimeService());
       this.ignoreReturnValuesCache = cache.withFlags(Flag.IGNORE_RETURN_VALUES);
       this.skipCacheLoadCache = cache.withFlags(Flag.SKIP_CACHE_LOAD);
       this.skipCacheLoadAndStatsCache = cache.withFlags(Flag.SKIP_CACHE_LOAD, Flag.SKIP_STATISTICS);

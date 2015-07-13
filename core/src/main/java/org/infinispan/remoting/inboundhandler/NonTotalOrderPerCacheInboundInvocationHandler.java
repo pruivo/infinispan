@@ -65,7 +65,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
          unexpectedDeliverMode(command, order);
       }
       try {
-         boolean onExecutorService = !order.preserveOrder() && command.canBlock();
+         boolean onExecutorService;
          BlockingRunnable runnable;
          int commandTopologyId;
 
@@ -76,6 +76,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                   reply.reply(CacheNotFoundResponse.INSTANCE);
                   return;
                }
+               onExecutorService = executeOnExecutorService(order, command);
                runnable = createLockAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
                                                   getLockPromise((SingleRpcCommand) command));
                break;
@@ -85,6 +86,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                   reply.reply(CacheNotFoundResponse.INSTANCE);
                   return;
                }
+               onExecutorService = executeOnExecutorService(order, command);
                runnable = createLockAwareRunnable(command, reply, commandTopologyId, true, onExecutorService,
                                                   getLockPromise((MultipleRpcCommand) command));
                break;
@@ -96,6 +98,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                   reply.reply(CacheNotFoundResponse.INSTANCE);
                   return;
                }
+               onExecutorService = executeOnExecutorService(order, command);
                runnable = createDefaultRunnable(command, reply, commandTopologyId, false, onExecutorService);
                break;
             case PrepareCommand.COMMAND_ID:
@@ -119,6 +122,7 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                   reply.reply(CacheNotFoundResponse.INSTANCE);
                   return;
                }
+               onExecutorService = executeOnExecutorService(order, command);
                runnable = createDefaultRunnable(command, reply, commandTopologyId, true, onExecutorService);
                break;
          }
@@ -126,6 +130,10 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       } catch (Throwable throwable) {
          reply.reply(exceptionHandlingCommand(command, throwable));
       }
+   }
+
+   private boolean executeOnExecutorService(DeliverOrder order, CacheRpcCommand command) {
+      return !order.preserveOrder() && command.canBlock();
    }
 
    @Override
