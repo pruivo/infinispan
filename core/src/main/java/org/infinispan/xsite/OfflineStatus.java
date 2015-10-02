@@ -59,11 +59,7 @@ public class OfflineStatus {
       }
 
       if (takeOffline.afterFailures() > 0) {
-         if (takeOffline.afterFailures() <= failureCount) {
-            return true;
-         } else {
-            return false;
-         }
+         return takeOffline.afterFailures() <= failureCount;
       } else {
          log.trace("Site is failed: minTimeToWait elapsed and we don't have a min failure number to wait for.");
          return true;
@@ -109,7 +105,7 @@ public class OfflineStatus {
       reset();
    }
 
-   public void reset() {
+   public synchronized void reset() {
       recordingOfflineStatus = false;
       failureCount = 0;
       forceOffline = false;
@@ -126,7 +122,7 @@ public class OfflineStatus {
    }
 
    @Override
-   public String toString() {
+   public synchronized String toString() {
       return "OfflineStatus{" +
             "takeOffline=" + takeOffline +
             ", recordingOfflineStatus=" + recordingOfflineStatus +

@@ -32,7 +32,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -153,15 +152,11 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
    private void notifyStateTransferEnd(final String siteName, final Address origin, final boolean error) {
       if (rpcManager.getAddress().equals(origin)) {
-         executorService.submit(new Callable<Void>() {
-            @Override
-            public Void call() throws Exception {
-               try {
-                  stateTransferManager.notifyStatePushFinished(siteName, origin, !error);
-               } catch (Throwable throwable) {
-                  //ignored
-               }
-               return null;
+         executorService.execute(() -> {
+            try {
+               stateTransferManager.notifyStatePushFinished(siteName, origin, !error);
+            } catch (Throwable throwable) {
+               //ignored
             }
          });
       } else {
