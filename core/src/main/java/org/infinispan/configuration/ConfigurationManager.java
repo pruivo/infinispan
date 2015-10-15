@@ -67,7 +67,11 @@ public class ConfigurationManager {
    }
 
    public Configuration getConfigurationOrDefault(String cacheName) {
-      return cacheName.equals(DEFAULT_CACHE_NAME) ? defaultConfiguration : namedConfiguration.getOrDefault(cacheName, defaultConfiguration);
+      if (DEFAULT_CACHE_NAME.equals(cacheName) || !namedConfiguration.containsKey(cacheName)) {
+         return new ConfigurationBuilder().read(defaultConfiguration).build(globalConfiguration);
+      } else {
+         return namedConfiguration.get(cacheName);
+      }
    }
 
    public Configuration putConfiguration(String cacheName, ConfigurationBuilder builder) {
