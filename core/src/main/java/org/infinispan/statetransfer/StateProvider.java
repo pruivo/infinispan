@@ -14,33 +14,35 @@ import java.util.Set;
  * Handles outbound state transfers.
  *
  * @author anistor@redhat.com
+ * @author Pedro Ruivo
  * @since 5.2
  */
 @Scope(Scopes.NAMED_CACHE)
 public interface StateProvider {
 
+   /**
+    * @return {@code true} if the state transfer is in progress and this node is sending data.
+    */
    boolean isStateTransferInProgress();
 
    /**
     * Receive notification of topology changes. Cancels all outbound transfers to destinations that are no longer members.
     * The other outbound transfers remain unaffected.
-    *
-    * @param cacheTopology
-    * @param isRebalance
     */
-   void onTopologyUpdate(CacheTopology cacheTopology, boolean isRebalance);
+   void onTopologyUpdate(CacheTopology cacheTopology);
 
    /**
     * Gets the list of transactions that affect keys from the given segments. This is invoked in response to a
     * StateRequestCommand of type StateRequestCommand.Type.GET_TRANSACTIONS.
     *
     * @param destination the address of the requester
-    * @param topologyId
-    * @param segments
     * @return list transactions and locks for the given segments
     */
    List<TransactionInfo> getTransactionsForSegments(Address destination, int topologyId, Set<Integer> segments) throws InterruptedException;
 
+   /**
+    * @return a {@link Collection} of instruction {@link java.util.concurrent.Callable}.
+    */
    Collection<DistributedCallable> getClusterListenersToInstall();
 
    /**

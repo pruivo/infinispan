@@ -37,7 +37,7 @@ public class TxDistributedCacheStream<R> extends DistributedCacheStream<R> {
            int distributedBatchSize, Executor executor, ComponentRegistry registry, LocalTxInvocationContext ctx) {
       super(localAddress, parallel, dm, supplier, csm, includeLoader, distributedBatchSize, executor, registry);
       this.localAddress = localAddress;
-      this.hash = dm.getConsistentHash();
+      this.hash = dm.getReadConsistentHash();
       this.ctx = ctx;
    }
 
@@ -47,7 +47,7 @@ public class TxDistributedCacheStream<R> extends DistributedCacheStream<R> {
            Function<? super CacheEntry<K, V>, R> function, LocalTxInvocationContext ctx) {
       super(localAddress, parallel, dm, supplier, csm, includeLoader, distributedBatchSize, executor, registry, function);
       this.localAddress = localAddress;
-      this.hash = dm.getConsistentHash();
+      this.hash = dm.getReadConsistentHash();
       this.ctx = ctx;
    }
 

@@ -12,7 +12,6 @@ import org.infinispan.distribution.ch.KeyPartitioner;
 import org.infinispan.distribution.ch.impl.SyncConsistentHashFactory;
 import org.infinispan.distribution.ch.impl.SyncReplicatedConsistentHashFactory;
 import org.infinispan.distribution.ch.impl.TopologyAwareSyncConsistentHashFactory;
-import org.infinispan.distribution.group.PartitionerConsistentHash;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.factories.annotations.Stop;
@@ -27,6 +26,7 @@ import org.infinispan.topology.CacheJoinInfo;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.topology.CacheTopologyHandler;
 import org.infinispan.topology.LocalTopologyManager;
+import org.infinispan.topology.TopologyState;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -63,6 +63,7 @@ public class StateTransferManagerImpl implements StateTransferManager {
    // topology id will be ignored.
    private volatile int firstTopologyAsMember = Integer.MAX_VALUE;
    private KeyPartitioner keyPartitioner;
+   private volatile TopologyState localState = TopologyState.NONE;
 
    public StateTransferManagerImpl() {
    }
@@ -104,18 +105,83 @@ public class StateTransferManagerImpl implements StateTransferManager {
             configuration.clustering().hash().numOwners(),
             configuration.clustering().stateTransfer().timeout(),
             configuration.transaction().transactionProtocol().isTotalOrder(),
-            configuration.clustering().cacheMode().isDistributed(),
             configuration.clustering().hash().capacityFactor());
 
       CacheTopology initialTopology = localTopologyManager.join(cacheName, joinInfo, new CacheTopologyHandler() {
          @Override
-         public void updateConsistentHash(CacheTopology cacheTopology) {
-            doTopologyUpdate(cacheTopology, false);
+         public void updateConsistentHash(CacheTopology cacheTopology, ConsistentHash newCH, TopologyState state) {
+            switch (localState) {
+               case NONE:
+                  //we miss the rebalance_start
+                  if (state == TopologyState.REBALANCE) {
+                     rebalance(cacheTopology, newCH);
+                     return;
+                  }
+                  break;
+               case REBALANCE:
+                  //we miss the read_ch_update
+                  if (state == TopologyState.READ_CH_UPDATE) {
+                     updateReadConsistentHash(cacheTopology);
+                     return;
+                  }
+                  break;
+               case READ_CH_UPDATE:
+                  //we miss the write_ch_update
+                  if (state == TopologyState.NONE) {
+                     updateWriteConsistentHash(cacheTopology);
+                     return;
+                  }
+                  break;
+            }
+            CacheTopologyCollection collection = new CacheTopologyCollection(cacheTopology);
+
+            preTopologyUpdate(collection, TopologyUpdate.CH_UPDATE);
+
+            stateConsumer.onConsistentHashUpdate(collection.newTopology);
+
+            posTopologyUpdate(collection);
          }
 
          @Override
-         public void rebalance(CacheTopology cacheTopology) {
-            doTopologyUpdate(cacheTopology, true);
+         public void updateReadConsistentHash(CacheTopology cacheTopology) {
+            CacheTopologyCollection collection = new CacheTopologyCollection(cacheTopology);
+
+            preTopologyUpdate(collection, TopologyUpdate.READ_CH_UPDATE);
+
+            cacheNotifier.notifyDataRehashed(collection.oldTopology != null ? collection.oldTopology.getReadConsistentHash() : null,
+                                             collection.newTopology.getReadConsistentHash(), null,
+                                             collection.newTopology.getTopologyId(), false);
+            localState = TopologyState.READ_CH_UPDATE;
+            stateConsumer.onReadConsistentHashUpdate(collection.newTopology);
+
+            posTopologyUpdate(collection);
+         }
+
+         @Override
+         public void updateWriteConsistentHash(CacheTopology cacheTopology) {
+            CacheTopologyCollection collection = new CacheTopologyCollection(cacheTopology);
+
+            preTopologyUpdate(collection, TopologyUpdate.WRITE_CH_UPDATE);
+
+            localState = TopologyState.NONE;
+            stateConsumer.onWriteConsistentHashUpdate(collection.newTopology);
+
+            posTopologyUpdate(collection);
+         }
+
+         @Override
+         public void rebalance(CacheTopology cacheTopology, ConsistentHash newCH) {
+            CacheTopologyCollection collection = new CacheTopologyCollection(cacheTopology);
+
+            preTopologyUpdate(collection, TopologyUpdate.REBALANCE);
+
+            cacheNotifier.notifyDataRehashed(collection.newTopology.getReadConsistentHash(), newCH,
+                                             collection.newTopology.getWriteConsistentHash(),
+                                             collection.newTopology.getTopologyId(), true);
+            localState = TopologyState.REBALANCE;
+            stateConsumer.onRebalanceStart(collection.newTopology);
+
+            posTopologyUpdate(collection);
          }
       }, partitionHandlingManager);
 
@@ -153,55 +219,64 @@ public class StateTransferManagerImpl implements StateTransferManager {
     * The key partitioner may include support for grouping as well.
     */
    private CacheTopology addPartitioner(CacheTopology cacheTopology) {
-      ConsistentHash currentCH = cacheTopology.getCurrentCH();
-      currentCH = new PartitionerConsistentHash(currentCH, keyPartitioner);
-      ConsistentHash pendingCH = cacheTopology.getPendingCH();
-      if (pendingCH != null) {
-         pendingCH = new PartitionerConsistentHash(pendingCH, keyPartitioner);
-      }
-      ConsistentHash unionCH = cacheTopology.getUnionCH();
-      if (unionCH != null) {
-         unionCH = new PartitionerConsistentHash(unionCH, keyPartitioner);
-      }
-      return new CacheTopology(cacheTopology.getTopologyId(), cacheTopology.getRebalanceId(), currentCH, pendingCH,
-            unionCH, cacheTopology.getActualMembers());
+      return cacheTopology.addPartitioner(keyPartitioner);
    }
 
-   private void doTopologyUpdate(CacheTopology newCacheTopology, boolean isRebalance) {
-      CacheTopology oldCacheTopology = stateConsumer.getCacheTopology();
-
-      if (oldCacheTopology != null && oldCacheTopology.getTopologyId() > newCacheTopology.getTopologyId()) {
-         throw new IllegalStateException("Old topology is higher: old=" + oldCacheTopology + ", new=" + newCacheTopology);
+   private void checkNewTopology(CacheTopologyCollection collection) {
+      if (collection.oldTopology != null && collection.oldTopology.getTopologyId() > collection.newTopology.getTopologyId()) {
+         throw new IllegalStateException("Old topology is higher: old=" + collection.oldTopology + ", new=" + collection.newTopology);
       }
+   }
 
-      if (trace) {
-         log.tracef("Installing new cache topology %s on cache %s", newCacheTopology, cacheName);
-      }
-
+   private void setFirstTopologyAsMemberIfAbsent(CacheTopology newCacheTopology) {
       // No need for extra synchronization here, since LocalTopologyManager already serializes topology updates.
       if (firstTopologyAsMember == Integer.MAX_VALUE && newCacheTopology.getMembers().contains(rpcManager.getAddress())) {
+         if (trace) {
+            log.trace("This is the first topology in which the local node is a member");
+         }
          firstTopologyAsMember = newCacheTopology.getTopologyId();
-         if (trace) log.tracef("This is the first topology %d in which the local node is a member", firstTopologyAsMember);
       }
+   }
 
-      // handle the partitioner
-      newCacheTopology = addPartitioner(newCacheTopology);
-
-      cacheNotifier.notifyTopologyChanged(oldCacheTopology, newCacheTopology, newCacheTopology.getTopologyId(), true);
-
-      stateConsumer.onTopologyUpdate(newCacheTopology, isRebalance);
-      stateProvider.onTopologyUpdate(newCacheTopology, isRebalance);
-
-      cacheNotifier.notifyTopologyChanged(oldCacheTopology, newCacheTopology, newCacheTopology.getTopologyId(), false);
-
+   private void setInitialStateTransferComplete() {
       if (initialStateTransferComplete.getCount() > 0) {
-         boolean isJoined = stateConsumer.getCacheTopology().getReadConsistentHash().getMembers().contains(rpcManager.getAddress());
-         if (isJoined) {
+         final CacheTopology cacheTopology = stateConsumer.getCacheTopology();
+         boolean isJoined = cacheTopology.getReadConsistentHash().getMembers().contains(rpcManager.getAddress());
+         if (isJoined && cacheTopology.isStable() && localState == TopologyState.NONE) {
             initialStateTransferComplete.countDown();
-            log.tracef("Initial state transfer complete for cache %s on node %s", cacheName, rpcManager.getAddress());
+            if (trace) {
+               log.tracef("Initial state transfer complete for cache %s on node %s", cacheName, rpcManager.getAddress());
+            }
          }
       }
-      partitionHandlingManager.onTopologyUpdate(newCacheTopology);
+   }
+
+   private void preTopologyUpdate(CacheTopologyCollection collection, TopologyUpdate topologyUpdate) {
+      collection.oldTopology = stateConsumer.getCacheTopology();
+      checkNewTopology(collection);
+
+      if (trace) {
+         log.tracef("Updating with cache topology %s on cache %s (%s)", collection.newTopology, cacheName, topologyUpdate);
+      }
+
+      setFirstTopologyAsMemberIfAbsent(collection.newTopology);
+
+      // handle the partitioner
+      collection.newTopology = addPartitioner(collection.newTopology);
+
+      notifyTopologyChanged(collection, true);
+   }
+
+   private void posTopologyUpdate(CacheTopologyCollection collection) {
+      stateProvider.onTopologyUpdate(collection.newTopology);
+      notifyTopologyChanged(collection, false);
+      setInitialStateTransferComplete();
+      partitionHandlingManager.onTopologyUpdate(collection.newTopology);
+   }
+
+   private void notifyTopologyChanged(CacheTopologyCollection collection, boolean pre) {
+      cacheNotifier.notifyTopologyChanged(collection.oldTopology, collection.newTopology,
+                                          collection.newTopology.getTopologyId(), pre);
    }
 
    @Start(priority = 1000)
@@ -319,5 +394,23 @@ public class StateTransferManagerImpl implements StateTransferManager {
 
    public String toString() {
       return "StateTransferManagerImpl [" + cacheName + "@" + rpcManager.getAddress() + "]";
+   }
+
+   @Override
+   public TopologyState getTopologyState() {
+      return localState;
+   }
+
+   private enum TopologyUpdate {
+      REBALANCE, READ_CH_UPDATE, WRITE_CH_UPDATE, CH_UPDATE
+   }
+
+   private static class CacheTopologyCollection {
+      private CacheTopology oldTopology;
+      private CacheTopology newTopology;
+
+      public CacheTopologyCollection(CacheTopology newTopology) {
+         this.newTopology = newTopology;
+      }
    }
 }

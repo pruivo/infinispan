@@ -6,12 +6,7 @@ import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.distribution.DistributionManager;
-import org.infinispan.filter.AcceptAllKeyValueFilter;
-import org.infinispan.filter.CacheFilters;
-import org.infinispan.filter.CollectionKeyFilter;
-import org.infinispan.filter.CompositeKeyValueFilterConverter;
-import org.infinispan.filter.KeyFilterAsKeyValueFilter;
-import org.infinispan.filter.KeyValueFilterConverter;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.test.TestingUtil;
 import org.testng.annotations.Test;
@@ -22,13 +17,9 @@ import javax.transaction.NotSupportedException;
 import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
 import javax.transaction.TransactionManager;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.testng.AssertJUnit.assertEquals;
 
@@ -55,13 +46,13 @@ public class DistributedStreamTxEquivalenceTest extends BaseSetupStreamIteratorT
       PRIMARY {
          @Override
          boolean accept(Object key, DistributionManager dm, Address localAddress) {
-            return dm.getPrimaryLocation(key).equals(localAddress);
+            return dm.getPrimaryLocation(key, LookupMode.READ).equals(localAddress);
          }
       },
       BACKUP {
          @Override
          boolean accept(Object key, DistributionManager dm, Address localAddress) {
-            List<Address> owners  = dm.locate(key);
+            List<Address> owners  = dm.locate(key, LookupMode.READ);
             Iterator<Address> iter = owners.iterator();
             // Skip primary owner
             iter.next();
@@ -75,7 +66,7 @@ public class DistributedStreamTxEquivalenceTest extends BaseSetupStreamIteratorT
       NOT_OWNER {
          @Override
          boolean accept(Object key, DistributionManager dm, Address localAddress) {
-            return !dm.locate(key).contains(localAddress);
+            return !dm.locate(key, LookupMode.READ).contains(localAddress);
          }
       };
 

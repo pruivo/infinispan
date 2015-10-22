@@ -13,6 +13,7 @@ import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.remoting.inboundhandler.DeliverOrder;
 import org.infinispan.statetransfer.OutdatedTopologyException;
@@ -137,7 +138,7 @@ public class PessimisticLockingInterceptor extends AbstractTxLockingInterceptor 
          if (!hasSkipLocking(command)) {
             Set<Object> keysToLock = new HashSet<>(Arrays.asList(compositeKeys));
             acquireAllRemoteIfNeeded(ctx, keysToLock, command);
-            if (cdl.localNodeIsOwner(command.getKey())) {
+            if (cdl.localNodeIsOwner(command.getKey(), LookupMode.WRITE)) {
                lockAllAndRecord(ctx, keysToLock, getLockTimeoutMillis(command));
             }
          }
@@ -161,7 +162,7 @@ public class PessimisticLockingInterceptor extends AbstractTxLockingInterceptor 
          // First go remotely - required by DLD.
          // Only acquire remote lock if multiple keys or the single key primary owner doesn't map to the local node.
          if (ctx.isOriginLocal()) {
-            final boolean isSingleKeyAndLocal = !command.multipleKeys() && cdl.localNodeIsPrimaryOwner(command.getSingleKey());
+            final boolean isSingleKeyAndLocal = !command.multipleKeys() && cdl.localNodeIsPrimaryOwner(command.getSingleKey(), LookupMode.WRITE);
             boolean needBackupLocks = !isSingleKeyAndLocal || isStateTransferInProgress();
             if (needBackupLocks && !command.hasFlag(Flag.CACHE_MODE_LOCAL)) {
                LocalTransaction localTx = (LocalTransaction) ctx.getCacheTransaction();

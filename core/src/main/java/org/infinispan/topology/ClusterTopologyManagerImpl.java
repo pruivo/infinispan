@@ -6,6 +6,7 @@ import org.infinispan.commons.CacheException;
 import org.infinispan.commons.util.CollectionFactory;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.global.GlobalConfiguration;
+import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.executors.SemaphoreCompletionService;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.annotations.ComponentName;
@@ -48,6 +49,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static java.lang.String.format;
 import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR;
 import static org.infinispan.util.logging.LogFactory.CLUSTER;
 
@@ -136,7 +138,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
          Address coordinator = transport.getCoordinator();
          try {
             Map<Address, Response> responseMap = transport.invokeRemotely(Collections.singleton(coordinator),
-                  command, ResponseMode.SYNCHRONOUS, getGlobalTimeout(), null, DeliverOrder.NONE, false);
+                  command, ResponseMode.SYNCHRONOUS, getGlobalTimeout(), null, DeliverOrder.NONE);
             Response response = responseMap.get(coordinator);
             if (response instanceof SuccessfulResponse) {
                globalRebalancingEnabled = ((Boolean) ((SuccessfulResponse) response).getResponseValue());
@@ -201,7 +203,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
    }
 
    @Override
-   public void handleRebalanceCompleted(String cacheName, Address node, int topologyId, Throwable throwable, int viewId) throws Exception {
+   public void handleRebalanceCompleted(String cacheName, Address node, int topologyId, Throwable throwable, int viewId) {
       if (throwable != null) {
          // TODO We could try to update the pending CH such that nodes reporting errors are not considered to hold any state
          // For now we are just logging the error and proceeding as if the rebalance was successful everywhere
@@ -212,12 +214,32 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
 
       ClusterCacheStatus cacheStatus = cacheStatusMap.get(cacheName);
       if (cacheStatus == null || !cacheStatus.isRebalanceInProgress()) {
-         log.debugf("Ignoring rebalance confirmation from %s " +
-               "for cache %s because it doesn't have a cache status entry", node, cacheName);
+         log.debugf("Ignoring rebalance confirmation from %s for cache %s because it doesn't have a cache status entry",
+                    node, cacheName);
          return;
       }
 
       cacheStatus.doConfirmRebalance(node, topologyId);
+   }
+
+   @Override
+   public void handleReadCHCompleted(String cacheName, Address node, int topologyId, Throwable throwable, int viewId) {
+      if (throwable != null) {
+         // TODO We could try to update the pending CH such that nodes reporting errors are not considered to hold any state
+         // For now we are just logging the error and proceeding as if the rebalance was successful everywhere
+         log.rebalanceError(cacheName, node, throwable);
+      }
+
+      CLUSTER.rebalanceCompleted(cacheName, node, topologyId);
+
+      ClusterCacheStatus cacheStatus = cacheStatusMap.get(cacheName);
+      if (cacheStatus == null || !cacheStatus.isRebalanceInProgress()) {
+         log.debugf("Ignoring rebalance confirmation from %s for cache %s because it doesn't have a cache status entry",
+                    node, cacheName);
+         return;
+      }
+
+      cacheStatus.doConfirmReadCH(node, topologyId);
    }
 
    private static class CacheTopologyFilterReuser implements ResponseFilter {
@@ -310,7 +332,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
          // status because of a merge, the existing cache statuses may have a rebalance in progress.
          cacheStatusMap.clear();
          try {
-            recoverClusterStatus(newViewId, mergeView, transport.getMembers());
+            recoverClusterStatus(newViewId, transport.getMembers());
 
             synchronized (clusterManagerLock) {
                if (viewId != newViewId) {
@@ -363,20 +385,21 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
    }
 
    @Override
-   public void broadcastRebalanceStart(String cacheName, CacheTopology cacheTopology, boolean totalOrder, boolean distributed) {
+   public void broadcastRebalanceStart(String cacheName, CacheTopology cacheTopology, ConsistentHash newConsistentHash, boolean totalOrder) {
       CLUSTER.startRebalance(cacheName, cacheTopology);
-      ReplicableCommand command = new CacheTopologyControlCommand(cacheName,
-            CacheTopologyControlCommand.Type.REBALANCE_START, transport.getAddress(), cacheTopology, null,
-            viewId);
-      executeOnClusterAsync(command, getGlobalTimeout(), totalOrder, distributed);
+      CacheTopologyControlCommand command = new CacheTopologyControlCommand(cacheName,
+            CacheTopologyControlCommand.Type.REBALANCE_START, transport.getAddress(), cacheTopology, null, null,
+            transport.getViewId());
+      command.setNewCH(newConsistentHash);
+      executeOnClusterAsync(command, getGlobalTimeout(), totalOrder);
    }
 
-   private void recoverClusterStatus(int newViewId, final boolean isMergeView, final List<Address> clusterMembers) throws Exception {
+   private void recoverClusterStatus(int newViewId, List<Address> clusterMembers) throws Exception {
       log.debugf("Recovering cluster status for view %d", newViewId);
       ReplicableCommand command = new CacheTopologyControlCommand(null,
             CacheTopologyControlCommand.Type.GET_STATUS, transport.getAddress(), newViewId);
-      Map<Address, Object> statusResponses = executeOnClusterSync(command, getGlobalTimeout(), false, false,
-            new CacheTopologyFilterReuser());
+      Map<Address, Object> statusResponses = executeOnClusterSync(command, getGlobalTimeout(), false,
+                                                                  new CacheTopologyFilterReuser());
 
       log.debugf("Got %d status responses. members are %s", statusResponses.size(), clusterMembers);
       Map<String, Map<Address, CacheStatusResponse>> responsesByCache = new HashMap<>();
@@ -405,7 +428,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
          cs.submit(new Callable<Void>() {
             @Override
             public Void call() throws Exception {
-               cacheStatus.doMergePartitions(e.getValue(), clusterMembers, isMergeView);
+               cacheStatus.doMergePartitions(e.getValue());
                return null;
             }
          });
@@ -432,7 +455,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
 
    private void confirmMembersAvailable() throws Exception {
       ReplicableCommand heartbeatCommand = new CacheTopologyControlCommand(null, CacheTopologyControlCommand.Type.POLICY_GET_STATUS, transport.getAddress(), -1);
-      transport.invokeRemotely(null, heartbeatCommand, ResponseMode.SYNCHRONOUS, getGlobalTimeout(), null, DeliverOrder.NONE, false);
+      transport.invokeRemotely(null, heartbeatCommand, ResponseMode.SYNCHRONOUS, getGlobalTimeout(), null, DeliverOrder.NONE);
    }
 
    /**
@@ -461,34 +484,26 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
    }
 
    private Map<Address, Object> executeOnClusterSync(final ReplicableCommand command, final int timeout,
-         boolean totalOrder, boolean distributed) throws Exception {
-      return executeOnClusterSync(command, timeout, totalOrder, distributed, null);
-   }
-
-   private Map<Address, Object> executeOnClusterSync(final ReplicableCommand command, final int timeout,
-                                                     boolean totalOrder, boolean distributed, final ResponseFilter filter)
+                                                     boolean totalOrder, final ResponseFilter filter)
          throws Exception {
       // first invoke remotely
 
       if (totalOrder) {
          Map<Address, Response> responseMap = transport.invokeRemotely(transport.getMembers(), command,
                                                                        ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS,
-                                                                       timeout, filter, DeliverOrder.TOTAL, distributed);
-         Map<Address, Object> responseValues = new HashMap<Address, Object>(transport.getMembers().size());
+                                                                       timeout, filter, DeliverOrder.TOTAL);
+         Map<Address, Object> responseValues = new HashMap<>(transport.getMembers().size());
          for (Map.Entry<Address, Response> entry : responseMap.entrySet()) {
             Address address = entry.getKey();
             Response response = entry.getValue();
-            if (!response.isSuccessful()) {
-               Throwable cause = response instanceof ExceptionResponse ? ((ExceptionResponse) response).getException() : null;
-               throw new CacheException("Unsuccessful response received from node " + address + ": " + response, cause);
-            }
+            checkResponse(response, String.valueOf(address));
             responseValues.put(address, ((SuccessfulResponse) response).getResponseValue());
          }
          return responseValues;
       }
 
       CompletableFuture<Map<Address, Response>> remoteFuture = transport.invokeRemotelyAsync(null, command,
-            ResponseMode.SYNCHRONOUS, timeout, filter, DeliverOrder.NONE, false);
+            ResponseMode.SYNCHRONOUS, timeout, filter, DeliverOrder.NONE);
 
       // invoke the command on the local node
       gcr.wireDependencies(command);
@@ -499,26 +514,17 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
       } catch (Throwable throwable) {
          throw new Exception(throwable);
       }
-      if (!localResponse.isSuccessful()) {
-         Exception exception = null;
-         if (localResponse instanceof ExceptionResponse) {
-            exception = ((ExceptionResponse) localResponse).getException();
-         }
-         throw new CacheException("Unsuccessful local response: " + localResponse, exception);
-      }
+      checkResponse(localResponse, "local-node");
 
       // wait for the remote commands to finish
       Map<Address, Response> responseMap = remoteFuture.get(timeout, TimeUnit.MILLISECONDS);
 
       // parse the responses
-      Map<Address, Object> responseValues = new HashMap<Address, Object>(transport.getMembers().size());
+      Map<Address, Object> responseValues = new HashMap<>(transport.getMembers().size());
       for (Map.Entry<Address, Response> entry : responseMap.entrySet()) {
          Address address = entry.getKey();
          Response response = entry.getValue();
-         if (!response.isSuccessful()) {
-            Throwable cause = response instanceof ExceptionResponse ? ((ExceptionResponse) response).getException() : null;
-            throw new CacheException("Unsuccessful response received from node " + address + ": " + response, cause);
-         }
+         checkResponse(response, String.valueOf(address));
          responseValues.put(address, ((SuccessfulResponse) response).getResponseValue());
       }
 
@@ -527,12 +533,22 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
       return responseValues;
    }
 
+   private void checkResponse(Response response, String from) {
+      if (response == null || !response.isSuccessful()) {
+         if (response instanceof ExceptionResponse) {
+            throw new CacheException(format("Unsuccessful response received from %s: %s", from, response),
+                                     ((ExceptionResponse) response).getException());
+         }
+         throw new CacheException(format("Unsuccessful response received from %s: %s", from, response));
+      }
+   }
+
    private int getGlobalTimeout() {
       // TODO Rename setting to something like globalRpcTimeout
       return (int) globalConfiguration.transport().distributedSyncTimeout();
    }
 
-   private void executeOnClusterAsync(final ReplicableCommand command, final int timeout, boolean totalOrder, boolean distributed) {
+   private void executeOnClusterAsync(final ReplicableCommand command, final int timeout, boolean totalOrder) {
       if (!totalOrder) {
          // invoke the command on the local node
          asyncTransportExecutor.submit(new Runnable() {
@@ -553,29 +569,49 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
       try {
          DeliverOrder deliverOrder = totalOrder ? DeliverOrder.TOTAL : DeliverOrder.NONE;
          transport.invokeRemotely(null, command, ResponseMode.ASYNCHRONOUS, timeout, null,
-                                  deliverOrder, distributed);
+                                  deliverOrder);
       } catch (Exception e) {
          throw new CacheException("Failed to broadcast asynchronous command: " + command, e);
       }
    }
 
    @Override
-   public void broadcastTopologyUpdate(String cacheName, CacheTopology cacheTopology, AvailabilityMode availabilityMode, boolean totalOrder, boolean distributed) {
-      log.debugf("Updating cluster-wide current topology for cache %s, topology = %s, availability mode = %s",
+   public void broadcastReadConsistentHashUpdate(String cacheName, CacheTopology cacheTopology, AvailabilityMode availabilityMode, boolean totalOrder) {
+      log.debugf("Updating cluster-wide read consistent hash for cache %s, topology = %s, availability mode = %s",
             cacheName, cacheTopology, availabilityMode);
       ReplicableCommand command = new CacheTopologyControlCommand(cacheName,
-            CacheTopologyControlCommand.Type.CH_UPDATE, transport.getAddress(), cacheTopology,
-            availabilityMode, viewId);
-      executeOnClusterAsync(command, getGlobalTimeout(), totalOrder, distributed);
+            CacheTopologyControlCommand.Type.READ_CH_UPDATE, transport.getAddress(), cacheTopology, availabilityMode, null, transport.getViewId());
+      executeOnClusterAsync(command, getGlobalTimeout(), totalOrder);
    }
 
    @Override
-   public void broadcastStableTopologyUpdate(String cacheName, CacheTopology cacheTopology, boolean totalOrder, boolean distributed) {
+   public void broadcastWriteConsistentHashUpdate(String cacheName, CacheTopology cacheTopology, AvailabilityMode availabilityMode, boolean totalOrder) {
+      log.debugf("Updating cluster-wide write consistent hash for cache %s, topology = %s, availability mode = %s",
+                 cacheName, cacheTopology, availabilityMode);
+      ReplicableCommand command = new CacheTopologyControlCommand(cacheName,
+                                                                  CacheTopologyControlCommand.Type.WRITE_CH_UPDATE,
+                                                                  transport.getAddress(), cacheTopology, availabilityMode, null, transport.getViewId());
+      executeOnClusterAsync(command, getGlobalTimeout(), totalOrder);
+   }
+
+   @Override
+   public void broadcastConsistentHashUpdate(String cacheName, CacheTopology cacheTopology, ConsistentHash newConsistentHash, AvailabilityMode availabilityMode, TopologyState state, boolean totalOrder) {
+      log.debugf("Updating cluster-wide consistent hash for cache %s, topology = %s, availability mode = %s",
+                 cacheName, cacheTopology, availabilityMode);
+      CacheTopologyControlCommand command = new CacheTopologyControlCommand(cacheName,
+                                                                  CacheTopologyControlCommand.Type.CH_UPDATE,
+                                                                  transport.getAddress(), cacheTopology, availabilityMode,
+                                                                  state, transport.getViewId());
+      command.setNewCH(newConsistentHash);
+      executeOnClusterAsync(command, getGlobalTimeout(), totalOrder);
+   }
+
+   @Override
+   public void broadcastStableTopologyUpdate(String cacheName, CacheTopology cacheTopology, boolean totalOrder) {
       log.debugf("Updating cluster-wide stable topology for cache %s, topology = %s", cacheName, cacheTopology);
       ReplicableCommand command = new CacheTopologyControlCommand(cacheName,
-            CacheTopologyControlCommand.Type.STABLE_TOPOLOGY_UPDATE, transport.getAddress(), cacheTopology,
-            null, viewId);
-      executeOnClusterAsync(command, getGlobalTimeout(), totalOrder, distributed);
+            CacheTopologyControlCommand.Type.STABLE_TOPOLOGY_UPDATE, transport.getAddress(), cacheTopology, null, null, transport.getViewId());
+      executeOnClusterAsync(command, getGlobalTimeout(), totalOrder);
    }
 
    @Override

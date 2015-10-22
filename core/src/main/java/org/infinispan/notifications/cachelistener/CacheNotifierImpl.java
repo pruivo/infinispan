@@ -20,6 +20,7 @@ import org.infinispan.distexec.DistributedCallable;
 import org.infinispan.distexec.DistributedExecutionCompletionService;
 import org.infinispan.distexec.DistributedExecutorService;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.factories.annotations.Inject;
@@ -292,7 +293,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
       if (!cacheEntryCreatedListeners.isEmpty()) {
          EventImpl<K, V> e = EventImpl.createEvent(cache, CACHE_ENTRY_CREATED);
          configureEvent(e, key, value, metadata, pre, ctx, command, null, null);
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.WRITE);
          boolean sendEvents = !ctx.isInTxScope();
          try {
             for (CacheEntryListenerInvocation<K, V> listener : cacheEntryCreatedListeners) {
@@ -316,7 +317,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
       if (!cacheEntryModifiedListeners.isEmpty()) {
          EventImpl<K, V> e = EventImpl.createEvent(cache, CACHE_ENTRY_MODIFIED);
          configureEvent(e, key, value, metadata, pre, ctx, command, previousValue, previousMetadata);
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.WRITE);
          boolean sendEvents = !ctx.isInTxScope();
          try {
             for (CacheEntryListenerInvocation<K, V> listener : cacheEntryModifiedListeners) {
@@ -347,7 +348,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
             // instead of having proper method getOldMetadata() there.
             configureEvent(e, key, null, previousMetadata, false, ctx, command, previousValue, previousMetadata);
          }
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.WRITE);
          boolean sendEvents = !ctx.isInTxScope();
          try {
             for (CacheEntryListenerInvocation<K, V> listener : cacheEntryRemovedListeners) {
@@ -427,7 +428,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
       if (isNotificationAllowed(command, cacheEntryVisitedListeners)) {
          EventImpl<K, V> e = EventImpl.createEvent(cache, CACHE_ENTRY_VISITED);
          configureEvent(e, key, value, pre, ctx);
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.READ);
          for (CacheEntryListenerInvocation<K, V> listener : cacheEntryVisitedListeners) listener.invoke(e, isLocalNodePrimaryOwner);
       }
    }
@@ -472,7 +473,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
       if (isNotificationAllowed(null, cacheEntryExpiredListeners)) {
          EventImpl<K, V> e = EventImpl.createEvent(cache, CACHE_ENTRY_EXPIRED);
          configureEvent(e, key, value, metadata);
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.WRITE);
 
          boolean sendEvents = ctx == null || !ctx.isInTxScope();
          try {
@@ -497,7 +498,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
       if (isNotificationAllowed(command, cacheEntryInvalidatedListeners)) {
          EventImpl<K, V> e = EventImpl.createEvent(cache, CACHE_ENTRY_INVALIDATED);
          configureEvent(e, key, value, metadata, pre, ctx, command, value, metadata);
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.WRITE);
          for (CacheEntryListenerInvocation<K, V> listener : cacheEntryInvalidatedListeners) listener.invoke(e, isLocalNodePrimaryOwner);
       }
    }
@@ -508,7 +509,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
       if (isNotificationAllowed(command, cacheEntryLoadedListeners)) {
          EventImpl<K, V> e = EventImpl.createEvent(cache, CACHE_ENTRY_LOADED);
          configureEvent(e, key, value, pre, ctx);
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.READ);
          for (CacheEntryListenerInvocation<K, V> listener : cacheEntryLoadedListeners) listener.invoke(e, isLocalNodePrimaryOwner);
       }
    }
@@ -518,7 +519,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
       if (isNotificationAllowed(command, cacheEntryActivatedListeners)) {
          EventImpl<K, V> e = EventImpl.createEvent(cache, CACHE_ENTRY_ACTIVATED);
          configureEvent(e, key, value, pre, ctx);
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.READ);
          for (CacheEntryListenerInvocation<K, V> listener : cacheEntryActivatedListeners) listener.invoke(e, isLocalNodePrimaryOwner);
       }
    }
@@ -537,7 +538,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
          e.setPre(pre);
          e.setKey(key);
          e.setValue(value);
-         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         boolean isLocalNodePrimaryOwner = clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.READ);
          for (CacheEntryListenerInvocation<K, V> listener : cacheEntryPassivatedListeners) listener.invoke(e, isLocalNodePrimaryOwner);
       }
    }
@@ -592,7 +593,7 @@ public final class CacheNotifierImpl<K, V> extends AbstractListenerImpl<Event<K,
          if (oldTopology != null) {
             e.setConsistentHashAtStart(oldTopology.getReadConsistentHash());
          }
-         e.setConsistentHashAtEnd(newTopology.getWriteConsistentHash());
+         e.setConsistentHashAtEnd(newTopology.getReadConsistentHash());
          e.setNewTopologyId(newTopologyId);
          for (CacheEntryListenerInvocation<K, V> listener : topologyChangedListeners) listener.invoke(e);
       }

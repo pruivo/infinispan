@@ -12,6 +12,7 @@ import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.interceptors.CallInterceptor;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.interceptors.base.CommandInterceptor;
@@ -63,7 +64,7 @@ public class TxReplay2Test extends MultipleCacheManagersTest {
       sequencer.order("sim:after_extra_commit", "tx:mark_tx_completed");
 
       final Object key = "key";
-      assertEquals(Arrays.asList(address(0), address(1), address(2)), advancedCache(0).getDistributionManager().locate(key));
+      assertEquals(Arrays.asList(address(0), address(1), address(2)), advancedCache(0).getDistributionManager().locate(key, LookupMode.WRITE));
       Cache<Object, Object> primaryOwnerCache = cache(0);
       final Cache<Object, Object> newBackupOwnerCache = cache(3);
       final CountingInterceptor newBackupCounter = CountingInterceptor.inject(newBackupOwnerCache);

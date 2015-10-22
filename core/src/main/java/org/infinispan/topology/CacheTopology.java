@@ -1,8 +1,10 @@
 package org.infinispan.topology;
 
 import org.infinispan.commons.marshall.InstanceReusingAdvancedExternalizer;
-import org.infinispan.commons.util.InfinispanCollections;
 import org.infinispan.distribution.ch.ConsistentHash;
+import org.infinispan.distribution.ch.ConsistentHashFactory;
+import org.infinispan.distribution.ch.KeyPartitioner;
+import org.infinispan.distribution.group.PartitionerConsistentHash;
 import org.infinispan.marshall.core.Ids;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
@@ -13,7 +15,11 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+
+import static org.infinispan.commons.util.InfinispanCollections.immutableRetainAll;
 
 /**
  * The status of a cache from a distribution/state transfer point of view.
@@ -26,6 +32,7 @@ import java.util.Set;
  * transfer (e.g. when a member leaves).
  *
  * @author Dan Berindei
+ * @author Pedro Ruivo
  * @since 5.2
  */
 public class CacheTopology {
@@ -35,28 +42,25 @@ public class CacheTopology {
 
    private final int topologyId;
    private final int rebalanceId;
-   private final ConsistentHash currentCH;
-   private final ConsistentHash pendingCH;
-   private final transient ConsistentHash unionCH;
-   private List<Address> actualMembers;
+   private final ConsistentHash readCH;
+   private final ConsistentHash writeCH;
+   private final List<Address> actualMembers;
+   private final boolean stableTopology;
 
-   public CacheTopology(int topologyId, int rebalanceId, ConsistentHash currentCH, ConsistentHash pendingCH,
-         List<Address> actualMembers) {
-      this(topologyId, rebalanceId, currentCH, pendingCH, null, actualMembers);
-   }
-
-   public CacheTopology(int topologyId, int rebalanceId, ConsistentHash currentCH, ConsistentHash pendingCH,
-         ConsistentHash unionCH, List<Address> actualMembers) {
-      if (pendingCH != null && !pendingCH.getMembers().containsAll(currentCH.getMembers())) {
+   public CacheTopology(int topologyId, int rebalanceId, ConsistentHash readCH, ConsistentHash writeCH,
+                        List<Address> actualMembers, boolean stableTopology) {
+      Objects.requireNonNull(readCH, "Read Consistent Hash must be non null.");
+      Objects.requireNonNull(writeCH, "Write Consistent Hash must be non null.");
+      if (!writeCH.getMembers().containsAll(readCH.getMembers())) {
          throw new IllegalArgumentException("A cache topology's pending consistent hash must " +
                "contain all the current consistent hash's members");
       }
       this.topologyId = topologyId;
       this.rebalanceId = rebalanceId;
-      this.currentCH = currentCH;
-      this.pendingCH = pendingCH;
-      this.unionCH = unionCH;
+      this.readCH = readCH;
+      this.writeCH = writeCH;
       this.actualMembers = actualMembers;
+      this.stableTopology = stableTopology;
    }
 
    public int getTopologyId() {
@@ -64,24 +68,19 @@ public class CacheTopology {
    }
 
    /**
-    * The current consistent hash.
+    * @return the {@link org.infinispan.distribution.ch.ConsistentHash} to read. It returns the same instance as {@link
+    * #getWriteConsistentHash()} when no rebalance is in progress.
     */
-   public ConsistentHash getCurrentCH() {
-      return currentCH;
+   public ConsistentHash getReadConsistentHash() {
+      return readCH;
    }
 
    /**
-    * The future consistent hash. Should be {@code null} if there is no rebalance in progress.
+    * @return the {@link org.infinispan.distribution.ch.ConsistentHash} to write. It returns the same instance as {@link
+    * #getReadConsistentHash()} when no rebalance is in progress.
     */
-   public ConsistentHash getPendingCH() {
-      return pendingCH;
-   }
-
-   /**
-    * The union of the current and future consistent hashes. Should be {@code null} if there is no rebalance in progress.
-    */
-   public ConsistentHash getUnionCH() {
-      return unionCH;
+   public ConsistentHash getWriteConsistentHash() {
+      return writeCH;
    }
 
    /**
@@ -92,17 +91,11 @@ public class CacheTopology {
    }
 
    /**
-    * @return The nodes that are members in both consistent hashes (if {@code pendingCH != null},
-    *    otherwise the members of the current CH).
-    * @see #getActualMembers()
+    * @return The nodes that are members in write consistent hash
+    * @see {@link #getActualMembers()}
     */
    public List<Address> getMembers() {
-      if (pendingCH != null)
-         return pendingCH.getMembers();
-      else if (currentCH != null)
-         return currentCH.getMembers();
-      else
-         return InfinispanCollections.emptyList();
+      return writeCH.getMembers();
    }
 
    /**
@@ -114,26 +107,6 @@ public class CacheTopology {
       return actualMembers;
    }
 
-   /**
-    * Read operations should always go to the "current" owners.
-    */
-   public ConsistentHash getReadConsistentHash() {
-      return currentCH;
-   }
-
-   /**
-    * When there is a rebalance in progress, write operations should go to the union of the "current" and "future" owners.
-    */
-   public ConsistentHash getWriteConsistentHash() {
-      if (pendingCH != null) {
-         if (unionCH == null)
-            throw new IllegalStateException("Need a union CH when a pending CH is set");
-         return unionCH;
-      }
-
-      return currentCH;
-   }
-
    @Override
    public boolean equals(Object o) {
       if (this == o) return true;
@@ -143,10 +116,10 @@ public class CacheTopology {
 
       if (topologyId != that.topologyId) return false;
       if (rebalanceId != that.rebalanceId) return false;
-      if (currentCH != null ? !currentCH.equals(that.currentCH) : that.currentCH != null) return false;
-      if (pendingCH != null ? !pendingCH.equals(that.pendingCH) : that.pendingCH != null) return false;
-      if (unionCH != null ? !unionCH.equals(that.unionCH) : that.unionCH != null) return false;
+      if (!readCH.equals(that.readCH)) return false;
+      if (!writeCH.equals(that.writeCH)) return false;
       if (actualMembers != null ? !actualMembers.equals(that.actualMembers) : that.actualMembers != null) return false;
+      if (stableTopology != that.stableTopology) return false;
 
       return true;
    }
@@ -155,10 +128,10 @@ public class CacheTopology {
    public int hashCode() {
       int result = topologyId;
       result = 31 * result + rebalanceId;
-      result = 31 * result + (currentCH != null ? currentCH.hashCode() : 0);
-      result = 31 * result + (pendingCH != null ? pendingCH.hashCode() : 0);
-      result = 31 * result + (unionCH != null ? unionCH.hashCode() : 0);
+      result = 31 * result + readCH.hashCode();
+      result = 31 * result + writeCH.hashCode();
       result = 31 * result + (actualMembers != null ? actualMembers.hashCode() : 0);
+      result = 31 * result + (stableTopology ? 31 : 0);
       return result;
    }
 
@@ -167,30 +140,98 @@ public class CacheTopology {
       return "CacheTopology{" +
             "id=" + topologyId +
             ", rebalanceId=" + rebalanceId +
-            ", currentCH=" + currentCH +
-            ", pendingCH=" + pendingCH +
-            ", unionCH=" + unionCH +
+            ", readCH=" + readCH +
+            ", writeCH=" + writeCH +
             ", actualMembers=" + actualMembers +
             '}';
    }
 
    public final void logRoutingTableInformation() {
       if (trace) {
-         log.tracef("Current consistent hash's routing table: %s", currentCH.getRoutingTableAsString());
-         if (pendingCH != null) log.tracef("Pending consistent hash's routing table: %s", pendingCH.getRoutingTableAsString());
-         if (unionCH != null) log.tracef("Union consistent hash's routing table: %s", unionCH.getRoutingTableAsString());
+         log.tracef("Read consistent hash's routing table: %s", readCH.getRoutingTableAsString());
+         log.tracef("Write consistent hash's routing table: %s", writeCH.getRoutingTableAsString());
       }
    }
 
+   public final CacheTopology addPartitioner(KeyPartitioner partitioner) {
+      if (readCH == writeCH || readCH.equals(writeCH)) {
+         ConsistentHash newCH = new PartitionerConsistentHash(readCH, partitioner);
+         return new CacheTopology(topologyId, rebalanceId, newCH, newCH, actualMembers, stableTopology);
+      }
+      return new CacheTopology(topologyId, rebalanceId, new PartitionerConsistentHash(readCH, partitioner),
+                               new PartitionerConsistentHash(writeCH, partitioner), actualMembers, stableTopology);
+   }
+
+   /**
+    * It checks if both consistent hashes are the same.
+    * <p/>
+    * If no rebalance is in progress, the read and the write consistent hash are the same.
+    *
+    * @return {@code true} if the read and write consistent hash are the same, {@code false} otherwise.
+    */
+   public final boolean isStable() {
+      return stableTopology;
+   }
+
+   public static CacheTopology updateTopologyId(int newTopologyId, CacheTopology from) {
+      return new CacheTopology(newTopologyId, from.rebalanceId, from.readCH, from.writeCH, from.actualMembers, from.stableTopology);
+   }
+
+   public static CacheTopology updateTopologyIdAndMembers(int newTopologyId, List<Address> newMembers, CacheTopology from) {
+      return new CacheTopology(newTopologyId, from.rebalanceId, from.readCH, from.writeCH, newMembers, from.stableTopology);
+   }
+
+   public static CacheTopology initialTopology(ConsistentHash consistentHash, List<Address> members) {
+      return new CacheTopology(0, 0, consistentHash, consistentHash, members, true);
+   }
+
+   public static CacheTopology rebalanceTopology(CacheTopology current, ConsistentHash newWriteCH) {
+      return new CacheTopology(current.topologyId + 1, current.rebalanceId + 1, current.readCH, newWriteCH, newWriteCH.getMembers(), false);
+   }
+
+   public static CacheTopology updateReadCHTopology(CacheTopology current, ConsistentHash newReadCH) {
+      return new CacheTopology(current.topologyId + 1, current.rebalanceId, newReadCH, current.writeCH, current.actualMembers, false);
+   }
+
+   public static CacheTopology updateWriteCHTopology(CacheTopology current) {
+      return new CacheTopology(current.topologyId + 1, current.rebalanceId, current.readCH, current.readCH, current.actualMembers, true);
+   }
+
+   public static CacheTopology resetTopology(CacheTopology from) {
+      return new CacheTopology(from.topologyId - 1, from.rebalanceId - 1, from.readCH, from.writeCH, from.actualMembers, from.stableTopology);
+   }
+
+   public static CacheTopology pruneInvalidMembers(CacheTopology from, List<Address> expectedMembers, ConsistentHashFactory<ConsistentHash> factory, Map<Address, Float> capacityFactor) {
+      ConsistentHash readCH = from.readCH;
+      ConsistentHash writeCH = from.writeCH;
+      List<Address> actualMembers;
+      if (readCH.equals(writeCH)) {
+         actualMembers = immutableRetainAll(readCH.getMembers(), expectedMembers);
+         readCH = factory.updateMembers(readCH, actualMembers, capacityFactor);
+         writeCH = readCH;
+      } else {
+         actualMembers = immutableRetainAll(writeCH.getMembers(), expectedMembers);
+         readCH = factory.updateMembers(readCH, immutableRetainAll(readCH.getMembers(), expectedMembers), capacityFactor);
+         writeCH = factory.updateMembers(writeCH, actualMembers, capacityFactor);
+      }
+      return new CacheTopology(from.topologyId + 1, from.rebalanceId, readCH, writeCH, actualMembers, from.stableTopology);
+   }
 
    public static class Externalizer extends InstanceReusingAdvancedExternalizer<CacheTopology> {
       @Override
       public void doWriteObject(ObjectOutput output, CacheTopology cacheTopology) throws IOException {
          output.writeInt(cacheTopology.topologyId);
          output.writeInt(cacheTopology.rebalanceId);
-         output.writeObject(cacheTopology.currentCH);
-         output.writeObject(cacheTopology.pendingCH);
-         output.writeObject(cacheTopology.unionCH);
+         output.writeBoolean(cacheTopology.stableTopology);
+         boolean sameConsistentHash = cacheTopology.readCH.equals(cacheTopology.writeCH);
+         if (sameConsistentHash) {
+            output.writeBoolean(true);
+            output.writeObject(cacheTopology.readCH);
+         } else {
+            output.writeBoolean(false);
+            output.writeObject(cacheTopology.readCH);
+            output.writeObject(cacheTopology.writeCH);
+         }
          output.writeObject(cacheTopology.actualMembers);
       }
 
@@ -198,11 +239,19 @@ public class CacheTopology {
       public CacheTopology doReadObject(ObjectInput unmarshaller) throws IOException, ClassNotFoundException {
          int topologyId = unmarshaller.readInt();
          int rebalanceId = unmarshaller.readInt();
-         ConsistentHash currentCH = (ConsistentHash) unmarshaller.readObject();
-         ConsistentHash pendingCH = (ConsistentHash) unmarshaller.readObject();
-         ConsistentHash unionCH = (ConsistentHash) unmarshaller.readObject();
+         boolean stableTopology = unmarshaller.readBoolean();
+         ConsistentHash readCH;
+         ConsistentHash writeCH;
+         if (unmarshaller.readBoolean()) {
+            readCH = (ConsistentHash) unmarshaller.readObject();
+            writeCH = readCH;
+         } else {
+            readCH = (ConsistentHash) unmarshaller.readObject();
+            writeCH = (ConsistentHash) unmarshaller.readObject();
+         }
+         //noinspection unchecked
          List<Address> actualMembers = (List<Address>) unmarshaller.readObject();
-         return new CacheTopology(topologyId, rebalanceId, currentCH, pendingCH, unionCH, actualMembers);
+         return new CacheTopology(topologyId, rebalanceId, readCH, writeCH, actualMembers, stableTopology);
       }
 
       @Override

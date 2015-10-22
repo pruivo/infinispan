@@ -33,7 +33,6 @@ import org.testng.annotations.Test;
 import static org.infinispan.test.TestingUtil.checkMBeanOperationParameterNaming;
 import static org.infinispan.test.TestingUtil.getCacheObjectName;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyCollectionOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -161,7 +160,7 @@ public class RpcManagerMBeanTest extends MultipleCacheManagersTest {
          when(transport.getMembers()).thenReturn(memberList);
          when(transport.getAddress()).thenReturn(null);
          when(transport.invokeRemotelyAsync(anyCollectionOf(Address.class), any(ReplicableCommand.class), any(ResponseMode.class),
-               anyLong(), any(ResponseFilter.class), any(DeliverOrder.class), anyBoolean())).thenThrow(new RuntimeException());
+               anyLong(), any(ResponseFilter.class), any(DeliverOrder.class))).thenThrow(new RuntimeException());
          rpcManager.setTransport(transport);
          cache1.put("a5", "b5");
          assert false : "rpc manager should have thrown an exception";

@@ -3,7 +3,6 @@ package org.infinispan.distexec;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
@@ -24,14 +23,9 @@ import org.infinispan.remoting.rpc.ResponseFilter;
 import org.infinispan.remoting.rpc.ResponseMode;
 import org.infinispan.remoting.transport.AbstractDelegatingTransport;
 import org.infinispan.remoting.transport.Address;
-import org.infinispan.remoting.transport.BackupResponse;
 import org.infinispan.remoting.transport.Transport;
-import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.test.MultipleCacheManagersTest;
 import org.infinispan.test.TestingUtil;
-import org.infinispan.util.logging.Log;
-import org.infinispan.xsite.XSiteBackup;
-import org.infinispan.xsite.XSiteReplicateCommand;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
@@ -119,11 +113,11 @@ public class DistributedExecutorBadResponseFailoverTest extends MultipleCacheMan
 
       @Override
       public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
-            ResponseMode mode, long timeout, ResponseFilter responseFilter, DeliverOrder deliverOrder, boolean anycast)
+                                                   ResponseMode mode, long timeout, ResponseFilter responseFilter, DeliverOrder deliverOrder)
             throws Exception {
 
          Map<Address, Response> properResponse = super.invokeRemotely(recipients, rpcCommand, mode, timeout,
-               responseFilter, deliverOrder, anycast);
+               responseFilter, deliverOrder);
 
          // intercept the response we received for DistributedExecuteCommand
          if (rpcCommand instanceof DistributedExecuteCommand) {

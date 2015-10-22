@@ -97,7 +97,7 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer {
       if (cacheTopology == null)
          return "N/A";
 
-      return cacheTopology.getCurrentCH().getMembers().toString();
+      return cacheTopology.getReadConsistentHash().getMembers().toString();
    }
 
    @ManagedAttribute(description = "Retrieves the pending view.", displayName = "Pending view", dataType = DataType.TRAIT)
@@ -106,7 +106,7 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer {
       if (cacheTopology == null)
          return "N/A";
 
-      ConsistentHash pendingCH = cacheTopology.getPendingCH();
+      ConsistentHash pendingCH = cacheTopology.getWriteConsistentHash();
       return pendingCH != null ? pendingCH.getMembers().toString() : "null";
    }
 
@@ -161,8 +161,7 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer {
       try {
          invocation = t.invokeRemotelyAsync(recipients, cacheRpc,
                options.responseMode(), options.timeUnit().toMillis(options.timeout()),
-               options.responseFilter(), options.deliverOrder(),
-               configuration.clustering().cacheMode().isDistributed());
+               options.responseFilter(), options.deliverOrder());
       } catch (Exception e) {
          log.unexpectedErrorReplicating(e);
          if (statisticsEnabled) replicationFailures.incrementAndGet();

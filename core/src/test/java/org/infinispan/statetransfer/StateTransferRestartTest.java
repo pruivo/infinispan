@@ -53,8 +53,7 @@ public class StateTransferRestartTest extends MultipleCacheManagersTest {
                                                                            ReplicableCommand rpcCommand,
                                                                            ResponseMode mode, long timeout,
                                                                            ResponseFilter responseFilter,
-                                                                           DeliverOrder deliverOrder,
-                                                                           boolean anycast) throws Exception {
+                                                                           DeliverOrder deliverOrder) throws Exception {
          if (callOnStateResponseCommand != null && rpcCommand.getClass() == StateResponseCommand.class) {
             log.trace("Ignoring StateResponseCommand");
             try {
@@ -64,7 +63,7 @@ public class StateTransferRestartTest extends MultipleCacheManagersTest {
             }
             return CompletableFuture.completedFuture(InfinispanCollections.emptyMap());
          }
-         return super.invokeRemotelyAsync(recipients, rpcCommand, mode, timeout, responseFilter, deliverOrder, anycast);
+         return super.invokeRemotelyAsync(recipients, rpcCommand, mode, timeout, responseFilter, deliverOrder);
       }
    }
 

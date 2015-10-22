@@ -109,7 +109,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    @Override
    public Object visitPutMapCommand(InvocationContext ctx, PutMapCommand command) throws Throwable {
       Map<Object, Object> originalMap = command.getMap();
-      ConsistentHash ch = dm.getConsistentHash();
+      ConsistentHash ch = dm.getWriteConsistentHash();
       Address localAddress = rpcManager.getAddress();
       if (ctx.isOriginLocal()) {
          List<CompletableFuture<Map<Address, Response>>> futures = new ArrayList<>(
@@ -265,7 +265,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
       // TODO: Refactor this and visitPutMapCommand...
       // TODO: Could PutMap be reimplemented based on WriteOnlyManyEntriesCommand?
       Map<Object, Object> originalMap = command.getEntries();
-      ConsistentHash ch = dm.getConsistentHash();
+      ConsistentHash ch = dm.getWriteConsistentHash();
       Address localAddress = rpcManager.getAddress();
       if (ctx.isOriginLocal()) {
          List<CompletableFuture<Map<Address, Response>>> futures = new ArrayList<>(
@@ -362,7 +362,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    public Object visitWriteOnlyManyCommand(InvocationContext ctx, WriteOnlyManyCommand command) throws Throwable {
       // TODO: Refactor this, visitWriteOnlyManyCommand and visitPutMapCommand...
       Set<Object> originalMap = command.getKeys();
-      ConsistentHash ch = dm.getConsistentHash();
+      ConsistentHash ch = dm.getWriteConsistentHash();
       Address localAddress = rpcManager.getAddress();
       if (ctx.isOriginLocal()) {
          List<CompletableFuture<Map<Address, Response>>> futures = new ArrayList<>(
@@ -459,7 +459,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    public Object visitReadWriteManyCommand(InvocationContext ctx, ReadWriteManyCommand command) throws Throwable {
       // TODO: Refactor to avoid code duplication
       Set<Object> originalMap = command.getKeys();
-      ConsistentHash ch = dm.getConsistentHash();
+      ConsistentHash ch = dm.getReadConsistentHash();
       Address localAddress = rpcManager.getAddress();
       if (ctx.isOriginLocal()) {
          List<CompletableFuture<Map<Address, Response>>> futures = new ArrayList<>(
@@ -567,7 +567,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    public Object visitReadWriteManyEntriesCommand(InvocationContext ctx, ReadWriteManyEntriesCommand command) throws Throwable {
       // TODO: Refactor to avoid code duplication
       Map<Object, Object> originalMap = command.getEntries();
-      ConsistentHash ch = dm.getConsistentHash();
+      ConsistentHash ch = dm.getWriteConsistentHash();
       Address localAddress = rpcManager.getAddress();
       if (ctx.isOriginLocal()) {
          List<CompletableFuture<Map<Address, Response>>> futures = new ArrayList<>(

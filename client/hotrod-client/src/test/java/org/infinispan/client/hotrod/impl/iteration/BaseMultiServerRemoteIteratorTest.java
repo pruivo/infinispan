@@ -129,7 +129,7 @@ public abstract class BaseMultiServerRemoteIteratorTest extends MultiHotRodServe
                                      .next()
                                      .getMarshaller();
       ConsistentHash consistentHash = advancedCache(0).getDistributionManager()
-                                                      .getConsistentHash();
+                                                      .getReadConsistentHash();
 
       assertKeysInSegment(entries, filterBySegments, marshaller, consistentHash::getSegment);
    }
@@ -203,7 +203,7 @@ public abstract class BaseMultiServerRemoteIteratorTest extends MultiHotRodServe
       Marshaller marshaller = clients.get(0)
                                      .getMarshaller();
       ConsistentHash hash = advancedCache(0).getDistributionManager()
-                                            .getConsistentHash();
+                                            .getReadConsistentHash();
       Set<Integer> keys = cache.keySet();
       return keys.stream()
                  .filter(b -> segments.contains(hash.getSegment(toByteBuffer(b, marshaller))))

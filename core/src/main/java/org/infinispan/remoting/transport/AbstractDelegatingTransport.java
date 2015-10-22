@@ -13,7 +13,6 @@ import org.infinispan.remoting.rpc.ResponseMode;
 import org.infinispan.util.logging.Log;
 import org.infinispan.xsite.XSiteBackup;
 import org.infinispan.xsite.XSiteReplicateCommand;
-import org.jgroups.protocols.tom.DeliveryManager;
 
 /**
  * Designed to be overwrite.
@@ -30,9 +29,9 @@ public abstract class AbstractDelegatingTransport implements Transport {
    }
 
    @Override
-   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, ResponseFilter responseFilter, DeliverOrder deliverOrder, boolean anycast) throws Exception {
-      beforeInvokeRemotely(rpcCommand);
-      Map<Address, Response> result = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, responseFilter, deliverOrder, anycast);
+   public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout, ResponseFilter responseFilter, DeliverOrder deliverOrder) throws Exception {
+      beforeInvokeRemotely(rpcCommand, recipients);
+      Map<Address, Response> result = actual.invokeRemotely(recipients, rpcCommand, mode, timeout, responseFilter, deliverOrder);
       return afterInvokeRemotely(rpcCommand, result);
    }
 
@@ -51,9 +50,10 @@ public abstract class AbstractDelegatingTransport implements Transport {
                                                                         ReplicableCommand rpcCommand,
                                                                         ResponseMode mode, long timeout,
                                                                         ResponseFilter responseFilter,
-                                                                        DeliverOrder deliverOrder,
-                                                                        boolean anycast) throws Exception {
-      return actual.invokeRemotelyAsync(recipients, rpcCommand, mode, timeout, responseFilter, deliverOrder, anycast);
+                                                                        DeliverOrder deliverOrder) throws Exception {
+      beforeInvokeRemotely(rpcCommand, recipients);
+      CompletableFuture<Map<Address, Response>> future = actual.invokeRemotelyAsync(recipients, rpcCommand, mode, timeout, responseFilter, deliverOrder);
+      return future.thenApply(map -> afterInvokeRemotely(rpcCommand, map));
    }
 
    @Override
@@ -130,9 +130,10 @@ public abstract class AbstractDelegatingTransport implements Transport {
    /**
     * method invoked before a remote invocation.
     *
-    * @param command the command to be invoked remotely
+    * @param command    the command to be invoked remotely
+    * @param recipients the collection of addresses to send the command, or {@code null} if to all.
     */
-   protected void beforeInvokeRemotely(ReplicableCommand command) {
+   protected void beforeInvokeRemotely(ReplicableCommand command, Collection<Address> recipients) {
       //no-op by default
    }
 

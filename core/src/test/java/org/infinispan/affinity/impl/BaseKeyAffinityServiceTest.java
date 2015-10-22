@@ -47,7 +47,7 @@ public abstract class BaseKeyAffinityServiceTest extends BaseDistFunctionalTest<
    }
 
    protected void assertMapsToAddress(Object o, Address addr) {
-      ConsistentHash hash = caches.get(0).getAdvancedCache().getDistributionManager().getConsistentHash();
+      ConsistentHash hash = caches.get(0).getAdvancedCache().getDistributionManager().getWriteConsistentHash();
       List<Address> addresses = hash.locateOwners(o);
       assertEquals("Expected key " + o + " to map to address " + addr + ". List of addresses is" + addresses, true, addresses.contains(addr));
    }

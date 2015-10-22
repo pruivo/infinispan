@@ -6,6 +6,7 @@ import org.infinispan.commons.util.Util;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.distexec.DistributedCallable;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.filter.AcceptAllKeyValueFilter;
 import org.infinispan.filter.CacheFilters;
@@ -93,7 +94,7 @@ public class IndexWorker implements DistributedCallable<Object, Object, Void> {
 
       @Override
       public boolean accept(Object key, Object value, Metadata metadata) {
-         return clusteringDependentLogic.localNodeIsPrimaryOwner(key);
+         return clusteringDependentLogic.localNodeIsPrimaryOwner(key, LookupMode.READ);
       }
    }
 

@@ -32,7 +32,7 @@ public class PreferAvailabilityStrategy implements AvailabilityStrategy {
          context.updateCurrentTopology(newMembers);
          return;
       }
-      if (context.getStableTopology() != null && isDataLost(context.getStableTopology().getCurrentCH(), newMembers)) {
+      if (context.getStableTopology() != null && isDataLost(context.getStableTopology().getReadConsistentHash(), newMembers)) {
          log.lostDataBecauseOfGracefulLeaver(context.getCacheName(), leaver);
       }
 
@@ -62,7 +62,7 @@ public class PreferAvailabilityStrategy implements AvailabilityStrategy {
       List<Address> stableMembers = stableTopology.getMembers();
       List<Address> lostMembers = new ArrayList<>(stableMembers);
       lostMembers.removeAll(newMembers);
-      if (isDataLost(stableTopology.getCurrentCH(), newMembers)) {
+      if (isDataLost(stableTopology.getReadConsistentHash(), newMembers)) {
          log.lostDataBecauseOfAbruptLeavers(context.getCacheName(), lostMembers);
       } else if (lostMembers.size() >= Math.ceil(stableMembers.size() / 2d)) {
          log.minorityPartition(context.getCacheName(), newMembers, lostMembers, stableMembers);
@@ -127,8 +127,7 @@ public class PreferAvailabilityStrategy implements AvailabilityStrategy {
       // confirmation status (yet).
       CacheTopology mergedTopology = null;
       if (maxTopology != null) {
-         mergedTopology = new CacheTopology(maxTopologyId + 1, maxRebalanceId + 1,
-               maxTopology.getCurrentCH(), null, maxTopology.getActualMembers());
+         mergedTopology = CacheTopology.updateTopologyId(maxTopologyId + 1, maxStableTopology);
       }
 
       context.updateTopologiesAfterMerge(mergedTopology, maxStableTopology, null);

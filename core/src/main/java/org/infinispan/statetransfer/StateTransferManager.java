@@ -9,6 +9,7 @@ import org.infinispan.jmx.annotations.ManagedAttribute;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
+import org.infinispan.topology.TopologyState;
 
 import java.util.Map;
 import java.util.Set;
@@ -70,4 +71,6 @@ public interface StateTransferManager {
 
    @ManagedAttribute(description = "Retrieves the rebalancing status for this cache. Possible values are PENDING, SUSPENDED, IN_PROGRESS, BALANCED", displayName = "Rebalancing progress", dataType = DataType.TRAIT)
    String getRebalancingStatus() throws Exception;
+
+   TopologyState getTopologyState();
 }

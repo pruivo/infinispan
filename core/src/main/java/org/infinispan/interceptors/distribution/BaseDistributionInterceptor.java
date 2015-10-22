@@ -29,6 +29,7 @@ import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.distribution.RemoteValueRetrievedListener;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.distribution.group.GroupManager;
@@ -151,21 +152,8 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
             // Cache topology has changed or it is the first time.
             lastTopologyId = currentTopologyId;
             targets = new ArrayList<>(cacheTopology.getReadConsistentHash().locateOwners(key));
-         } else if (lastTopologyId == currentTopologyId && cacheTopology.getPendingCH() != null) {
-            // Same topologyId, but the owners could have already installed the next topology
-            // Lets try with pending consistent owners (the read owners in the next topology)
-            lastTopologyId = currentTopologyId + 1;
-            targets = new ArrayList<>(cacheTopology.getPendingCH().locateOwners(key));
-            // Remove already contacted nodes
-            targets.removeAll(cacheTopology.getReadConsistentHash().locateOwners(key));
-            if (targets.isEmpty()) {
-               if (trace) {
-                  log.tracef("No valid values found for key '%s' (topologyId=%s).", key, currentTopologyId);
-               }
-               break;
-            }
-         } else { // lastTopologyId > currentTopologyId || cacheTopology.getPendingCH() == null
-            // We have not received a valid value from the pending CH owners either, and the topology id hasn't changed
+         } else {
+            // We have not received a valid value
             if (trace) {
                log.tracef("No valid values found for key '%s' (topologyId=%s).", key, currentTopologyId);
             }
@@ -290,7 +278,7 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
 
 
       boolean isSync = isSynchronous(command);
-      Address primaryOwner = cdl.getPrimaryOwner(command.getKey());
+      Address primaryOwner = cdl.getPrimaryOwner(command.getKey(), LookupMode.WRITE);
       int commandTopologyId = command.getTopologyId();
       int currentTopologyId = stateTransferManager.getCacheTopology().getTopologyId();
       // TotalOrderStateTransferInterceptor doesn't set the topology id for PFERs.
@@ -315,7 +303,7 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
                if (trace) log.tracef("Skipping the replication of the conditional command as it did not succeed on primary owner (%s).", command);
                return localResult;
             }
-            List<Address> recipients = cdl.getOwners(command.getKey());
+            List<Address> recipients = cdl.getOwners(command.getKey(), LookupMode.WRITE);
             // Ignore the previous value on the backup owners
             command.setValueMatcher(ValueMatcher.MATCH_ALWAYS);
             try {
@@ -333,7 +321,7 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
                if (trace) log.tracef("Skipping the replication of the command as it did not succeed on primary owner (%s).", command);
                return localResult;
             }
-            List<Address> recipients = cdl.getOwners(command.getKey());
+            List<Address> recipients = cdl.getOwners(command.getKey(), LookupMode.WRITE);
             if (trace) log.tracef("I'm the primary owner, sending the command to all the backups (%s) in order to be applied.",
                   recipients);
             // check if a single owner has been configured and the target for the key is the local address
@@ -514,8 +502,7 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
                }
             }
          }
-         Map<Object, Object> values = (Map<Object, Object>) invokeNextInterceptor(ctx, command);
-         return values;
+         return invokeNextInterceptor(ctx, command);
       }
    }
 

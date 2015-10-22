@@ -4,13 +4,11 @@ import org.infinispan.Cache;
 import org.infinispan.CacheStream;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.container.DataContainer;
-import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.ImmortalCacheEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.distribution.DistributionManager;
 import org.infinispan.distribution.MagicKey;
 import org.infinispan.distribution.ch.ConsistentHash;
-import org.infinispan.filter.CacheFilters;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Address;
@@ -313,7 +311,7 @@ public class DistributedStreamIteratorTest extends BaseClusteredStreamIteratorTe
 
       IntStream.rangeClosed(0, 499).boxed().forEach(i -> cache0.put(i, i.toString()));
 
-      ConsistentHash ch = cache0.getAdvancedCache().getDistributionManager().getConsistentHash();
+      ConsistentHash ch = cache0.getAdvancedCache().getDistributionManager().getReadConsistentHash();
       Set<Integer> segmentsCache0 = ch.getSegmentsForOwner(cache0.getCacheManager().getAddress());
 
       CacheStream<Map.Entry<Object, String>> stream = cache0.entrySet().stream();

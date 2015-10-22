@@ -12,6 +12,7 @@ import org.infinispan.test.MultipleCacheManagersTest;
 import org.infinispan.test.TestingUtil;
 import org.infinispan.test.fwk.CleanupAfterMethod;
 import org.infinispan.topology.ClusterTopologyManager;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import javax.management.Attribute;
@@ -20,10 +21,8 @@ import javax.management.ObjectName;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.infinispan.test.TestingUtil.killCacheManagers;
 import static org.testng.Assert.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;
-import static org.testng.AssertJUnit.assertNull;
 import static org.testng.AssertJUnit.assertTrue;
 
 /**
@@ -83,17 +82,16 @@ public class PerCacheRebalancePolicyJmxTest extends MultipleCacheManagersTest {
       String domain1 = manager(1).getCacheManagerConfiguration().globalJmxStatistics().domain();
       ObjectName ltmName1 = TestingUtil.getCacheManagerObjectName(domain1, "DefaultCacheManager", "LocalTopologyManager");
 
-      ObjectName jmxCacheA = TestingUtil.getCacheObjectName(domain0, "a(dist_sync)");
       ObjectName jmxCacheB = TestingUtil.getCacheObjectName(domain0, "b(dist_sync)");
 
       // Check initial state
       StateTransferManager stm0a = TestingUtil.extractComponent(cache(0, "a"), StateTransferManager.class);
-      assertEquals(Arrays.asList(address(0), address(1)), stm0a.getCacheTopology().getCurrentCH().getMembers());
-      assertNull(stm0a.getCacheTopology().getPendingCH());
+      assertEquals(Arrays.asList(address(0), address(1)), stm0a.getCacheTopology().getReadConsistentHash().getMembers());
+      assertTrue(stm0a.getCacheTopology().isStable());
 
       StateTransferManager stm0b = TestingUtil.extractComponent(cache(0, "b"), StateTransferManager.class);
-      assertEquals(Arrays.asList(address(0), address(1)), stm0b.getCacheTopology().getCurrentCH().getMembers());
-      assertNull(stm0b.getCacheTopology().getPendingCH());
+      assertEquals(Arrays.asList(address(0), address(1)), stm0b.getCacheTopology().getReadConsistentHash().getMembers());
+      Assert.assertTrue(stm0b.getCacheTopology().isStable());
 
       assertTrue(mBeanServer.isRegistered(ltmName0));
       assertTrue((Boolean) mBeanServer.getAttribute(ltmName0, REBALANCING_ENABLED));
@@ -120,8 +118,8 @@ public class PerCacheRebalancePolicyJmxTest extends MultipleCacheManagersTest {
       // Check that no rebalance happened after 1 second
       Thread.sleep(1000);
       assertFalse((Boolean) mBeanServer.getAttribute(ltmName1, REBALANCING_ENABLED));
-      assertNull(stm0a.getCacheTopology().getPendingCH());
-      assertEquals(Arrays.asList(address(0), address(1)), stm0a.getCacheTopology().getCurrentCH().getMembers());
+      Assert.assertTrue(stm0a.getCacheTopology().isStable());
+      assertEquals(Arrays.asList(address(0), address(1)), stm0a.getCacheTopology().getReadConsistentHash().getMembers());
 
       // Disable rebalancing for cache b
       mBeanServer.setAttribute(jmxCacheB, new Attribute(REBALANCING_ENABLED, false));
@@ -135,7 +133,7 @@ public class PerCacheRebalancePolicyJmxTest extends MultipleCacheManagersTest {
 
       // Check that cache "b" still has rebalancing disabled
       assertFalse((Boolean)mBeanServer.getAttribute(jmxCacheB, REBALANCING_ENABLED));
-      assertEquals(Arrays.asList(address(0), address(1)), stm0b.getCacheTopology().getCurrentCH().getMembers());
+      assertEquals(Arrays.asList(address(0), address(1)), stm0b.getCacheTopology().getReadConsistentHash().getMembers());
 
       // Enable rebalancing for cache b
       mBeanServer.setAttribute(jmxCacheB, new Attribute(REBALANCING_ENABLED, true));
@@ -145,8 +143,8 @@ public class PerCacheRebalancePolicyJmxTest extends MultipleCacheManagersTest {
 
    private void checkRehashed(StateTransferManager stm, List<Cache<Object,Object>> caches, List<Address> addresses) {
       TestingUtil.waitForRehashToComplete(caches);
-      assertNull(stm.getCacheTopology().getPendingCH());
-      ConsistentHash ch = stm.getCacheTopology().getCurrentCH();
+      Assert.assertTrue(stm.getCacheTopology().isStable());
+      ConsistentHash ch = stm.getCacheTopology().getReadConsistentHash();
       assertEquals(addresses, ch.getMembers());
       for (int i = 0; i < ch.getNumSegments(); i++) {
          assertEquals(2, ch.locateOwnersForSegment(i).size());

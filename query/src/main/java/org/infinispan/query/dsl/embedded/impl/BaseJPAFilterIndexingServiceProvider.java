@@ -1,5 +1,6 @@
 package org.infinispan.query.dsl.embedded.impl;
 
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.notifications.Listener;
@@ -190,7 +191,7 @@ public abstract class BaseJPAFilterIndexingServiceProvider implements FilterInde
             return;
          }
          CacheEntryEvent<K, V> event = (CacheEntryEvent<K, V>) userContext;
-         if (event.isPre() && isClustered || isPrimaryOnly && !clusteringDependentLogic.localNodeIsPrimaryOwner(event.getKey())) {
+         if (event.isPre() && isClustered || isPrimaryOnly && !clusteringDependentLogic.localNodeIsPrimaryOwner(event.getKey(), LookupMode.READ)) {
             return;
          }
 

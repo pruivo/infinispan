@@ -7,7 +7,7 @@ import org.infinispan.commons.api.BasicCacheContainer
 import org.infinispan.commons.util.CollectionFactory
 import org.infinispan.container.entries.{MVCCEntry, InternalCacheEntry, CacheEntry}
 import org.infinispan.context.Flag
-import org.infinispan.distribution.DistributionManager
+import org.infinispan.distribution.{LookupMode, DistributionManager}
 import org.infinispan.manager.EmbeddedCacheManager
 import org.infinispan.remoting.transport.Address
 import org.infinispan.remoting.transport.jgroups.JGroupsTransport
@@ -63,7 +63,7 @@ class RestCacheManager(instance: EmbeddedCacheManager, isCacheIgnored: String =>
 
    def getPrimaryOwner(cacheName: String, key: String): String =
       getCache(cacheName).getDistributionManager match {
-         case dm: DistributionManager => dm.getPrimaryLocation(key).toString
+         case dm: DistributionManager => dm.getPrimaryLocation(key, LookupMode.READ).toString
          case null => null
       }
 

@@ -41,6 +41,7 @@ public class DefaultTopologyRunnable extends BaseBlockingRunnable {
    @Override
    protected Response beforeInvoke() throws Exception {
       switch (topologyMode) {
+         case READY_TOPOLOGY: //ready topology is needed because waitForTopology checks if cache has stopped.
          case WAIT_TOPOLOGY:
             handler.getStateTransferLock().waitForTopology(waitTopology(), 1, TimeUnit.DAYS);
             break;

@@ -18,11 +18,12 @@ import org.infinispan.commons.marshall.StreamingMarshaller;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
-import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.base.CommandInterceptor;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -43,11 +44,10 @@ import org.infinispan.util.logging.LogFactory;
 public class IsMarshallableInterceptor extends CommandInterceptor {
 
    private StreamingMarshaller marshaller;
-   private DistributionManager distManager;
+   private ClusteringDependentLogic clusteringDependentLogic;
    private boolean storeAsBinary;
 
    private static final Log log = LogFactory.getLog(IsMarshallableInterceptor.class);
-   private static final boolean trace = log.isTraceEnabled();
 
    @Override
    protected Log getLog() {
@@ -56,9 +56,9 @@ public class IsMarshallableInterceptor extends CommandInterceptor {
 
    @Inject
    protected void injectMarshaller(@ComponentName(CACHE_MARSHALLER) StreamingMarshaller marshaller,
-                                   DistributionManager distManager) {
+                                   ClusteringDependentLogic clusteringDependentLogic) {
       this.marshaller = marshaller;
-      this.distManager = distManager;
+      this.clusteringDependentLogic = clusteringDependentLogic;
    }
 
    @Start
@@ -162,7 +162,7 @@ public class IsMarshallableInterceptor extends CommandInterceptor {
             && cacheConfiguration.clustering().cacheMode().isDistributed()
             && !command.hasFlag(Flag.SKIP_REMOTE_LOOKUP)
             && !command.hasFlag(Flag.CACHE_MODE_LOCAL)
-            && !distManager.getLocality(key).isLocal();
+            && !clusteringDependentLogic.localNodeIsOwner(key, LookupMode.READ);
    }
 
    private void checkMarshallable(Object o) throws NotSerializableException {

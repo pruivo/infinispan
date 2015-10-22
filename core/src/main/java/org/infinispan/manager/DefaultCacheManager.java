@@ -509,7 +509,7 @@ public class DefaultCacheManager implements EmbeddedCacheManager {
             if (transport != null) {
                Configuration c = configurationManager.getConfigurationOrDefault(cacheName);
                // Use sync replication timeout
-               future = transport.invokeRemotelyAsync(null, cmd, ResponseMode.SYNCHRONOUS, c.clustering().sync().replTimeout(), null, DeliverOrder.NONE, false);
+               future = transport.invokeRemotelyAsync(null, cmd, ResponseMode.SYNCHRONOUS, c.clustering().sync().replTimeout(), null, DeliverOrder.NONE);
             }
             cmd.perform(null);
 

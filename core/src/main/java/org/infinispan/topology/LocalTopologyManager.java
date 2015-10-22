@@ -1,15 +1,19 @@
 package org.infinispan.topology;
 
+import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.partitionhandling.AvailabilityMode;
 import org.infinispan.partitionhandling.impl.PartitionHandlingManager;
 import org.infinispan.remoting.transport.Address;
 
+import java.util.Map;
+
 /**
  * Runs on every node and handles the communication with the {@link ClusterTopologyManager}.
  *
  * @author Dan Berindei
+ * @author Pedro Ruivo
  * @since 5.2
  */
 @Scope(Scopes.GLOBAL)
@@ -44,13 +48,25 @@ public interface LocalTopologyManager {
     * @param viewId
     */
    // TODO Add a new class to hold the CacheJoinInfo and the CacheTopology
-   ManagerStatusResponse handleStatusRequest(int viewId);
+   Map<String, CacheStatusResponse> handleStatusRequest(int viewId);
 
    /**
-    * Updates the current and/or pending consistent hash, without transferring any state.
+    * Updates the read and write consistent hash, without transferring any state.
     */
-   void handleTopologyUpdate(String cacheName, CacheTopology cacheTopology, AvailabilityMode availabilityMode,
-                             int viewId, Address sender) throws InterruptedException;
+   void handleTopologyUpdate(String cacheName, CacheTopology cacheTopology, ConsistentHash newCH, AvailabilityMode availabilityMode,
+                             TopologyState state, int viewId, Address sender) throws InterruptedException;
+
+   /**
+    * Updates the read consistent hash.
+    */
+   void handleReadCHUpdate(String cacheName, CacheTopology cacheTopology, AvailabilityMode availabilityMode,
+                           int viewId, Address sender) throws InterruptedException;
+
+   /**
+    * Updates the write consistent hash.
+    */
+   void handleWriteCHUpdate(String cacheName, CacheTopology cacheTopology, AvailabilityMode availabilityMode,
+                            int viewId, Address sender) throws InterruptedException;
 
    /**
     * Update the stable cache topology.
@@ -63,7 +79,7 @@ public interface LocalTopologyManager {
    /**
     * Performs the state transfer.
     */
-   void handleRebalance(String cacheName, CacheTopology cacheTopology, int viewId, Address sender) throws InterruptedException;
+   void handleRebalance(String cacheName, CacheTopology cacheTopology, ConsistentHash newCH, int viewId, Address sender) throws InterruptedException;
 
    /**
     * @return the current topology for a cache.

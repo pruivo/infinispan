@@ -16,11 +16,9 @@ import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commons.util.CloseableIterator;
 import org.infinispan.commons.util.CloseableIteratorMapper;
 import org.infinispan.commons.util.CloseableSpliterator;
-import org.infinispan.commons.util.IteratorMapper;
 import org.infinispan.compat.TypeConverter;
 import org.infinispan.container.InternalEntryFactory;
 import org.infinispan.container.entries.CacheEntry;
-import org.infinispan.container.entries.ImmortalCacheEntry;
 import org.infinispan.container.versioning.VersionGenerator;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
@@ -28,7 +26,6 @@ import org.infinispan.distribution.DistributionManager;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.metadata.Metadata;
-import org.infinispan.stream.impl.AbstractDelegatingCacheStream;
 import org.infinispan.stream.impl.interceptor.AbstractDelegatingEntryCacheSet;
 import org.infinispan.stream.impl.interceptor.AbstractDelegatingKeyCacheSet;
 import org.infinispan.stream.impl.local.EntryStreamSupplier;
@@ -38,7 +35,6 @@ import org.infinispan.stream.impl.spliterators.IteratorAsSpliterator;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -190,8 +186,8 @@ public abstract class BaseTypeConverterInterceptor<K, V> extends CommandIntercep
             Map<Object, Object> map = (Map<Object, Object>) ret;
             Map<Object, Object> unboxed = command.createMap();
             for (Map.Entry<Object, Object> entry : map.entrySet()) {
-               Object value = entry == null ? null : entry.getValue();
-               unboxed.put(converter.unboxKey(entry.getKey()), entry == null ? null : converter.unboxValue(value));
+               Object value = entry.getValue();
+               unboxed.put(converter.unboxKey(entry.getKey()), value == null ? null : converter.unboxValue(value));
             }
             return unboxed;
          }
@@ -281,7 +277,7 @@ public abstract class BaseTypeConverterInterceptor<K, V> extends CommandIntercep
                // unboxes them
                CloseableSpliterator<K> closeableSpliterator = super.spliterator();
                CacheStream<K> stream = new LocalCacheStream<>(new KeyStreamSupplier<>(cache,
-                       dm != null ? dm.getConsistentHash() : null,
+                       dm != null ? dm.getReadConsistentHash() : null,
                        () -> StreamSupport.stream(closeableSpliterator, parallel)), parallel,
                        cache.getAdvancedCache().getComponentRegistry());
                // We rely on the fact that on close returns the same instance
@@ -319,7 +315,7 @@ public abstract class BaseTypeConverterInterceptor<K, V> extends CommandIntercep
                // unboxes them
                CloseableSpliterator<CacheEntry<K, V>> closeableSpliterator = super.spliterator();
                CacheStream<CacheEntry<K, V>> stream = new LocalCacheStream<>(new EntryStreamSupplier<>(cache,
-                       dm != null ? dm.getConsistentHash() : null,
+                       dm != null ? dm.getReadConsistentHash() : null,
                        () -> StreamSupport.stream(closeableSpliterator, parallel)), parallel,
                        cache.getAdvancedCache().getComponentRegistry());
                // We rely on the fact that on close returns the same instance

@@ -6,6 +6,7 @@ import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.global.GlobalConfigurationBuilder;
 import org.infinispan.container.DataContainer;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.distribution.MagicKey;
 import org.infinispan.distribution.rehash.XAResourceAdapter;
 import org.infinispan.manager.CacheContainer;
@@ -519,7 +520,7 @@ public abstract class MultipleCacheManagersTest extends AbstractCacheTest {
       }  else if (!c.clustering().cacheMode().isClustered()) {
          throw new IllegalStateException("This is not a clustered cache!");
       } else {
-         final Address address = getCache(0, cacheName).getAdvancedCache().getDistributionManager().locate(key).get(0);
+         final Address address = getCache(0, cacheName).getAdvancedCache().getDistributionManager().getPrimaryLocation(key, LookupMode.WRITE);
          for (Cache<K, V> cache : this.<K, V>caches(cacheName)) {
             if (cache.getAdvancedCache().getRpcManager().getTransport().getAddress().equals(address)) {
                return cache;

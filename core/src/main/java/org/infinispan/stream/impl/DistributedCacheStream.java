@@ -443,7 +443,7 @@ public class DistributedCacheStream<R> extends AbstractCacheStream<R, Stream<R>,
 
    private void ignoreRehashIteration(Consumer<R> consumer, IteratorSupplier<R> supplier, boolean iteratorParallelDistribute) {
       CollectionConsumer<R> remoteResults = new CollectionConsumer<>(consumer);
-      ConsistentHash ch = dm.getConsistentHash();
+      ConsistentHash ch = dm.getReadConsistentHash();
 
       boolean stayLocal = ch.getMembers().contains(localAddress) && segmentsToFilter != null
               && ch.getSegmentsForOwner(localAddress).containsAll(segmentsToFilter);

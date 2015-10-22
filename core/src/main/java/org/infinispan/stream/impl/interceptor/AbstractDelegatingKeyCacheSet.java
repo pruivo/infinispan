@@ -4,7 +4,6 @@ import org.infinispan.Cache;
 import org.infinispan.CacheSet;
 import org.infinispan.CacheStream;
 import org.infinispan.commons.util.CloseableSpliterator;
-import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.distribution.DistributionManager;
 import org.infinispan.stream.impl.AbstractDelegatingCacheSet;
 import org.infinispan.stream.impl.local.KeyStreamSupplier;
@@ -44,7 +43,7 @@ public abstract class AbstractDelegatingKeyCacheSet<K, V> extends AbstractDelega
    protected CacheStream<K> getStream(boolean parallel) {
       DistributionManager dm = cache.getAdvancedCache().getDistributionManager();
       CloseableSpliterator<K> closeableSpliterator = spliterator();
-      CacheStream<K> stream = new LocalCacheStream<>(new KeyStreamSupplier<>(cache, dm != null ? dm.getConsistentHash() : null,
+      CacheStream<K> stream = new LocalCacheStream<>(new KeyStreamSupplier<>(cache, dm != null ? dm.getReadConsistentHash() : null,
               () -> StreamSupport.stream(closeableSpliterator, false)), parallel, cache.getAdvancedCache().getComponentRegistry());
       // We rely on the fact that on close returns the same instance
       stream.onClose(() -> closeableSpliterator.close());

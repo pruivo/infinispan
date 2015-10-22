@@ -1,7 +1,7 @@
 package org.infinispan.container;
 
 import org.infinispan.distribution.DistributionManager;
-import org.infinispan.expiration.ExpirationManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.atomic.Delta;
 import org.infinispan.atomic.DeltaAware;
@@ -253,7 +253,7 @@ public class EntryFactoryImpl implements EntryFactory {
    }
 
    private InternalCacheEntry getFromContainer(Object key, boolean ignoreOwnership, boolean writeOperation) {
-      final boolean isLocal = distributionManager == null || distributionManager.getLocality(key).isLocal();
+      final boolean isLocal = distributionManager == null || distributionManager.getLocality(key, LookupMode.READ).isLocal();
       if (isLocal || ignoreOwnership) {
          final InternalCacheEntry ice = innerGetFromContainer(key, writeOperation);
          if (trace)

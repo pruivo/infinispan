@@ -6,7 +6,6 @@ import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.global.GlobalConfigurationBuilder;
 import org.infinispan.container.entries.ImmortalCacheEntry;
-import org.infinispan.distexec.mapreduce.Collector;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.stream.CacheCollectors;
@@ -24,7 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Exchanger;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -125,8 +123,8 @@ public class DistributedStreamRehashStressTest extends MultipleCacheManagersTest
             seenValues.put(entry.getKey(), entry.getValue());
          }
          if (seenValues.size() != masterValues.size()) {
-            Map<Integer, Set<Map.Entry<Integer, Integer>>> target = generateEntriesPerSegment(cache.getAdvancedCache().getDistributionManager().getConsistentHash(), masterValues.entrySet());
-            Map<Integer, Set<Map.Entry<Integer, Integer>>> actual = generateEntriesPerSegment(cache.getAdvancedCache().getDistributionManager().getConsistentHash(), seenValues.entrySet());
+            Map<Integer, Set<Map.Entry<Integer, Integer>>> target = generateEntriesPerSegment(cache.getAdvancedCache().getDistributionManager().getReadConsistentHash(), masterValues.entrySet());
+            Map<Integer, Set<Map.Entry<Integer, Integer>>> actual = generateEntriesPerSegment(cache.getAdvancedCache().getDistributionManager().getReadConsistentHash(), seenValues.entrySet());
             for (Map.Entry<Integer, Set<Map.Entry<Integer, Integer>>> entry : target.entrySet()) {
                Set<Map.Entry<Integer, Integer>> entrySet = entry.getValue();
                Set<Map.Entry<Integer, Integer>> actualEntries = actual.get(entry.getKey());

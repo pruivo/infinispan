@@ -11,26 +11,52 @@ import java.util.Collection;
  * Handles inbound state transfers.
  *
  * @author anistor@redhat.com
+ * @author Pedro Ruivo
  * @since 5.2
  */
 @Scope(Scopes.NAMED_CACHE)
 public interface StateConsumer {
 
+   /**
+    * @return the current{@link CacheTopology}.
+    */
    CacheTopology getCacheTopology();
 
+   /**
+    * @return {@code true} if the state transfer is in progress.
+    */
    boolean isStateTransferInProgress();
 
+   /**
+    * @return {@code true} if the state transfer is in progress and the key will be transfer to this node.
+    */
    boolean isStateTransferInProgressForKey(Object key);
 
    /**
-    * Receive notification of topology changes. StateRequestCommands are issued for segments that are new to this member
-    * and the segments that are no longer owned are discarded.
-    *
-    * @param cacheTopology
-    * @param isRebalance
+    * Starts a state transfer by requesting the state to previous owners.
     */
-   void onTopologyUpdate(CacheTopology cacheTopology, boolean isRebalance);
+   void onRebalanceStart(CacheTopology cacheTopology);
 
+   /**
+    * Finishes the state transfer and updates the read consistent hash.
+    */
+   void onReadConsistentHashUpdate(CacheTopology cacheTopology);
+
+   /**
+    * Updates the write consistent hash and removes keys no longer owned by this node.
+    */
+   void onWriteConsistentHashUpdate(CacheTopology cacheTopology);
+
+   /**
+    * Updates the read and write consistent hash.
+    *
+    * If it is received during the state transfer, it should restart it if necessary.
+    */
+   void onConsistentHashUpdate(CacheTopology cacheTopology);
+
+   /**
+    * It applies some state from another node (a previous owner).
+    */
    void applyState(Address sender, int topologyId, Collection<StateChunk> stateChunks);
 
    /**

@@ -7,6 +7,7 @@ import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.cache.VersioningScheme;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.interceptors.TxInterceptor;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.stats.topK.CacheUsageInterceptor;
@@ -216,12 +217,12 @@ public abstract class BaseClusterTopKeyTest extends MultipleCacheManagersTest {
 
    protected boolean isOwner(Cache<?, ?> cache, Object key) {
       DistributionManager dm = cache.getAdvancedCache().getDistributionManager();
-      return dm.locate(key).contains(addressOf(cache));
+      return dm.locate(key, LookupMode.READ).contains(addressOf(cache));
    }
 
    protected boolean isPrimaryOwner(Cache<?, ?> cache, Object key) {
       DistributionManager dm = cache.getAdvancedCache().getDistributionManager();
-      return dm.getPrimaryLocation(key).equals(addressOf(cache));
+      return dm.getPrimaryLocation(key, LookupMode.READ).equals(addressOf(cache));
    }
 
    private ThrowableAwareThread putInOtherThread(final Cache<Object, Object> cache, final Object key, final Object value) {

@@ -412,7 +412,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
          case ClusteredGetCommand.COMMAND_ID:
             ClusteredGetCommand clusteredGetCommand = (ClusteredGetCommand) c;
             clusteredGetCommand.initialize(icf, this, entryFactory,
-                  interceptorChain, distributionManager, txTable,
+                  interceptorChain, txTable,
                   configuration.dataContainer().keyEquivalence());
             break;
          case LockControlCommand.COMMAND_ID:

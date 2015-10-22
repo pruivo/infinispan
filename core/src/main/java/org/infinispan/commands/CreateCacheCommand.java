@@ -95,7 +95,7 @@ public class CreateCacheCommand extends BaseRpcCommand {
       long endTime = timeService.expectedEndTime(cacheConfig.clustering().stateTransfer().timeout(),
             TimeUnit.MILLISECONDS);
       CacheTopology cacheTopology = stateTransferManager.getCacheTopology();
-      while (cacheTopology.getMembers().size() < expectedMembers || cacheTopology.getPendingCH() != null) {
+      while (cacheTopology.getMembers().size() < expectedMembers || !cacheTopology.isStable()) {
          long remainingTime = timeService.remainingTime(endTime, TimeUnit.NANOSECONDS);
          try {
             stateTransferLock.waitForTopology(cacheTopology.getTopologyId() + 1, remainingTime,

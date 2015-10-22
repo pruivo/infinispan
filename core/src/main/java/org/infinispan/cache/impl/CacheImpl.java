@@ -44,6 +44,7 @@ import org.infinispan.context.InvocationContextContainer;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.eviction.EvictionManager;
 import org.infinispan.expiration.ExpirationManager;
 import org.infinispan.factories.ComponentRegistry;
@@ -1623,7 +1624,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
          return true;
       }
       //finally, we will skip the thread if the key maps to the local node
-      return distributionManager.getLocality(key).isLocal();
+      return distributionManager.getLocality(key, LookupMode.READ).isLocal();
    }
 
    private boolean isSkipLoader(EnumSet<Flag> flags) {

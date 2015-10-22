@@ -4,6 +4,7 @@ import org.infinispan.Cache;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commons.CacheException;
 import org.infinispan.commons.util.concurrent.AbstractInProcessFuture;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.remoting.LocalInvocation;
 import org.infinispan.remoting.inboundhandler.DeliverOrder;
@@ -115,7 +116,7 @@ public class ClusteredCacheBackupReceiver extends BaseBackupReceiver {
       }
 
       for (XSiteState state : cmd.getChunk()) {
-         final Address primaryOwner = clusteringDependentLogic.getPrimaryOwner(state.key());
+         final Address primaryOwner = clusteringDependentLogic.getPrimaryOwner(state.key(), LookupMode.WRITE);
          List<XSiteState> primaryOwnerList = primaryOwnersChunks.get(primaryOwner);
          if (primaryOwnerList == null) {
             primaryOwnerList = new LinkedList<>();

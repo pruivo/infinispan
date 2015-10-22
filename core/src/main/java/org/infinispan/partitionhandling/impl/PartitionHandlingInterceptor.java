@@ -26,6 +26,7 @@ import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.partitionhandling.AvailabilityMode;
@@ -189,7 +190,7 @@ public class PartitionHandlingInterceptor extends CommandInterceptor {
             // Unlike in PartitionHandlingManager.checkRead(), here we ignore the availability status
             // and we only fail the operation if _all_ owners have left the cluster.
             // TODO Move this to the availability strategy when implementing ISPN-4624
-            if (!InfinispanCollections.containsAny(transport.getMembers(), distributionManager.locate(key))) {
+            if (!InfinispanCollections.containsAny(transport.getMembers(), distributionManager.locate(key, LookupMode.WRITE))) {
                throw getLog().degradedModeKeyUnavailable(key);
             }
          }
@@ -230,7 +231,7 @@ public class PartitionHandlingInterceptor extends CommandInterceptor {
             missingKeys.removeAll(result.keySet());
             for (Iterator<Object> it = missingKeys.iterator(); it.hasNext();) {
                Object key = it.next();
-               if (InfinispanCollections.containsAny(transport.getMembers(), distributionManager.locate(key))) {
+               if (InfinispanCollections.containsAny(transport.getMembers(), distributionManager.locate(key, LookupMode.READ))) {
                   it.remove();
                }
             }

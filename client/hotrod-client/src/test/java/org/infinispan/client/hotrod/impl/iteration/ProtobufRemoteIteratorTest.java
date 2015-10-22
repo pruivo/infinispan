@@ -115,7 +115,7 @@ public class ProtobufRemoteIteratorTest extends MultiHotRodServersTest implement
       assertForAll(values, s -> s instanceof String);
 
       Marshaller marshaller = clients.iterator().next().getMarshaller();
-      ConsistentHash consistentHash = advancedCache(0).getDistributionManager().getConsistentHash();
+      ConsistentHash consistentHash = advancedCache(0).getDistributionManager().getReadConsistentHash();
 
       assertKeysInSegment(results, segments, marshaller, consistentHash::getSegment);
    }

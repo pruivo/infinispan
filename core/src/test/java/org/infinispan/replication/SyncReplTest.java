@@ -17,7 +17,6 @@ import org.infinispan.test.TestingUtil;
 import org.infinispan.util.ReplicatedControlledConsistentHashFactory;
 import org.testng.annotations.Test;
 
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.any;
@@ -162,7 +161,7 @@ public class SyncReplTest extends MultipleCacheManagersTest {
          cache1.put("k", "v");
          verify(mockTransport).invokeRemotelyAsync(anyCollectionOf(Address.class),
                any(ReplicableCommand.class), eq(ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS), anyLong(),
-               any(ResponseFilter.class), any(DeliverOrder.class), anyBoolean());
+               any(ResponseFilter.class), any(DeliverOrder.class));
 
          // resume to test for async
          asyncRpcManager = (RpcManagerImpl) TestingUtil.extractComponent(asyncCache1, RpcManager.class);
@@ -173,7 +172,7 @@ public class SyncReplTest extends MultipleCacheManagersTest {
          asyncCache1.put("k", "v");
          verify(mockTransport).invokeRemotelyAsync(anyCollectionOf(Address.class),
                any(ReplicableCommand.class), eq(ResponseMode.ASYNCHRONOUS), anyLong(),
-               any(ResponseFilter.class), any(DeliverOrder.class), anyBoolean());
+               any(ResponseFilter.class), any(DeliverOrder.class));
       } finally {
          // replace original transport
          if (rpcManager != null)

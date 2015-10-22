@@ -115,7 +115,7 @@ public class ConsistentHashV1IntegrationTest extends MultipleCacheManagersTest {
    }
 
    private void runTest(int cacheIndex) {
-      ConsistentHash serverCH = advancedCache(cacheIndex).getDistributionManager().getConsistentHash();
+      ConsistentHash serverCH = advancedCache(cacheIndex).getDistributionManager().getWriteConsistentHash();
 
       for (int i = 0; i < NUM_KEYS; i++) {
          byte[] keyBytes = (byte[]) kas.getKeyForAddress(address(cacheIndex));

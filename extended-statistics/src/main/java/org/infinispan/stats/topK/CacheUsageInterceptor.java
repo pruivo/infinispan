@@ -9,6 +9,7 @@ import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.interceptors.base.BaseCustomInterceptor;
 import org.infinispan.jmx.annotations.MBean;
@@ -39,7 +40,7 @@ public class CacheUsageInterceptor extends BaseCustomInterceptor {
    public Object visitGetKeyValueCommand(InvocationContext ctx, GetKeyValueCommand command) throws Throwable {
 
       if (streamSummaryContainer.isEnabled() && ctx.isOriginLocal()) {
-         streamSummaryContainer.addGet(command.getKey(), command.getRemotelyFetchedValue() != null);
+         streamSummaryContainer.addGet(command.getKey(), isRemote(command.getKey(), LookupMode.READ));
       }
       return invokeNextInterceptor(ctx, command);
    }
@@ -48,7 +49,7 @@ public class CacheUsageInterceptor extends BaseCustomInterceptor {
    public Object visitGetAllCommand(InvocationContext ctx, GetAllCommand command) throws Throwable {
       if (streamSummaryContainer.isEnabled() && ctx.isOriginLocal()) {
          for (Object key : command.getKeys()) {
-            streamSummaryContainer.addGet(key, command.getRemotelyFetched().containsKey(key));
+            streamSummaryContainer.addGet(key, isRemote(key, LookupMode.READ));
          }
       }
       return invokeNextInterceptor(ctx, command);
@@ -60,7 +61,7 @@ public class CacheUsageInterceptor extends BaseCustomInterceptor {
    public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
       try {
          if (streamSummaryContainer.isEnabled() && ctx.isOriginLocal()) {
-            streamSummaryContainer.addPut(command.getKey(), isRemote(command.getKey()));
+            streamSummaryContainer.addPut(command.getKey(), isRemote(command.getKey(), LookupMode.WRITE));
          }
          return invokeNextInterceptor(ctx, command);
       } catch (WriteSkewException wse) {
@@ -228,7 +229,7 @@ public class CacheUsageInterceptor extends BaseCustomInterceptor {
       streamSummaryContainer.setEnabled(false);
    }
 
-   private boolean isRemote(Object key) {
-      return distributionManager != null && !distributionManager.getLocality(key).isLocal();
+   private boolean isRemote(Object key, LookupMode lookupMode) {
+      return distributionManager != null && !distributionManager.getLocality(key, lookupMode).isLocal();
    }
 }

@@ -7,7 +7,9 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.AbstractList;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -347,5 +349,50 @@ public class InfinispanCollections {
       Objects.requireNonNull(collection, () -> "Collection '" + name + "' must be non null.");
       Supplier<String> entrySupplier = () -> "Collection '" + name + "' contains null entry.";
       collection.forEach(k -> Objects.requireNonNull(k, entrySupplier));
+   }
+
+   public static <T> List<T> immutableAdd(List<T> list, T element) {
+      List<T> result = new ArrayList<>(list.size() + 1);
+      result.addAll(list);
+      result.add(element);
+      return Collections.unmodifiableList(result);
+   }
+
+   public static <T> List<T> immutableRemove(List<T> list, T element) {
+      if (list.isEmpty()) {
+         return emptyList();
+      }
+      List<T> result = new ArrayList<>(list.size() - 1);
+      ByRef<Boolean> removed = ByRef.create(false);
+      list.forEach(e -> {
+         if (!removed.get() && element.equals(e)) {
+            removed.set(true);
+         } else {
+            result.add(e);
+         }
+      });
+      return result.isEmpty() ? emptyList() : Collections.unmodifiableList(result);
+   }
+
+   public static <T> List<T> immutableRemoveAll(List<T> list, List<T> otherList) {
+      return immutableBatch(list, otherList, false);
+   }
+
+   public static <T> List<T> immutableRetainAll(List<T> list, List<T> otherList) {
+      return immutableBatch(list, otherList, true);
+   }
+
+   private static <T> List<T> immutableBatch(List<T> list, List<T> otherList, boolean expected) {
+      ArrayList<T> result = new ArrayList<>(list.size());
+      list.forEach(e -> {
+         if (otherList.contains(e) == expected) {
+            result.add(e);
+         }
+      });
+      if (result.isEmpty()) {
+         return emptyList();
+      }
+      result.trimToSize();
+      return Collections.unmodifiableList(result);
    }
 }

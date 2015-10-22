@@ -39,20 +39,17 @@ public interface Transport extends Lifecycle {
     * @param timeout        a timeout after which to throw a replication exception. implementations.
     * @param responseFilter a response filter with which to filter out failed/unwanted/invalid responses.
     * @param deliverOrder   the {@link org.infinispan.remoting.inboundhandler.DeliverOrder}.
-    * @param anycast        used when {@param totalOrder} is {@code true}, it means that it must use TOA instead of
-    *                       TOB.
     * @return a map of responses from each member contacted.
     * @throws Exception in the event of problems.
     */
    Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand, ResponseMode mode, long timeout,
-                                         ResponseFilter responseFilter, DeliverOrder deliverOrder, boolean anycast) throws Exception;
+                                         ResponseFilter responseFilter, DeliverOrder deliverOrder) throws Exception;
 
    CompletableFuture<Map<Address, Response>> invokeRemotelyAsync(Collection<Address> recipients,
                                                                  ReplicableCommand rpcCommand,
                                                                  ResponseMode mode, long timeout,
                                                                  ResponseFilter responseFilter,
-                                                                 DeliverOrder deliverOrder,
-                                                                 boolean anycast) throws Exception;
+                                                                 DeliverOrder deliverOrder) throws Exception;
 
    /**
     * @deprecated Use {@link #invokeRemotely(Map, ResponseMode, long, ResponseFilter, DeliverOrder, boolean)} instead

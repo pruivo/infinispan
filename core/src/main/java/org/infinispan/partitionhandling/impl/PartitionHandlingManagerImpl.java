@@ -11,6 +11,7 @@ import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.Configurations;
 import org.infinispan.container.versioning.EntryVersionsMap;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
@@ -90,12 +91,12 @@ public class PartitionHandlingManagerImpl implements PartitionHandlingManager {
 
    @Override
    public void checkWrite(Object key) {
-      doCheck(key);
+      doCheck(key, LookupMode.WRITE);
    }
 
    @Override
    public void checkRead(Object key) {
-      doCheck(key);
+      doCheck(key, LookupMode.READ);
    }
 
    @Override
@@ -234,12 +235,12 @@ public class PartitionHandlingManagerImpl implements PartitionHandlingManager {
       return stableTopology != null && cacheTopology.getActualMembers().containsAll(stableTopology.getActualMembers());
    }
 
-   private void doCheck(Object key) {
+   private void doCheck(Object key, LookupMode lookupMode) {
       if (trace) log.tracef("Checking availability for key=%s, status=%s", key, availabilityMode);
       if (availabilityMode == AvailabilityMode.AVAILABLE)
          return;
 
-      List<Address> owners = distributionManager.locate(key);
+      List<Address> owners = distributionManager.locate(key, lookupMode);
       List<Address> actualMembers = stateTransferManager.getCacheTopology().getActualMembers();
       if (!actualMembers.containsAll(owners)) {
          if (trace) log.tracef("Partition is in %s mode, access is not allowed for key %s", availabilityMode, key);

@@ -18,7 +18,6 @@ import org.infinispan.test.fwk.CleanupAfterMethod;
 import org.infinispan.util.ReplicatedControlledConsistentHashFactory;
 import org.testng.annotations.Test;
 
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
@@ -56,15 +55,15 @@ public class ForceSyncAsyncFlagsTest extends MultipleCacheManagersTest {
       cache1.put("k", "v");
       verify(mockTransport).invokeRemotelyAsync(anyCollectionOf(Address.class), any(ReplicableCommand.class),
             eq(ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS), anyLong(), any(ResponseFilter.class),
-            any(DeliverOrder.class), anyBoolean());
+            any(DeliverOrder.class));
 
       reset(mockTransport);
 
       // verify FORCE_ASYNCHRONOUS flag on SYNC cache
       cache1.withFlags(Flag.FORCE_ASYNCHRONOUS).put("k", "v");
       verify(mockTransport).invokeRemotelyAsync(anyCollectionOf(Address.class), any(ReplicableCommand.class),
-            eq(ResponseMode.ASYNCHRONOUS), anyLong(), any(ResponseFilter.class), any(DeliverOrder.class),
-            anyBoolean());
+            eq(ResponseMode.ASYNCHRONOUS), anyLong(), any(ResponseFilter.class), any(DeliverOrder.class)
+      );
    }
 
    public void testForceSyncFlagUsage() throws Exception {
@@ -83,14 +82,14 @@ public class ForceSyncAsyncFlagsTest extends MultipleCacheManagersTest {
 
       cache1.put("k", "v");
       verify(mockTransport).invokeRemotelyAsync(anyCollectionOf(Address.class), any(ReplicableCommand.class),
-            eq(ResponseMode.ASYNCHRONOUS), anyLong(), any(ResponseFilter.class), any(DeliverOrder.class),
-            anyBoolean());
+            eq(ResponseMode.ASYNCHRONOUS), anyLong(), any(ResponseFilter.class), any(DeliverOrder.class)
+      );
       reset(mockTransport);
 
       // verify FORCE_SYNCHRONOUS flag on ASYNC cache
       cache1.withFlags(Flag.FORCE_SYNCHRONOUS).put("k", "v");
       verify(mockTransport).invokeRemotelyAsync(anyCollectionOf(Address.class), any(ReplicableCommand.class),
             eq(ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS), anyLong(), any(ResponseFilter.class),
-            any(DeliverOrder.class), anyBoolean());
+            any(DeliverOrder.class));
    }
 }

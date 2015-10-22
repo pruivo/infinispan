@@ -21,7 +21,6 @@ import org.infinispan.lifecycle.ComponentStatus;
 import org.infinispan.notifications.Listener;
 import org.infinispan.notifications.cachelistener.annotation.DataRehashed;
 import org.infinispan.notifications.cachelistener.event.DataRehashedEvent;
-import org.infinispan.persistence.manager.PersistenceManager;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.StateTransferManager;
@@ -191,15 +190,15 @@ public class LocalStreamManagerImpl<K, V> implements LocalStreamManager<K> {
            Set<K> keysToExclude) {
       CacheTopology topology = stm.getCacheTopology();
       log.tracef("Topology for supplier is %s for id %s", topology, requestId);
-      ConsistentHash readCH = topology.getCurrentCH();
-      ConsistentHash pendingCH = topology.getPendingCH();
-      if (pendingCH != null) {
+      ConsistentHash readCH = topology.getReadConsistentHash();
+      ConsistentHash writeCh = topology.getWriteConsistentHash();
+      if (!topology.isStable()) {
          Set<Integer> lostSegments = new HashSet<>();
          Iterator<Integer> iterator = segments.iterator();
          while (iterator.hasNext()) {
             Integer segment = iterator.next();
             // If the segment is not owned by both CHs we can't use it during rehash
-            if (!pendingCH.locateOwnersForSegment(segment).contains(localAddress)
+            if (!writeCh.locateOwnersForSegment(segment).contains(localAddress)
                     || !readCH.locateOwnersForSegment(segment).contains(localAddress)) {
                iterator.remove();
                lostSegments.add(segment);

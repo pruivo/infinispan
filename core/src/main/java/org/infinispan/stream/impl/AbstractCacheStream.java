@@ -1,6 +1,5 @@
 package org.infinispan.stream.impl;
 
-import org.infinispan.Cache;
 import org.infinispan.CacheStream;
 import org.infinispan.commons.CacheException;
 import org.infinispan.commons.equivalence.Equivalence;
@@ -25,7 +24,6 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -264,7 +262,7 @@ public abstract class AbstractCacheStream<T, S extends BaseStream<T, S>, T_CONS>
 
    <R> R performOperation(Function<S, ? extends R> function, ResultsAccumulator<R> remoteResults,
                           Predicate<? super R> earlyTerminatePredicate) {
-      ConsistentHash ch = dm.getConsistentHash();
+      ConsistentHash ch = dm.getReadConsistentHash();
       TerminalOperation<R> op = new SingleRunOperation<>(intermediateOperations,
               supplierForSegments(ch, segmentsToFilter, null), function);
       UUID id = csm.remoteStreamOperation(getParallelDistribution(), parallel, ch, segmentsToFilter, keysToFilter,

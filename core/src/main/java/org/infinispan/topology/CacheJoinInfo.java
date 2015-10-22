@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Set;
 
 import org.infinispan.commons.hash.Hash;
+import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.distribution.ch.ConsistentHashFactory;
 import org.infinispan.commons.marshall.AbstractExternalizer;
 import org.infinispan.marshall.core.Ids;
@@ -25,24 +26,23 @@ public class CacheJoinInfo {
    private final int numOwners;
    private final long timeout;
    private final boolean totalOrder;
-   private final boolean distributed;
 
    // Per-node configuration
    private final float capacityFactor;
 
    public CacheJoinInfo(ConsistentHashFactory consistentHashFactory, Hash hashFunction, int numSegments,
-                        int numOwners, long timeout, boolean totalOrder, boolean distributed, float capacityFactor) {
+                        int numOwners, long timeout, boolean totalOrder, float capacityFactor) {
       this.consistentHashFactory = consistentHashFactory;
       this.hashFunction = hashFunction;
       this.numSegments = numSegments;
       this.numOwners = numOwners;
       this.timeout = timeout;
       this.totalOrder = totalOrder;
-      this.distributed = distributed;
       this.capacityFactor = capacityFactor;
    }
 
-   public ConsistentHashFactory getConsistentHashFactory() {
+   public ConsistentHashFactory<ConsistentHash> getConsistentHashFactory() {
+      //noinspection unchecked
       return consistentHashFactory;
    }
 
@@ -66,10 +66,6 @@ public class CacheJoinInfo {
       return totalOrder;
    }
 
-   public boolean isDistributed() {
-      return distributed;
-   }
-
    public float getCapacityFactor() {
       return capacityFactor;
    }
@@ -80,7 +76,6 @@ public class CacheJoinInfo {
       int result = 1;
       result = prime * result + Float.floatToIntBits(capacityFactor);
       result = prime * result + ((consistentHashFactory == null) ? 0 : consistentHashFactory.hashCode());
-      result = prime * result + (distributed ? 1231 : 1237);
       result = prime * result + ((hashFunction == null) ? 0 : hashFunction.hashCode());
       result = prime * result + numOwners;
       result = prime * result + numSegments;
@@ -104,8 +99,6 @@ public class CacheJoinInfo {
          if (other.consistentHashFactory != null)
             return false;
       } else if (!consistentHashFactory.equals(other.consistentHashFactory))
-         return false;
-      if (distributed != other.distributed)
          return false;
       if (hashFunction == null) {
          if (other.hashFunction != null)
@@ -132,7 +125,6 @@ public class CacheJoinInfo {
             ", numOwners=" + numOwners +
             ", timeout=" + timeout +
             ", totalOrder=" + totalOrder +
-            ", distributed=" + distributed +
             '}';
    }
 
@@ -145,7 +137,6 @@ public class CacheJoinInfo {
          output.writeInt(cacheJoinInfo.numOwners);
          output.writeLong(cacheJoinInfo.timeout);
          output.writeBoolean(cacheJoinInfo.totalOrder);
-         output.writeBoolean(cacheJoinInfo.distributed);
          output.writeFloat(cacheJoinInfo.capacityFactor);
       }
 
@@ -157,10 +148,9 @@ public class CacheJoinInfo {
          int numOwners = unmarshaller.readInt();
          long timeout = unmarshaller.readLong();
          boolean totalOrder = unmarshaller.readBoolean();
-         boolean distributed = unmarshaller.readBoolean();
          float capacityFactor = unmarshaller.readFloat();
          return new CacheJoinInfo(consistentHashFactory, hashFunction, numSegments, numOwners, timeout,
-               totalOrder, distributed, capacityFactor);
+               totalOrder, capacityFactor);
       }
 
       @Override

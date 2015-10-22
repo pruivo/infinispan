@@ -13,6 +13,7 @@ import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.cache.VersioningScheme;
 import org.infinispan.context.Flag;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.distribution.MagicKey;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.persistence.dummy.DummyInMemoryStore;
@@ -111,7 +112,7 @@ public class FlagsEnabledTest extends MultipleCacheManagersTest {
 
    public void testWithFlagsAndDelegateCache() {
       final AdvancedCache<Integer, String> c1 =
-            new CustomDelegateCache<Integer, String>(this.<Integer, String>advancedCache(0, cacheName));
+            new CustomDelegateCache<>(this.<Integer, String>advancedCache(0, cacheName));
       final AdvancedCache<Integer, String> c2 = advancedCache(1, cacheName);
 
       c1.withFlags(CACHE_MODE_LOCAL).put(1, "v1");
@@ -195,7 +196,7 @@ public class FlagsEnabledTest extends MultipleCacheManagersTest {
          super(cache, new AdvancedCacheWrapper<K, V>() {
             @Override
             public AdvancedCache<K, V> wrap(AdvancedCache<K, V> cache) {
-               return new CustomDelegateCache<K, V>(cache);
+               return new CustomDelegateCache<>(cache);
             }
          });
       }
@@ -215,7 +216,7 @@ public class FlagsEnabledTest extends MultipleCacheManagersTest {
    }
 
    private boolean isPrimaryOwner(Cache<?, ?> cache, Object key) {
-      return TestingUtil.extractComponent(cache, ClusteringDependentLogic.class).localNodeIsPrimaryOwner(key);
+      return TestingUtil.extractComponent(cache, ClusteringDependentLogic.class).localNodeIsPrimaryOwner(key, LookupMode.WRITE);
    }
 
    private boolean isTxCache() {

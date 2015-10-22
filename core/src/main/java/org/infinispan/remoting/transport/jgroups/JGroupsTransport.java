@@ -236,7 +236,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    public void waitForView(int viewId) throws InterruptedException {
       if (channel == null)
          return;
-      log.tracef("Waiting on view %d being accepted", viewId);
+      log.tracef("Waiting on view %d being accepted. current view is %d", viewId, getViewId());
       viewUpdateLock.lock();
       try {
          while (channel != null && getViewId() < viewId) {
@@ -395,7 +395,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
             } catch (IOException io) {
                //ignore, we check confs later for various states
             }
-            if (confs.isEmpty()) {
+            if (confs == null || confs.isEmpty()) {
                throw log.jgroupsConfigurationNotFound(cfg);
             } else if (confs.size() > 1) {
                log.ambiguousConfigurationFiles(Util.toStr(confs));
@@ -498,9 +498,9 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    @Override
    public Map<Address, Response> invokeRemotely(Collection<Address> recipients, ReplicableCommand rpcCommand,
                                                 ResponseMode mode, long timeout, ResponseFilter responseFilter,
-                                                DeliverOrder deliverOrder, boolean anycast) throws Exception {
+                                                DeliverOrder deliverOrder) throws Exception {
       CompletableFuture<Map<Address, Response>> future = invokeRemotelyAsync(recipients, rpcCommand, mode,
-            timeout, responseFilter, deliverOrder, anycast);
+            timeout, responseFilter, deliverOrder);
       try {
          //no need to set a timeout for the future. The rpc invocation is guaranteed to complete within the timeout milliseconds
          return CompletableFutures.await(future);
@@ -514,8 +514,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
                                                                         ReplicableCommand rpcCommand,
                                                                         ResponseMode mode, long timeout,
                                                                         ResponseFilter responseFilter,
-                                                                        DeliverOrder deliverOrder,
-                                                                        boolean anycast) throws Exception {
+                                                                        DeliverOrder deliverOrder) throws Exception {
       if (recipients != null && recipients.isEmpty()) {
          // don't send if recipients list is empty
          log.trace("Destination list is empty: no need to send message");
@@ -773,37 +772,6 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    // Implementations of JGroups interfaces
    // ------------------------------------------------------------------------------------------------------------------
 
-
-   private interface Notify {
-      void emitNotification(List<Address> oldMembers, View newView);
-   }
-
-   private class NotifyViewChange implements Notify {
-      @Override
-      public void emitNotification(List<Address> oldMembers, View newView) {
-         notifier.notifyViewChange(members, oldMembers, getAddress(), (int) newView.getViewId().getId());
-      }
-   }
-
-   private class NotifyMerge implements Notify {
-
-      @Override
-      public void emitNotification(List<Address> oldMembers, View newView) {
-         MergeView mv = (MergeView) newView;
-
-         final Address address = getAddress();
-         final int viewId = (int) newView.getViewId().getId();
-         notifier.notifyMerge(members, oldMembers, address, viewId, getSubgroups(mv.getSubgroups()));
-      }
-
-      private List<List<Address>> getSubgroups(List<View> subviews) {
-         List<List<Address>> l = new ArrayList<>(subviews.size());
-         for (View v : subviews)
-            l.add(fromJGroupsAddressList(v.getMembers()));
-         return l;
-      }
-   }
-
    @Override
    public void viewAccepted(View newView) {
       log.debugf("New view accepted: %s", newView);
@@ -848,16 +816,15 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       boolean hasNotifier = notifier != null;
       if (hasNotifier) {
          String clusterName = configuration.transport().clusterName();
-         Notify n;
          if (newView instanceof MergeView) {
             log.receivedMergedView(clusterName, newView);
-            n = new NotifyMerge();
+            final Address address = getAddress();
+            final int viewId = (int) newView.getViewId().getId();
+            notifier.notifyMerge(members, oldMembers, address, viewId, getSubgroups(((MergeView) newView).getSubgroups()));
          } else {
             log.receivedClusterView(clusterName, newView);
-            n = new NotifyViewChange();
+            notifier.notifyViewChange(members, oldMembers, getAddress(), (int) newView.getViewId().getId());
          }
-
-         n.emitNotification(oldMembers, newView);
       }
 
       JGroupsAddressCache.pruneAddressCache();
@@ -881,6 +848,13 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    // ------------------------------------------------------------------------------------------------------------------
    // Helpers to convert between Address types
    // ------------------------------------------------------------------------------------------------------------------
+
+   private static List<List<Address>> getSubgroups(List<View> subviews) {
+      List<List<Address>> l = new ArrayList<>(subviews.size());
+      for (View v : subviews)
+         l.add(fromJGroupsAddressList(v.getMembers()));
+      return l;
+   }
 
    protected static org.jgroups.Address toJGroupsAddress(Address a) {
       return ((JGroupsAddress) a).address;

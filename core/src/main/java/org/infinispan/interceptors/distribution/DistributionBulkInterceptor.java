@@ -175,7 +175,7 @@ public class DistributionBulkInterceptor<K, V> extends CommandInterceptor {
          DistributionManager dm = advancedCache.getDistributionManager();
          ComponentRegistry registry = advancedCache.getComponentRegistry();
          ClusterStreamManager<K> realManager = registry.getComponent(ClusterStreamManager.class);
-         TxClusterStreamManager<K> txManager = new TxClusterStreamManager<>(realManager, ctx, dm.getConsistentHash());
+         TxClusterStreamManager<K> txManager = new TxClusterStreamManager<>(realManager, ctx, dm.getReadConsistentHash());
 
          CacheStream<CacheEntry<K, V>> cacheStream = new TxDistributedCacheStream<>(cache.getCacheManager().getAddress(),
                  false, dm, () -> entrySet.stream(), txManager, !command.hasFlag(Flag.SKIP_CACHE_LOAD),
@@ -190,7 +190,7 @@ public class DistributionBulkInterceptor<K, V> extends CommandInterceptor {
          DistributionManager dm = advancedCache.getDistributionManager();
          ComponentRegistry registry = advancedCache.getComponentRegistry();
          ClusterStreamManager<K> realManager = registry.getComponent(ClusterStreamManager.class);
-         TxClusterStreamManager<K> txManager = new TxClusterStreamManager<>(realManager, ctx, dm.getConsistentHash());
+         TxClusterStreamManager<K> txManager = new TxClusterStreamManager<>(realManager, ctx, dm.getReadConsistentHash());
 
          CacheStream<CacheEntry<K, V>> cacheStream = new TxDistributedCacheStream<>(cache.getCacheManager().getAddress(),
                  true, dm, () -> entrySet.parallelStream(), txManager, !command.hasFlag(Flag.SKIP_CACHE_LOAD),
@@ -326,7 +326,7 @@ public class DistributionBulkInterceptor<K, V> extends CommandInterceptor {
          DistributionManager dm = advancedCache.getDistributionManager();
          ComponentRegistry registry = advancedCache.getComponentRegistry();
          ClusterStreamManager<K> realManager = registry.getComponent(ClusterStreamManager.class);
-         TxClusterStreamManager<K> txManager = new TxClusterStreamManager<>(realManager, ctx, dm.getConsistentHash());
+         TxClusterStreamManager<K> txManager = new TxClusterStreamManager<>(realManager, ctx, dm.getReadConsistentHash());
 
          return new TxDistributedCacheStream<>(cache.getCacheManager().getAddress(), false,
                  dm, () -> entrySet.stream(), txManager, !command.hasFlag(Flag.SKIP_CACHE_LOAD),
@@ -341,7 +341,7 @@ public class DistributionBulkInterceptor<K, V> extends CommandInterceptor {
          DistributionManager dm = advancedCache.getDistributionManager();
          ComponentRegistry registry = advancedCache.getComponentRegistry();
          ClusterStreamManager<K> realManager = registry.getComponent(ClusterStreamManager.class);
-         TxClusterStreamManager<K> txManager = new TxClusterStreamManager<>(realManager, ctx, dm.getConsistentHash());
+         TxClusterStreamManager<K> txManager = new TxClusterStreamManager<>(realManager, ctx, dm.getReadConsistentHash());
 
          return new TxDistributedCacheStream<>(cache.getCacheManager().getAddress(), true,
                  dm, () -> entrySet.parallelStream(), txManager, !command.hasFlag(Flag.SKIP_CACHE_LOAD),

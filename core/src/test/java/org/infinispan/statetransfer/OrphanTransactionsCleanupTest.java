@@ -9,8 +9,6 @@ import org.infinispan.topology.LocalTopologyManager;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.transaction.impl.TransactionTable;
 import org.infinispan.util.ReplicatedControlledConsistentHashFactory;
-import org.infinispan.util.logging.Log;
-import org.infinispan.util.logging.LogFactory;
 import org.testng.annotations.Test;
 
 import javax.transaction.Transaction;
@@ -20,7 +18,6 @@ import static org.testng.AssertJUnit.assertEquals;
 
 @Test(groups = "functional", testName = "statetransfer.OrphanTransactionsCleanupTest")
 public class OrphanTransactionsCleanupTest extends MultipleCacheManagersTest {
-   private static final Log log = LogFactory.getLog(OrphanTransactionsCleanupTest.class);
 
    protected ConfigurationBuilder configurationBuilder;
 
@@ -72,7 +69,7 @@ public class OrphanTransactionsCleanupTest extends MultipleCacheManagersTest {
       // Cache 2 should not be in the CH yet
       TestingUtil.waitForRehashToComplete(c0);
 
-      assertEquals(Arrays.asList(address(0)), c0.getAdvancedCache().getDistributionManager().getConsistentHash().getMembers());
+      assertEquals(Arrays.asList(address(0)), c0.getAdvancedCache().getDistributionManager().getWriteConsistentHash().getMembers());
       eventually(new Condition() {
          @Override
          public boolean isSatisfied() throws Exception {

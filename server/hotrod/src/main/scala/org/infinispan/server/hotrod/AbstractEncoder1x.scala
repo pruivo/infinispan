@@ -201,7 +201,7 @@ abstract class AbstractEncoder1x extends AbstractVersionedEncoder with Constants
                                buffer: ByteBuf) {
       val cache = server.getCacheInstance(r.cacheName, server.getCacheManager, false)
       val distManager = cache.getDistributionManager
-      val ch = distManager.getConsistentHash
+      val ch = distManager.getWriteConsistentHash
 
       val topologyMap = h.serverEndpointsMap
       if (topologyMap.isEmpty) {

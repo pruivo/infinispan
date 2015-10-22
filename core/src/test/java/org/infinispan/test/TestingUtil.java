@@ -48,6 +48,7 @@ import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.security.impl.SecureCacheImpl;
 import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.topology.CacheTopology;
+import org.infinispan.topology.TopologyState;
 import org.infinispan.transaction.impl.TransactionTable;
 import org.infinispan.util.CyclicDependencyException;
 import org.infinispan.util.DependencyGraph;
@@ -207,18 +208,19 @@ public class TestingUtil {
          Address cacheAddress = c.getAdvancedCache().getRpcManager().getAddress();
          while (true) {
             CacheTopology cacheTopology = stateTransferManager.getCacheTopology();
-            ConsistentHash currentCH = cacheTopology.getCurrentCH();
-            boolean rebalanceInProgress = cacheTopology.getPendingCH() != null;
-            boolean chContainsAllMembers = currentCH.getMembers().size() == caches.length;
+            ConsistentHash writeCH = cacheTopology.getWriteConsistentHash();
+            boolean rebalanceInProgress = !cacheTopology.isStable();
+            TopologyState topologyState = stateTransferManager.getTopologyState();
+            boolean chContainsAllMembers = writeCH.getMembers().size() == caches.length;
             boolean currentChIsBalanced = true;
-            int actualNumOwners = Math.min(currentCH.getNumOwners(), currentCH.getMembers().size());
-            for (int i = 0; i < currentCH.getNumSegments(); i++) {
-               if (currentCH.locateOwnersForSegment(i).size() < actualNumOwners) {
+            int actualNumOwners = Math.min(writeCH.getNumOwners(), writeCH.getMembers().size());
+            for (int i = 0; i < writeCH.getNumSegments(); i++) {
+               if (writeCH.locateOwnersForSegment(i).size() < actualNumOwners) {
                   currentChIsBalanced = false;
                   break;
                }
             }
-            if (chContainsAllMembers && !rebalanceInProgress && currentChIsBalanced)
+            if (chContainsAllMembers && !rebalanceInProgress && currentChIsBalanced && topologyState == TopologyState.NONE)
                break;
 
             if (System.nanoTime() - giveup > 0) {
@@ -229,12 +231,12 @@ public class TestingUtil {
                      addresses[i] = caches[i].getCacheManager().getAddress();
                   }
                   message = String.format("Timed out waiting for rebalancing to complete on node %s, " +
-                        "expected member list is %s, current member list is %s!",
-                        cacheAddress, Arrays.toString(addresses), cacheTopology.getCurrentCH().getMembers());
+                        "expected member list is %s, current member list is %s. current topology is %s",
+                        cacheAddress, Arrays.toString(addresses), cacheTopology.getReadConsistentHash().getMembers(), cacheTopology);
                } else {
                   message = String.format("Timed out waiting for rebalancing to complete on node %s, " +
-                        "current topology is %s. rebalanceInProgress=%s, currentChIsBalanced=%s", c.getCacheManager().getAddress(),
-                                          cacheTopology, rebalanceInProgress, currentChIsBalanced);
+                        "current topology is %s. rebalanceInProgress=%s, currentChIsBalanced=%s, topologyState=%s", cacheAddress,
+                                          cacheTopology, rebalanceInProgress, currentChIsBalanced, topologyState);
                }
                log.error(message);
                throw new RuntimeException(message);
@@ -1109,11 +1111,18 @@ public class TestingUtil {
    }
 
    public static DISCARD getDiscardForCache(Cache<?, ?> c) throws Exception {
-      JGroupsTransport jgt = (JGroupsTransport) TestingUtil.extractComponent(c, Transport.class);
+      return getDiscardForCache(c.getCacheManager());
+   }
+
+   public static DISCARD getDiscardForCache(CacheContainer container) throws Exception {
+      JGroupsTransport jgt = (JGroupsTransport) extractGlobalComponent(container, Transport.class);
       Channel ch = jgt.getChannel();
       ProtocolStack ps = ch.getProtocolStack();
-      DISCARD discard = new DISCARD();
-      ps.insertProtocol(discard, ProtocolStack.ABOVE, TP.class);
+      DISCARD discard = (DISCARD) ps.findProtocol(DISCARD.class);
+      if (discard == null) {
+         discard = new DISCARD();
+         ps.insertProtocol(discard, ProtocolStack.ABOVE, TP.class);
+      }
       return discard;
    }
 

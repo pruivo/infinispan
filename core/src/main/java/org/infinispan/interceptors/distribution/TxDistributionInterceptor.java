@@ -25,6 +25,7 @@ import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.LocalTxInvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.partitionhandling.impl.PartitionHandlingManager;
@@ -44,7 +45,6 @@ import org.infinispan.util.logging.LogFactory;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 import static java.lang.String.format;
@@ -153,8 +153,8 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
    public Object visitLockControlCommand(TxInvocationContext ctx, LockControlCommand command) throws Throwable {
       if (ctx.isOriginLocal()) {
          //In Pessimistic mode, the delta composite keys were sent to the wrong owner and never locked.
-         final Collection<Address> affectedNodes = cdl.getOwners(filterDeltaCompositeKeys(command.getKeys()));
-         ((LocalTxInvocationContext) ctx).remoteLocksAcquired(affectedNodes == null ? dm.getConsistentHash()
+         final Collection<Address> affectedNodes = cdl.getOwners(filterDeltaCompositeKeys(command.getKeys()), LookupMode.WRITE);
+         ((LocalTxInvocationContext) ctx).remoteLocksAcquired(affectedNodes == null ? dm.getWriteConsistentHash()
                .getMembers() : affectedNodes);
          log.tracef("Registered remote locks acquired %s", affectedNodes);
          RpcOptions rpcOptions = rpcManager.getRpcOptionsBuilder(ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS, DeliverOrder.NONE).build();
@@ -182,7 +182,7 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
       Object retVal = invokeNextInterceptor(ctx, command);
 
       if (shouldInvokeRemoteTxCommand(ctx)) {
-         Collection<Address> recipients = cdl.getOwners(getAffectedKeysFromContext(ctx));
+         Collection<Address> recipients = cdl.getOwners(getAffectedKeysFromContext(ctx), LookupMode.WRITE);
          prepareOnAffectedNodes(ctx, command, recipients);
          ((LocalTxInvocationContext) ctx).remoteLocksAcquired(
                recipients == null ? dm.getWriteConsistentHash().getMembers() : recipients);
@@ -213,9 +213,8 @@ public class TxDistributionInterceptor extends BaseDistributionInterceptor {
 
    private Collection<Address> getCommitNodes(TxInvocationContext ctx) {
       LocalTransaction localTx = (LocalTransaction) ctx.getCacheTransaction();
-      Collection<Address> affectedNodes = cdl.getOwners(getAffectedKeysFromContext(ctx));
-      List<Address> members = dm.getConsistentHash().getMembers();
-      return localTx.getCommitNodes(affectedNodes, rpcManager.getTopologyId(), members);
+      Collection<Address> affectedNodes = cdl.getOwners(getAffectedKeysFromContext(ctx), LookupMode.WRITE);
+      return localTx.getCommitNodes(affectedNodes, rpcManager.getTopologyId(), rpcManager.getMembers());
    }
 
    protected void checkTxCommandResponses(Map<Address, Response> responseMap, TransactionBoundaryCommand command,

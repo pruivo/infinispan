@@ -14,6 +14,7 @@ import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.distribution.DataLocality;
 import org.infinispan.distribution.DistributionManager;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
@@ -76,7 +77,7 @@ public class InvalidateL1Command extends InvalidateCommand {
       for (Object k : getKeys()) {
          InternalCacheEntry ice = dataContainer.get(k);
          if (ice != null) {
-            DataLocality locality = dm.getLocality(k);
+            DataLocality locality = dm.getLocality(k, LookupMode.WRITE);
 
             if (!locality.isLocal()) {
                if (trace) log.tracef("Invalidating key %s.", k);
@@ -99,7 +100,7 @@ public class InvalidateL1Command extends InvalidateCommand {
       for (Object k : getKeys()) {
          // If any key in the set of keys to invalidate is not local, or we are uncertain due to a rehash, then we
          // process this command.
-         DataLocality locality = dm.getLocality(k);
+         DataLocality locality = dm.getLocality(k, LookupMode.WRITE);
          if (!locality.isLocal() || locality.isUncertain()) return true;
       }
       return false;

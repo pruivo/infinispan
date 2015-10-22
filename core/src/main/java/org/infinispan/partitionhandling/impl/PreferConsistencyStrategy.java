@@ -45,7 +45,7 @@ public class PreferConsistencyStrategy implements AvailabilityStrategy {
          return;
       }
 
-      if (isDataLost(context.getStableTopology().getCurrentCH(), newMembers)) {
+      if (isDataLost(context.getStableTopology().getReadConsistentHash(), newMembers)) {
          log.enteringDegradedModeGracefulLeaver(context.getCacheName(), leaver);
          context.updateAvailabilityMode(newMembers, AvailabilityMode.DEGRADED_MODE, true);
          return;
@@ -76,7 +76,7 @@ public class PreferConsistencyStrategy implements AvailabilityStrategy {
       List<Address> stableMembers = stableTopology.getMembers();
       List<Address> lostMembers = new ArrayList<>(stableMembers);
       lostMembers.removeAll(newMembers);
-      if (isDataLost(stableTopology.getCurrentCH(), newMembers)) {
+      if (isDataLost(stableTopology.getReadConsistentHash(), newMembers)) {
          log.enteringDegradedModeLostData(context.getCacheName(), lostMembers);
          context.updateAvailabilityMode(newMembers, AvailabilityMode.DEGRADED_MODE, true);
          return;
@@ -181,8 +181,7 @@ public class PreferConsistencyStrategy implements AvailabilityStrategy {
       // Also cancel any pending rebalance by removing the pending CH, because we don't recover the rebalance
       // confirmation status (yet).
       if (mergedTopology != null) {
-         mergedTopology = new CacheTopology(maxTopologyId + 1, mergedTopology.getRebalanceId(),
-               mergedTopology.getCurrentCH(), null, actualMembers);
+         mergedTopology = CacheTopology.updateTopologyIdAndMembers(maxTopologyId + 1, actualMembers, mergedTopology);
       }
       context.updateTopologiesAfterMerge(mergedTopology, maxStableTopology, mergedAvailabilityMode);
 
@@ -206,7 +205,7 @@ public class PreferConsistencyStrategy implements AvailabilityStrategy {
          List<Address> stableMembers = maxStableTopology.getMembers();
          List<Address> lostMembers = new ArrayList<>(stableMembers);
          lostMembers.removeAll(context.getExpectedMembers());
-         if (isDataLost(maxStableTopology.getCurrentCH(), newMembers)) {
+         if (isDataLost(maxStableTopology.getReadConsistentHash(), newMembers)) {
             log.keepingDegradedModeAfterMergeDataLost(context.getCacheName(), newMembers, lostMembers, stableMembers);
             return AvailabilityMode.DEGRADED_MODE;
          }

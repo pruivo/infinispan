@@ -1,6 +1,7 @@
 package org.infinispan.util.concurrent.locks;
 
 import org.infinispan.atomic.DeltaCompositeKey;
+import org.infinispan.distribution.LookupMode;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 
 /**
@@ -26,9 +27,9 @@ public class LockUtil {
       Object keyToCheck = key instanceof DeltaCompositeKey ?
             ((DeltaCompositeKey) key).getDeltaAwareValueKey() :
             key;
-      if (clusteringDependentLogic.localNodeIsPrimaryOwner(keyToCheck)) {
+      if (clusteringDependentLogic.localNodeIsPrimaryOwner(keyToCheck, LookupMode.WRITE)) {
          return LockOwnership.PRIMARY;
-      } else if (clusteringDependentLogic.localNodeIsOwner(keyToCheck)) {
+      } else if (clusteringDependentLogic.localNodeIsOwner(keyToCheck, LookupMode.WRITE)) {
          return LockOwnership.BACKUP;
       } else {
          return LockOwnership.NO_OWNER;

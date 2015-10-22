@@ -15,7 +15,6 @@ import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextFactory;
-import org.infinispan.distribution.DistributionManager;
 import org.infinispan.interceptors.InterceptorChain;
 import org.infinispan.transaction.impl.TransactionTable;
 import org.infinispan.transaction.xa.GlobalTransaction;
@@ -44,7 +43,6 @@ public class ClusteredGetCommand extends LocalFlagAffectedRpcCommand {
    private boolean acquireRemoteLock;
    private GlobalTransaction gtx;
 
-   private DistributionManager distributionManager;
    private TransactionTable txTable;
    private InternalEntryFactory entryFactory;
    private Equivalence keyEquivalence;
@@ -72,9 +70,7 @@ public class ClusteredGetCommand extends LocalFlagAffectedRpcCommand {
    }
 
    public void initialize(InvocationContextFactory icf, CommandsFactory commandsFactory, InternalEntryFactory entryFactory,
-         InterceptorChain interceptorChain, DistributionManager distributionManager, TransactionTable txTable,
-         Equivalence keyEquivalence) {
-      this.distributionManager = distributionManager;
+                          InterceptorChain interceptorChain, TransactionTable txTable, Equivalence keyEquivalence) {
       this.icf = icf;
       this.commandsFactory = commandsFactory;
       this.invoker = interceptorChain;

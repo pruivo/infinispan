@@ -34,6 +34,7 @@ import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECU
  * {@link StateProvider} implementation.
  *
  * @author anistor@redhat.com
+ * @author Pedro Ruivo
  * @since 5.2
  */
 @Listener
@@ -46,7 +47,7 @@ public class StateProviderImpl implements StateProvider {
    private Configuration configuration;
    private RpcManager rpcManager;
    private CommandsFactory commandsFactory;
-   private ClusterCacheNotifier clusterCacheNotifier;
+   private ClusterCacheNotifier<Object, Object> clusterCacheNotifier;
    private TransactionTable transactionTable;     // optional
    private DataContainer dataContainer;
    private PersistenceManager persistenceManager; // optional
@@ -62,7 +63,7 @@ public class StateProviderImpl implements StateProvider {
     * A map that keeps track of current outbound state transfers by destination address. There could be multiple transfers
     * flowing to the same destination (but for different segments) so the values are lists.
     */
-   private final Map<Address, List<OutboundTransferTask>> transfersByDestination = new HashMap<Address, List<OutboundTransferTask>>();
+   private final Map<Address, List<OutboundTransferTask>> transfersByDestination = new HashMap<>();
 
    public StateProviderImpl() {
    }
@@ -73,7 +74,7 @@ public class StateProviderImpl implements StateProvider {
                     Configuration configuration,
                     RpcManager rpcManager,
                     CommandsFactory commandsFactory,
-                    ClusterCacheNotifier clusterCacheNotifier,
+                    ClusterCacheNotifier<Object, Object> clusterCacheNotifier,
                     PersistenceManager persistenceManager,
                     DataContainer dataContainer,
                     TransactionTable transactionTable,
@@ -103,21 +104,20 @@ public class StateProviderImpl implements StateProvider {
       }
    }
 
-   public void onTopologyUpdate(CacheTopology cacheTopology, boolean isRebalance) {
+   public void onTopologyUpdate(CacheTopology cacheTopology) {
       // Cancel outbound state transfers for destinations that are no longer members in new topology
       // If the rebalance was cancelled, stop every outbound transfer. This will prevent "leaking" transfers
       // from one rebalance to the next.
-      boolean stateTransferInProgress = cacheTopology.getPendingCH() != null;
-      Set<Address> members = new HashSet<Address>(cacheTopology.getWriteConsistentHash().getMembers());
+      final Set<Address> members = new HashSet<>(cacheTopology.getWriteConsistentHash().getMembers());
       synchronized (transfersByDestination) {
-         for (Iterator<Address> it = transfersByDestination.keySet().iterator(); it.hasNext(); ) {
-            Address destination = it.next();
+         for (Iterator<Map.Entry<Address, List<OutboundTransferTask>>> it = transfersByDestination.entrySet().iterator();
+              it.hasNext(); ) {
+            Map.Entry<Address, List<OutboundTransferTask>> entry = it.next();
+            Address destination = entry.getKey();
             if (!members.contains(destination)) {
-               List<OutboundTransferTask> transfers = transfersByDestination.get(destination);
+               List<OutboundTransferTask> transfers = entry.getValue();
                it.remove();
-               for (OutboundTransferTask outboundTransfer : transfers) {
-                  outboundTransfer.cancel();
-               }
+               transfers.forEach(OutboundTransferTask::cancel);
             }
          }
       }
@@ -142,9 +142,7 @@ public class StateProviderImpl implements StateProvider {
             for (Iterator<List<OutboundTransferTask>> it = transfersByDestination.values().iterator(); it.hasNext(); ) {
                List<OutboundTransferTask> transfers = it.next();
                it.remove();
-               for (OutboundTransferTask outboundTransfer : transfers) {
-                  outboundTransfer.cancel();
-               }
+               transfers.forEach(OutboundTransferTask::cancel);
             }
          }
       } catch (Throwable t) {
@@ -166,7 +164,7 @@ public class StateProviderImpl implements StateProvider {
          throw new IllegalArgumentException("Segments " + segments + " are not owned by " + rpcManager.getAddress());
       }
 
-      List<TransactionInfo> transactions = new ArrayList<TransactionInfo>();
+      List<TransactionInfo> transactions = new ArrayList<>();
       //we migrate locks only if the cache is transactional and distributed
       if (configuration.transaction().transactionMode().isTransactional()) {
          collectTransactionsToTransfer(destination, transactions, transactionTable.getRemoteTransactions(), segments, cacheTopology);
@@ -223,7 +221,7 @@ public class StateProviderImpl implements StateProvider {
          }
 
          // transfer only locked keys that belong to requested segments
-         Set<Object> filteredLockedKeys = new HashSet<Object>();
+         Set<Object> filteredLockedKeys = new HashSet<>();
          Set<Object> lockedKeys = tx.getLockedKeys();
          synchronized (lockedKeys) {
             for (Object key : lockedKeys) {
@@ -289,7 +287,7 @@ public class StateProviderImpl implements StateProvider {
       synchronized (transfersByDestination) {
          List<OutboundTransferTask> transfers = transfersByDestination.get(transferTask.getDestination());
          if (transfers == null) {
-            transfers = new ArrayList<OutboundTransferTask>();
+            transfers = new ArrayList<>();
             transfersByDestination.put(transferTask.getDestination(), transfers);
          }
          transfers.add(transferTask);
