@@ -1,8 +1,9 @@
 package org.infinispan.impl;
 
-import org.infinispan.AtomicCounter;
 import org.jgroups.blocks.atomic.Counter;
 import org.jgroups.blocks.atomic.CounterService;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * // TODO: Document this
@@ -10,7 +11,7 @@ import org.jgroups.blocks.atomic.CounterService;
  * @author Pedro Ruivo
  * @since 8.0
  */
-public class JGroupsCounter implements AtomicCounter {
+public class JGroupsCounter implements org.infinispan.Counter {
 
    private final Counter counter;
    private final long initialValue;
@@ -31,47 +32,12 @@ public class JGroupsCounter implements AtomicCounter {
    }
 
    @Override
-   public void increment() {
-      counter.incrementAndGet();
-   }
-
-   @Override
-   public void decrement() {
-      counter.decrementAndGet();
-   }
-
-   @Override
-   public void add(long delta) {
-      counter.addAndGet(delta);
-   }
-
-   @Override
-   public void set(long value) {
-      counter.set(value);
-   }
-
-   @Override
-   public boolean compareAndSet(long expect, long update) {
-      return counter.compareAndSet(expect, update);
-   }
-
-   @Override
-   public long incrementAndGet() {
-      return counter.incrementAndGet();
-   }
-
-   @Override
-   public long decrementAndGet() {
-      return counter.decrementAndGet();
-   }
-
-   @Override
-   public long addAndGet(long delta) {
-      return counter.addAndGet(delta);
+   public CompletableFuture<Long> addAndGet(long delta) {
+      return CompletableFuture.completedFuture(counter.addAndGet(delta));
    }
 
    @Override
    public void reset() {
-      set(initialValue);
+      counter.set(initialValue);
    }
 }

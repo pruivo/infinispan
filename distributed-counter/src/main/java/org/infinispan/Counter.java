@@ -1,10 +1,12 @@
 package org.infinispan;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * // TODO: Document this
  *
  * @author Pedro Ruivo
- * @since 8.0
+ * @since 9.0
  */
 public interface Counter {
 
@@ -25,8 +27,8 @@ public interface Counter {
     *
     * @return The new value
     */
-   default void increment() {
-      add(1);
+   default CompletableFuture<Long> incrementAndGet() {
+      return addAndGet(1L);
    }
 
 
@@ -35,8 +37,8 @@ public interface Counter {
     *
     * @return The new value
     */
-   default void decrement() {
-      add(-1);
+   default CompletableFuture<Long> decrementAndGet() {
+      return addAndGet(-1L);
    }
 
 
@@ -46,7 +48,7 @@ public interface Counter {
     * @param delta the value to add
     * @return the updated value
     */
-   void add(long delta);
+   CompletableFuture<Long> addAndGet(long delta);
 
    /**
     * Resets the counter to its initial value.

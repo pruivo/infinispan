@@ -31,7 +31,7 @@ public class CounterManager {
       this.counterService = counterService;
    }
 
-   public static CounterManager buildFrom(EmbeddedCacheManager cacheManager) throws Exception {
+   public static CounterManager getCounterManager(EmbeddedCacheManager cacheManager) throws Exception {
       Objects.requireNonNull(cacheManager, "EmbeddedCacheManager can't be null.");
       GlobalComponentRegistry registry = cacheManager.getGlobalComponentRegistry();
       CounterManager counterManager = registry.getComponent(CounterManager.class);
@@ -53,7 +53,7 @@ public class CounterManager {
       return new ForkChannel(channel, COUNTER_FORK_STACK_ID, COUNTER_FORK_CHANNEL_ID, true, ProtocolStack.ABOVE, firstProtocol.getClass(), new COUNTER());
    }
 
-   public AtomicCounter getOrCreateCounter(String counterName, int initialValue) {
+   public Counter getOrCreateCounter(String counterName, int initialValue) {
       return new JGroupsCounter(counterService, counterName, initialValue);
    }
 
