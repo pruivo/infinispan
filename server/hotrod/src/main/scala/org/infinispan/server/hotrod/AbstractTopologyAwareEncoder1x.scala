@@ -81,7 +81,7 @@ abstract class AbstractTopologyAwareEncoder1x extends AbstractEncoder1x with Con
       writeUnsignedInt(1, buf) // Num virtual nodes
 
       for ((serverAddress, hashId) <- hashIds) {
-         log.tracef("Writing hash id %d for %s:%s", hashId, serverAddress.host, serverAddress.port)
+         log.tracef("Writing hash id %d for %s:%s", Array(hashId, serverAddress.host, serverAddress.port))
          writeString(serverAddress.host, buf)
          writeUnsignedShort(serverAddress.port, buf)
          buf.writeInt(hashId)

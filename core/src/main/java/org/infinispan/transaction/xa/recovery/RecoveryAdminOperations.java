@@ -63,7 +63,7 @@ public class RecoveryAdminOperations {
    @ManagedOperation(description = "Forces the commit of an in-doubt transaction", displayName="Force commit by internal id")
    public String forceCommit(@Parameter(name = "internalId", description = "The internal identifier of the transaction") long internalId) {
       if (trace)
-         log.tracef("Forces the commit of an in-doubt transaction: %s", internalId);
+         log.tracef("Forces the commit of an in-doubt transaction: %s", (Long)internalId);
       return completeBasedOnInternalId(internalId, true);
    }
 

@@ -283,7 +283,7 @@ public class SingleFileStore<K, V> implements AdvancedLoadWriteStore<K, V> {
          }
       }
 
-      if (trace) log.tracef("Existing free entry allocated at %d:%d, %d free entries", free.offset, free.size, freeList.size());
+      if (trace) log.tracef("Existing free entry allocated at %d:%d, %d free entries", (Long)free.offset, (Integer)free.size, (Integer)freeList.size());
       return free;
    }
 
@@ -316,7 +316,7 @@ public class SingleFileStore<K, V> implements AdvancedLoadWriteStore<K, V> {
          if (!freeList.add(fe)) {
             throw new IllegalStateException(String.format("Trying to free an entry that was not allocated: %s", fe));
          }
-         if (trace) log.tracef("Deleted entry at %d:%d, there are now %d free entries", fe.offset, fe.size, freeList.size());
+         if (trace) log.tracef("Deleted entry at %d:%d, there are now %d free entries", (Long)fe.offset, (Integer)fe.size, (Integer)freeList.size());
       }
    }
 
@@ -408,7 +408,7 @@ public class SingleFileStore<K, V> implements AdvancedLoadWriteStore<K, V> {
                freeList.clear();
 
                // reset file
-               if (trace) log.tracef("Truncating file, current size is %d", filePos);
+               if (trace) log.tracef("Truncating file, current size is %d", (Long)filePos);
                channel.truncate(0);
                channel.write(ByteBuffer.wrap(MAGIC), 0);
                filePos = MAGIC.length;

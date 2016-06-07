@@ -282,7 +282,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       if (toKill.isEmpty()) {
          if (trace) log.tracef("No remote transactions pertain to originator(s) who have left the cluster.");
       } else {
-         log.debugf("The originating node left the cluster for %d remote transactions", toKill.size());
+         log.debugf("The originating node left the cluster for %d remote transactions", (Integer)toKill.size());
          for (GlobalTransaction gtx : toKill) {
             if (partitionHandlingManager.canRollbackTransactionAfterOriginatorLeave(gtx)) {
                log.debugf("Rolling back transaction %s because originator %s left the cluster", gtx, gtx.getAddress());
@@ -298,7 +298,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
    }
 
    private void cleanupTimedOutTransactions() {
-      if (trace) log.tracef("About to cleanup remote transactions older than %d ms", configuration.transaction().completedTxTimeout());
+      if (trace) log.tracef("About to cleanup remote transactions older than %d ms", (Long)configuration.transaction().completedTxTimeout());
       long beginning = timeService.time();
       long cutoffCreationTime = beginning - TimeUnit.MILLISECONDS.toNanos(configuration.transaction().completedTxTimeout());
       List<GlobalTransaction> toKill = new ArrayList<>();
@@ -374,7 +374,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       } else {
          if (trace) log.tracef("Created and registered remote transaction %s", remoteTransaction);
          if (remoteTransaction.getTopologyId() < minTxTopologyId) {
-            if (trace) log.tracef("Changing minimum topology ID from %d to %d", minTxTopologyId, remoteTransaction.getTopologyId());
+            if (trace) log.tracef("Changing minimum topology ID from %d to %d",(Integer)minTxTopologyId, (Integer)remoteTransaction.getTopologyId());
             minTxTopologyId = remoteTransaction.getTopologyId();
          }
          return remoteTransaction;
@@ -492,7 +492,8 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
          // Assume that we only get here if we are clustered.
          int removedTransactionTopologyId = removedTransaction.getTopologyId();
          if (removedTransactionTopologyId < minTxTopologyId) {
-            if (trace) log.tracef("A transaction has a topology ID (%s) that is smaller than the smallest transaction topology ID (%s) this node knows about!  This can happen if a concurrent thread recalculates the minimum topology ID after the current transaction has been removed from the transaction table.", removedTransactionTopologyId, minTxTopologyId);
+            if (trace) log.tracef("A transaction has a topology ID (%s) that is smaller than the smallest transaction topology ID (%s) this node knows about!  This can happen if a concurrent thread recalculates the minimum topology ID after the current transaction has been removed from the transaction table.",
+                                  (Integer)removedTransactionTopologyId, (Integer)minTxTopologyId);
          } else if (removedTransactionTopologyId == minTxTopologyId && removedTransactionTopologyId < currentTopologyId) {
             // We should only need to re-calculate the minimum topology ID if the transaction being completed
             // has the same ID as the smallest known transaction ID, to check what the new smallest is, and this is
@@ -555,7 +556,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
                if (topologyId < minTopologyIdFound) minTopologyIdFound = topologyId;
             }
             if (minTopologyIdFound != minTxTopologyId) {
-               if (trace) log.tracef("Changing minimum topology ID from %s to %s", minTxTopologyId, minTopologyIdFound);
+               if (trace) log.tracef("Changing minimum topology ID from %s to %s", (Integer)minTxTopologyId, (Integer)minTopologyIdFound);
                minTxTopologyId = minTopologyIdFound;
             } else {
                if (trace) log.tracef("Minimum topology ID still is %s; nothing to change", minTopologyIdFound);
@@ -581,7 +582,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
             localTxsOnGoing = !localTransactions.isEmpty();
          } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.debugf("Interrupted waiting for %d on-going local transactions to finish.", localTransactions.size());
+            log.debugf("Interrupted waiting for %d on-going local transactions to finish.", (Integer)localTransactions.size());
          }
       }
 
@@ -773,8 +774,8 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
 
             if (trace) log.tracef("Finished cleaning up completed transactions in %d millis, %d transactions were removed, " +
                   "current number of completed transactions is %d",
-                  removedEntries, duration, completedTransactions.size());
-            if (trace) log.tracef("Last pruned transaction ids were updated: %d, %s", globalMaxPrunedTxId, nodeMaxPrunedTxIds);
+                                  (Integer)removedEntries, (Long)duration, (Integer)completedTransactions.size());
+            if (trace) log.tracef("Last pruned transaction ids were updated: %d, %s", (Long)globalMaxPrunedTxId, nodeMaxPrunedTxIds);
          } catch (Exception e) {
             log.errorf(e, "Failed to cleanup completed transactions: %s", e.getMessage());
          }

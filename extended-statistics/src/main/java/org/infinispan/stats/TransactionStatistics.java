@@ -39,7 +39,7 @@ public abstract class TransactionStatistics {
       this.readOnly = true; //as far as it does not tries to perform a put operation
       this.container = container;
       if (trace) {
-         log.tracef("Created transaction statistics. Start time=%s", initTime);
+         log.tracef("Created transaction statistics. Start time=%s", (Long)initTime);
       }
    }
 

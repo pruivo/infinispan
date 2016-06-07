@@ -109,7 +109,7 @@ public class CacheStatisticCollector {
    public final double getPercentile(PercentileStatistic stat, int percentile)
          throws IllegalArgumentException {
       if (trace) {
-         log.tracef("Get percentile %s from %s", percentile, stat);
+         log.tracef("Get percentile %s from %s", (Integer)percentile, stat);
       }
       return percentiles.get(stat).getKPercentile(percentile);
    }

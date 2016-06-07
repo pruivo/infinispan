@@ -312,7 +312,7 @@ public class KeyAffinityServiceImpl<K> implements KeyAffinityService<K> {
       existingKeyCount.set(0);
       if (trace) {
          log.tracef("resetNumberOfKeys ends with: maxNumberOfKeys=%s, existingKeyCount=%s",
-                    maxNumberOfKeys.get(), existingKeyCount.get());
+                    (Integer)maxNumberOfKeys.get(), (Integer)existingKeyCount.get());
       }
    }
 

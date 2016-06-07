@@ -86,8 +86,8 @@ public class StateTransferLockImpl implements StateTransferLock {
          return;
 
       if (trace) {
-         log.tracef("Waiting for transaction data for topology %d, current topology is %d", expectedTopologyId,
-                    transactionDataTopologyId);
+         log.tracef("Waiting for transaction data for topology %d, current topology is %d", (Integer)expectedTopologyId,
+                    (Integer)transactionDataTopologyId);
       }
       transactionDataLock.lock();
       try {
@@ -100,15 +100,15 @@ public class StateTransferLockImpl implements StateTransferLock {
          transactionDataLock.unlock();
       }
       if (trace) {
-         log.tracef("Received transaction data for topology %d, expected topology was %d", transactionDataTopologyId,
-               expectedTopologyId);
+         log.tracef("Received transaction data for topology %d, expected topology was %d", (Integer)transactionDataTopologyId,
+                    (Integer)expectedTopologyId);
       }
    }
 
    @Override
    public boolean transactionDataReceived(int expectedTopologyId) {
       if (trace) log.tracef("Checking if transaction data was received for topology %s, current topology is %s",
-            expectedTopologyId, transactionDataTopologyId);
+                            (Integer)expectedTopologyId, (Integer)transactionDataTopologyId);
       return transactionDataTopologyId >= expectedTopologyId;
    }
 
@@ -137,7 +137,7 @@ public class StateTransferLockImpl implements StateTransferLock {
          return;
 
       if (trace) {
-         log.tracef("Waiting for topology %d to be installed, current topology is %d", expectedTopologyId, topologyId);
+         log.tracef("Waiting for topology %d to be installed, current topology is %d", (Integer)expectedTopologyId, (Integer)topologyId);
       }
       topologyLock.lock();
       try {
@@ -150,7 +150,7 @@ public class StateTransferLockImpl implements StateTransferLock {
          topologyLock.unlock();
       }
       if (trace) {
-         log.tracef("Topology %d is now installed, expected topology was %d", topologyId, expectedTopologyId);
+         log.tracef("Topology %d is now installed, expected topology was %d", (Integer)topologyId, (Integer)expectedTopologyId);
       }
    }
 

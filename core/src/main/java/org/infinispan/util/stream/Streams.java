@@ -268,7 +268,7 @@ public class Streams {
          total += read;
 
          if (trace) {
-            log.tracef("bytes read: %d; total bytes read: %d", read, total);
+            log.tracef("bytes read: %d; total bytes read: %d", (Integer)read, (Long)total);
          }
       }
 
@@ -365,11 +365,11 @@ public class Streams {
          if (trace) log.tracef("read bytes: %d", read);
          output.write(buffer, 0, read);
          total += read;
-         if (trace) log.tracef("total bytes read: %d", total);
+         if (trace) log.tracef("total bytes read: %d", (Long)total);
 
          // update the readLength
          readLength = Math.min((int) (length - total), buffer.length);
-         if (trace) log.tracef("next read length: %d", readLength);
+         if (trace) log.tracef("next read length: %d", (Integer)readLength);
       }
 
       return total;

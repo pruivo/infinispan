@@ -575,7 +575,7 @@ public class TxInterceptor<K, V> extends DDAsyncInterceptor implements JmxStatis
       // the transaction on local node to ensure its locks are acquired and lookedUpEntries is properly populated.
       RemoteTransaction remoteTx = ctx.getCacheTransaction();
       if (trace) {
-         log.tracef("Remote tx topology id %d and command topology is %d", remoteTx.lookedUpEntriesTopology(), topologyId);
+         log.tracef("Remote tx topology id %d and command topology is %d", (Integer)remoteTx.lookedUpEntriesTopology(), (Integer)topologyId);
       }
       if (remoteTx.lookedUpEntriesTopology() < topologyId) {
          PrepareCommand prepareCommand;

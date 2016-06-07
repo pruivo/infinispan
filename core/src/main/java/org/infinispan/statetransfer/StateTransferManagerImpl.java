@@ -282,7 +282,7 @@ public class StateTransferManagerImpl implements StateTransferManager {
       int localTopologyId = cacheTopology.getTopologyId();
       // if it's a tx/lock/write command, forward it to the new owners
       if (trace) {
-         log.tracef("CommandTopologyId=%s, localTopologyId=%s", cmdTopologyId, localTopologyId);
+         log.tracef("CommandTopologyId=%s, localTopologyId=%s", (Integer)cmdTopologyId, (Integer)localTopologyId);
       }
 
       if (cmdTopologyId < localTopologyId) {

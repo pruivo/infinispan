@@ -487,8 +487,8 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       try {
          while (channel != null && channel.getView().getMembers().size() < initialClusterSize &&
                remainingNanos > 0) {
-            log.debugf("Waiting for %d nodes, current view has %d", initialClusterSize,
-                  channel.getView().getMembers().size());
+            log.debugf("Waiting for %d nodes, current view has %d", (Integer)initialClusterSize,
+                       (Integer)channel.getView().getMembers().size());
             remainingNanos = viewUpdateCondition.awaitNanos(remainingNanos);
          }
       } catch (InterruptedException e) {
@@ -502,7 +502,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
          throw log.timeoutWaitingForInitialNodes(initialClusterSize, channel.getView().getMembers());
       }
 
-      log.debugf("Initial cluster size of %d nodes reached", initialClusterSize);
+      log.debugf("Initial cluster size of %d nodes reached", (Integer)initialClusterSize);
    }
 
    @Override

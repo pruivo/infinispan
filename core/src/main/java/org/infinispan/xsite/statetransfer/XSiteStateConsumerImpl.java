@@ -85,7 +85,7 @@ public class XSiteStateConsumerImpl implements XSiteStateConsumer {
    @Override
    public void applyState(XSiteState[] chunk) throws Exception {
       if (debug) {
-         log.debugf("Received state: %s keys", chunk.length);
+         log.debugf("Received state: %s keys", (Integer)chunk.length);
       }
       if (transactionManager != null) {
          applyStateInTransaction(chunk);
@@ -113,7 +113,7 @@ public class XSiteStateConsumerImpl implements XSiteStateConsumer {
          }
          transactionManager.commit();
          if (debug) {
-            log.debugf("Successfully applied state. %s keys inserted", chunk.length);
+            log.debugf("Successfully applied state. %s keys inserted", (Integer)chunk.length);
          }
       } catch (Exception e) {
          log.unableToApplyXSiteState(e);
@@ -136,7 +136,7 @@ public class XSiteStateConsumerImpl implements XSiteStateConsumer {
          }
       }
       if (debug) {
-         log.debugf("Successfully applied state. %s keys inserted", chunk.length);
+         log.debugf("Successfully applied state. %s keys inserted", (Integer)chunk.length);
       }
    }
 

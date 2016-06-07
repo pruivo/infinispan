@@ -88,7 +88,7 @@ public class HotRodTargetMigrator implements TargetMigrator {
                         cache.get(key);
                         int i = count.getAndIncrement();
                         if (log.isDebugEnabled() && i % 100 == 0)
-                           log.debugf(">>    Moved %s keys\n", i);
+                           log.debugf(">>    Moved %s keys\n", (Integer)i);
                      } catch (Exception e) {
                         log.keyMigrationFailed(Util.toStr(key), e);
                      }

@@ -532,7 +532,7 @@ public class LevelDBStore implements AdvancedLoadWriteStore {
                 }
 
                 if (!keys.isEmpty())
-                    log.debugf("purge (up to) %d entries", keys.size());
+                    log.debugf("purge (up to) %d entries", (Integer)keys.size());
                 int count = 0;
                 for (Object key : keys) {
                     byte[] keyBytes = marshall(key);
@@ -551,7 +551,7 @@ public class LevelDBStore implements AdvancedLoadWriteStore {
 
                 }
                 if (count != 0)
-                    log.debugf("purged %d entries", count);
+                    log.debugf("purged %d entries", (Integer)count);
             } catch (Exception e) {
                 throw new PersistenceException(e);
             } finally {

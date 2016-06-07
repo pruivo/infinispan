@@ -546,7 +546,7 @@ public class ClusterCacheStatus implements AvailabilityStrategyContext {
                }
             }
 
-            log.debugf("Recovered %d partition(s) for cache %s: %s", currentTopologies.size(), cacheName, currentTopologies);
+            log.debugf("Recovered %d partition(s) for cache %s: %s", (Integer)currentTopologies.size(), cacheName, currentTopologies);
             recoverMembers(joinInfos, currentTopologies, stableTopologies);
 
             // TODO Should automatically detect when the coordinator has left and there is only one partition

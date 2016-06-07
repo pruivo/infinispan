@@ -232,7 +232,7 @@ abstract class AbstractEncoder1x extends AbstractVersionedEncoder with Constants
          for ((serverAddress, hashId) <- serverHashes) {
             writeString(serverAddress.host, buffer)
             writeUnsignedShort(serverAddress.port, buffer)
-            log.tracef("Writing hash id %d for %s:%s", hashId, serverAddress.host, serverAddress.port)
+            log.tracef("Writing hash id %d for %s:%s", Array(hashId, serverAddress.host, serverAddress.port))
             buffer.writeInt(hashId)
          }
       }

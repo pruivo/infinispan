@@ -90,7 +90,7 @@ public class HotRodMigratorHelper {
                   destCache.getAdvancedCache().withFlags(Flag.SKIP_CACHE_LOAD).put(entry.getKey(), entry.getValue().getValue(), internalMetadata);
                   int currentCount = counter.incrementAndGet();
                   if (log.isDebugEnabled() && currentCount % 100 == 0)
-                     log.debugf(">>    Migrated %s entries\n", currentCount);
+                     log.debugf(">>    Migrated %s entries\n", (Integer)currentCount);
                });
 
             }

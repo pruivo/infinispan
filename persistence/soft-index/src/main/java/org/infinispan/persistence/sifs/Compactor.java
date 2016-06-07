@@ -265,7 +265,7 @@ class Compactor extends Thread {
                               update = info.file == scheduledFile && info.offset == indexedOffset;
                            }
                            if (trace) {
-                              log.tracef("In index the key is on %d:%d (%s)", info.file, info.offset, String.valueOf(update));
+                              log.tracef("In index the key is on %d:%d (%s)", (Integer)info.file, (Integer)info.offset, String.valueOf(update));
                            }
                         } finally {
                            if (update) {

@@ -167,7 +167,7 @@ public class OfflineStatus {
       if (millis >= minTimeToWait) {
          if (trace) {
             log.tracef("The minTimeToWait has passed: minTime=%s, timeSinceFirstFailure=%s",
-                       minTimeToWait, millis);
+                       (Long)minTimeToWait, (Long)millis);
          }
          return true;
       }

@@ -229,14 +229,14 @@ class IndexNode {
             if (Arrays.equals(hak.getKey(), key)) {
                if (hak.getHeader().expiryTime() > 0 && hak.getHeader().expiryTime() <= timeService.wallClockTime()) {
                   if (trace) {
-                     log.tracef("Found node on %d:%d but it is expired", leafNode.file, leafNode.offset);
+                     log.tracef("Found node on %d:%d but it is expired", (Integer)leafNode.file, (Integer)leafNode.offset);
                   }
                   return null;
                }
                return leafNode;
             } else {
                if (trace) {
-                  log.tracef("Found node on %d:%d but key does not match", leafNode.file, leafNode.offset);
+                  log.tracef("Found node on %d:%d but key does not match", (Integer)leafNode.file, (Integer)leafNode.offset);
                }
             }
             return null;
@@ -250,7 +250,7 @@ class IndexNode {
                return leafNode;
             } else {
                if (trace) {
-                  log.tracef("Found node on %d:%d but key does not match", leafNode.file, leafNode.offset);
+                  log.tracef("Found node on %d:%d but key does not match", (Integer)leafNode.file, (Integer)leafNode.offset);
                }
                return null;
             }
@@ -335,7 +335,7 @@ class IndexNode {
             return;
          }
          if (trace) {
-            log.tracef("Created (1) %d new nodes, GC %08x", result.newNodes.size(), System.identityHashCode(node));
+            log.tracef("Created (1) %d new nodes, GC %08x", (Integer)result.newNodes.size(), (Integer)System.identityHashCode(node));
          }
          garbage.push(node);
          for (;;) {
@@ -369,7 +369,7 @@ class IndexNode {
                return;
             }
             if (trace) {
-               log.tracef("Created (2) %d new nodes, GC %08x", result.newNodes.size(), System.identityHashCode(path.node));
+               log.tracef("Created (2) %d new nodes, GC %08x", (Integer)result.newNodes.size(), (Integer)System.identityHashCode(path.node));
             }
             garbage.push(path.node);
          }

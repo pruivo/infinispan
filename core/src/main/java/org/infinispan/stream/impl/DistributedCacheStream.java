@@ -741,7 +741,7 @@ public class DistributedCacheStream<R> extends AbstractCacheStream<R, Stream<R>,
       Collection<CacheEntry<Object, Object>> localValue = op.performOperationRehashAware(results);
       // TODO: we can do this more efficiently - this hampers performance during rehash
       if (dm.getReadConsistentHash().equals(ch)) {
-         log.tracef("Found local values %s for id %s", localValue.size(), id);
+         log.tracef("Found local values %s for id %s", (Integer)localValue.size(), id);
          results.onCompletion(null, segments, localValue);
       } else {
          Set<Integer> ourSegments = ownedSegmentsSupplier.get();

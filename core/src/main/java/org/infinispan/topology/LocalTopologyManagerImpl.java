@@ -239,7 +239,7 @@ public class LocalTopologyManagerImpl implements LocalTopologyManager, GlobalSta
       } catch (Throwable t) {
          log.warn("Failed to obtain the rebalancing status", t);
       }
-      log.debugf("Sending cluster status response for view %d", viewId);
+      log.debugf("Sending cluster status response for view %d", (Integer)viewId);
       return new ManagerStatusResponse(caches, rebalancingEnabled);
    }
 
@@ -248,14 +248,14 @@ public class LocalTopologyManagerImpl implements LocalTopologyManager, GlobalSta
          final AvailabilityMode availabilityMode, final int viewId, final Address sender) throws InterruptedException {
       if (!running) {
          log.tracef("Ignoring consistent hash update %s for cache %s, the local cache manager is not running",
-               cacheTopology.getTopologyId(), cacheName);
+                    (Integer)cacheTopology.getTopologyId(), cacheName);
          return;
       }
 
       final LocalCacheStatus cacheStatus = runningCaches.get(cacheName);
       if (cacheStatus == null) {
          log.tracef("Ignoring consistent hash update %s for cache %s that doesn't exist locally",
-               cacheTopology.getTopologyId(), cacheName);
+                    (Integer)cacheTopology.getTopologyId(), cacheName);
          return;
       }
 
@@ -380,7 +380,7 @@ public class LocalTopologyManagerImpl implements LocalTopologyManager, GlobalSta
          String cacheName) {
       if (!sender.equals(transport.getCoordinator())) {
          log.debugf("Ignoring topology %d for cache %s from old coordinator %s",
-               cacheTopology.getTopologyId(), cacheName, sender);
+                    (Integer)cacheTopology.getTopologyId(), cacheName, sender);
          return false;
       }
       if (viewId < latestStatusResponseViewId) {
@@ -452,14 +452,14 @@ public class LocalTopologyManagerImpl implements LocalTopologyManager, GlobalSta
          final Address sender) throws InterruptedException {
       if (!running) {
          log.debugf("Ignoring rebalance request %s for cache %s, the local cache manager is not running",
-               cacheTopology.getTopologyId(), cacheName);
+                    (Integer)cacheTopology.getTopologyId(), cacheName);
          return;
       }
 
       final LocalCacheStatus cacheStatus = runningCaches.get(cacheName);
       if (cacheStatus == null) {
          log.tracef("Ignoring rebalance %s for cache %s that doesn't exist locally",
-               cacheTopology.getTopologyId(), cacheName);
+                    (Integer)cacheTopology.getTopologyId(), cacheName);
          return;
       }
 

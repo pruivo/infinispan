@@ -366,7 +366,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
             clusterManagerLock.lock();
             try {
                if (viewId != newViewId) {
-                  log.debugf("View updated while we were recovering the cluster for view %d", newViewId);
+                  log.debugf("View updated while we were recovering the cluster for view %d", (Integer)newViewId);
                   return;
                }
                clusterManagerStatus = ClusterManagerStatus.COORDINATOR;
@@ -433,7 +433,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
    }
 
    private void recoverClusterStatus(int newViewId, final boolean isMergeView, final List<Address> clusterMembers) throws Exception {
-      log.debugf("Recovering cluster status for view %d", newViewId);
+      log.debugf("Recovering cluster status for view %d", (Integer)newViewId);
       ReplicableCommand command = new CacheTopologyControlCommand(null,
             CacheTopologyControlCommand.Type.GET_STATUS, transport.getAddress(), newViewId);
       Map<Address, Object> statusResponses = null;
@@ -461,7 +461,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
          }
       }
 
-      log.debugf("Got %d status responses. members are %s", statusResponses.size(), clusterMembers);
+      log.debugf("Got %d status responses. members are %s", (Integer)statusResponses.size(), clusterMembers);
       Map<String, Map<Address, CacheStatusResponse>> responsesByCache = new HashMap<>();
       boolean recoveredRebalancingStatus = true;
       for (Map.Entry<Address, Object> responseEntry : statusResponses.entrySet()) {
@@ -531,7 +531,7 @@ public class ClusterTopologyManagerImpl implements ClusterTopologyManager {
          if (trace) {
             if (joinerViewId > viewId) {
                log.tracef("Waiting to install view %s before processing join request from %s",
-                     joinerViewId, joiner);
+                          (Integer)joinerViewId, joiner);
             } else {
                log.tracef("Waiting to recover cluster status before processing join request from %s", joiner);
             }

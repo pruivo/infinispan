@@ -517,12 +517,12 @@ public class StateConsumerImpl implements StateConsumer {
       int rebalanceTopologyId = stateTransferTopologyId.get();
       if (rebalanceTopologyId == NO_REBALANCE_IN_PROGRESS) {
          log.debugf("Discarding state response with topology id %d for cache %s, we don't have a state transfer in progress",
-               topologyId, cacheName);
+                    (Integer)topologyId, cacheName);
          return;
       }
       if (topologyId < rebalanceTopologyId) {
          log.debugf("Discarding state response with old topology id %d for cache %s, state transfer request topology was %b",
-               topologyId, cacheName, waitingForState);
+                    (Integer)topologyId, cacheName, waitingForState);
          return;
       }
 
@@ -627,11 +627,11 @@ public class StateConsumerImpl implements StateConsumer {
             }
          }
       }
-      if (trace) log.tracef("Finished applying chunk of segment %d of cache %s", segmentId, cacheName);
+      if (trace) log.tracef("Finished applying chunk of segment %d of cache %s", (Integer)segmentId, cacheName);
    }
 
    private void applyTransactions(Address sender, Collection<TransactionInfo> transactions, int topologyId) {
-      log.debugf("Applying %d transactions for cache %s transferred from node %s", transactions.size(), cacheName, sender);
+      log.debugf("Applying %d transactions for cache %s transferred from node %s", (Integer)transactions.size(), cacheName, sender);
       if (isTransactional) {
          for (TransactionInfo transactionInfo : transactions) {
             GlobalTransaction gtx = transactionInfo.getGlobalTransaction();
@@ -969,7 +969,7 @@ public class StateConsumerImpl implements StateConsumer {
             ctx.setLockOwner(invalidateCmd.getKeyLockOwner());
             interceptorChain.invoke(ctx, invalidateCmd);
 
-            if (trace) log.tracef("Removed %d keys, data container now has %d keys", keysToRemove.size(), dataContainer.size());
+            if (trace) log.tracef("Removed %d keys, data container now has %d keys", (Integer)keysToRemove.size(), (Integer)dataContainer.size());
          } catch (CacheException e) {
             log.failedToInvalidateKeys(e);
          }

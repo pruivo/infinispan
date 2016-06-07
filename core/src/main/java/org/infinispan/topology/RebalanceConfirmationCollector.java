@@ -27,7 +27,7 @@ class RebalanceConfirmationCollector {
       this.topologyId = topologyId;
       this.confirmationsNeeded = new HashSet<Address>(members);
       log.tracef("Initialized rebalance confirmation collector %d@%s, initial list is %s",
-            topologyId, cacheName, confirmationsNeeded);
+                 (Integer)topologyId, cacheName, confirmationsNeeded);
    }
 
    /**
@@ -43,12 +43,12 @@ class RebalanceConfirmationCollector {
          boolean removed = confirmationsNeeded.remove(node);
          if (!removed) {
             log.tracef("Rebalance confirmation collector %d@%s ignored confirmation for %s, which is already confirmed",
-                  topologyId, cacheName, node);
+                       (Integer)topologyId, cacheName, node);
             return false;
          }
 
          log.tracef("Rebalance confirmation collector %d@%s received confirmation for %s, remaining list is %s",
-               topologyId, cacheName, node, confirmationsNeeded);
+                    (Integer)topologyId, cacheName, node, confirmationsNeeded);
          return confirmationsNeeded.isEmpty();
       }
    }
@@ -61,7 +61,7 @@ class RebalanceConfirmationCollector {
          // only return true the first time
          boolean modified = confirmationsNeeded.retainAll(newMembers);
          log.tracef("Rebalance confirmation collector %d@%s members list updated, remaining list is %s",
-               topologyId, cacheName, confirmationsNeeded);
+                    (Integer)topologyId, cacheName, confirmationsNeeded);
          return modified && confirmationsNeeded.isEmpty();
       }
    }

@@ -174,7 +174,7 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
             }
 
             if (trace) {
-               log.tracef("Tasks to be executed=%s, still pending=~%s", readyList.size(), size);
+               log.tracef("Tasks to be executed=%s, still pending=~%s", (Integer)readyList.size(), (Integer)size);
             }
 
             BlockingRunnable runnable;

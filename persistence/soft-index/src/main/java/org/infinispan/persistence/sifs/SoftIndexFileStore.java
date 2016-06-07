@@ -214,7 +214,7 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
                   throw new IOException("Cannot read " + entry.file + ":" + entryOffset);
                }
                if (trace) {
-                  log.tracef("SeqId on %d:%d is %d", entry.file, entry.offset, header.seqId());
+                  log.tracef("SeqId on %d:%d is %d", (Integer)entry.file, (Integer)entry.offset, (Long)header.seqId());
                }
                return seqId < header.seqId();
             } finally {

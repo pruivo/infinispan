@@ -52,7 +52,7 @@ public class SynchronizationAdapter extends AbstractEnlistmentAdapter implements
    @Override
    public void afterCompletion(int status) {
       if (trace) {
-         log.tracef("afterCompletion(%s) called for %s.", status, localTransaction);
+         log.tracef("afterCompletion(%s) called for %s.", (Integer)status, localTransaction);
       }
       boolean isOnePhase;
       if (status == Status.STATUS_COMMITTED) {

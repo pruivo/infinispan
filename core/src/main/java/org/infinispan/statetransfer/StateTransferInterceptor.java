@@ -193,7 +193,7 @@ public class StateTransferInterceptor extends BaseStateTransferInterceptor {
          // Without this, we could retry the command too fast and we could get the OutdatedTopologyException again.
          if (trace)
             log.tracef("Retrying command because of topology change, current topology is %d: %s",
-                  currentTopologyId(), rCommand);
+                       (Integer)currentTopologyId(), rCommand);
          FlagAffectedCommand flagAffectedCommand = (FlagAffectedCommand) rCommand;
          int newTopologyId = Math.max(currentTopologyId(), flagAffectedCommand.getTopologyId() + 1);
          flagAffectedCommand.setTopologyId(newTopologyId);
@@ -381,7 +381,7 @@ public class StateTransferInterceptor extends BaseStateTransferInterceptor {
          WriteCommand writeCommand = (WriteCommand) rCommand;
          if (trace)
             log.tracef("Retrying command because of topology change, current topology is %d: %s",
-                  currentTopologyId, writeCommand);
+                       (Integer)currentTopologyId, writeCommand);
          int commandTopologyId = writeCommand.getTopologyId();
          int newTopologyId = Math.max(currentTopologyId, commandTopologyId + 1);
          writeCommand.setTopologyId(newTopologyId);

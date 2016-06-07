@@ -324,7 +324,7 @@ public class AsyncCacheWriter extends DelegatingCacheWriter {
       private void retryWork(int maxRetries) {
          for (int attempt = 0; attempt < maxRetries; attempt++) {
             if (attempt > 0 && log.isDebugEnabled())
-               log.debugf("Retrying due to previous failure. %s attempts left.", maxRetries - attempt);
+               log.debugf("Retrying due to previous failure. %s attempts left.", (Integer)(maxRetries - attempt));
 
             try {
                AsyncCacheWriter.this.applyModificationsSync(modifications);
