@@ -3,6 +3,7 @@ package org.infinispan.remoting.transport.jgroups;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commons.CacheConfigurationException;
 import org.infinispan.commons.CacheException;
+import org.infinispan.commons.io.ByteBuffer;
 import org.infinispan.commons.marshall.StreamingMarshaller;
 import org.infinispan.commons.util.CollectionFactory;
 import org.infinispan.commons.util.FileLookup;
@@ -35,7 +36,6 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.XSiteBackup;
 import org.infinispan.xsite.XSiteReplicateCommand;
-import org.jgroups.Channel;
 import org.jgroups.Event;
 import org.jgroups.JChannel;
 import org.jgroups.MembershipListener;
@@ -45,15 +45,14 @@ import org.jgroups.UpHandler;
 import org.jgroups.View;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.RspFilter;
-import org.jgroups.blocks.mux.Muxer;
 import org.jgroups.jmx.JmxConfigurator;
 import org.jgroups.protocols.relay.SiteMaster;
 import org.jgroups.protocols.tom.TOA;
 import org.jgroups.stack.AddressGenerator;
 import org.jgroups.util.Buffer;
+import org.jgroups.util.ExtendedUUID;
 import org.jgroups.util.Rsp;
 import org.jgroups.util.RspList;
-import org.jgroups.util.TopologyUUID;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -120,7 +119,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    private MBeanServer mbeanServer;
    private String domain;
 
-   protected Channel channel;
+   protected JChannel channel;
    protected Address address;
    protected Address physicalAddress;
 
@@ -142,7 +141,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
     * @param channel
     *           created and running channel to use
     */
-   public JGroupsTransport(Channel channel) {
+   public JGroupsTransport(JChannel channel) {
       this.channel = channel;
       if (channel == null)
          throw new IllegalArgumentException("Cannot deal with a null channel!");
@@ -350,7 +349,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       if (transportCfg.hasTopologyInfo()) {
          // We can do this only if the channel hasn't been started already
          if (connectChannel) {
-            ((JChannel) channel).setAddressGenerator(new AddressGenerator() {
+            channel.addAddressGenerator(new AddressGenerator() {
                @Override
                public org.jgroups.Address generateAddress() {
                   return TopologyUUID.randomUUID(channel.getName(), transportCfg.siteId(),
@@ -378,10 +377,10 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    }
 
    protected void initRPCDispatcher() {
-      dispatcher = new CommandAwareRpcDispatcher(channel, this, globalHandler, timeoutExecutor, timeService);
-      MarshallerAdapter adapter = new MarshallerAdapter(marshaller);
+      dispatcher = new CommandAwareRpcDispatcher(channel, this, globalHandler, timeoutExecutor, timeService, marshaller);
+      /*MarshallerAdapter adapter = new MarshallerAdapter(marshaller);
       dispatcher.setRequestMarshaller(adapter);
-      dispatcher.setResponseMarshaller(adapter);
+      dispatcher.setResponseMarshaller(adapter);*/
       dispatcher.start();
    }
 
@@ -768,21 +767,21 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
 
    @Override
    public BackupResponse backupRemotely(Collection<XSiteBackup> backups, XSiteReplicateCommand rpcCommand) throws Exception {
-      log.tracef("About to send to backups %s, command %s", backups, rpcCommand);
-      Buffer buf = dispatcher.marshallCall(dispatcher.getMarshaller(), rpcCommand);
+      if (trace) {
+         log.tracef("About to send to backups %s, command %s", backups, rpcCommand);
+      }
+      ByteBuffer buf = dispatcher.marshallCall(rpcCommand);
       Map<XSiteBackup, Future<Object>> syncBackupCalls = new HashMap<>(backups.size());
       for (XSiteBackup xsb : backups) {
          SiteMaster recipient = new SiteMaster(xsb.getSiteName());
          if (xsb.isSync()) {
-            RequestOptions sync = new RequestOptions(org.jgroups.blocks.ResponseMode.GET_ALL, xsb.getTimeout());
-            Message msg = CommandAwareRpcDispatcher.constructMessage(buf, recipient,
-                  org.jgroups.blocks.ResponseMode.GET_ALL, false, DeliverOrder.NONE);
-            syncBackupCalls.put(xsb, dispatcher.sendMessageWithFuture(msg, sync));
+            RequestOptions sync = CommandAwareRpcDispatcher.constructRequestOptions(org.jgroups.blocks.ResponseMode.GET_ALL,
+                  false, DeliverOrder.NONE, xsb.getTimeout());
+            syncBackupCalls.put(xsb, dispatcher.sendMessageWithFuture(recipient, buf.getBuf(), buf.getOffset(), buf.getLength(), sync));
          } else {
-            RequestOptions async = new RequestOptions(org.jgroups.blocks.ResponseMode.GET_NONE, xsb.getTimeout());
-            Message msg = CommandAwareRpcDispatcher.constructMessage(buf, recipient,
-                  org.jgroups.blocks.ResponseMode.GET_NONE, false, DeliverOrder.PER_SENDER);
-            dispatcher.sendMessage(msg, async);
+            RequestOptions async = CommandAwareRpcDispatcher.constructRequestOptions(org.jgroups.blocks.ResponseMode.GET_NONE,
+                  false, DeliverOrder.PER_SENDER, xsb.getTimeout());
+            dispatcher.sendMessage(recipient, buf.getBuf(), buf.getOffset(), buf.getLength(), async);
          }
       }
       return new JGroupsBackupResponse(syncBackupCalls, timeService);
@@ -984,7 +983,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       return dispatcher;
    }
 
-   public Channel getChannel() {
+   public JChannel getChannel() {
       return channel;
    }
 

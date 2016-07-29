@@ -1,51 +1,70 @@
 package org.infinispan.remoting.transport.jgroups;
 
-import org.infinispan.remoting.responses.Response;
-import org.jgroups.blocks.GroupRequest;
-import org.jgroups.util.FutureListener;
-import org.jgroups.util.RspList;
-
-import java.util.concurrent.Callable;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import org.infinispan.remoting.responses.Response;
+import org.jgroups.Address;
+import org.jgroups.blocks.GroupRequest;
+import org.jgroups.util.Rsp;
+import org.jgroups.util.RspList;
 
 /**
  * @author Dan Berindei
  * @since 8.0
  */
-public class RspListFuture extends CompletableFuture<RspList<Response>> implements FutureListener<RspList<Response>>,
-      Callable<Void> {
+public class RspListFuture extends CompletableFuture<RspList<Response>> implements Runnable {
    private final GroupRequest<Response> request;
+   private final Collection<Address> destinations;
    private volatile Future<?> timeoutFuture = null;
 
-   RspListFuture(GroupRequest<Response> request) {
+
+   RspListFuture(Collection<Address> destinations, GroupRequest<Response> request) {
+      this.destinations = destinations;
       this.request = request;
-      if (request != null) {
-         request.setListener(this);
+      this.request.whenComplete(this::handleResponse);
+   }
+
+   public void setTimeoutTask(ScheduledExecutorService timeoutExecutor, long timeoutMillis) {
+      if (!isDone()) {
+         Future<?> f = timeoutExecutor.schedule(this, timeoutMillis, TimeUnit.MILLISECONDS);
+         timeoutFuture = f;
+         if (isDone()) {
+            f.cancel(false);
+         }
+      }
+   }
+
+   private void handleResponse(RspList<Response> rspList, Throwable throwable) {
+      if (throwable != null) {
+         completeExceptionally(throwable);
+      }
+      if (rspList.isEmpty() && destinations != null) {
+         RspList<Response> newRspList = new RspList<>();
+         for (Address address : destinations) {
+            Rsp<Response> rsp = new Rsp<>();
+            rsp.setSuspected();
+            newRspList.put(address, rsp);
+         }
+         complete(newRspList);
+      } else {
+         complete(rspList);
+      }
+      cancelTimeoutFuture();
+   }
+
+   private void cancelTimeoutFuture() {
+      Future<?> f = timeoutFuture;
+      if (f != null) {
+         f.cancel(false);
       }
    }
 
    @Override
-   public void futureDone(Future<RspList<Response>> future) {
-      RspList<Response> responses = request.getResults();
-      complete(responses);
-      if (timeoutFuture != null) {
-         timeoutFuture.cancel(false);
-      }
-   }
-
-   public void setTimeoutFuture(Future<?> timeoutFuture) {
-      this.timeoutFuture = timeoutFuture;
-      if (isDone()) {
-         timeoutFuture.cancel(false);
-      }
-   }
-
-   @Override
-   public Void call() throws Exception {
-      // The request timed out
-      complete(request.getResults());
-      request.cancel(true);
-      return null;
+   public void run() {
+      this.request.cancel(false);
    }
 }

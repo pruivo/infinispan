@@ -1,50 +1,55 @@
 package org.infinispan.remoting.transport.jgroups;
 
-import org.infinispan.remoting.responses.Response;
-import org.jgroups.blocks.UnicastRequest;
-import org.jgroups.util.FutureListener;
-import org.jgroups.util.NotifyingFuture;
-import org.jgroups.util.Rsp;
-
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import org.infinispan.remoting.responses.Response;
 
 /**
  * @author Dan Berindei
  * @since 8.0
  */
-public class SingleResponseFuture extends CompletableFuture<Rsp<Response>>
-      implements FutureListener<Response>, Callable<Void> {
-   private final UnicastRequest request;
+public class SingleResponseFuture extends CompletableFuture<Response> implements Runnable {
+   private final CompletableFuture<Response> request;
    private volatile Future<?> timeoutFuture = null;
 
-   SingleResponseFuture(NotifyingFuture<Response> request) {
-      this.request = ((UnicastRequest) request);
-      request.setListener(this);
+   SingleResponseFuture(CompletableFuture<Response> request) {
+      this.request = request;
+      this.request.whenComplete(this::notify);
    }
 
-   @Override
-   public void futureDone(Future<Response> future) {
-      Rsp<Response> response = request.getResult();
-      complete(response);
-      if (timeoutFuture != null) {
-         timeoutFuture.cancel(false);
+   private void notify(Response response, Throwable throwable) {
+      if (throwable != null) {
+         completeExceptionally(throwable instanceof CompletionException ? throwable.getCause() : throwable);
+      } else {
+         complete(response);
+      }
+      cancelTimeoutFuture();
+   }
+
+   public void setTimeoutTask(ScheduledExecutorService timeoutExecutor, long timeoutMillis) {
+      if (!isDone()) {
+         Future<?> f = timeoutExecutor.schedule(this, timeoutMillis, TimeUnit.MILLISECONDS);
+         timeoutFuture = f;
+         if (isDone()) {
+            f.cancel(false);
+         }
       }
    }
 
-   public void setTimeoutFuture(Future<?> timeoutFuture) {
-      this.timeoutFuture = timeoutFuture;
-      if (isDone()) {
-         timeoutFuture.cancel(false);
+   private void cancelTimeoutFuture() {
+      Future<?> f = timeoutFuture;
+      if (f != null) {
+         f.cancel(false);
       }
    }
 
+   //timeout!
    @Override
-   public Void call() throws Exception {
-      // The request timed out
-      complete(request.getResult());
+   public void run() {
       request.cancel(false);
-      return null;
    }
 }
