@@ -21,22 +21,6 @@
  */
 package org.infinispan.server.jgroups;
 
-import static org.infinispan.server.jgroups.logging.JGroupsLogger.ROOT_LOGGER;
-
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.infinispan.server.jgroups.logging.JGroupsLogger;
 import org.infinispan.server.jgroups.security.RealmAuthorizationCallbackHandler;
 import org.infinispan.server.jgroups.security.SaslClientCallbackHandler;
@@ -51,9 +35,6 @@ import org.jboss.as.domain.management.SecurityRealm;
 import org.jboss.as.network.SocketBinding;
 import org.jboss.modules.ModuleIdentifier;
 import org.jboss.modules.ModuleLoadException;
-import org.jgroups.Channel;
-import org.jgroups.Event;
-import org.jgroups.Global;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
 import org.jgroups.annotations.Property;
@@ -76,6 +57,22 @@ import org.jgroups.util.SocketFactory;
 import org.jgroups.util.Util;
 import org.wildfly.security.manager.WildFlySecurityManager;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.infinispan.server.jgroups.logging.JGroupsLogger.ROOT_LOGGER;
+
 /**
  * Factory for creating fork-able channels.
  * @author Paul Ferraro
@@ -96,7 +93,7 @@ public class JChannelFactory implements ChannelFactory, ProtocolStackConfigurato
     }
 
     @Override
-    public Channel createChannel(final String id) throws Exception {
+    public JChannel createChannel(final String id) throws Exception {
         JGroupsLogger.ROOT_LOGGER.debugf("Creating channel %s from stack %s", id, this.configuration.getName());
 
         PrivilegedExceptionAction<JChannel> action = new PrivilegedExceptionAction<JChannel>() {
@@ -111,13 +108,7 @@ public class JChannelFactory implements ChannelFactory, ProtocolStackConfigurato
         // We need to synchronize on shared transport,
         // so we don't attempt to init a shared transport multiple times
         TP transport = stack.getTransport();
-        if (transport.isSingleton()) {
-            synchronized (transport) {
-                this.init(transport);
-            }
-        } else {
             this.init(transport);
-        }
 
         // Relay protocol is added to stack programmatically, not via ProtocolStackConfigurator
         RelayConfiguration relayConfig = this.configuration.getRelay();
@@ -176,13 +167,13 @@ public class JChannelFactory implements ChannelFactory, ProtocolStackConfigurato
                 Header header = (Header) message.getHeader(this.id);
                 // If this is a request expecting a response, don't leave the requester hanging - send an identifiable response on which it can filter
                 if ((header != null) && (header.type == Header.REQ) && header.rspExpected()) {
-                    Message response = message.makeReply().setFlag(message.getFlags()).clearFlag(Message.Flag.RSVP, Message.Flag.SCOPED);
+                    Message response = message.makeReply().setFlag(message.getFlags()).clearFlag(Message.Flag.RSVP);
 
                     response.putHeader(FORK.ID, message.getHeader(FORK.ID));
                     response.putHeader(this.id, new Header(Header.RSP, header.req_id, this.id));
                     response.setBuffer(UNKNOWN_FORK_RESPONSE.array());
 
-                    channel.down(new Event(Event.MSG, response));
+                    channel.down(response);
                 }
                 return null;
             }
@@ -225,7 +216,7 @@ public class JChannelFactory implements ChannelFactory, ProtocolStackConfigurato
             props.put("sasl_props", new PropertyConverters.StringProperties().toString(saslProps));
             Configurator.resolveAndAssignFields(sasl, props);
             Configurator.resolveAndInvokePropertyMethods(sasl, props);
-            channel.getProtocolStack().insertProtocol(sasl, ProtocolStack.BELOW, GMS.class);
+            channel.getProtocolStack().insertProtocol(sasl, ProtocolStack.Position.BELOW, GMS.class);
             sasl.init();
         }
 
@@ -274,10 +265,6 @@ public class JChannelFactory implements ChannelFactory, ProtocolStackConfigurato
         TransportConfiguration transport = this.configuration.getTransport();
         org.jgroups.conf.ProtocolConfiguration protocol = createProtocol(this.configuration, transport);
         Map<String, String> properties = protocol.getProperties();
-
-        if (transport.isShared()) {
-            properties.put(Global.SINGLETON_NAME, this.configuration.getName());
-        }
 
         Introspector introspector = new Introspector(protocol);
 

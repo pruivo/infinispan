@@ -16,6 +16,7 @@ import org.jgroups.JChannel;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.StringBufferInputStream;
 import java.util.concurrent.Future;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -114,9 +115,10 @@ public class ConcurrentStartChanelLookupTest extends MultipleCacheManagersTest {
    }
 
    private JChannel createChannel(String name, int portRange) throws Exception {
-      JChannel channel = new JChannel(JGroupsConfigBuilder
+      String configString = JGroupsConfigBuilder
             .getJGroupsConfig(ConcurrentStartChanelLookupTest.class.getName(),
-                  new TransportFlags().withPortRange(portRange)));
+                  new TransportFlags().withPortRange(portRange));
+      JChannel channel = new JChannel(new StringBufferInputStream(configString));
       channel.setName(name);
       channel.connect(ConcurrentStartChanelLookupTest.class.getSimpleName());
       log.tracef("Channel %s connected: %s", channel, channel.getViewAsString());

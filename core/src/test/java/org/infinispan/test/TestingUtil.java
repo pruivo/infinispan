@@ -2,7 +2,6 @@ package org.infinispan.test;
 
 import org.infinispan.AdvancedCache;
 import org.infinispan.Cache;
-import org.infinispan.CacheSet;
 import org.infinispan.cache.impl.CacheImpl;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.VisitableCommand;
@@ -54,7 +53,7 @@ import org.infinispan.util.concurrent.WithinThreadExecutor;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
-import org.jgroups.Channel;
+import org.jgroups.JChannel;
 import org.jgroups.View;
 import org.jgroups.protocols.DELAY;
 import org.jgroups.protocols.DISCARD;
@@ -1084,10 +1083,10 @@ public class TestingUtil {
 
    public static DISCARD getDiscardForCache(Cache<?, ?> c) throws Exception {
       JGroupsTransport jgt = (JGroupsTransport) TestingUtil.extractComponent(c, Transport.class);
-      Channel ch = jgt.getChannel();
+      JChannel ch = jgt.getChannel();
       ProtocolStack ps = ch.getProtocolStack();
       DISCARD discard = new DISCARD();
-      ps.insertProtocol(discard, ProtocolStack.ABOVE, TP.class);
+      ps.insertProtocol(discard, ProtocolStack.Position.ABOVE, TP.class);
       return discard;
    }
 
@@ -1103,12 +1102,12 @@ public class TestingUtil {
     */
    public static DELAY setDelayForCache(Cache<?, ?> cache, int in_delay_millis, int out_delay_millis) throws Exception {
       JGroupsTransport jgt = (JGroupsTransport) TestingUtil.extractComponent(cache, Transport.class);
-      Channel ch = jgt.getChannel();
+      JChannel ch = jgt.getChannel();
       ProtocolStack ps = ch.getProtocolStack();
-      DELAY delay = (DELAY) ps.findProtocol(DELAY.class);
+      DELAY delay = ps.findProtocol(DELAY.class);
       if (delay==null) {
          delay = new DELAY();
-         ps.insertProtocol(delay, ProtocolStack.ABOVE, TP.class);
+         ps.insertProtocol(delay, ProtocolStack.Position.ABOVE, TP.class);
       }
       delay.setInDelay(in_delay_millis);
       delay.setOutDelay(out_delay_millis);

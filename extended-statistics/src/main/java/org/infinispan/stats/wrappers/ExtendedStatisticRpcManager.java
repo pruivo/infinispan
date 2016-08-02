@@ -1,15 +1,5 @@
 package org.infinispan.stats.wrappers;
 
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.infinispan.stats.container.ExtendedStatistic.*;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.CompletableFuture;
-
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
 import org.infinispan.commands.remote.recovery.TxCompletionNotificationCommand;
@@ -31,8 +21,42 @@ import org.infinispan.stats.logging.Log;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.logging.LogFactory;
-import org.jgroups.blocks.RpcDispatcher;
-import org.jgroups.util.Buffer;
+import org.jgroups.blocks.Marshaller;
+
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.CompletableFuture;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.infinispan.stats.container.ExtendedStatistic.ASYNC_COMMIT_TIME;
+import static org.infinispan.stats.container.ExtendedStatistic.ASYNC_COMPLETE_NOTIFY_TIME;
+import static org.infinispan.stats.container.ExtendedStatistic.ASYNC_PREPARE_TIME;
+import static org.infinispan.stats.container.ExtendedStatistic.ASYNC_ROLLBACK_TIME;
+import static org.infinispan.stats.container.ExtendedStatistic.CLUSTERED_GET_COMMAND_SIZE;
+import static org.infinispan.stats.container.ExtendedStatistic.COMMIT_COMMAND_SIZE;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_ASYNC_COMMIT;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_ASYNC_COMPLETE_NOTIFY;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_ASYNC_PREPARE;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_ASYNC_ROLLBACK;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_NODES_COMMIT;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_NODES_COMPLETE_NOTIFY;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_NODES_GET;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_NODES_PREPARE;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_NODES_ROLLBACK;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_SYNC_COMMIT;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_SYNC_GET;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_SYNC_PREPARE;
+import static org.infinispan.stats.container.ExtendedStatistic.NUM_SYNC_ROLLBACK;
+import static org.infinispan.stats.container.ExtendedStatistic.PREPARE_COMMAND_SIZE;
+import static org.infinispan.stats.container.ExtendedStatistic.SYNC_COMMIT_TIME;
+import static org.infinispan.stats.container.ExtendedStatistic.SYNC_GET_TIME;
+import static org.infinispan.stats.container.ExtendedStatistic.SYNC_PREPARE_TIME;
+import static org.infinispan.stats.container.ExtendedStatistic.SYNC_ROLLBACK_TIME;
 
 /**
  * Takes statistics about the RPC invocations.
@@ -48,7 +72,7 @@ public class ExtendedStatisticRpcManager implements RpcManager {
    private static final boolean trace = log.isTraceEnabled();
    private final RpcManager actual;
    private final CacheStatisticManager cacheStatisticManager;
-   private final RpcDispatcher.Marshaller marshaller;
+   private final Marshaller marshaller;
    private final TimeService timeService;
 
    public ExtendedStatisticRpcManager(RpcManager actual, CacheStatisticManager cacheStatisticManager,
@@ -89,7 +113,7 @@ public class ExtendedStatisticRpcManager implements RpcManager {
       for (Entry<Address, ReplicableCommand> entry : rpcs.entrySet()) {
          // TODO: This is giving a time for all rpcs combined...
          updateStats(entry.getValue(), options.responseMode().isSynchronous(),
-               timeService.timeDuration(start, NANOSECONDS), Collections.singleton(entry.getKey()));
+                     timeService.timeDuration(start, NANOSECONDS), Collections.singleton(entry.getKey()));
       }
       return responseMap;
    }
@@ -194,10 +218,110 @@ public class ExtendedStatisticRpcManager implements RpcManager {
 
    private int getCommandSize(ReplicableCommand command) {
       try {
-         Buffer buffer = marshaller.objectToBuffer(command);
-         return buffer != null ? buffer.getLength() : 0;
+         CountingDataOutput dataOutput = new CountingDataOutput();
+         marshaller.objectToStream(command, dataOutput);
+         return dataOutput.getCount();
       } catch (Exception e) {
          return 0;
+      }
+   }
+
+   private static class CountingDataOutput implements DataOutput {
+      private int count;
+
+      private CountingDataOutput() {
+         this.count = 0;
+      }
+
+      public int getCount() {
+         return count;
+      }
+
+      @Override
+      public void write(int b) throws IOException {
+         count++;
+      }
+
+      @Override
+      public void write(byte[] b) throws IOException {
+         count += b.length;
+      }
+
+      @Override
+      public void write(byte[] b, int off, int len) throws IOException {
+         count += len;
+      }
+
+      @Override
+      public void writeBoolean(boolean v) throws IOException {
+         count++;
+      }
+
+      @Override
+      public void writeByte(int v) throws IOException {
+         count++;
+      }
+
+      @Override
+      public void writeShort(int v) throws IOException {
+         count += 2;
+      }
+
+      @Override
+      public void writeChar(int v) throws IOException {
+         count += 2;
+      }
+
+      @Override
+      public void writeInt(int v) throws IOException {
+         count += 4;
+      }
+
+      @Override
+      public void writeLong(long v) throws IOException {
+         count += 8;
+      }
+
+      @Override
+      public void writeFloat(float v) throws IOException {
+         count += 4;
+      }
+
+      @Override
+      public void writeDouble(double v) throws IOException {
+         count += 8;
+      }
+
+      @Override
+      public void writeBytes(String s) throws IOException {
+         //one byte for each char
+         count += s.length();
+      }
+
+      @Override
+      public void writeChars(String s) throws IOException {
+         //2 bytes for each char
+         count += 2 * s.length();
+      }
+
+      @Override
+      public void writeUTF(String s) throws IOException {
+         int length = s.length();
+
+         //check modified-utf8 in javadoc for DataInput
+         //the size is a short
+         count += 2;
+
+         for (int i = 0; i < length; i++) {
+            char c = s.charAt(i);
+            if (c >= 0x0001 && c <= 0x007F) {
+               count++;
+            } else if (c >= 0x0800) {
+               count += 3;
+            } else {
+               count += 2;
+            }
+         }
       }
    }
 }

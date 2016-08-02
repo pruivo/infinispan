@@ -4,7 +4,6 @@ import org.infinispan.commons.marshall.InstanceReusingAdvancedExternalizer;
 import org.infinispan.marshall.core.Ids;
 import org.infinispan.remoting.transport.TopologyAwareAddress;
 import org.jgroups.util.ExtendedUUID;
-import org.jgroups.util.Util;
 
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -20,10 +19,6 @@ import java.util.Set;
  */
 public class JGroupsTopologyAwareAddress extends JGroupsAddress implements TopologyAwareAddress {
 
-   protected static final byte[] SITE_ID    = Util.stringToBytes("site-id");
-   protected static final byte[] RACK_ID    = Util.stringToBytes("rack-id");
-   protected static final byte[] MACHINE_ID = Util.stringToBytes("machine-id");
-
    private final ExtendedUUID topologyAddress;
 
 
@@ -35,17 +30,17 @@ public class JGroupsTopologyAwareAddress extends JGroupsAddress implements Topol
 
    @Override
    public String getSiteId() {
-      return Util.bytesToString(topologyAddress.get(SITE_ID));
+      return TopologyUUID.getSiteId(topologyAddress);
    }
 
    @Override
    public String getRackId() {
-      return Util.bytesToString(topologyAddress.get(RACK_ID));
+      return TopologyUUID.getRackId(topologyAddress);
    }
 
    @Override
    public String getMachineId() {
-      return Util.bytesToString(topologyAddress.get(MACHINE_ID));
+      return TopologyUUID.getMachineId(topologyAddress);
    }
 
 
@@ -95,7 +90,7 @@ public class JGroupsTopologyAwareAddress extends JGroupsAddress implements Topol
 
       @Override
       public Set<Class<? extends JGroupsTopologyAwareAddress>> getTypeClasses() {
-         return Collections.<Class<? extends JGroupsTopologyAwareAddress>>singleton(JGroupsTopologyAwareAddress.class);
+         return Collections.singleton(JGroupsTopologyAwareAddress.class);
       }
 
       @Override

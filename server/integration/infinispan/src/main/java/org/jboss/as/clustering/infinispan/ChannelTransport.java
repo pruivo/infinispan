@@ -22,14 +22,17 @@
 
 package org.jboss.as.clustering.infinispan;
 
-import java.nio.ByteBuffer;
-
 import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.remoting.transport.jgroups.CommandAwareRpcDispatcher;
 import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.remoting.transport.jgroups.MarshallerAdapter;
 import org.infinispan.server.jgroups.spi.ChannelFactory;
-import org.jgroups.Channel;
+import org.jgroups.JChannel;
+import org.jgroups.util.ByteArrayDataInputStream;
+
+import java.io.DataInput;
+import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 
 /**
  * Custom {@link JGroupsTransport} that uses a provided channel.
@@ -39,7 +42,7 @@ public class ChannelTransport extends JGroupsTransport {
 
     final ChannelFactory factory;
 
-    public ChannelTransport(Channel channel, ChannelFactory factory) {
+    public ChannelTransport(JChannel channel, ChannelFactory factory) {
         super(channel);
         this.factory = factory;
     }
@@ -47,14 +50,26 @@ public class ChannelTransport extends JGroupsTransport {
     @Override
     protected void initRPCDispatcher() {
         this.dispatcher = new CommandAwareRpcDispatcher(channel, this, globalHandler, this.getTimeoutExecutor(), timeService);
+        Field bufField;
+        try {
+            bufField = ByteArrayDataInputStream.class.getDeclaredField("buf");
+            bufField.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new IllegalStateException("Field not found", e);
+        }
         MarshallerAdapter adapter = new MarshallerAdapter(this.marshaller) {
             @Override
-            public Object objectFromBuffer(byte[] buffer, int offset, int length) throws Exception {
-                return ChannelTransport.this.factory.isUnknownForkResponse(ByteBuffer.wrap(buffer, offset, length)) ? CacheNotFoundResponse.INSTANCE : super.objectFromBuffer(buffer, offset, length);
+            public Object objectFromStream(DataInput in) throws Exception {
+                byte[] buf = (byte[]) bufField.get(in);
+                ByteArrayDataInputStream byteArrayDataInputStream = (ByteArrayDataInputStream) in;
+                int offset = byteArrayDataInputStream.position();
+                int length = byteArrayDataInputStream.limit() - offset;
+                return ChannelTransport.this.factory
+                             .isUnknownForkResponse(ByteBuffer.wrap(buf, offset, length)) ?
+                       CacheNotFoundResponse.INSTANCE : super.objectFromStream(in);
             }
         };
-        this.dispatcher.setRequestMarshaller(adapter);
-        this.dispatcher.setResponseMarshaller(adapter);
+        this.dispatcher.setMarshaller(adapter);
         this.dispatcher.start();
     }
 

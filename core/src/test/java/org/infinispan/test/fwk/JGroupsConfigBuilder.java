@@ -5,7 +5,6 @@ import org.jgroups.conf.ConfiguratorFactory;
 import org.jgroups.conf.ProtocolConfiguration;
 import org.jgroups.conf.ProtocolStackConfigurator;
 import org.jgroups.conf.XmlConfigurator;
-import org.jgroups.protocols.TCP_NIO;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -251,10 +250,10 @@ public class JGroupsConfigBuilder {
 
    static class JGroupsProtocolCfg {
       final Map<ProtocolType, ProtocolConfiguration> protoMap;
-      final ProtocolStackConfigurator configurator;
+      final XmlConfigurator configurator;
 
       JGroupsProtocolCfg(Map<ProtocolType, ProtocolConfiguration> protoMap,
-                         ProtocolStackConfigurator configurator) {
+                         XmlConfigurator configurator) {
          this.protoMap = protoMap;
          this.configurator = configurator;
       }
@@ -288,7 +287,7 @@ public class JGroupsConfigBuilder {
 
       @Override
       public String toString() {
-         return configurator.getProtocolStackString();
+         return configurator.getProtocolStackString(true);
       }
    }
 

@@ -1,11 +1,16 @@
 package org.infinispan.remoting;
 
+import static org.mockito.Mockito.anyObject;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+
+import java.io.EOFException;
+import java.lang.reflect.InvocationTargetException;
+import java.util.EmptyStackException;
+
 import org.infinispan.Cache;
-import org.infinispan.commands.CommandInvocationId;
-import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commons.CacheException;
-import org.infinispan.commons.equivalence.AnyEquivalence;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.interceptors.base.CommandInterceptor;
@@ -18,15 +23,8 @@ import org.infinispan.remoting.transport.jgroups.CommandAwareRpcDispatcher;
 import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.test.MultipleCacheManagersTest;
 import org.infinispan.test.TestingUtil;
-import org.infinispan.util.ByteString;
-import org.jgroups.blocks.RpcDispatcher;
+import org.jgroups.blocks.Marshaller;
 import org.testng.annotations.Test;
-
-import java.io.EOFException;
-import java.lang.reflect.InvocationTargetException;
-import java.util.EmptyStackException;
-
-import static org.mockito.Mockito.*;
 
 @Test(groups = "functional", testName = "remoting.TransportSenderExceptionHandlingTest")
 public class TransportSenderExceptionHandlingTest extends MultipleCacheManagersTest {
@@ -41,22 +39,22 @@ public class TransportSenderExceptionHandlingTest extends MultipleCacheManagersT
    public void testInvokeAndExceptionWhileUnmarshalling() throws Exception {
       Cache cache1 = cache(0, "replSync");
       Cache cache2 = cache(1, "replSync");
-      JGroupsTransport transport1 = (JGroupsTransport) TestingUtil.extractComponent(cache1, Transport.class);
-      CommandAwareRpcDispatcher dispatcher1 = transport1.getCommandAwareRpcDispatcher();
-      RpcDispatcher.Marshaller originalMarshaller1 = dispatcher1.getMarshaller();
       JGroupsTransport transport2 = (JGroupsTransport) TestingUtil.extractComponent(cache2, Transport.class);
       CommandAwareRpcDispatcher dispatcher2 = transport2.getCommandAwareRpcDispatcher();
-      RpcDispatcher.Marshaller originalMarshaller = dispatcher2.getMarshaller();
+      Marshaller originalMarshaller2 = dispatcher2.getMarshaller();
       try {
-         RpcDispatcher.Marshaller mockMarshaller1 = mock(RpcDispatcher.Marshaller.class);
-         RpcDispatcher.Marshaller mockMarshaller = mock(RpcDispatcher.Marshaller.class);
-         PutKeyValueCommand putCommand = new PutKeyValueCommand(key, value, false, null, null, 0,
-            AnyEquivalence.getInstance(), CommandInvocationId.generateId(transport1.getAddress()));
-         SingleRpcCommand rpcCommand = new SingleRpcCommand(ByteString.fromString("replSync"), putCommand);
-         when(mockMarshaller1.objectToBuffer(anyObject())).thenReturn(originalMarshaller1.objectToBuffer(rpcCommand));
-         when(mockMarshaller.objectFromBuffer((byte[]) anyObject(), anyInt(), anyInt())).thenThrow(new EOFException());
-         dispatcher1.setRequestMarshaller(mockMarshaller1);
-         dispatcher2.setRequestMarshaller(mockMarshaller);
+         Marshaller mockMarshaller2 = spy(originalMarshaller2);
+         PutKeyValueCommand putCommand = new PutKeyValueCommand();
+         putCommand.setKey(key);
+         putCommand.setValue(value);
+         doAnswer(invocation -> {
+            invocation.callRealMethod();
+            return null;
+         }).when(mockMarshaller2).objectToStream(anyObject(), anyObject());
+         doAnswer(invocation -> {
+            throw new EOFException();
+         }).when(mockMarshaller2).objectFromStream(anyObject());
+         dispatcher2.setMarshaller(mockMarshaller2);
          cache1.put(key, value);
          assert false : "Should have thrown an exception";
       } catch (RemoteException ce) {
@@ -64,8 +62,7 @@ public class TransportSenderExceptionHandlingTest extends MultipleCacheManagersT
          assert ce.getCause() instanceof CacheException;
          assert ce.getCause().getCause() instanceof EOFException;
       } finally {
-         dispatcher1.setMarshaller(originalMarshaller1);
-         dispatcher2.setMarshaller(originalMarshaller);
+         dispatcher2.setMarshaller(originalMarshaller2);
       }
    }
 
