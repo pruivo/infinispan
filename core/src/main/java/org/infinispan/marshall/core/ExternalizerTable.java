@@ -104,6 +104,7 @@ import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.responses.UnsuccessfulResponse;
+import org.infinispan.remoting.responses.UnsuccessfulWithValueResponse;
 import org.infinispan.remoting.responses.UnsureResponse;
 import org.infinispan.remoting.transport.jgroups.JGroupsAddress;
 import org.infinispan.remoting.transport.jgroups.JGroupsTopologyAwareAddress;
@@ -395,6 +396,7 @@ public class ExternalizerTable implements ObjectTable {
       addInternalExternalizer(new PersistentUUID.Externalizer());
 
       addInternalExternalizer(new Immutables.ImmutableEntryExternalizer());
+      addInternalExternalizer(new UnsuccessfulWithValueResponse.Externalizer());
    }
 
    void addInternalExternalizer(AdvancedExternalizer<?> ext) {
@@ -513,7 +515,7 @@ public class ExternalizerTable implements ObjectTable {
       @Override
       public int hashCode() {
          int result = id;
-         result = 31 * result + (externalizer.getClass() != null ? externalizer.getClass().hashCode() : 0);
+         result = 31 * result + (externalizer != null ? externalizer.getClass().hashCode() : 0);
          return result;
       }
    }

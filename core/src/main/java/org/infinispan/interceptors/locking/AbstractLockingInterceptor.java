@@ -31,6 +31,7 @@ import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.DDAsyncInterceptor;
+import org.infinispan.util.concurrent.CommandAckCollector;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockUtil;
@@ -47,6 +48,7 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
    protected LockManager lockManager;
    protected DataContainer<Object, Object> dataContainer;
    protected ClusteringDependentLogic cdl;
+   private CommandAckCollector commandAckCollector;
 
    protected final ReturnHandler unlockAllReturnHandler = new ReturnHandler() {
       @Override
@@ -61,10 +63,11 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
 
    @Inject
    public void setDependencies(LockManager lockManager, DataContainer<Object, Object> dataContainer,
-                               ClusteringDependentLogic cdl) {
+                               ClusteringDependentLogic cdl, CommandAckCollector commandAckCollector) {
       this.lockManager = lockManager;
       this.dataContainer = dataContainer;
       this.cdl = cdl;
+      this.commandAckCollector = commandAckCollector;
    }
 
    @Override
@@ -107,7 +110,7 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
          return ctx.continueInvocation();
       }
 
-      ctx.onReturn(unlockAllReturnHandler);
+      ctx.onReturn(this::unlockAfterBackups);
       lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
       return ctx.continueInvocation();
    }
@@ -183,11 +186,6 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
       return visitDataWriteCommand(ctx, command);
    }
 
-   protected final Throwable cleanLocksAndRethrow(InvocationContext ctx, Throwable te) {
-      lockManager.unlockAll(ctx);
-      return te;
-   }
-
    protected final long getLockTimeoutMillis(LocalFlagAffectedCommand command) {
       return command.hasFlag(Flag.ZERO_LOCK_ACQUISITION_TIMEOUT) ? 0 : cacheConfiguration.locking().lockAcquisitionTimeout();
    }
@@ -215,5 +213,12 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
 
    protected final boolean hasSkipLocking(LocalFlagAffectedCommand command) {
       return command.hasFlag(Flag.SKIP_LOCKING);
+   }
+
+   private CompletableFuture<Object> unlockAfterBackups(InvocationContext rCtx, VisitableCommand rCommand, Object rv,
+                                                        Throwable throwable) {
+      DataWriteCommand cmd = (DataWriteCommand) rCommand;
+      commandAckCollector.get(cmd.getCommandInvocationId()).thenRun(() -> lockManager.unlockAll(rCtx));
+      return null;
    }
 }
