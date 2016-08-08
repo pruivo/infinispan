@@ -54,6 +54,12 @@ public interface Transport extends Lifecycle {
                                                                  DeliverOrder deliverOrder,
                                                                  boolean anycast) throws Exception;
 
+   void sendTo(Address destination, ReplicableCommand rpcCommand, DeliverOrder deliverOrder) throws Exception;
+
+   void sendTo(ReplicableCommand rpcCommand, DeliverOrder deliverOrder, Collection<Address> destinations) throws Exception;
+
+   void sendToAll(ReplicableCommand command, DeliverOrder deliverOrder) throws Exception;
+
    /**
     * @deprecated Use {@link #invokeRemotely(Map, ResponseMode, long, ResponseFilter, DeliverOrder, boolean)} instead
     */

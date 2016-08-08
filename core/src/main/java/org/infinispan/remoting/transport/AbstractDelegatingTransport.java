@@ -56,6 +56,21 @@ public abstract class AbstractDelegatingTransport implements Transport {
    }
 
    @Override
+   public void sendTo(Address destination, ReplicableCommand rpcCommand, DeliverOrder deliverOrder) throws Exception {
+      actual.sendTo(destination, rpcCommand, deliverOrder);
+   }
+
+   @Override
+   public void sendTo(ReplicableCommand rpcCommand, DeliverOrder deliverOrder, Collection<Address> destinations) throws Exception {
+      actual.sendTo(rpcCommand, deliverOrder, destinations);
+   }
+
+   @Override
+   public void sendToAll(ReplicableCommand command, DeliverOrder deliverOrder) throws Exception {
+      actual.sendToAll(command, deliverOrder);
+   }
+
+   @Override
    public BackupResponse backupRemotely(Collection<XSiteBackup> backups, XSiteReplicateCommand rpcCommand) throws Exception {
       beforeBackupRemotely(rpcCommand);
       BackupResponse response = actual.backupRemotely(backups, rpcCommand);

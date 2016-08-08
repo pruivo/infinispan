@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.infinispan.commands.CommandInvocationId;
 import org.infinispan.commands.functional.ReadOnlyKeyCommand;
 import org.infinispan.commands.functional.ReadWriteKeyCommand;
 import org.infinispan.commands.functional.ReadWriteKeyValueCommand;
@@ -28,6 +29,8 @@ import org.infinispan.commands.read.AbstractDataCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.commands.read.RemoteFetchingCommand;
+import org.infinispan.commands.write.BackupAckCommand;
+import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
@@ -43,8 +46,11 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.distribution.util.ReadOnlySegmentAwareCollection;
 import org.infinispan.distribution.util.ReadOnlySegmentAwareMap;
+import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.BasicInvocationStage;
+import org.infinispan.interceptors.TriangleInterceptor;
 import org.infinispan.remoting.RemoteException;
+import org.infinispan.remoting.inboundhandler.DeliverOrder;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.responses.UnsuccessfulResponse;
@@ -52,6 +58,7 @@ import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.OutdatedTopologyException;
 import org.infinispan.topology.CacheTopology;
+import org.infinispan.util.concurrent.CommandAckCollector;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -76,6 +83,12 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
 
    private static Log log = LogFactory.getLog(NonTxDistributionInterceptor.class);
    private static final boolean trace = log.isTraceEnabled();
+   private CommandAckCollector commandAckCollector;
+
+   @Inject
+   public void inject(CommandAckCollector commandAckCollector) {
+      this.commandAckCollector = commandAckCollector;
+   }
 
    @Override
    public BasicInvocationStage visitGetKeyValueCommand(InvocationContext ctx, GetKeyValueCommand command) throws
@@ -119,7 +132,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    @Override
    public BasicInvocationStage visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws
          Throwable {
-      return handleNonTxWriteCommand(ctx, command);
+      return threeStepsWrite(ctx, command);
    }
 
    @Override
@@ -220,12 +233,12 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
 
    @Override
    public BasicInvocationStage visitRemoveCommand(InvocationContext ctx, RemoveCommand command) throws Throwable {
-      return handleNonTxWriteCommand(ctx, command);
+      return threeStepsWrite(ctx, command);
    }
 
    @Override
    public BasicInvocationStage visitReplaceCommand(InvocationContext ctx, ReplaceCommand command) throws Throwable {
-      return handleNonTxWriteCommand(ctx, command);
+      return threeStepsWrite(ctx, command);
    }
 
    @Override
@@ -781,4 +794,96 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
       // and so it has the existing value already.
       return !ctx.isOriginLocal() && command.alwaysReadsExistingValues();
    }
+
+   private BasicInvocationStage threeStepsWrite(InvocationContext context, DataWriteCommand command) throws Throwable {
+      if (context.isInTxScope()) {
+         throw new IllegalArgumentException("Attempted execution of non-transactional write command in a transactional invocation context");
+      }
+      if (command.hasFlag(Flag.CACHE_MODE_LOCAL)) {
+         //don't go through the triangle
+         return invokeNext(context, command);
+      }
+      final List<Address> owners = dm.getConsistentHash().locateOwners(command.getKey());
+      TriangleInterceptor.KeyOwnership ownership = TriangleInterceptor.KeyOwnership.ownership(owners, rpcManager.getAddress());
+
+      switch (ownership) {
+         case PRIMARY:
+            return primaryOwnerWrite(context, command, owners);
+         case BACKUP:
+            return backupOwnerWrite(context, command, owners);
+         case NONE:
+            return nonOwnerWrite(context, command, owners);
+      }
+      throw new IllegalStateException();
+   }
+
+   private BasicInvocationStage nonOwnerWrite(InvocationContext context, DataWriteCommand command, List<Address> owners) throws Throwable {
+      if (context.isOriginLocal()) {
+         return localWriteInvocation(context, command, owners);
+      } else {
+         throw new IllegalStateException("Remote write received in a non-owner");
+      }
+   }
+
+   private BasicInvocationStage primaryOwnerWrite(InvocationContext context, DataWriteCommand command, final List<Address> owners) throws Throwable {
+      //we are the primary owner. we need to execute the command, check if successful, send to backups and reply to originator is needed.
+      return invokeNext(context, command).thenAccept((rCtx, rCommand, rv) -> {
+         final DataWriteCommand dwCommand = (DataWriteCommand) rCommand;
+         final CommandInvocationId id = dwCommand.getCommandInvocationId();
+         if (!dwCommand.isSuccessful()) {
+            if (trace) {
+               log.tracef("Command %s not successful in primary owner.", id);
+            }
+            rpcManager.sendTo(id.getAddress(), createAckCommand(id, rv), DeliverOrder.NONE);
+            return;
+         }
+
+         if (owners.size() > 1) {
+            Collection<Address> backupOwners = owners.subList(1, owners.size());
+            if (rCtx.isOriginLocal()) {
+               commandAckCollector.create(id);
+            }
+
+            // don't send the message to origin: response will tell it to execute the backup
+            //update: with the new version, we need to send the backup command to originator
+            //backupOwners.remove(rCtx.getOrigin());
+
+            if (trace) {
+               log.tracef("Command %s send to backup owner %s. Is local=%s", id, backupOwners, rCtx.isOriginLocal());
+            }
+
+            // we must send the message only after the collector is registered in the map
+            rpcManager.sendTo(dwCommand.createBackupWriteCommand(rv), DeliverOrder.PER_SENDER, backupOwners);
+         } else {
+            if (!rCtx.isOriginLocal()) {
+               rpcManager.sendTo(id.getAddress(), createAckCommand(id, rv), DeliverOrder.NONE);
+            }
+         }
+      });
+   }
+
+   private BasicInvocationStage backupOwnerWrite(InvocationContext context, DataWriteCommand command, List<Address> owners) throws Throwable {
+      if (context.isOriginLocal()) {
+         //we forwards to the coordinator and wait for acks
+         return localWriteInvocation(context, command, owners);
+      } else {
+         throw new IllegalStateException();
+      }
+   }
+
+   private BasicInvocationStage localWriteInvocation(InvocationContext context, DataWriteCommand command,
+                                                        List<Address> owners)
+         throws Throwable {
+      assert context.isOriginLocal();
+      final CommandInvocationId invocationId = command.getCommandInvocationId();
+      commandAckCollector.create(invocationId);
+      //sublist with primary owner only!
+      rpcManager.sendTo(owners.get(0), command, DeliverOrder.NONE);
+      return returnWith(null);
+   }
+
+   private BackupAckCommand createAckCommand(CommandInvocationId id, Object previousValue) {
+      return cf.buildBackupAckCommand(id, previousValue);
+   }
+
 }
