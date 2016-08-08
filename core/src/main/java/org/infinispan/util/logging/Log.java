@@ -1452,4 +1452,10 @@ public interface Log extends BasicLogger {
    @LogMessage(level = ERROR)
    @Message(value = "Error while handling view %s", id = 421)
    void viewHandlingError(int viewId, @Cause Throwable t);
+
+   @Message(value = "Timeout after %s waiting for acks. Missing acks are %s", id = 422)
+   TimeoutException timeoutWaitingForAcks(String timeout, String missingAcks);
+
+   @Message(value = "Timeout after %s waiting for acks", id = 423)
+   TimeoutException timeoutWaitingForAcks(String timeout);
 }

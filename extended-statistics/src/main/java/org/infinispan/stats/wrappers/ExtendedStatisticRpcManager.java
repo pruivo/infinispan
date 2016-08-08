@@ -119,6 +119,16 @@ public class ExtendedStatisticRpcManager implements RpcManager {
    }
 
    @Override
+   public void sendTo(Address destination, ReplicableCommand command, DeliverOrder deliverOrder) {
+      actual.sendTo(destination, command, deliverOrder);
+   }
+
+   @Override
+   public void sendTo(ReplicableCommand command, DeliverOrder deliverOrder, Collection<Address> destinations) {
+      actual.sendTo(command, deliverOrder, destinations);
+   }
+
+   @Override
    public RpcOptionsBuilder getRpcOptionsBuilder(ResponseMode responseMode) {
       return actual.getRpcOptionsBuilder(responseMode);
    }

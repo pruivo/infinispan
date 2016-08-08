@@ -230,4 +230,9 @@ public class ReplaceCommand extends AbstractDataWriteCommand implements Metadata
             ", valueMatcher=" + valueMatcher +
             '}';
    }
+
+   @Override
+   public BackupWriteCommand createBackupWriteCommand(Object previousValue) {
+      return new BackupWriteCommand(commandInvocationId, key, newValue, hasFlag(Flag.IGNORE_RETURN_VALUES) && oldValue == null ? null : previousValue, metadata, notifier, getFlagsBitSet());
+   }
 }
