@@ -402,7 +402,7 @@ public class CommandAwareRpcDispatcher extends MessageDispatcher {
       return retval;
    }
 
-   private static boolean isRsvpCommand(ReplicableCommand command) {
+   static boolean isRsvpCommand(ReplicableCommand command) {
       return command instanceof FlagAffectedCommand && ((FlagAffectedCommand) command).hasFlag(
             Flag.GUARANTEED_DELIVERY);
    }
