@@ -20,6 +20,7 @@ import javax.transaction.TransactionManager;
 
 import org.infinispan.Cache;
 import org.infinispan.commands.VisitableCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.configuration.cache.CacheMode;
@@ -204,7 +205,7 @@ public class PutForExternalReadTest extends MultipleCacheManagersTest {
          @Override
          public CompletableFuture<Void> visitCommand(InvocationContext ctx, VisitableCommand command)
                throws Throwable {
-            if (command instanceof PutKeyValueCommand || command instanceof RemoveCommand) {
+            if (command instanceof PutKeyValueCommand || command instanceof RemoveCommand || command instanceof BackupWriteCommand) {
                throw new RuntimeException("Barf!");
             }
             return ctx.continueInvocation();

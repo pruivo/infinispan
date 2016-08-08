@@ -217,6 +217,11 @@ public class RemoveCommand extends AbstractDataWriteCommand {
       return isConditional() || super.isReturnValueExpected();
    }
 
+   @Override
+   public BackupWriteCommand createBackupWriteCommand() {
+      return new BackupWriteCommand(key, null, null, notifier, getFlagsBitSet());
+   }
+
    protected Object performRemove(CacheEntry e, InvocationContext ctx) {
       final Object removedValue = e.getValue();
       notify(ctx, removedValue, e.getMetadata(), true);

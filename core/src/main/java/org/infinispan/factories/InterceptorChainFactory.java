@@ -15,6 +15,7 @@ import org.infinispan.factories.annotations.DefaultFactoryFor;
 import org.infinispan.interceptors.AsyncInterceptor;
 import org.infinispan.interceptors.AsyncInterceptorChain;
 import org.infinispan.interceptors.InterceptorChain;
+import org.infinispan.interceptors.TriangleInterceptor;
 import org.infinispan.interceptors.compat.TypeConverterInterceptor;
 import org.infinispan.interceptors.distribution.DistributionBulkInterceptor;
 import org.infinispan.interceptors.distribution.L1LastChanceInterceptor;
@@ -132,6 +133,11 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
          interceptorChain.appendInterceptor(createInterceptor(new BatchingInterceptor(), BatchingInterceptor.class), false);
       }
       interceptorChain.appendInterceptor(createInterceptor(new InvocationContextInterceptor(), InvocationContextInterceptor.class), false);
+
+      if (configuration.transaction().transactionMode() == TransactionMode.NON_TRANSACTIONAL &&
+            (cacheMode.isDistributed() || cacheMode.isReplicated())) {
+         interceptorChain.appendInterceptor(createInterceptor(new TriangleInterceptor(), TriangleInterceptor.class), false);
+      }
 
       CompatibilityModeConfiguration compatibility = configuration.compatibility();
       if (compatibility.enabled()) {

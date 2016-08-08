@@ -3,6 +3,7 @@ package org.infinispan.util.mocks;
 import org.infinispan.Cache;
 import org.infinispan.atomic.Delta;
 import org.infinispan.commands.CancelCommand;
+import org.infinispan.commands.CommandInvocationId;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.CreateCacheCommand;
 import org.infinispan.commands.ReplicableCommand;
@@ -39,6 +40,7 @@ import org.infinispan.commands.tx.RollbackCommand;
 import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.commands.write.ApplyDeltaCommand;
+import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.EvictCommand;
 import org.infinispan.commands.write.InvalidateCommand;
@@ -442,4 +444,8 @@ public class ControlledCommandFactory implements CommandsFactory {
       return actual.buildReadWriteManyEntriesCommand(entries, f, params);
    }
 
+   @Override
+   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id) {
+      return actual.buildBackupAckCommand(id);
+   }
 }

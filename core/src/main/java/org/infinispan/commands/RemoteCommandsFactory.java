@@ -33,6 +33,7 @@ import org.infinispan.commands.tx.totalorder.TotalOrderRollbackCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderVersionedCommitCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderVersionedPrepareCommand;
 import org.infinispan.commands.write.ApplyDeltaCommand;
+import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.InvalidateCommand;
 import org.infinispan.commands.write.InvalidateL1Command;
@@ -42,7 +43,6 @@ import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.RemoveExpiredCommand;
 import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commons.CacheException;
-import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.KnownComponentNames;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
@@ -80,15 +80,13 @@ import java.util.Map;
  */
 @Scope(Scopes.GLOBAL)
 public class RemoteCommandsFactory {
-   EmbeddedCacheManager cacheManager;
-   GlobalComponentRegistry registry;
-   Map<Byte,ModuleCommandFactory> commandFactories;
+   private EmbeddedCacheManager cacheManager;
+   private Map<Byte,ModuleCommandFactory> commandFactories;
 
    @Inject
-   public void inject(EmbeddedCacheManager cacheManager, GlobalComponentRegistry registry,
+   public void inject(EmbeddedCacheManager cacheManager,
                       @ComponentName(KnownComponentNames.MODULE_COMMAND_FACTORIES) Map<Byte, ModuleCommandFactory> commandFactories) {
       this.cacheManager = cacheManager;
-      this.registry = registry;
       this.commandFactories = commandFactories;
    }
 
@@ -294,6 +292,9 @@ public class RemoteCommandsFactory {
                break;
             case StreamResponseCommand.COMMAND_ID:
                command = new StreamResponseCommand(cacheName);
+               break;
+            case BackupAckCommand.COMMAND_ID:
+               command = new BackupAckCommand(cacheName);
                break;
             default:
                throw new CacheException("Unknown command id " + id + "!");
