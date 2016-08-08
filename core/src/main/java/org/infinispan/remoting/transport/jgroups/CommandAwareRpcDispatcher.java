@@ -3,6 +3,9 @@ package org.infinispan.remoting.transport.jgroups;
 import static org.infinispan.remoting.transport.jgroups.JGroupsTransport.fromJGroupsAddress;
 import static org.jgroups.Message.Flag.NO_FC;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -29,6 +32,7 @@ import org.jgroups.Address;
 import org.jgroups.AnycastAddress;
 import org.jgroups.Channel;
 import org.jgroups.Message;
+import org.jgroups.MessageListener;
 import org.jgroups.UpHandler;
 import org.jgroups.blocks.GroupRequest;
 import org.jgroups.blocks.RequestCorrelator;
@@ -87,6 +91,26 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       }
       channel.addChannelListener(this);
       asyncDispatching(true);
+      setMessageListener(new MessageListener() {
+         @Override
+         public void receive(Message msg) {
+            try {
+               handle(msg, null);
+            } catch (Exception e) {
+               e.printStackTrace();  // TODO: Customise this generated block
+            }
+         }
+
+         @Override
+         public void getState(OutputStream output) throws Exception {
+            // TODO: Customise this generated block
+         }
+
+         @Override
+         public void setState(InputStream input) throws Exception {
+            // TODO: Customise this generated block
+         }
+      });
    }
 
    @Override
@@ -268,7 +292,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       }
    }
 
-   protected static Message constructMessage(Buffer buf, Address recipient,ResponseMode mode, boolean rsvp,
+   static Message constructMessage(Buffer buf, Address recipient,ResponseMode mode, boolean rsvp,
                                              DeliverOrder deliverOrder) {
       Message msg = new Message();
       msg.setBuffer(buf);
@@ -289,7 +313,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       return msg;
    }
 
-   Buffer marshallCall(Marshaller marshaller, ReplicableCommand command) {
+   static Buffer marshallCall(Marshaller marshaller, ReplicableCommand command) {
       Buffer buf;
       try {
          buf = marshaller.objectToBuffer(command);
@@ -438,7 +462,7 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
       return retval;
    }
 
-   private static boolean isRsvpCommand(ReplicableCommand command) {
+   static boolean isRsvpCommand(ReplicableCommand command) {
       return command instanceof FlagAffectedCommand
             && ((FlagAffectedCommand) command).hasFlag(Flag.GUARANTEED_DELIVERY);
    }

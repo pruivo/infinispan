@@ -24,6 +24,7 @@ import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.GetKeysInGroupCommand;
 import org.infinispan.commands.write.ApplyDeltaCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.EvictCommand;
 import org.infinispan.commands.write.InvalidateCommand;
@@ -131,7 +132,7 @@ public class ReplicableCommandExternalizer extends AbstractExternalizer<Replicab
             WriteOnlyKeyCommand.class, WriteOnlyKeyValueCommand.class,
             WriteOnlyManyCommand.class, WriteOnlyManyEntriesCommand.class,
             ReadWriteManyCommand.class, ReadWriteManyEntriesCommand.class, ReplicableCommandRunnable.class,
-            ReplicableCommandManagerFunction.class);
+            ReplicableCommandManagerFunction.class, BackupWriteCommand.class);
       // Search only those commands that replicable and not cache specific replicable commands
       Collection<Class<? extends ReplicableCommand>> moduleCommands = globalComponentRegistry.getModuleProperties().moduleOnlyReplicableCommands();
       if (moduleCommands != null && !moduleCommands.isEmpty()) coreCommands.addAll(moduleCommands);

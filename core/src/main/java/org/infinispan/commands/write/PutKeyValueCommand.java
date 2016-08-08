@@ -220,6 +220,20 @@ public class PutKeyValueCommand extends AbstractDataWriteCommand implements Meta
       }
    }
 
+   @Override
+   public BackupWriteCommand createBackupWriteCommand() {
+      return new BackupWriteCommand(commandInvocationId, key, value, metadata, notifier, getFlagsBitSet());
+   }
+
+   @Override
+   public void initPrimaryAck(PrimaryAckCommand command, Object returnValue) {
+      if (isConditional() || !hasFlag(Flag.IGNORE_RETURN_VALUES)) {
+         command.initWithReturnValue(successful, returnValue);
+      } else {
+         command.initWithoutReturnValue(successful);
+      }
+   }
+
    private Object performPut(MVCCEntry e, InvocationContext ctx) {
       Object entryValue = e.getValue();
       Object o;
