@@ -61,4 +61,14 @@ public abstract class AbstractDataWriteCommand extends AbstractDataCommand imple
    public final boolean hasSkipLocking() {
       return hasFlag(Flag.SKIP_LOCKING);
    }
+
+   @Override
+   public CommandInvocationId getCommandInvocationId() {
+      return commandInvocationId;
+   }
+
+   @Override
+   public BackupWriteCommand createBackupWriteCommand() {
+      return null;
+   }
 }

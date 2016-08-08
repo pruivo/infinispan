@@ -56,6 +56,10 @@ public final class CommandInvocationId {
 
    }
 
+   public Address getAddress() {
+      return address;
+   }
+
    @Override
    public int hashCode() {
       int result = address != null ? address.hashCode() : 0;
