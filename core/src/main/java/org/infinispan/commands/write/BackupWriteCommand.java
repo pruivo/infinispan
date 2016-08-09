@@ -27,13 +27,14 @@ import java.io.ObjectOutput;
  */
 public class BackupWriteCommand extends AbstractFlagAffectedCommand implements VisitableCommand {
 
+   public static final byte COMMAND_ID = 60;
    private static final Log log = LogFactory.getLog(BackupWriteCommand.class);
    private static final boolean trace = log.isTraceEnabled();
 
-   private final Object key;
-   private final Object value;
-   private final Metadata metadata;
-   private final CacheNotifier<Object, Object> notifier;
+   private Object key;
+   private Object value;
+   private Metadata metadata;
+   private CacheNotifier<Object, Object> notifier;
 
    public BackupWriteCommand(Object key, Object value, Metadata metadata, CacheNotifier<Object, Object> notifier, long flags) {
       this.key = key;
@@ -139,7 +140,7 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
 
    @Override
    public byte getCommandId() {
-      return 0; //local
+      return COMMAND_ID;
    }
 
    @Override
@@ -149,16 +150,29 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
 
    @Override
    public boolean canBlock() {
-      return false;
+      return true;
    }
 
    @Override
    public void writeTo(ObjectOutput output) throws IOException {
-      /*no-op*/
+      output.writeObject(key);
+      output.writeObject(value);
+      output.writeObject(metadata);
    }
 
    @Override
    public void readFrom(ObjectInput input) throws IOException, ClassNotFoundException {
-      /*no-op*/
+      key = input.readObject();
+      value = input.readObject();
+      metadata = (Metadata) input.readObject();
+   }
+
+   @Override
+   public String toString() {
+      return "BackupWriteCommand{" +
+            "key=" + key +
+            ", value=" + value +
+            ", metadata=" + metadata +
+            '}';
    }
 }

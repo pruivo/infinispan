@@ -865,15 +865,15 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
 
             // don't send the message to origin: response will tell it to execute the backup
             backupOwners.remove(context.getOrigin());
-            command.setValueMatcher(ValueMatcher.MATCH_ALWAYS);
-            command.addFlag(Flag.SKIP_LOCKING); //backups does not need to acquire locks
+            //command.setValueMatcher(ValueMatcher.MATCH_ALWAYS);
+            //command.addFlag(Flag.SKIP_LOCKING); //backups does not need to acquire locks
 
             if (trace) {
                log.tracef("Command %s send to backup owner %s. Is local=%s", id, backupOwners, rCtx.isOriginLocal());
             }
 
             // we must send the message only after the collector is registered in the map
-            rpcManager.invokeRemotelyAsync(backupOwners, command, asyncRpcOptions);
+            rpcManager.invokeRemotelyAsync(backupOwners, command.createBackupWriteCommand(), asyncRpcOptions);
          }
          return null;
       });
