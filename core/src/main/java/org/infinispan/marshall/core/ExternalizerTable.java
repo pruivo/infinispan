@@ -73,7 +73,7 @@ import org.infinispan.filter.NullValueConverter;
 import org.infinispan.functional.impl.EntryViews;
 import org.infinispan.functional.impl.MetaParams;
 import org.infinispan.functional.impl.MetaParamsInternalMetadata;
-import org.infinispan.marshall.exts.ArrayExternalizers;
+import org.infinispan.marshall.exts.ArrayExternalizer;
 import org.infinispan.marshall.exts.CacheRpcCommandExternalizer;
 import org.infinispan.marshall.exts.CollectionExternalizer;
 import org.infinispan.marshall.exts.DoubleSummaryStatisticsExternalizer;
@@ -145,6 +145,7 @@ import org.jboss.marshalling.Unmarshaller;
  * @since 5.0
  */
 @Scope(Scopes.GLOBAL)
+@Deprecated
 public class ExternalizerTable implements ObjectTable {
    private static final Log log = LogFactory.getLog(ExternalizerTable.class);
    private static final boolean trace = log.isTraceEnabled();
@@ -265,7 +266,7 @@ public class ExternalizerTable implements ObjectTable {
       addInternalExternalizer(new MapExternalizer());
       addInternalExternalizer(new SetExternalizer());
       addInternalExternalizer(new EnumSetExternalizer());
-      addInternalExternalizer(new ArrayExternalizers.ListArray());
+      addInternalExternalizer(new ArrayExternalizer.ListArray());
       addInternalExternalizer(new SingletonListExternalizer());
       addInternalExternalizer(new CollectionExternalizer());
 
