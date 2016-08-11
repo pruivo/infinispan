@@ -3,6 +3,7 @@ package org.infinispan.interceptors;
 import org.infinispan.commands.CommandInvocationId;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.write.BackupAckCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.RemoveCommand;
@@ -27,6 +28,7 @@ import org.infinispan.util.logging.LogFactory;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -89,6 +91,16 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
       return handleWriteCommands(ctx);
    }
 
+   @Override
+   public Object visitBackupWriteCommand(InvocationContext ctx, BackupWriteCommand command) throws Throwable {
+      return ctx.onReturn((rCtx, rCommand, rv, throwable) -> {
+         BackupWriteCommand cmd = (BackupWriteCommand) rCommand;
+         //remote only. we need to send the ack even with exceptions
+         sendAcksFromRemote(cmd.getCommandInvocationId(), getPrimaryOwner(cmd.getKey()));
+         return null;
+      });
+   }
+
    private CompletableFuture<Void> handleWriteCommands(InvocationContext ctx) throws Throwable {
       return ctx.onReturn((rCtx, rCommand, rv, throwable) -> {
          final DataWriteCommand cmd = (DataWriteCommand) rCommand;
@@ -97,8 +109,8 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
          final CommandInvocationId id = cmd.getCommandInvocationId();
 
          if (keyOwnership == KeyOwnership.BACKUP) {
-            //send acks back
-            sendAcks(id, getPrimaryOwner(key));
+            //send acks back. we are the originator
+            sendAcksFromLocal(id, getPrimaryOwner(key));
          }
          if (throwable != null) {
             return null; //don't change return value
@@ -131,20 +143,24 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
       });
    }
 
-   private void sendAcks(CommandInvocationId id, Address primaryOwner) {
+   private void sendAcksFromRemote(CommandInvocationId id, Address primaryOwner) {
       final Address origin = id.getAddress();
       if (trace) {
          log.tracef("Sending acks for command %s. PrimaryOwner=%s. Originator=%s.", id, primaryOwner, origin);
       }
-      if (isLocalCommand(origin)) {
-         commandAckCollector.ack(id, origin); //ack locally
-         //we need to send back the ack to origin/primary owner
-         rpcManager.invokeRemotelyAsync(Collections.singletonList(primaryOwner), createAck(id), asyncRpcOptions);
-      } else {
-         Collection<Address> recipients = origin.equals(primaryOwner) ?
-               Collections.singletonList(primaryOwner) : Arrays.asList(primaryOwner, origin);
-         rpcManager.invokeRemotelyAsync(recipients, createAck(id), asyncRpcOptions);
+      Collection<Address> recipients = origin.equals(primaryOwner) ?
+            Collections.singletonList(primaryOwner) : Arrays.asList(primaryOwner, origin);
+      rpcManager.invokeRemotelyAsync(recipients, createAck(id), asyncRpcOptions);
+   }
+
+   private void sendAcksFromLocal(CommandInvocationId id, Address primaryOwner) {
+      final Address origin = id.getAddress();
+      if (trace) {
+         log.tracef("Sending acks for command %s. PrimaryOwner=%s. Originator=%s.", id, primaryOwner, origin);
       }
+      commandAckCollector.ack(id, origin); //ack locally
+      //we need to send back the ack to origin/primary owner
+      rpcManager.invokeRemotelyAsync(Collections.singletonList(primaryOwner), createAck(id), asyncRpcOptions);
    }
 
    private BackupAckCommand createAck(CommandInvocationId id) {
@@ -153,10 +169,6 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
 
    private Address getPrimaryOwner(Object key) {
       return distributionManager.getPrimaryLocation(key);
-   }
-
-   private boolean isLocalCommand(Address originator) {
-      return localAddress.equals(originator);
    }
 
    private KeyOwnership getKeyOwnership(Object key) {
@@ -168,11 +180,12 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
       PRIMARY, BACKUP, NONE;
 
       public static KeyOwnership ownership(List<Address> owners, Address localNode) {
-         if (localNode.equals(owners.get(0))) {
+         Iterator<Address> iterator = owners.iterator();
+         if (localNode.equals(iterator.next())) {
             return PRIMARY;
          }
-         for (int i = 1; i < owners.size(); ++i) {
-            if (localNode.equals(owners.get(i))) {
+         while (iterator.hasNext()) {
+            if (localNode.equals(iterator.next())) {
                return BACKUP;
             }
          }

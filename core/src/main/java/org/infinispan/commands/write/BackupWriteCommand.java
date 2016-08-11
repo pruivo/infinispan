@@ -4,6 +4,7 @@ import org.infinispan.atomic.CopyableDeltaAware;
 import org.infinispan.atomic.Delta;
 import org.infinispan.atomic.DeltaAware;
 import org.infinispan.commands.AbstractFlagAffectedCommand;
+import org.infinispan.commands.CommandInvocationId;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.Visitor;
 import org.infinispan.container.entries.MVCCEntry;
@@ -27,21 +28,42 @@ import java.io.ObjectOutput;
  */
 public class BackupWriteCommand extends AbstractFlagAffectedCommand implements VisitableCommand {
 
-   public static final byte COMMAND_ID = 60;
+   public static final byte COMMAND_ID = 61;
    private static final Log log = LogFactory.getLog(BackupWriteCommand.class);
    private static final boolean trace = log.isTraceEnabled();
 
+   private CommandInvocationId commandInvocationId;
    private Object key;
    private Object value;
    private Metadata metadata;
    private CacheNotifier<Object, Object> notifier;
 
-   public BackupWriteCommand(Object key, Object value, Metadata metadata, CacheNotifier<Object, Object> notifier, long flags) {
+   public BackupWriteCommand() {
+   }
+
+   public BackupWriteCommand(CommandInvocationId commandInvocationId, Object key, Object value, Metadata metadata,
+                             CacheNotifier<Object, Object> notifier, long flags) {
+      this.commandInvocationId = commandInvocationId;
       this.key = key;
       this.value = value;
       this.metadata = metadata;
       this.notifier = notifier;
       this.setFlagsBitSet(flags);
+   }
+
+   private static void unRemoveEntry(MVCCEntry<?, ?> e) {
+      e.setCreated(true);
+      e.setExpired(false);
+      e.setRemoved(false);
+      e.setValid(true);
+   }
+
+   public void setNotifier(CacheNotifier<Object, Object> notifier) {
+      this.notifier = notifier;
+   }
+
+   public Object getKey() {
+      return key;
    }
 
    @Override
@@ -87,6 +109,50 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
       return null;
    }
 
+   public CommandInvocationId getCommandInvocationId() {
+      return commandInvocationId;
+   }
+
+   @Override
+   public byte getCommandId() {
+      return COMMAND_ID;
+   }
+
+   @Override
+   public boolean isReturnValueExpected() {
+      return false;
+   }
+
+   @Override
+   public boolean canBlock() {
+      return true;
+   }
+
+   @Override
+   public void writeTo(ObjectOutput output) throws IOException {
+      CommandInvocationId.writeTo(output, commandInvocationId);
+      output.writeObject(key);
+      output.writeObject(value);
+      output.writeObject(metadata);
+   }
+
+   @Override
+   public void readFrom(ObjectInput input) throws IOException, ClassNotFoundException {
+      commandInvocationId = CommandInvocationId.readFrom(input);
+      key = input.readObject();
+      value = input.readObject();
+      metadata = (Metadata) input.readObject();
+   }
+
+   @Override
+   public String toString() {
+      return "BackupWriteCommand{" +
+            "key=" + key +
+            ", value=" + value +
+            ", metadata=" + metadata +
+            '}';
+   }
+
    private void performRemove(MVCCEntry<Object, Object> e, InvocationContext ctx) {
       notifier.notifyCacheEntryRemoved(key, e.getValue(), e.getMetadata(), true, ctx, this);
       e.setValue(null);
@@ -129,50 +195,5 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
          }
       }
       e.setChanged(true);
-   }
-
-   private static void unRemoveEntry(MVCCEntry<?, ?> e) {
-      e.setCreated(true);
-      e.setExpired(false);
-      e.setRemoved(false);
-      e.setValid(true);
-   }
-
-   @Override
-   public byte getCommandId() {
-      return COMMAND_ID;
-   }
-
-   @Override
-   public boolean isReturnValueExpected() {
-      return false;
-   }
-
-   @Override
-   public boolean canBlock() {
-      return true;
-   }
-
-   @Override
-   public void writeTo(ObjectOutput output) throws IOException {
-      output.writeObject(key);
-      output.writeObject(value);
-      output.writeObject(metadata);
-   }
-
-   @Override
-   public void readFrom(ObjectInput input) throws IOException, ClassNotFoundException {
-      key = input.readObject();
-      value = input.readObject();
-      metadata = (Metadata) input.readObject();
-   }
-
-   @Override
-   public String toString() {
-      return "BackupWriteCommand{" +
-            "key=" + key +
-            ", value=" + value +
-            ", metadata=" + metadata +
-            '}';
    }
 }

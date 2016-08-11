@@ -36,6 +36,7 @@ import org.infinispan.commands.tx.totalorder.TotalOrderVersionedCommitCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderVersionedPrepareCommand;
 import org.infinispan.commands.write.ApplyDeltaCommand;
 import org.infinispan.commands.write.BackupAckCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.InvalidateCommand;
 import org.infinispan.commands.write.InvalidateL1Command;
@@ -174,6 +175,9 @@ public class RemoteCommandsFactory {
                break;
             case ReplicableCommandManagerFunction.COMMAND_ID:
                command = new ReplicableCommandManagerFunction();
+               break;
+            case BackupWriteCommand.COMMAND_ID:
+               command = new BackupWriteCommand();
                break;
             default:
                throw new CacheException("Unknown command id " + id + "!");
