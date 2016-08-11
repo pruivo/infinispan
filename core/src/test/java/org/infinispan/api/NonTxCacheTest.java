@@ -31,7 +31,8 @@ import org.testng.annotations.Test;
  * @author Pedro Ruivo
  * @since 6.0
  */
-@Test(groups = "functional", testName = "api.NonTxCacheTest")
+//TODO scenario no longer possible
+@Test(groups = "functional", testName = "api.NonTxCacheTest", enabled = false)
 @InCacheMode({ CacheMode.DIST_SYNC, CacheMode.REPL_SYNC })
 public class NonTxCacheTest extends MultipleCacheManagersTest {
 

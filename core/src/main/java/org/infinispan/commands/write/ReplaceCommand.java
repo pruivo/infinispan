@@ -233,6 +233,6 @@ public class ReplaceCommand extends AbstractDataWriteCommand implements Metadata
 
    @Override
    public BackupWriteCommand createBackupWriteCommand() {
-      return new BackupWriteCommand(key, newValue, metadata, notifier, getFlagsBitSet());
+      return new BackupWriteCommand(commandInvocationId, key, newValue, metadata, notifier, getFlagsBitSet());
    }
 }

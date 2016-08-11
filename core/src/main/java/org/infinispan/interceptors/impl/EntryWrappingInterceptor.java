@@ -33,6 +33,7 @@ import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.write.AbstractDataWriteCommand;
 import org.infinispan.commands.write.ApplyDeltaCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.commands.write.EvictCommand;
@@ -296,6 +297,19 @@ public class EntryWrappingInterceptor extends DDAsyncInterceptor {
    public final CompletableFuture<Void> visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
       wrapEntryForPutIfNeeded(ctx, command);
       return setSkipRemoteGetsAndInvokeNextForDataCommand(ctx, command, command.getMetadata());
+   }
+
+   @Override
+   public Object visitBackupWriteCommand(InvocationContext ctx, BackupWriteCommand command) throws Throwable {
+      entryFactory.wrapEntryForWriting(ctx, command.getKey(), EntryFactory.Wrap.WRAP_ALL, false, false);
+      return ctx.onReturn((rCtx, rCommand, rv, throwable) -> {
+         if (throwable != null) {
+            return null;
+         }
+         BackupWriteCommand backupWriteCommand = (BackupWriteCommand) rCommand;
+         applyChanges(rCtx, backupWriteCommand, backupWriteCommand.getMetadata());
+         return null;
+      });
    }
 
    private void wrapEntryForPutIfNeeded(InvocationContext ctx, AbstractDataWriteCommand command) throws Throwable {
