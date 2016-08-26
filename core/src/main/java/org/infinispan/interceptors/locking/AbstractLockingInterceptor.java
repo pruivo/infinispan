@@ -110,7 +110,7 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
          return ctx.continueInvocation();
       }
 
-      ctx.onReturn(this::unlockAfterBackups);
+      ctx.onReturn(unlockAllReturnHandler);
       lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
       return ctx.continueInvocation();
    }
