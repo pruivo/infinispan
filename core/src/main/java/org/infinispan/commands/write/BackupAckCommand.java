@@ -59,4 +59,12 @@ public class BackupAckCommand extends BaseRpcCommand {
    public void setCommandInvocationId(CommandInvocationId commandInvocationId) {
       this.commandInvocationId = commandInvocationId;
    }
+
+   @Override
+   public String toString() {
+      return "BackupAckCommand{" +
+            "commandInvocationId=" + commandInvocationId +
+            ",cacheName='" + cacheName + '\'' +
+            '}';
+   }
 }

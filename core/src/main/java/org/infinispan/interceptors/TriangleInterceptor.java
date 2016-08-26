@@ -25,8 +25,6 @@ import org.infinispan.util.concurrent.CommandAckCollector;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -96,7 +94,7 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
       return ctx.onReturn((rCtx, rCommand, rv, throwable) -> {
          BackupWriteCommand cmd = (BackupWriteCommand) rCommand;
          //remote only. we need to send the ack even with exceptions
-         sendAcksFromRemote(cmd.getCommandInvocationId(), getPrimaryOwner(cmd.getKey()));
+         sendAck(cmd.getCommandInvocationId(), getPrimaryOwner(cmd.getKey()));
          return null;
       });
    }
@@ -108,10 +106,10 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
          final KeyOwnership keyOwnership = getKeyOwnership(key);
          final CommandInvocationId id = cmd.getCommandInvocationId();
 
-         if (keyOwnership == KeyOwnership.BACKUP) {
+         /*if (keyOwnership == KeyOwnership.BACKUP) {
             //send acks back. we are the originator
-            sendAcksFromLocal(id, getPrimaryOwner(key));
-         }
+            sendAck(id, getPrimaryOwner(key));
+         }*/
          if (throwable != null) {
             return null; //don't change return value
          }
@@ -143,24 +141,18 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
       });
    }
 
-   private void sendAcksFromRemote(CommandInvocationId id, Address primaryOwner) {
+   private void sendAck(CommandInvocationId id, Address primaryOwner) {
       final Address origin = id.getAddress();
       if (trace) {
          log.tracef("Sending acks for command %s. PrimaryOwner=%s. Originator=%s.", id, primaryOwner, origin);
       }
-      Collection<Address> recipients = origin.equals(primaryOwner) ?
-            Collections.singletonList(primaryOwner) : Arrays.asList(primaryOwner, origin);
-      rpcManager.invokeRemotelyAsync(recipients, createAck(id), asyncRpcOptions);
-   }
-
-   private void sendAcksFromLocal(CommandInvocationId id, Address primaryOwner) {
-      final Address origin = id.getAddress();
-      if (trace) {
-         log.tracef("Sending acks for command %s. PrimaryOwner=%s. Originator=%s.", id, primaryOwner, origin);
+      if (origin.equals(rpcManager.getAddress())) {
+         commandAckCollector.ack(id, origin);
+      } else {
+         //Collection<Address> recipients = origin.equals(primaryOwner) ?
+         //      Collections.singletonList(primaryOwner) : Arrays.asList(primaryOwner, origin);
+         rpcManager.invokeRemotelyAsync(Collections.singleton(origin), createAck(id), asyncRpcOptions);
       }
-      commandAckCollector.ack(id, origin); //ack locally
-      //we need to send back the ack to origin/primary owner
-      rpcManager.invokeRemotelyAsync(Collections.singletonList(primaryOwner), createAck(id), asyncRpcOptions);
    }
 
    private BackupAckCommand createAck(CommandInvocationId id) {
