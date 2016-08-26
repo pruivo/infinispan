@@ -341,7 +341,7 @@ public class EntryWrappingInterceptor extends DDAsyncInterceptor {
          if (trace) {
             log.tracef("isPrimary=%s,isOwner=%s,originalLocal=%s", isPrimaryOwner, isOwner, originLocal);
          }
-         if (isTransactional) {
+         if (isUsingLockDelegation || isTransactional) {
             result = originLocal ? isPrimaryOwner : isOwner;
          } else {
             result = isOwner;
@@ -384,10 +384,10 @@ public class EntryWrappingInterceptor extends DDAsyncInterceptor {
    private void wrapEntryForReplaceIfNeeded(InvocationContext ctx, ReplaceCommand command) throws InterruptedException {
       if (shouldWrap(command.getKey(), ctx, command)) {
          // When retrying, we might still need to perform the command even if the previous value was removed
-         //EntryFactory.Wrap wrap =
-         //      command.getValueMatcher().nonExistentEntryCanMatch() ? EntryFactory.Wrap.WRAP_ALL :
-          //     EntryFactory.Wrap.WRAP_NON_NULL;
-         entryFactory.wrapEntryForWriting(ctx, command.getKey(), EntryFactory.Wrap.WRAP_ALL, false, false);
+         EntryFactory.Wrap wrap =
+               command.getValueMatcher().nonExistentEntryCanMatch() ? EntryFactory.Wrap.WRAP_ALL :
+               EntryFactory.Wrap.WRAP_NON_NULL;
+         entryFactory.wrapEntryForWriting(ctx, command.getKey(), wrap, false, false);
       }
    }
 

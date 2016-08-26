@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class CommandAckCollector {
 
-   private static final Log log = LogFactory.getLog(Log.class);
+   private static final Log log = LogFactory.getLog(CommandAckCollector.class);
    private static final boolean trace = log.isTraceEnabled();
 
    private final ConcurrentHashMap<CommandInvocationId, CollectorImpl> collectorMap;

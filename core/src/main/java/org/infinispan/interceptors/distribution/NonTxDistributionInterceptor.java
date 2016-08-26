@@ -1,6 +1,7 @@
 package org.infinispan.interceptors.distribution;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,7 +35,6 @@ import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
-import org.infinispan.commands.write.ValueMatcher;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.commons.CacheException;
 import org.infinispan.container.EntryFactory;
@@ -87,7 +87,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    private static Log log = LogFactory.getLog(NonTxDistributionInterceptor.class);
    private static final boolean trace = log.isTraceEnabled();
    private CommandAckCollector commandAckCollector;
-   private RpcOptions asyncRpcOptions;
+   private RpcOptions primaryRpcOptions;
    private RpcOptions syncRpcOptions;
 
    @Inject
@@ -97,7 +97,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
 
    @Start
    public void start() {
-      asyncRpcOptions = rpcManager.getDefaultRpcOptions(false, DeliverOrder.NONE);
+      primaryRpcOptions = rpcManager.getDefaultRpcOptions(false, DeliverOrder.PER_SENDER);
       syncRpcOptions = rpcManager.getDefaultRpcOptions(true);
    }
 
@@ -823,20 +823,22 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
          }
 
          if (owners.size() > 1) {
-            Set<Address> backupOwners = new HashSet<>(owners.subList(1, owners.size()));
-            commandAckCollector.getOrCreate(id, backupOwners);
+            Collection<Address> backupOwners = owners.subList(1, owners.size());
+            if (rCtx.isOriginLocal()) {
+               //this will create a copy to Set...
+               commandAckCollector.getOrCreate(id, backupOwners);
+            }
 
             // don't send the message to origin: response will tell it to execute the backup
-            backupOwners.remove(context.getOrigin());
-            //command.setValueMatcher(ValueMatcher.MATCH_ALWAYS);
-            //command.addFlag(Flag.SKIP_LOCKING); //backups does not need to acquire locks
+            //update: with the new version, we need to send the backup command to originator
+            //backupOwners.remove(rCtx.getOrigin());
 
             if (trace) {
                log.tracef("Command %s send to backup owner %s. Is local=%s", id, backupOwners, rCtx.isOriginLocal());
             }
 
             // we must send the message only after the collector is registered in the map
-            rpcManager.invokeRemotelyAsync(backupOwners, command.createBackupWriteCommand(), asyncRpcOptions);
+            rpcManager.invokeRemotelyAsync(backupOwners, command.createBackupWriteCommand(), primaryRpcOptions);
          }
          return null;
       });
