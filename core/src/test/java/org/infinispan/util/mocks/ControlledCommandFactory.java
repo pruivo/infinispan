@@ -446,7 +446,7 @@ public class ControlledCommandFactory implements CommandsFactory {
    }
 
    @Override
-   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id) {
-      return actual.buildBackupAckCommand(id);
+   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id, Object previousValue) {
+      return actual.buildBackupAckCommand(id, previousValue);
    }
 }

@@ -1446,6 +1446,6 @@ public interface Log extends BasicLogger {
    @Message(value = "Eviction of an entry invoked without an explicit eviction strategy for cache %s", id = 419)
    void evictionDisabled(String cacheName);
 
-   @Message(value = "Timeout after %s waiting for acks. Missing acks are %s", id = 420)
-   TimeoutException timeoutWaitingForAcks(String timeout, String missingAcks);
+   @Message(value = "Timeout after %s waiting for acks", id = 420)
+   TimeoutException timeoutWaitingForAcks(String timeout);
 }

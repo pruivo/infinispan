@@ -720,9 +720,10 @@ public class CommandsFactoryImpl implements CommandsFactory {
    }
 
    @Override
-   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id) {
+   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id, Object previousValue) {
       BackupAckCommand cmd = new BackupAckCommand(cacheName);
       cmd.setCommandInvocationId(id);
+      cmd.setPreviousValue(previousValue);
       return cmd;
    }
 

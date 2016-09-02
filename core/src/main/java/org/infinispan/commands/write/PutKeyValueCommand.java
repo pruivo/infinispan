@@ -221,8 +221,8 @@ public class PutKeyValueCommand extends AbstractDataWriteCommand implements Meta
    }
 
    @Override
-   public BackupWriteCommand createBackupWriteCommand() {
-      return new BackupWriteCommand(commandInvocationId, key, value, metadata, notifier, getFlagsBitSet());
+   public BackupWriteCommand createBackupWriteCommand(Object previousValue) {
+      return new BackupWriteCommand(commandInvocationId, key, value, previousValue, metadata, notifier, getFlagsBitSet());
    }
 
    private Object performPut(MVCCEntry e, InvocationContext ctx) {

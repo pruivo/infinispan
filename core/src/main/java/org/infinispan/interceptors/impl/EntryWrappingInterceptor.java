@@ -647,15 +647,14 @@ public class EntryWrappingInterceptor extends DDAsyncInterceptor {
             throw throwable;
 
          DataWriteCommand dataWriteCommand = (DataWriteCommand) rCommand;
-         if (!rCtx.isInTxScope()) {
+         if (rCtx.isInTxScope()) {
+            setSkipLookup(rCtx, dataWriteCommand.getKey());
+         } else {
             applyChanges(rCtx, dataWriteCommand, metadata);
          }
 
          if (trace)
             log.tracef("The return value is %s", rv);
-         if (rCtx.isInTxScope()) {
-            setSkipLookup(rCtx, dataWriteCommand.getKey());
-         }
          return null;
       });
    }
