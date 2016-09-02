@@ -1451,4 +1451,7 @@ public interface Log extends BasicLogger {
 
    @Message(value = "Timeout after %s waiting for acks. Missing acks are %s", id = 421)
    TimeoutException timeoutWaitingForAcks(String timeout, String missingAcks);
+
+   @Message(value = "Timeout after %s waiting for acks", id = 422)
+   TimeoutException timeoutWaitingForAcks(String timeout);
 }

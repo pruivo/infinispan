@@ -1,15 +1,5 @@
 package org.infinispan.interceptors.locking;
 
-import static org.infinispan.commons.util.Util.toStr;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import org.infinispan.commands.DataCommand;
 import org.infinispan.commands.LocalFlagAffectedCommand;
 import org.infinispan.commands.VisitableCommand;
@@ -31,11 +21,20 @@ import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.DDAsyncInterceptor;
-import org.infinispan.util.concurrent.CommandAckCollector;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockUtil;
 import org.infinispan.util.logging.Log;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.infinispan.commons.util.Util.toStr;
 
 /**
  * Base class for various locking interceptors in this package.
@@ -48,7 +47,6 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
    protected LockManager lockManager;
    protected DataContainer<Object, Object> dataContainer;
    protected ClusteringDependentLogic cdl;
-   private CommandAckCollector commandAckCollector;
 
    protected final ReturnHandler unlockAllReturnHandler = new ReturnHandler() {
       @Override
@@ -63,11 +61,10 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
 
    @Inject
    public void setDependencies(LockManager lockManager, DataContainer<Object, Object> dataContainer,
-                               ClusteringDependentLogic cdl, CommandAckCollector commandAckCollector) {
+                               ClusteringDependentLogic cdl) {
       this.lockManager = lockManager;
       this.dataContainer = dataContainer;
       this.cdl = cdl;
-      this.commandAckCollector = commandAckCollector;
    }
 
    @Override
@@ -213,12 +210,5 @@ public abstract class AbstractLockingInterceptor extends DDAsyncInterceptor {
 
    protected final boolean hasSkipLocking(LocalFlagAffectedCommand command) {
       return command.hasFlag(Flag.SKIP_LOCKING);
-   }
-
-   private CompletableFuture<Object> unlockAfterBackups(InvocationContext rCtx, VisitableCommand rCommand, Object rv,
-                                                        Throwable throwable) {
-      DataWriteCommand cmd = (DataWriteCommand) rCommand;
-      commandAckCollector.get(cmd.getCommandInvocationId()).thenRun(() -> lockManager.unlockAll(rCtx));
-      return null;
    }
 }

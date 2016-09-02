@@ -47,6 +47,10 @@ public interface RpcManager {
 
    Map<Address, Response> invokeRemotely(Map<Address, ReplicableCommand> rpcs, RpcOptions options);
 
+   void sendTo(Address destination, ReplicableCommand command, DeliverOrder deliverOrder);
+
+   void sendTo(ReplicableCommand command, DeliverOrder deliverOrder, Collection<Address> destinations);
+
    /**
     * @return a reference to the underlying transport.
     */

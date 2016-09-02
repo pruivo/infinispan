@@ -56,8 +56,17 @@ public abstract class AbstractControlledRpcManager implements RpcManager {
    public Map<Address, Response> invokeRemotely(Map<Address, ReplicableCommand> rpcs, RpcOptions options) {
       log.trace("ControlledRpcManager.invokeRemotely");
       // TODO: left blank until we need to implement
-      Map<Address, Response> responses = realOne.invokeRemotely(rpcs, options);
-      return responses;
+      return realOne.invokeRemotely(rpcs, options);
+   }
+
+   @Override
+   public void sendTo(Address destination, ReplicableCommand command, DeliverOrder deliverOrder) {
+      realOne.sendTo(destination, command, deliverOrder);
+   }
+
+   @Override
+   public void sendTo(ReplicableCommand command, DeliverOrder deliverOrder, Collection<Address> destinations) {
+      realOne.sendTo(command, deliverOrder, destinations);
    }
 
    @Override
