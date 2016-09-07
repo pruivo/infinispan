@@ -219,7 +219,7 @@ public class RemoveCommand extends AbstractDataWriteCommand {
 
    @Override
    public BackupWriteCommand createBackupWriteCommand(Object previousValue) {
-      return new BackupWriteCommand(commandInvocationId, key, null, previousValue, null, notifier, getFlagsBitSet());
+      return new BackupWriteCommand(commandInvocationId, key, null, hasFlag(Flag.IGNORE_RETURN_VALUES) ? null : previousValue, null, notifier, getFlagsBitSet());
    }
 
    protected Object performRemove(CacheEntry e, InvocationContext ctx) {
