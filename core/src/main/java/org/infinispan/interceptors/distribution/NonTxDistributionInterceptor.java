@@ -859,7 +859,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
          if (owners.size() > 1) {
             Collection<Address> backupOwners = owners.subList(1, owners.size());
             if (rCtx.isOriginLocal()) {
-               commandAckCollector.getOrCreate(id);
+               commandAckCollector.create(id);
             }
 
             // don't send the message to origin: response will tell it to execute the backup
@@ -896,7 +896,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
          throws Throwable {
       assert context.isOriginLocal();
       final CommandInvocationId invocationId = command.getCommandInvocationId();
-      commandAckCollector.getOrCreate(invocationId);
+      commandAckCollector.create(invocationId);
       //sublist with primary owner only!
       rpcManager.invokeRemotely(owners.subList(0, 1), command, async);
       return context.shortCircuit(null);
