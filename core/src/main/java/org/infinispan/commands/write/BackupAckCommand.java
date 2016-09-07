@@ -29,7 +29,7 @@ public class BackupAckCommand extends BaseRpcCommand {
 
    @Override
    public Object perform(InvocationContext ctx) throws Throwable {
-      commandAckCollector.ack(commandInvocationId, getOrigin(), previousValue);
+      commandAckCollector.ack(commandInvocationId, previousValue);
       return null;
    }
 

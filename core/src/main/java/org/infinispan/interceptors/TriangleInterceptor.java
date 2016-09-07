@@ -18,6 +18,7 @@ import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.concurrent.CommandAckCollector;
+import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -94,7 +95,11 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
          if (trace) {
             log.tracef("Waiting for acks for command %s.", id);
          }
-         return CompletableFuture.completedFuture(commandAckCollector.awaitCollector(id, timeoutNanos, TimeUnit.NANOSECONDS, rv));
+         Object retVal = commandAckCollector.awaitCollector(id, timeoutNanos, TimeUnit.NANOSECONDS, cmd);
+         if (retVal == rv) {
+            return null;
+         }
+         return retVal == null ? CompletableFutures.completedNull() : CompletableFuture.completedFuture(retVal);
       }
       return null;
    }
@@ -114,7 +119,7 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
          log.tracef("Sending acks for command %s. Originator=%s.", id, origin);
       }
       if (origin.equals(localAddress)) {
-         commandAckCollector.ack(id, origin, command.getPreviousValue());
+         commandAckCollector.ack(id, command.getPreviousValue());
       } else {
          rpcManager.sendTo(origin, createAck(id, command.getPreviousValue()), DeliverOrder.NONE);
       }
