@@ -35,19 +35,17 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
    private CommandInvocationId commandInvocationId;
    private Object key;
    private Object value;
-   private Object previousValue;
    private Metadata metadata;
    private CacheNotifier<Object, Object> notifier;
 
    public BackupWriteCommand() {
    }
 
-   public BackupWriteCommand(CommandInvocationId commandInvocationId, Object key, Object value, Object previousValue,
+   public BackupWriteCommand(CommandInvocationId commandInvocationId, Object key, Object value,
                              Metadata metadata, CacheNotifier<Object, Object> notifier, long flags) {
       this.commandInvocationId = commandInvocationId;
       this.key = key;
       this.value = value;
-      this.previousValue = previousValue;
       this.metadata = metadata;
       this.notifier = notifier;
       this.setFlagsBitSet(flags);
@@ -86,14 +84,6 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
    @Override
    public boolean readsExistingValues() {
       return false;
-   }
-
-   public boolean shouldSendAck() {
-      return true; //TODO
-   }
-
-   public Object getPreviousValue() {
-      return previousValue;
    }
 
    @Override
@@ -143,7 +133,6 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
       CommandInvocationId.writeTo(output, commandInvocationId);
       output.writeObject(key);
       output.writeObject(value);
-      output.writeObject(previousValue);
       output.writeObject(metadata);
    }
 
@@ -152,7 +141,6 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
       commandInvocationId = CommandInvocationId.readFrom(input);
       key = input.readObject();
       value = input.readObject();
-      previousValue = input.readObject();
       metadata = (Metadata) input.readObject();
    }
 
@@ -161,7 +149,6 @@ public class BackupWriteCommand extends AbstractFlagAffectedCommand implements V
       return "BackupWriteCommand{" +
             "key=" + key +
             ", value=" + value +
-            ", previousValue=" + previousValue +
             ", metadata=" + metadata +
             '}';
    }

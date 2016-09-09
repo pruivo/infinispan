@@ -68,7 +68,7 @@ public abstract class AbstractDataWriteCommand extends AbstractDataCommand imple
    }
 
    @Override
-   public BackupWriteCommand createBackupWriteCommand(Object previousValue) {
+   public BackupWriteCommand createBackupWriteCommand() {
       return null;
    }
 }

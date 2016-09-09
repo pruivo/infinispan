@@ -62,6 +62,7 @@ import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.EvictCommand;
 import org.infinispan.commands.write.InvalidateCommand;
 import org.infinispan.commands.write.InvalidateL1Command;
+import org.infinispan.commands.write.PrimaryAckCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
@@ -512,6 +513,10 @@ public class CommandsFactoryImpl implements CommandsFactory {
             BackupWriteCommand bwc = (BackupWriteCommand) c;
             bwc.setNotifier(notifier);
             break;
+         case PrimaryAckCommand.COMMAND_ID:
+            PrimaryAckCommand pac = (PrimaryAckCommand) c;
+            pac.setCommandAckCollector(commandAckCollector);
+            break;
          default:
             ModuleCommandInitializer mci = moduleCommandInitializers.get(c.getCommandId());
             if (mci != null) {
@@ -719,10 +724,18 @@ public class CommandsFactoryImpl implements CommandsFactory {
    }
 
    @Override
-   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id, Object previousValue) {
+   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id) {
       BackupAckCommand cmd = new BackupAckCommand(cacheName);
       cmd.setCommandInvocationId(id);
-      cmd.setPreviousValue(previousValue);
+      return cmd;
+   }
+
+   @Override
+   public PrimaryAckCommand buildPrimaryAckCommand(CommandInvocationId id, Object returnValue, boolean success) {
+      PrimaryAckCommand cmd = new PrimaryAckCommand(cacheName);
+      cmd.setCommandInvocationId(id);
+      cmd.setReturnValue(returnValue);
+      cmd.setSuccess(success);
       return cmd;
    }
 

@@ -30,7 +30,6 @@ import org.infinispan.commands.read.AbstractDataCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.commands.read.RemoteFetchingCommand;
-import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
@@ -825,19 +824,12 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
          case PRIMARY:
             return primaryOwnerWrite(context, owners);
          case BACKUP:
-            return backupOwnerWrite(context, command, owners);
          case NONE:
-            return nonOwnerWrite(context, command, owners);
+            //always local! in remote, other command is used!
+            assert context.isOriginLocal();
+            return localWriteInvocation(context, command, owners);
       }
       throw new IllegalStateException();
-   }
-
-   private CompletableFuture<Void> nonOwnerWrite(InvocationContext context, DataWriteCommand command, List<Address> owners) throws Throwable {
-      if (context.isOriginLocal()) {
-         return localWriteInvocation(context, command, owners);
-      } else {
-         throw new IllegalStateException("Remote write received in a non-owner");
-      }
    }
 
    private CompletableFuture<Void> primaryOwnerWrite(InvocationContext context, final List<Address> owners) throws Throwable {
@@ -852,43 +844,23 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
             if (trace) {
                log.tracef("Command %s not successful in primary owner.", id);
             }
-            rpcManager.invokeRemotely(Collections.singleton(id.getAddress()), createAckCommand(id, rv), async);
             return null;
          }
-
-         if (owners.size() > 1) {
-            Collection<Address> backupOwners = owners.subList(1, owners.size());
+         final int size = owners.size();
+         if (size > 1) {
+            Collection<Address> backupOwners = owners.subList(1, size);
             if (rCtx.isOriginLocal()) {
-               commandAckCollector.create(id);
+               commandAckCollector.create(id, rv, backupOwners);
             }
-
-            // don't send the message to origin: response will tell it to execute the backup
-            //update: with the new version, we need to send the backup command to originator
-            //backupOwners.remove(rCtx.getOrigin());
-
             if (trace) {
-               log.tracef("Command %s send to backup owner %s. Is local=%s", id, backupOwners, rCtx.isOriginLocal());
+               log.tracef("Command %s send to backup owner %s.", command.getCommandInvocationId(), backupOwners);
             }
 
             // we must send the message only after the collector is registered in the map
-            rpcManager.invokeRemotely(backupOwners, command.createBackupWriteCommand(rv), asyncFIFO);
-
-         } else {
-            if (!rCtx.isOriginLocal()) {
-               rpcManager.invokeRemotely(Collections.singleton(id.getAddress()), createAckCommand(id, rv), async);
-            }
+            rpcManager.invokeRemotely(backupOwners, command.createBackupWriteCommand(), asyncFIFO);
          }
          return null;
       });
-   }
-
-   private CompletableFuture<Void> backupOwnerWrite(InvocationContext context, DataWriteCommand command, List<Address> owners) throws Throwable {
-      if (context.isOriginLocal()) {
-         //we forwards to the coordinator and wait for acks
-         return localWriteInvocation(context, command, owners);
-      } else {
-         throw new IllegalStateException();
-      }
    }
 
    private CompletableFuture<Void> localWriteInvocation(InvocationContext context, DataWriteCommand command,
@@ -896,14 +868,15 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
          throws Throwable {
       assert context.isOriginLocal();
       final CommandInvocationId invocationId = command.getCommandInvocationId();
-      commandAckCollector.create(invocationId);
+      final int size = owners.size();
+      if (size > 1) {
+         commandAckCollector.create(invocationId, owners.subList(1, size));
+      } else {
+         commandAckCollector.create(invocationId, Collections.emptyList());
+      }
       //sublist with primary owner only!
       rpcManager.invokeRemotely(owners.subList(0, 1), command, async);
       return context.shortCircuit(null);
-   }
-
-   private BackupAckCommand createAckCommand(CommandInvocationId id, Object previousValue) {
-      return cf.buildBackupAckCommand(id, previousValue);
    }
 
 }
