@@ -63,6 +63,7 @@ import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.EvictCommand;
 import org.infinispan.commands.write.InvalidateCommand;
+import org.infinispan.commands.write.PrimaryAckCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
@@ -446,7 +447,12 @@ public class ControlledCommandFactory implements CommandsFactory {
    }
 
    @Override
-   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id, Object previousValue) {
-      return actual.buildBackupAckCommand(id, previousValue);
+   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id) {
+      return actual.buildBackupAckCommand(id);
+   }
+
+   @Override
+   public PrimaryAckCommand buildPrimaryAckCommand(CommandInvocationId id, Object returnValue, boolean success) {
+      return actual.buildPrimaryAckCommand(id, returnValue, success);
    }
 }

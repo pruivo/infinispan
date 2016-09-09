@@ -10,7 +10,6 @@ import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.context.InvocationContext;
-import org.infinispan.distribution.DistributionManager;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.remoting.inboundhandler.DeliverOrder;
@@ -46,8 +45,7 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
    private long timeoutNanos;
 
    @Inject
-   public void inject(RpcManager rpcManager, CommandsFactory commandsFactory,
-                      CommandAckCollector commandAckCollector, DistributionManager distributionManager) {
+   public void inject(RpcManager rpcManager, CommandsFactory commandsFactory, CommandAckCollector commandAckCollector) {
       this.rpcManager = rpcManager;
       this.commandsFactory = commandsFactory;
       this.commandAckCollector = commandAckCollector;
@@ -100,15 +98,17 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
             return null;
          }
          return retVal == null ? CompletableFutures.completedNull() : CompletableFuture.completedFuture(retVal);
+      } else {
+         //we are the primary owner! send back ack.
+         rpcManager.sendTo(id.getAddress(),
+                           commandsFactory.buildPrimaryAckCommand(id, rv, cmd.isSuccessful()),
+                           DeliverOrder.NONE);
       }
       return null;
    }
 
    private CompletableFuture<Object> onBackupCommand(InvocationContext rCtx, VisitableCommand rCommand, Object rv, Throwable throwable) throws Throwable {
-      BackupWriteCommand cmd = (BackupWriteCommand) rCommand;
-      if (cmd.shouldSendAck()) {
-         sendAck(cmd);
-      }
+      sendAck((BackupWriteCommand) rCommand);
       return null;
    }
 
@@ -119,14 +119,14 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
          log.tracef("Sending acks for command %s. Originator=%s.", id, origin);
       }
       if (origin.equals(localAddress)) {
-         commandAckCollector.ack(id, command.getPreviousValue());
+         commandAckCollector.backupAck(id, origin);
       } else {
-         rpcManager.sendTo(origin, createAck(id, command.getPreviousValue()), DeliverOrder.NONE);
+         rpcManager.sendTo(origin, createAck(id), DeliverOrder.NONE);
       }
    }
 
-   private BackupAckCommand createAck(CommandInvocationId id, Object previousValue) {
-      return commandsFactory.buildBackupAckCommand(id, previousValue);
+   private BackupAckCommand createAck(CommandInvocationId id) {
+      return commandsFactory.buildBackupAckCommand(id);
    }
 
    public enum KeyOwnership {
