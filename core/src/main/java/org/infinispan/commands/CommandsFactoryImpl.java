@@ -731,11 +731,9 @@ public class CommandsFactoryImpl implements CommandsFactory {
    }
 
    @Override
-   public PrimaryAckCommand buildPrimaryAckCommand(CommandInvocationId id, Object returnValue, boolean success) {
+   public PrimaryAckCommand buildPrimaryAckCommand(CommandInvocationId id) {
       PrimaryAckCommand cmd = new PrimaryAckCommand(cacheName);
       cmd.setCommandInvocationId(id);
-      cmd.setReturnValue(returnValue);
-      cmd.setSuccess(success);
       return cmd;
    }
 

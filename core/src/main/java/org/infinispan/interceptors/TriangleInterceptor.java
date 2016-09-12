@@ -6,6 +6,7 @@ import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.DataWriteCommand;
+import org.infinispan.commands.write.PrimaryAckCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
@@ -100,9 +101,9 @@ public class TriangleInterceptor extends DDAsyncInterceptor {
          return retVal == null ? CompletableFutures.completedNull() : CompletableFuture.completedFuture(retVal);
       } else {
          //we are the primary owner! send back ack.
-         rpcManager.sendTo(id.getAddress(),
-                           commandsFactory.buildPrimaryAckCommand(id, rv, cmd.isSuccessful()),
-                           DeliverOrder.NONE);
+         PrimaryAckCommand command = commandsFactory.buildPrimaryAckCommand(id);
+         cmd.initPrimaryAck(command, rv);
+         rpcManager.sendTo(id.getAddress(), command, DeliverOrder.NONE);
       }
       return null;
    }

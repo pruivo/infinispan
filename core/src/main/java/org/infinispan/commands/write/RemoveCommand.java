@@ -222,6 +222,17 @@ public class RemoveCommand extends AbstractDataWriteCommand {
       return new BackupWriteCommand(commandInvocationId, key, null, null, notifier, getFlagsBitSet());
    }
 
+   @Override
+   public void initPrimaryAck(PrimaryAckCommand command, Object returnValue) {
+      if (isConditional()) {
+         command.initWithBoolReturnValue(successful, successful);
+      } else if (hasFlag(Flag.IGNORE_RETURN_VALUES)) {
+         command.initWithoutReturnValue(successful);
+      } else {
+         command.initWithReturnValue(successful, returnValue);
+      }
+   }
+
    protected Object performRemove(CacheEntry e, InvocationContext ctx) {
       final Object removedValue = e.getValue();
       notify(ctx, removedValue, e.getMetadata(), true);

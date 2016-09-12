@@ -452,7 +452,7 @@ public class ControlledCommandFactory implements CommandsFactory {
    }
 
    @Override
-   public PrimaryAckCommand buildPrimaryAckCommand(CommandInvocationId id, Object returnValue, boolean success) {
-      return actual.buildPrimaryAckCommand(id, returnValue, success);
+   public PrimaryAckCommand buildPrimaryAckCommand(CommandInvocationId id) {
+      return actual.buildPrimaryAckCommand(id);
    }
 }
