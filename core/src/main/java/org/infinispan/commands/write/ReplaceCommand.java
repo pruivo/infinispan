@@ -235,4 +235,13 @@ public class ReplaceCommand extends AbstractDataWriteCommand implements Metadata
    public BackupWriteCommand createBackupWriteCommand() {
       return new BackupWriteCommand(commandInvocationId, key, newValue, metadata, notifier, getFlagsBitSet());
    }
+
+   @Override
+   public void initPrimaryAck(PrimaryAckCommand command, Object returnValue) {
+      if (oldValue == null) {
+         command.initWithReturnValue(successful, returnValue);
+      } else {
+         command.initWithBoolReturnValue(successful, successful);
+      }
+   }
 }

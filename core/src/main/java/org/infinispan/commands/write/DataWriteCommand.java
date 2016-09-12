@@ -15,4 +15,6 @@ public interface DataWriteCommand extends WriteCommand, DataCommand {
 
    BackupWriteCommand createBackupWriteCommand();
 
+   void initPrimaryAck(PrimaryAckCommand command, Object returnValue);
+
 }

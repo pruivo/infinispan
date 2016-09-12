@@ -494,5 +494,5 @@ public interface CommandsFactory {
 
    BackupAckCommand buildBackupAckCommand(CommandInvocationId id);
 
-   PrimaryAckCommand buildPrimaryAckCommand(CommandInvocationId id, Object returnValue, boolean success);
+   PrimaryAckCommand buildPrimaryAckCommand(CommandInvocationId id);
 }

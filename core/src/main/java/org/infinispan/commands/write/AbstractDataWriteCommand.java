@@ -71,4 +71,9 @@ public abstract class AbstractDataWriteCommand extends AbstractDataCommand imple
    public BackupWriteCommand createBackupWriteCommand() {
       return null;
    }
+
+   @Override
+   public void initPrimaryAck(PrimaryAckCommand command, Object returnValue) {
+      throw new UnsupportedOperationException();
+   }
 }
