@@ -216,7 +216,7 @@ final class ExternalJBossMarshaller implements StreamingMarshaller {
 
             @Override
             public Object readObject(Unmarshaller unmarshaller) throws IOException, ClassNotFoundException {
-               Externalizer<Object> ext = externalizers.findReadExternalizer(unmarshaller);
+               Externalizer<Object> ext = externalizers.findReadExternalizer(unmarshaller, unmarshaller.readUnsignedByte());
                return ext.readObject(unmarshaller);
             }
          });

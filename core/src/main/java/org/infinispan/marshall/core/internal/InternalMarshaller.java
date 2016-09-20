@@ -68,13 +68,20 @@ public final class InternalMarshaller implements StreamingMarshaller {
 
    private BytesObjectOutput writeObjectOutput(Object obj, int estimatedSize) throws IOException {
       BytesObjectOutput out = new BytesObjectOutput(estimatedSize, this);
-      Externalizer<Object> ext = externalizers.findWriteExternalizer(obj, out);
-      if (ext != null)
-         ext.writeObject(out, obj);
-      else
-         external.objectToObjectStream(obj, out);
-
+      writeNullableObject(obj, out);
       return out;
+   }
+
+   void writeNullableObject(Object obj, BytesObjectOutput out) throws IOException {
+      if (obj == null) {
+         out.writeByte(InternalIds.NULL);
+      } else {
+         Externalizer<Object> ext = externalizers.findWriteExternalizer(obj, out);
+         if (ext != null)
+            ext.writeObject(out, obj);
+         else
+            external.objectToObjectStream(obj, out);
+      }
    }
 
    @Override
@@ -84,17 +91,26 @@ public final class InternalMarshaller implements StreamingMarshaller {
    }
 
    private Object objectFromObjectInput(ObjectInput in) throws IOException, ClassNotFoundException {
-      Externalizer<Object> ext = externalizers.findReadExternalizer(in);
-      if (ext != null)
-         return ext.readObject(in);
-      else {
-         try {
-            return external.objectFromObjectStream(in);
-         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null;
+      return readNullableObject(in);
+   }
+
+   Object readNullableObject(ObjectInput in) throws IOException, ClassNotFoundException {
+      int type = in.readUnsignedByte();
+      if (type != InternalIds.NULL) {
+         Externalizer<Object> ext = externalizers.findReadExternalizer(in, type);
+         if (ext != null)
+            return ext.readObject(in);
+         else {
+            try {
+               return external.objectFromObjectStream(in);
+            } catch (InterruptedException e) {
+               Thread.currentThread().interrupt();
+               return null;
+            }
          }
       }
+
+      return null;
    }
 
    @Override

@@ -30,17 +30,7 @@ final class BytesObjectInput implements ObjectInput, PositionalBuffer.Input {
 
    @Override
    public Object readObject() throws ClassNotFoundException, IOException {
-      Externalizer<Object> ext = internal.externalizers.findReadExternalizer(this);
-      if (ext != null)
-         return ext.readObject(this);
-      else {
-         try {
-            return internal.external.objectFromObjectStream(this);
-         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null;
-         }
-      }
+      return internal.readNullableObject(this);
    }
 
    @Override

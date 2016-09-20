@@ -38,6 +38,18 @@ public interface Ids extends org.infinispan.commons.marshall.Ids {
    int INT_SUMMARY_STATISTICS = 21;
    int LONG_SUMMARY_STATISTICS = 22;
    int DOUBLE_SUMMARY_STATISTICS = 23;
+
+   int STRING = 24;
+   int BYTE_ARRAY = 25;
+   int BOOLEAN = 26;
+   int BYTE = 27;
+   int CHAR = 28;
+   int DOUBLE = 29;
+   int FLOAT = 30;
+   int INTEGER = 31;
+   int LONG = 32;
+   int SHORT = 33;
+
    // others
    int GLOBAL_TRANSACTION = 38;
    int JGROUPS_ADDRESS = 39;
@@ -115,7 +127,16 @@ public interface Ids extends org.infinispan.commons.marshall.Ids {
    int INTERNAL_METADATA_ID = 104;
    int MARSHALLED_ENTRY_ID = 105;
 
-   /* 106 -120 reserved in org.infinispan.commons.marshall.Ids */
+   /* 106 reserved in org.infinispan.commons.marshall.Ids */
+
+   int BOOLEAN_ARRAY = 107;
+   int CHAR_ARRAY = 108;
+   int DOUBLE_ARRAY = 109;
+   int FLOAT_ARRAY = 110;
+   int INT_ARRAY = 111;
+   int LONG_ARRAY = 112;
+   int SHORT_ARRAY = 113;
+   int OBJECT_ARRAY = 114;
 
    int ENUM_SET_ID = 121;
    int LIST_ARRAY = 122;

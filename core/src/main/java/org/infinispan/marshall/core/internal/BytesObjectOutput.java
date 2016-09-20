@@ -19,12 +19,7 @@ final class BytesObjectOutput implements ObjectOutput, PositionalBuffer.Output {
 
    @Override
    public void writeObject(Object obj) throws IOException {
-      Externalizer<Object> ext = internal.externalizers.findWriteExternalizer(obj, this);
-      if (ext != null) {
-         ext.writeObject(this, obj);
-      } else {
-         internal.external.objectToObjectStream(obj, this);
-      }
+      internal.writeNullableObject(obj, this);
    }
 
    @Override
