@@ -134,7 +134,7 @@ final class InternalExternalizerTable {
     */
    private final Encoding enc;
 
-   private final ClassToExternalizerHashMap typeToExts = new ClassToExternalizerHashMap(512);
+   private final IdentityIntMap<Class> typeToExts = new IdentityIntMap<>(512);
 
    private final IntObjectMap<AdvancedExternalizer> idToExts = new IntObjectHashMap<>(128);
 
@@ -172,9 +172,11 @@ final class InternalExternalizerTable {
 
    <T> Externalizer<T> findWriteExternalizer(Object obj, ObjectOutput out) throws IOException {
       Class<?> clazz = obj.getClass();
-      Externalizer<T> ext = typeToExts.get(clazz);
-      if (ext != null) {
-         AdvancedExternalizer advExt = (AdvancedExternalizer<?>) ext;
+      int extId = typeToExts.get(clazz, -1);
+      Externalizer ext = null;
+      if (extId != -1) {
+         AdvancedExternalizer advExt = (AdvancedExternalizer<?>) idToExts.get(extId);
+         ext = advExt;
          out.writeByte(InternalIds.PREDEFINED);
          UnsignedNumeric.writeUnsignedInt(out, advExt.getId());
       } else if ((ext = findAnnotatedExternalizer(clazz)) != null) {
@@ -229,8 +231,8 @@ final class InternalExternalizerTable {
 
    MarshallableType marshallable(Object o) {
       Class<?> clazz = o.getClass();
-      AdvancedExternalizer ext = typeToExts.get(clazz);
-      if (ext != null) {
+      int id = typeToExts.get(clazz, -1);
+      if (id != -1) {
          // TODO: Remove the need to distinguish primitive externalizers:
          // The need to distinguish comes from the need for types that are
          // externally marshalled to use internal types, including primitives.
@@ -240,7 +242,7 @@ final class InternalExternalizerTable {
          // ExtendedRiverMarshaller and hence won't work.
          // Hence, primitives referenced by external marshallers should be
          // marshalled by the external marshaller directly.
-         return isPrimitiveExternalizer(ext)
+         return isPrimitiveExternalizer(idToExts.get(id))
                ? MarshallableType.PRIMITIVE
                : MarshallableType.PREDEFINED;
       } else if (findAnnotatedExternalizer(clazz) != null) {
@@ -404,11 +406,12 @@ final class InternalExternalizerTable {
    }
 
    private void addInternalExternalizer(AdvancedExternalizer ext) {
-      idToExts.put(ext.getId(), ext);
+      int id = ext.getId();
+      idToExts.put(id, ext);
 
       Set<Class<?>> subTypes = ext.getTypeClasses();
       for (Class<?> subType : subTypes)
-         typeToExts.put(subType, ext);
+         typeToExts.put(subType, id);
    }
 
    private void loadForeignMarshallables(GlobalConfiguration globalCfg) {
@@ -433,11 +436,7 @@ final class InternalExternalizerTable {
 
          Set<Class> subTypes = ext.getTypeClasses();
          for (Class<?> subType : subTypes) {
-            AdvancedExternalizer prev = typeToExts.put(subType, foreignExt);
-
-            if (prev != null && !prev.equals(ext))
-               throw log.duplicateExternalizerIdFound(
-                     id, subType, prev.getClass().getName(), foreignId);
+            typeToExts.put(subType, foreignId);
          }
       }
    }
