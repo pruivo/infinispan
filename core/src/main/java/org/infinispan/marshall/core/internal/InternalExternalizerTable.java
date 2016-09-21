@@ -3,7 +3,6 @@ package org.infinispan.marshall.core.internal;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -114,6 +113,7 @@ import org.infinispan.transaction.xa.recovery.InDoubtTxInfoImpl;
 import org.infinispan.transaction.xa.recovery.RecoveryAwareDldGlobalTransaction;
 import org.infinispan.transaction.xa.recovery.RecoveryAwareGlobalTransaction;
 import org.infinispan.transaction.xa.recovery.SerializableXid;
+import org.infinispan.util.ClassToExternalizerHashMap;
 import org.infinispan.util.IntObjectHashMap;
 import org.infinispan.util.IntObjectMap;
 import org.infinispan.util.KeyValuePair;
@@ -134,9 +134,9 @@ final class InternalExternalizerTable {
     */
    private final Encoding enc;
 
-   final Map<Class<?>, AdvancedExternalizer> typeToExts = new HashMap<>(512, 0.375f);
+   private final ClassToExternalizerHashMap typeToExts = new ClassToExternalizerHashMap(512);
 
-   final IntObjectMap<AdvancedExternalizer> idToExts = new IntObjectHashMap<>(128);
+   private final IntObjectMap<AdvancedExternalizer> idToExts = new IntObjectHashMap<>(128);
 
    private final GlobalComponentRegistry gcr;
    private final RemoteCommandsFactory cmdFactory;
