@@ -28,7 +28,7 @@ import java.io.ObjectOutput;
  */
 public class BackupWriteCommand extends AbstractFlagAffectedCommand implements VisitableCommand {
 
-   public static final byte COMMAND_ID = 64;
+   public static final byte COMMAND_ID = 61;
    private static final Log log = LogFactory.getLog(BackupWriteCommand.class);
    private static final boolean trace = log.isTraceEnabled();
 

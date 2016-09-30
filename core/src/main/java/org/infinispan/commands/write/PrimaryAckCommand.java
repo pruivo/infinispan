@@ -19,7 +19,7 @@ import java.io.ObjectOutput;
  */
 public class PrimaryAckCommand extends BaseRpcCommand {
 
-   public static final byte COMMAND_ID = 62;
+   public static final byte COMMAND_ID = 60;
    private static final Type[] CACHED_TYPE = Type.values();
    private CommandInvocationId commandInvocationId;
    private Object returnValue;
