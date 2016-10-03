@@ -1,6 +1,6 @@
 <config xmlns="urn:org:jgroups"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/JGroups-3.6.xsd">
+        xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups-4.0.xsd">
    <UDP mcast_addr="${jgroups.udp.mcast_addr:228.6.7.8}"
         mcast_port="${jgroups.udp.mcast_port:46655}"
         ucast_send_buf_size="1m"
@@ -13,20 +13,8 @@
         bundler_type="transfer-queue"
 
         thread_pool.min_threads="${jgroups.thread_pool.min_threads:2}"
-        thread_pool.max_threads="${jgroups.thread_pool.max_threads:30}"
+        thread_pool.max_threads="${jgroups.thread_pool.max_threads:200}"
         thread_pool.keep_alive_time="60000"
-        thread_pool.queue_enabled="false"
-
-        internal_thread_pool.min_threads="${jgroups.internal_thread_pool.min_threads:5}"
-        internal_thread_pool.max_threads="${jgroups.internal_thread_pool.max_threads:20}"
-        internal_thread_pool.keep_alive_time="60000"
-        internal_thread_pool.queue_enabled="true"
-        internal_thread_pool.queue_max_size="500"
-
-        oob_thread_pool.min_threads="${jgroups.oob_thread_pool.min_threads:20}"
-        oob_thread_pool.max_threads="${jgroups.oob_thread_pool.max_threads:200}"
-        oob_thread_pool.keep_alive_time="60000"
-        oob_thread_pool.queue_enabled="false"
    />
    <PING />
    <MERGE3 min_interval="10000" 

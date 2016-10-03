@@ -223,7 +223,7 @@ public class StateTransferManagerImpl implements StateTransferManager {
             initialStateTransferComplete.countDown();
          }
          if (trace) log.tracef("Waiting for initial state transfer to finish for cache %s on %s", cacheName, rpcManager.getAddress());
-         boolean success = initialStateTransferComplete.await(configuration.clustering().stateTransfer().timeout(), TimeUnit.MILLISECONDS);
+         boolean success = initialStateTransferComplete.await(100 * configuration.clustering().stateTransfer().timeout(), TimeUnit.MILLISECONDS);
          if (!success) {
             throw new CacheException(String.format("Initial state transfer timed out for cache %s on %s",
                   cacheName, rpcManager.getAddress()));
