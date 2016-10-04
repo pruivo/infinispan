@@ -30,6 +30,7 @@ import org.infinispan.commands.read.AbstractDataCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
 import org.infinispan.commands.read.GetKeyValueCommand;
 import org.infinispan.commands.read.RemoteFetchingCommand;
+import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
@@ -51,7 +52,6 @@ import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.TriangleInterceptor;
 import org.infinispan.remoting.RemoteException;
 import org.infinispan.remoting.inboundhandler.DeliverOrder;
-import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.responses.UnsuccessfulResponse;
@@ -59,12 +59,9 @@ import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.OutdatedTopologyException;
 import org.infinispan.topology.CacheTopology;
-import org.infinispan.remoting.responses.UnsuccessfulWithValueResponse;
 import org.infinispan.util.concurrent.CommandAckCollector;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
-
-import static java.lang.String.format;
 
 /**
  * Non-transactional interceptor used by distributed caches that support concurrent writes.
@@ -88,8 +85,8 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    private static Log log = LogFactory.getLog(NonTxDistributionInterceptor.class);
    private static final boolean trace = log.isTraceEnabled();
    private CommandAckCollector commandAckCollector;
-   private RpcOptions primaryRpcOptions;
-   private RpcOptions syncRpcOptions;
+   private RpcOptions asyncFIFO;
+   private RpcOptions async;
 
    @Inject
    public void inject(CommandAckCollector commandAckCollector) {
@@ -98,8 +95,8 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
 
    @Start
    public void start() {
-      primaryRpcOptions = rpcManager.getDefaultRpcOptions(false, DeliverOrder.PER_SENDER);
-      syncRpcOptions = rpcManager.getDefaultRpcOptions(true);
+      asyncFIFO = rpcManager.getDefaultRpcOptions(false, DeliverOrder.PER_SENDER);
+      async = rpcManager.getDefaultRpcOptions(false, DeliverOrder.NONE);
    }
 
    @Override
@@ -837,7 +834,7 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
 
    private CompletableFuture<Void> nonOwnerWrite(InvocationContext context, DataWriteCommand command, List<Address> owners) throws Throwable {
       if (context.isOriginLocal()) {
-         return localWriteInvocation(context, command, owners, false);
+         return localWriteInvocation(context, command, owners);
       } else {
          throw new IllegalStateException("Remote write received in a non-owner");
       }
@@ -855,14 +852,14 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
             if (trace) {
                log.tracef("Command %s not successful in primary owner.", id);
             }
+            rpcManager.invokeRemotely(Collections.singleton(id.getAddress()), createAckCommand(id, rv), async);
             return null;
          }
 
          if (owners.size() > 1) {
             Collection<Address> backupOwners = owners.subList(1, owners.size());
             if (rCtx.isOriginLocal()) {
-               //this will create a copy to Set...
-               commandAckCollector.getOrCreate(id, backupOwners);
+               commandAckCollector.getOrCreate(id);
             }
 
             // don't send the message to origin: response will tell it to execute the backup
@@ -874,7 +871,12 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
             }
 
             // we must send the message only after the collector is registered in the map
-            rpcManager.invokeRemotelyAsync(backupOwners, command.createBackupWriteCommand(), primaryRpcOptions);
+            rpcManager.invokeRemotely(backupOwners, command.createBackupWriteCommand(rv), asyncFIFO);
+
+         } else {
+            if (!rCtx.isOriginLocal()) {
+               rpcManager.invokeRemotely(Collections.singleton(id.getAddress()), createAckCommand(id, rv), async);
+            }
          }
          return null;
       });
@@ -883,83 +885,25 @@ public class NonTxDistributionInterceptor extends BaseDistributionInterceptor {
    private CompletableFuture<Void> backupOwnerWrite(InvocationContext context, DataWriteCommand command, List<Address> owners) throws Throwable {
       if (context.isOriginLocal()) {
          //we forwards to the coordinator and wait for acks
-         return localWriteInvocation(context, command, owners, true);
+         return localWriteInvocation(context, command, owners);
       } else {
-         return context.forkInvocation(command.createBackupWriteCommand(), (rCtx, rCommand, rv, throwable) -> rCtx.shortCircuit(null));
+         throw new IllegalStateException();
       }
    }
 
    private CompletableFuture<Void> localWriteInvocation(InvocationContext context, DataWriteCommand command,
-                                                        List<Address> owners, boolean backupOwner)
+                                                        List<Address> owners)
          throws Throwable {
       assert context.isOriginLocal();
       final CommandInvocationId invocationId = command.getCommandInvocationId();
-      if (owners.size() > 1) {
-         commandAckCollector.getOrCreate(invocationId, owners.subList(1, owners.size()));
-      }
-      Map<Address, Response> responseMap = rpcManager.invokeRemotely(owners.subList(0, 1), command, syncRpcOptions);
-      Object result;
-      boolean isSuccessful = true; //by default. it should cover the most cases
-      final Response response = responseMap.get(owners.get(0));
-      if (response == null) {
-         //null when is successful and the return value is not needed or null.
-         result = null;
-      } else if (!response.isValid()) {
-         throw createInvalidResponse(command, response);
-      } else if (response.isSuccessful()) {
-         result = createSuccessfulResponse(command, response);
-      } else {
-         result = createUnsuccessfulResponse(command, response);
-         isSuccessful = false;
-      }
-
-      if (!isSuccessful) {
-         if (trace) {
-            log.tracef("Unsuccessful conditional command. Skip waiting from backup owners. CommandId=%s", invocationId);
-         }
-         commandAckCollector.cancelCollector(invocationId);
-         return context.shortCircuit(result);
-      }
-      if (backupOwner) {
-         return context.forkInvocation(command.createBackupWriteCommand(), (rCtx, rCommand, rv, throwable) -> {
-            if (throwable != null) {
-               throw throwable;
-            }
-            return rCtx.shortCircuit(result);
-         });
-      }
-      return context.shortCircuit(result);
+      commandAckCollector.getOrCreate(invocationId);
+      //sublist with primary owner only!
+      rpcManager.invokeRemotely(owners.subList(0, 1), command, async);
+      return context.shortCircuit(null);
    }
 
-   private static Object createUnsuccessfulResponse(WriteCommand command, Response response) {
-      if (trace) {
-         log.tracef("Un-successful response received for command %s. Response is %s", command, response);
-      }
-      if (response == UnsuccessfulResponse.INSTANCE) {
-         return null;
-      } else {
-         assert response instanceof UnsuccessfulWithValueResponse;
-         return ((UnsuccessfulWithValueResponse) response).getReturnValue();
-      }
-   }
-
-   private static Object createSuccessfulResponse(WriteCommand command, Response response) {
-      if (trace) {
-         log.tracef("Successful response received for command %s. Response is %s", command, response);
-      }
-      assert response instanceof SuccessfulResponse;
-      return ((SuccessfulResponse) response).getResponseValue();
-   }
-
-   private static Exception createInvalidResponse(WriteCommand command, Response response) {
-      if (trace) {
-         log.tracef("Invalid response received for command %s. Response is %s", command, response);
-      }
-      if (response instanceof ExceptionResponse) {
-         return ((ExceptionResponse) response).getException();
-      } else {
-         return new CacheException(format("Invalid response received for command %s. Response is %s", command, response));
-      }
+   private BackupAckCommand createAckCommand(CommandInvocationId id, Object previousValue) {
+      return cf.buildBackupAckCommand(id, previousValue);
    }
 
 }

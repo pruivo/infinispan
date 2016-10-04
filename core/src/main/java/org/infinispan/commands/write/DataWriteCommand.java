@@ -13,6 +13,6 @@ public interface DataWriteCommand extends WriteCommand, DataCommand {
 
    CommandInvocationId getCommandInvocationId();
 
-   BackupWriteCommand createBackupWriteCommand();
+   BackupWriteCommand createBackupWriteCommand(Object previousValue);
 
 }

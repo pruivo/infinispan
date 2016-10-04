@@ -491,5 +491,5 @@ public interface CommandsFactory {
 
    <K, V, R> ReadWriteManyEntriesCommand<K, V, R> buildReadWriteManyEntriesCommand(Map<? extends K, ? extends V> entries, BiFunction<V, ReadWriteEntryView<K, V>, R> f, Params params);
 
-   BackupAckCommand buildBackupAckCommand(CommandInvocationId id);
+   BackupAckCommand buildBackupAckCommand(CommandInvocationId id, Object previousValue);
 }
