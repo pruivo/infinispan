@@ -55,6 +55,8 @@ import org.infinispan.remoting.transport.AbstractTransport;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.BackupResponse;
 import org.infinispan.util.TimeService;
+import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
+import org.infinispan.util.concurrent.BlockingTaskAwareExecutorServiceImpl;
 import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.logging.Log;
@@ -340,6 +342,9 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       // NOTE: total order needs to deliver own messages. the invokeRemotely method has a total order boolean
       //       that when it is false, it discard our own messages, maintaining the property needed
       channel.setDiscardOwnMessages(false);
+      if (remoteExecutor instanceof BlockingTaskAwareExecutorServiceImpl) {
+         channel.getProtocolStack().getTransport().setThreadPool(((BlockingTaskAwareExecutorServiceImpl) remoteExecutor).getExecutorService());
+      }
 
       // if we have a TopologyAwareConsistentHash, we need to set our own address generator in JGroups
       if (transportCfg.hasTopologyInfo()) {

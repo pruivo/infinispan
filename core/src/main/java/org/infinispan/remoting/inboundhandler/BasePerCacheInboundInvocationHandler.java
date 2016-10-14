@@ -124,7 +124,7 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
    }
 
    protected final void handleRunnable(BlockingRunnable runnable, boolean onExecutorService) {
-      if (onExecutorService) {
+      if (onExecutorService && !runnable.isReady()) {
          remoteCommandsExecutor.execute(runnable);
       } else {
          runnable.run();
