@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
@@ -25,7 +26,7 @@ import org.infinispan.util.concurrent.BlockingTaskAwareExecutorServiceImpl;
  */
 public final class LazyInitializingBlockingTaskAwareExecutorService implements BlockingTaskAwareExecutorService {
 
-   private final ThreadPoolExecutorFactory<ExecutorService> executorFactory;
+   private volatile ThreadPoolExecutorFactory<ExecutorService> executorFactory;
    private final ThreadFactory threadFactory;
    private final TimeService timeService;
    private final String controllerThreadName;
@@ -136,6 +137,18 @@ public final class LazyInitializingBlockingTaskAwareExecutorService implements B
       return delegate;
    }
 
+   public void replaceThreadPool(ThreadPoolExecutorFactory<ExecutorService> factory) {
+      if (factory == null) {
+         return;
+      }
+      synchronized (this) {
+         if (delegate != null) {
+            throw new IllegalStateException("UNABLE TO REPLACE THREAD POOL");
+         }
+         executorFactory = factory;
+      }
+   }
+
    private void initIfNeeded() {
       if (delegate == null) {
          synchronized (this) {
@@ -146,5 +159,10 @@ public final class LazyInitializingBlockingTaskAwareExecutorService implements B
             }
          }
       }
+   }
+
+   public Executor initIfNeededAndGetExecutorService() {
+      initIfNeeded();
+      return delegate;
    }
 }

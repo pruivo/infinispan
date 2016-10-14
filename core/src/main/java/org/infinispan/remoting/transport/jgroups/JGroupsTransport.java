@@ -16,6 +16,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -27,6 +28,7 @@ import javax.management.ObjectName;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commons.CacheConfigurationException;
 import org.infinispan.commons.CacheException;
+import org.infinispan.commons.executors.ThreadPoolExecutorFactory;
 import org.infinispan.commons.marshall.StreamingMarshaller;
 import org.infinispan.commons.util.CollectionFactory;
 import org.infinispan.commons.util.FileLookup;
@@ -36,6 +38,7 @@ import org.infinispan.commons.util.Util;
 import org.infinispan.configuration.global.TransportConfiguration;
 import org.infinispan.configuration.global.TransportConfigurationBuilder;
 import org.infinispan.configuration.parsing.XmlConfigHelper;
+import org.infinispan.executors.LazyInitializingBlockingTaskAwareExecutorService;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.KnownComponentNames;
 import org.infinispan.factories.annotations.ComponentName;
@@ -54,6 +57,7 @@ import org.infinispan.remoting.transport.AbstractTransport;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.BackupResponse;
 import org.infinispan.util.TimeService;
+import org.infinispan.util.concurrent.BlockingTaskAwareExecutorServiceImpl;
 import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.logging.Log;
@@ -233,6 +237,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
          // the channel was already started externally, we need to initialize our member list
          viewAccepted(channel.getView());
       }
+      validateThreadPool();
       if (log.isInfoEnabled())
          log.localAndPhysicalAddress(clusterName, getAddress(), getPhysicalAddresses());
    }
@@ -340,6 +345,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       // NOTE: total order needs to deliver own messages. the invokeRemotely method has a total order boolean
       //       that when it is false, it discard our own messages, maintaining the property needed
       channel.setDiscardOwnMessages(false);
+      replaceThreadPool();
 
       // if we have a TopologyAwareConsistentHash, we need to set our own address generator in JGroups
       if (transportCfg.hasTopologyInfo()) {
@@ -359,6 +365,40 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
                throw new CacheException("JGroups address does not contain topology coordinates");
             }
          }
+      }
+   }
+
+   private static Executor extractInnerMostExecutorService(Executor executorService) {
+      if (executorService instanceof BlockingTaskAwareExecutorServiceImpl) {
+         return extractInnerMostExecutorService(((BlockingTaskAwareExecutorServiceImpl) executorService).getExecutorService());
+      } else if (executorService instanceof LazyInitializingBlockingTaskAwareExecutorService) {
+         return extractInnerMostExecutorService(((LazyInitializingBlockingTaskAwareExecutorService) executorService).initIfNeededAndGetExecutorService());
+      }
+      return executorService;
+   }
+
+   private void replaceThreadPool() {
+      if (remoteExecutor instanceof LazyInitializingBlockingTaskAwareExecutorService) {
+         final Executor executor = channel.getProtocolStack().getTransport().getThreadPool();
+         if (executor instanceof ExecutorService) {
+            ((LazyInitializingBlockingTaskAwareExecutorService) remoteExecutor).replaceThreadPool(new ThreadPoolExecutorFactory<ExecutorService>() {
+               @Override
+               public ExecutorService createExecutor(ThreadFactory factory) {
+                  return (ExecutorService) executor;
+               }
+
+               @Override
+               public void validate() {
+
+               }
+            });
+         }
+      }
+   }
+
+   private void validateThreadPool() {
+      if (channel.getProtocolStack().getTransport().getThreadPool() != extractInnerMostExecutorService(remoteExecutor)) {
+         throw new IllegalStateException("WRONG THREAD POOL");
       }
    }
 

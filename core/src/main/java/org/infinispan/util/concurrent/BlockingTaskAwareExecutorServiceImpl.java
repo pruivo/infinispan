@@ -49,7 +49,8 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
          throw new RejectedExecutionException("Executor Service is already shutdown");
       }
       if (runnable.isReady()) {
-         doExecute(runnable);
+         //doExecute(runnable);
+         runnable.run();
          if (trace) {
             log.tracef("Added a new task directly: %d task(s) are waiting", blockedTasks.size());
          }
