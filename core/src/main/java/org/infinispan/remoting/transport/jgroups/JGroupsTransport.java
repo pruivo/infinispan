@@ -77,6 +77,7 @@ import org.jgroups.jmx.JmxConfigurator;
 import org.jgroups.protocols.relay.SiteMaster;
 import org.jgroups.protocols.tom.TOA;
 import org.jgroups.util.Buffer;
+import org.jgroups.util.DirectExecutor;
 import org.jgroups.util.ExtendedUUID;
 import org.jgroups.util.Rsp;
 
@@ -237,7 +238,6 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
          // the channel was already started externally, we need to initialize our member list
          viewAccepted(channel.getView());
       }
-      validateThreadPool();
       if (log.isInfoEnabled())
          log.localAndPhysicalAddress(clusterName, getAddress(), getPhysicalAddresses());
    }
@@ -380,7 +380,8 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
    private void replaceThreadPool() {
       if (remoteExecutor instanceof LazyInitializingBlockingTaskAwareExecutorService) {
          final Executor executor = channel.getProtocolStack().getTransport().getThreadPool();
-         if (executor instanceof ExecutorService) {
+         if (executor instanceof ExecutorService && !(executor instanceof DirectExecutor)) {
+            log.info("Merging JGroups thread pool with remote-executor thread pool");
             ((LazyInitializingBlockingTaskAwareExecutorService) remoteExecutor).replaceThreadPool(new ThreadPoolExecutorFactory<ExecutorService>() {
                @Override
                public ExecutorService createExecutor(ThreadFactory factory) {
@@ -393,12 +394,6 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
                }
             });
          }
-      }
-   }
-
-   private void validateThreadPool() {
-      if (channel.getProtocolStack().getTransport().getThreadPool() != extractInnerMostExecutorService(remoteExecutor)) {
-         throw new IllegalStateException("WRONG THREAD POOL");
       }
    }
 
