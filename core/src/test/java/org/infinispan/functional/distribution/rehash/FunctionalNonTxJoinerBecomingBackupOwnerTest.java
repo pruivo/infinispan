@@ -11,6 +11,10 @@ import org.testng.annotations.Test;
 @CleanupAfterMethod
 public class FunctionalNonTxJoinerBecomingBackupOwnerTest extends NonTxJoinerBecomingBackupOwnerTest {
 
+   public FunctionalNonTxJoinerBecomingBackupOwnerTest() {
+      this.functionalAPI = true;
+   }
+
    @Override
    protected <A, B> AdvancedCache<A, B> advancedCache(int i) {
       AdvancedCache<A, B> cache = super.advancedCache(i);

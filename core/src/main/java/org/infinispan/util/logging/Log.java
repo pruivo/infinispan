@@ -1459,4 +1459,10 @@ public interface Log extends BasicLogger {
    @Message(value="Duplicate id found! AdvancedExternalizer id=%d is shared by another externalizer (%s)", id = 423)
    CacheConfigurationException duplicateExternalizerIdFound(int externalizerId, String otherExternalizer);
 
+
+   @Message(value = "Timeout after %s waiting for acks. Missing acks are %s", id = 424)
+   TimeoutException timeoutWaitingForAcks(String timeout, String missingAcks);
+
+   @Message(value = "Timeout after %s waiting for acks", id = 425)
+   TimeoutException timeoutWaitingForAcks(String timeout);
 }

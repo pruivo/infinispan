@@ -12,7 +12,6 @@ import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.test.MultipleCacheManagersTest;
 import org.infinispan.test.TestingUtil;
-import org.infinispan.test.fwk.InCacheMode;
 import org.infinispan.tx.dld.ControlledRpcManager;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
@@ -32,7 +31,6 @@ import org.testng.annotations.Test;
  * @since 6.0
  */
 @Test(groups = "functional", testName = "api.NonTxCacheTest")
-@InCacheMode({ CacheMode.DIST_SYNC, CacheMode.REPL_SYNC })
 public class NonTxCacheTest extends MultipleCacheManagersTest {
 
    /**
@@ -58,7 +56,7 @@ public class NonTxCacheTest extends MultipleCacheManagersTest {
 
    @Override
    protected void createCacheManagers() throws Throwable {
-      ConfigurationBuilder builder = getDefaultClusteredCacheConfig(cacheMode, false);
+      ConfigurationBuilder builder = getDefaultClusteredCacheConfig(CacheMode.REPL_SYNC, false);
       builder.clustering().hash()
             .numSegments(60);
       createClusteredCaches(2, builder);
@@ -106,13 +104,13 @@ public class NonTxCacheTest extends MultipleCacheManagersTest {
       return controlledRpcManager;
    }
 
-   private static enum Operation {
+   private enum Operation {
       PUT(PutKeyValueCommand.class),
       REMOVE(RemoveCommand.class),
       REPLACE(ReplaceCommand.class);
       private final Class<?> classToBlock;
 
-      private Operation(Class<?> classToBlock) {
+      Operation(Class<?> classToBlock) {
          this.classToBlock = classToBlock;
       }
 

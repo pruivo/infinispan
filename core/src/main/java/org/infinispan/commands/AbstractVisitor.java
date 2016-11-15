@@ -25,6 +25,7 @@ import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
 import org.infinispan.commands.write.ApplyDeltaCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.EvictCommand;
 import org.infinispan.commands.write.InvalidateCommand;
@@ -79,6 +80,11 @@ public abstract class AbstractVisitor implements Visitor {
 
    @Override
    public Object visitApplyDeltaCommand(InvocationContext ctx, ApplyDeltaCommand command) throws Throwable {
+      return handleDefault(ctx, command);
+   }
+
+   @Override
+   public Object visitBackupWriteCommand(InvocationContext ctx, BackupWriteCommand command) throws Throwable {
       return handleDefault(ctx, command);
    }
 

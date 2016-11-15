@@ -29,6 +29,11 @@ public class FunctionalNonTxBackupOwnerBecomingPrimaryOwnerTest extends NonTxBac
 
    // TODO: Add more tests, e.g. read-write key operation
 
+
+   public FunctionalNonTxBackupOwnerBecomingPrimaryOwnerTest() {
+      this.functionalAPI = true;
+   }
+
    <K, V> WriteOnlyMap<K, V> wo(int i) {
       FunctionalMapImpl<K, V> impl = FunctionalMapImpl.create(advancedCache(i));
       return WriteOnlyMapImpl.create(impl);

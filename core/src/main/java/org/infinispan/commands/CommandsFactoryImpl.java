@@ -56,10 +56,16 @@ import org.infinispan.commands.tx.totalorder.TotalOrderRollbackCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderVersionedCommitCommand;
 import org.infinispan.commands.tx.totalorder.TotalOrderVersionedPrepareCommand;
 import org.infinispan.commands.write.ApplyDeltaCommand;
+import org.infinispan.commands.write.BackupAckCommand;
+import org.infinispan.commands.write.BackupPutMapAckCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.EvictCommand;
+import org.infinispan.commands.write.ExceptionAckCommand;
 import org.infinispan.commands.write.InvalidateCommand;
 import org.infinispan.commands.write.InvalidateL1Command;
+import org.infinispan.commands.write.PrimaryAckCommand;
+import org.infinispan.commands.write.PrimaryPutMapAckCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
@@ -111,6 +117,7 @@ import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.transaction.xa.recovery.RecoveryManager;
 import org.infinispan.util.ByteString;
 import org.infinispan.util.TimeService;
+import org.infinispan.util.concurrent.CommandAckCollector;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -163,6 +170,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
    private ClusterStreamManager clusterStreamManager;
    private ClusteringDependentLogic clusteringDependentLogic;
    private TimeService timeService;
+   private CommandAckCollector commandAckCollector;
 
    private Map<Byte, ModuleCommandInitializer> moduleCommandInitializers;
    private StreamingMarshaller marshaller;
@@ -179,7 +187,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
                                  XSiteStateTransferManager xSiteStateTransferManager,
                                  GroupManager groupManager, PartitionHandlingManager partitionHandlingManager,
                                  LocalStreamManager localStreamManager, ClusterStreamManager clusterStreamManager,
-                                 ClusteringDependentLogic clusteringDependentLogic, StreamingMarshaller marshaller) {
+                                 ClusteringDependentLogic clusteringDependentLogic, StreamingMarshaller marshaller,
+                                 CommandAckCollector commandAckCollector) {
       this.dataContainer = container;
       this.notifier = notifier;
       this.cache = cache;
@@ -206,6 +215,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
       this.clusteringDependentLogic = clusteringDependentLogic;
       this.timeService = timeService;
       this.marshaller = marshaller;
+      this.commandAckCollector = commandAckCollector;
    }
 
    @Start(priority = 1)
@@ -244,7 +254,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
    @Override
    public RemoveExpiredCommand buildRemoveExpiredCommand(Object key, Object value, Long lifespan) {
       return new RemoveExpiredCommand(key, value, lifespan, notifier, configuration.dataContainer().valueEquivalence(),
-              timeService, generateUUID());
+                                      generateUUID());
    }
 
    @Override
@@ -499,6 +509,26 @@ public class CommandsFactoryImpl implements CommandsFactory {
             RemoveExpiredCommand removeExpiredCommand = (RemoveExpiredCommand) c;
             removeExpiredCommand.init(notifier, configuration);
             break;
+         case BackupAckCommand.COMMAND_ID:
+            BackupAckCommand command = (BackupAckCommand) c;
+            command.setCommandAckCollector(commandAckCollector);
+            break;
+         case BackupWriteCommand.COMMAND_ID:
+            BackupWriteCommand bwc = (BackupWriteCommand) c;
+            bwc.setNotifier(notifier);
+            break;
+         case PrimaryAckCommand.COMMAND_ID:
+            ((PrimaryAckCommand) c).setCommandAckCollector(commandAckCollector);
+            break;
+         case BackupPutMapAckCommand.COMMAND_ID:
+            ((BackupPutMapAckCommand) c).setCommandAckCollector(commandAckCollector);
+            break;
+         case PrimaryPutMapAckCommand.COMMAND_ID:
+            ((PrimaryPutMapAckCommand) c).setCommandAckCollector(commandAckCollector);
+            break;
+         case ExceptionAckCommand.COMMAND_ID:
+            ((ExceptionAckCommand) c).setCommandAckCollector(commandAckCollector);
+            break;
          default:
             ModuleCommandInitializer mci = moduleCommandInitializers.get(c.getCommandId());
             if (mci != null) {
@@ -703,6 +733,31 @@ public class CommandsFactoryImpl implements CommandsFactory {
    public <K, V> WriteOnlyManyEntriesCommand<K, V> buildWriteOnlyManyEntriesCommand(
          Map<? extends K, ? extends V> entries, BiConsumer<V, WriteEntryView<V>> f, Params params) {
       return new WriteOnlyManyEntriesCommand<>(entries, f, params);
+   }
+
+   @Override
+   public BackupAckCommand buildBackupAckCommand(CommandInvocationId id, int topologyId) {
+      return new BackupAckCommand(cacheName, id, topologyId);
+   }
+
+   @Override
+   public PrimaryAckCommand buildPrimaryAckCommand() {
+      return new PrimaryAckCommand(cacheName);
+   }
+
+   @Override
+   public BackupPutMapAckCommand buildBackupPutMapAckCommand(CommandInvocationId id, Collection<Integer> segments, int topologyId) {
+      return new BackupPutMapAckCommand(cacheName, id, segments, topologyId);
+   }
+
+   @Override
+   public PrimaryPutMapAckCommand buildPrimaryPutMapAckCommand(CommandInvocationId id, int topologyId) {
+      return new PrimaryPutMapAckCommand(cacheName, id, topologyId);
+   }
+
+   @Override
+   public ExceptionAckCommand buildExceptionAckCommand(CommandInvocationId id, Throwable throwable, int topologyId) {
+      return new ExceptionAckCommand(cacheName, id, throwable, topologyId);
    }
 
    private ValueMatcher getValueMatcher(Object o) {
