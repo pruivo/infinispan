@@ -2,6 +2,7 @@ package org.infinispan.test;
 
 import static java.io.File.separator;
 import static org.infinispan.commons.api.BasicCacheContainer.DEFAULT_CACHE_NAME;
+import static org.infinispan.distribution.DistributionTestHelper.isFirstOwner;
 import static org.infinispan.persistence.manager.PersistenceManager.AccessMode.BOTH;
 import static org.testng.AssertJUnit.assertFalse;
 import static org.testng.AssertJUnit.fail;
@@ -55,7 +56,9 @@ import org.infinispan.cache.impl.AbstractDelegatingCache;
 import org.infinispan.cache.impl.CacheImpl;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.VisitableCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commons.marshall.StreamingMarshaller;
+import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -1598,6 +1601,14 @@ public class TestingUtil {
 
       if (!leakedThreads.isEmpty())
          throw new AssertionError("Leaked threads: " + leakedThreads);
+   }
+
+   public static boolean isTriangleAlgorithm(CacheMode cacheMode, boolean transactional) {
+      return cacheMode.isDistributed() && !transactional;
+   }
+
+   public static Class<? extends VisitableCommand> triangleWrite(Class<? extends VisitableCommand> commandClass, Cache<?, ?> onCache, Object key) {
+      return isFirstOwner(onCache, key) ? commandClass : BackupWriteCommand.class;
    }
 
 }

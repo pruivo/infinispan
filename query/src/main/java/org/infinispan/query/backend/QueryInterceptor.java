@@ -18,7 +18,9 @@ import org.hibernate.search.backend.spi.Worker;
 import org.hibernate.search.spi.SearchIntegrator;
 import org.infinispan.Cache;
 import org.infinispan.commands.FlagAffectedCommand;
+import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.tx.PrepareCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
@@ -346,6 +348,11 @@ public final class QueryInterceptor extends DDAsyncInterceptor {
       });
    }
 
+   @Override
+   public Object visitBackupWriteCommand(InvocationContext ctx, BackupWriteCommand command) throws Throwable {
+      return invokeNext(ctx, command).thenAccept(this::processBackupWriteCommand);
+   }
+
    private Map<Object, Object> getPreviousValues(Set<Object> keySet) {
       HashMap<Object, Object> previousValues = new HashMap<>();
       for (Object key : keySet) {
@@ -465,6 +472,45 @@ public final class QueryInterceptor extends DDAsyncInterceptor {
             transactionContext = transactionContext == null ? makeTransactionalEventContext() : transactionContext;
             updateIndexes(usingSkipIndexCleanupFlag, value, extractValue(key), transactionContext);
          }
+      }
+   }
+
+   private void processBackupWriteCommand(final InvocationContext rCtx, final VisitableCommand rCommand, final Object rv) {
+      BackupWriteCommand cmd = (BackupWriteCommand) rCommand;
+      if (cmd.isRemove()) {
+         processRemoveBackupWriteCommand(cmd, rCtx, rv);
+      } else {
+         processUpdateBackupWriteCommand(cmd, rCtx, rv);
+      }
+   }
+
+   private void processUpdateBackupWriteCommand(final BackupWriteCommand command, final InvocationContext ctx, final Object previousValue) {
+      final Object key = command.getKey();
+      if (!shouldModifyIndexes(command, ctx, key)) {
+         return;
+      }
+      final boolean usingSkipIndexCleanupFlag = usingSkipIndexCleanup(command);
+      //whatever the new type, we might still need to cleanup for the previous value (and schedule removal first!)
+      Object value = extractValue(command.getValue());
+
+      if (!usingSkipIndexCleanupFlag && updateKnownTypesIfNeeded(previousValue) && shouldRemove(value, previousValue)) {
+         removeFromIndexes(previousValue, extractValue(key), makeTransactionalEventContext());
+      }
+      if (updateKnownTypesIfNeeded(value)) {
+         // This means that the entry is just modified so we need to update the indexes and not add to them.
+         updateIndexes(usingSkipIndexCleanupFlag, value, extractValue(key), makeTransactionalEventContext());
+      }
+   }
+
+   private void processRemoveBackupWriteCommand(final BackupWriteCommand command, final InvocationContext ctx, final Object previousValue) {
+      if (command.isNonExistent()) {
+         //value doesn't exists. nothing to update.
+         return;
+      }
+      final Object key = extractValue(command.getKey());
+      final Object value = extractValue(previousValue);
+      if (shouldModifyIndexes(command, ctx, key) && updateKnownTypesIfNeeded(value)) {
+         removeFromIndexes(value, key, makeTransactionalEventContext());
       }
    }
 

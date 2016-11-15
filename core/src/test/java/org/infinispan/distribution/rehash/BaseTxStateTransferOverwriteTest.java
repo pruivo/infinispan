@@ -22,6 +22,7 @@ import org.infinispan.AdvancedCache;
 import org.infinispan.Cache;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.tx.PrepareCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.distribution.BaseDistFunctionalTest;
 import org.infinispan.distribution.BlockingInterceptor;
 import org.infinispan.distribution.MagicKey;
@@ -356,7 +357,10 @@ public abstract class BaseTxStateTransferOverwriteTest extends BaseDistFunctiona
       // Every PutKeyValueCommand will be blocked before committing the entry on cache1
       CyclicBarrier beforeCommitCache1Barrier = new CyclicBarrier(2);
       BlockingInterceptor blockingInterceptor1 = new BlockingInterceptor(beforeCommitCache1Barrier,
-                                                                         op.getCommandClass(), true, false);
+                                                                         isTriangle() ?
+                                                                               BackupWriteCommand.class :
+                                                                               op.getCommandClass(),
+                                                                         true, false);
       nonOwnerCache.getAsyncInterceptorChain().addInterceptorAfter(blockingInterceptor1, EntryWrappingInterceptor.class);
 
       // Put/Replace/Remove from cache0 with cache0 as primary owner, cache1 will become a backup owner for the retry

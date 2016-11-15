@@ -7,6 +7,7 @@ import static org.infinispan.persistence.manager.PersistenceManager.AccessMode.P
 import java.util.Map;
 
 import org.infinispan.commands.FlagAffectedCommand;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
@@ -20,6 +21,8 @@ import org.infinispan.interceptors.BasicInvocationStage;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
+import org.infinispan.statetransfer.OutdatedTopologyException;
+import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -43,6 +46,7 @@ public class DistCacheWriterInterceptor extends CacheWriterInterceptor {
    private DistributionManager dm;
    private Transport transport;
    private Address address;
+   private StateTransferManager stateTransferManager;
 
    private static final Log log = LogFactory.getLog(DistCacheWriterInterceptor.class);
    private boolean isUsingLockDelegation;
@@ -54,10 +58,11 @@ public class DistCacheWriterInterceptor extends CacheWriterInterceptor {
    }
 
    @Inject
-   public void inject(DistributionManager dm, Transport transport, ClusteringDependentLogic cdl) {
+   public void inject(DistributionManager dm, Transport transport, ClusteringDependentLogic cdl, StateTransferManager stateTransferManager) {
       this.dm = dm;
       this.transport = transport;
       this.cdl = cdl;
+      this.stateTransferManager = stateTransferManager;
    }
 
    @Start(priority = 25) // after the distribution manager!
@@ -80,6 +85,26 @@ public class DistCacheWriterInterceptor extends CacheWriterInterceptor {
             return rv;
 
          storeEntry(rCtx, key, putKeyValueCommand);
+         if (getStatisticsEnabled())
+            cacheStores.incrementAndGet();
+         return rv;
+      });
+   }
+
+   @Override
+   public Object visitBackupWriteCommand(InvocationContext ctx, BackupWriteCommand command) throws Throwable {
+      return invokeNext(ctx, command).thenApply((rCtx, rCommand, rv) -> {
+         BackupWriteCommand backupWriteCommand = (BackupWriteCommand) rCommand;
+         if (!isStoreEnabled(backupWriteCommand))
+            return rv;
+
+         //no need to check for proper write. we are remote, in a backup owner.
+         checkTopologyId(backupWriteCommand.getTopologyId());
+         if (backupWriteCommand.isRemove()) {
+            removeEntry(rCtx, backupWriteCommand.getKey(), backupWriteCommand);
+         } else {
+            storeEntry(rCtx, backupWriteCommand.getKey(), backupWriteCommand);
+         }
          if (getStatisticsEnabled())
             cacheStores.incrementAndGet();
          return rv;
@@ -123,11 +148,7 @@ public class DistCacheWriterInterceptor extends CacheWriterInterceptor {
             return rv;
          if (!isProperWriter(rCtx, removeCommand, key))
             return rv;
-
-         boolean resp = persistenceManager
-               .deleteFromAllStores(key, skipSharedStores(rCtx, key, removeCommand) ? PRIVATE : BOTH);
-         log.tracef("Removed entry under key %s and got response %s from CacheStore", key, resp);
-
+         removeEntry(rCtx, key, removeCommand);
          return rv;
       });
    }
@@ -175,5 +196,16 @@ public class DistCacheWriterInterceptor extends CacheWriterInterceptor {
          return false;
       }
       return true;
+   }
+
+   private void removeEntry(InvocationContext ctx, Object key, FlagAffectedCommand command) {
+      boolean resp = persistenceManager.deleteFromAllStores(key, skipSharedStores(ctx, key, command) ? PRIVATE : BOTH);
+      log.tracef("Removed entry under key %s and got response %s from CacheStore", key, resp);
+   }
+
+   private void checkTopologyId(int commandTopologyId) {
+      if (commandTopologyId != -1 && commandTopologyId != stateTransferManager.getCacheTopology().getTopologyId()) {
+         throw OutdatedTopologyException.getCachedInstance();
+      }
    }
 }

@@ -16,6 +16,7 @@ import javax.transaction.TransactionManager;
 
 import org.infinispan.AdvancedCache;
 import org.infinispan.Cache;
+import org.infinispan.commands.write.BackupWriteCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commons.util.Util;
 import org.infinispan.configuration.cache.CacheMode;
@@ -398,7 +399,7 @@ public class XMLConfigurationOverridingTest extends AbstractInfinispanTest imple
                MagicKey key = new MagicKey("key1", cache1);
                String value = "value1";
 
-               replList2.expect(PutKeyValueCommand.class);
+               replList2.expect(BackupWriteCommand.class);
                cache1.put(key, value);
 
                // allow for replication
