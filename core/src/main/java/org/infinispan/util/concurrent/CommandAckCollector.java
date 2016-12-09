@@ -1,5 +1,21 @@
 package org.infinispan.util.concurrent;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+
 import org.infinispan.commands.CommandInvocationId;
 import org.infinispan.commons.util.Util;
 import org.infinispan.configuration.cache.Configuration;
@@ -10,20 +26,6 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.OutdatedTopologyException;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * An acknowledge collector for Triangle algorithm used in non-transactional caches for write operations.
@@ -220,13 +222,7 @@ public class CommandAckCollector {
       if (trace) {
          log.tracef("[Collector#%s] Waiting for acks asynchronously.", id);
       }
-      CompletableFuture<T> future = collector.getFuture();
-      if (future.isDone()) {
-         collectorMap.remove(id);
-         return future;
-      }
-      ScheduledFuture<?> timeoutFuture = addTimeoutCheck(future);
-      return future.whenComplete((t, throwable) -> cleanup(timeoutFuture, id));
+      return collector.addCleanupTasksAndGetFuture();
    }
 
    /**
@@ -270,67 +266,46 @@ public class CommandAckCollector {
       collectorMap.remove(id);
    }
 
-   private void cleanup(ScheduledFuture<?> timeoutFuture, CommandInvocationId id) {
-      timeoutFuture.cancel(false);
-      collectorMap.remove(id);
-   }
-
-   private ScheduledFuture<?> addTimeoutCheck(CompletableFuture<?> future) {
-      return timeoutExecutor.schedule(
-            () -> future.completeExceptionally(createTimeoutException()),
-            timeoutNanoSeconds,
-            TimeUnit.NANOSECONDS);
-   }
-
    private TimeoutException createTimeoutException() {
       return log.timeoutWaitingForAcks(Util.prettyPrintTime(timeoutNanoSeconds, TimeUnit.NANOSECONDS));
    }
 
-   private interface Collector<T> {
-      void completeExceptionally(Throwable throwable, int topologyId);
+   private abstract class Collector<T> implements Callable<Void>, BiConsumer<T, Throwable> {
 
-      boolean hasPendingBackupAcks();
+      protected final CommandInvocationId id;
+      protected final CompletableFuture<T> future;
+      protected final int topologyId;
+      private volatile ScheduledFuture<?> timeoutTask;
 
-      CompletableFuture<T> getFuture();
-
-      void onMembersChange(Collection<Address> members);
-   }
-
-   private static class SingleKeyCollector implements Collector<Object> {
-      private final CommandInvocationId id;
-      private final CompletableFuture<Object> future;
-      private final Collection<Address> owners;
-      private final Address primaryOwner;
-      private final int topologyId;
-      private Object returnValue;
-
-      private SingleKeyCollector(CommandInvocationId id, Collection<Address> owners, int topologyId) {
+      protected Collector(CommandInvocationId id, int topologyId) {
          this.id = id;
-         this.primaryOwner = owners.iterator().next();
          this.topologyId = topologyId;
          this.future = new CompletableFuture<>();
-         this.owners = new HashSet<>(owners); //removal is fast
       }
 
-      private SingleKeyCollector(CommandInvocationId id, Object returnValue, Collection<Address> owners,
-            int topologyId) {
-         this.id = id;
-         this.returnValue = returnValue;
-         this.primaryOwner = owners.iterator().next();
-         this.topologyId = topologyId;
-         Collection<Address> tmpOwners = new HashSet<>(owners);
-         tmpOwners.remove(primaryOwner);
-         if (tmpOwners.isEmpty()) { //num owners is 1 or single member in cluster
-            this.owners = Collections.emptyList();
-            this.future = CompletableFuture.completedFuture(returnValue);
-         } else {
-            this.future = new CompletableFuture<>();
-            this.owners = tmpOwners;
-         }
-      }
-
+      /**
+       * Invoked by the timeout executor when the timeout expires.
+       * <p>
+       * It completes the future with the timeout exception.
+       */
       @Override
-      public synchronized void completeExceptionally(Throwable throwable, int topologyId) {
+      public final synchronized Void call() throws Exception {
+         doCompleteExceptionally(createTimeoutException());
+         return null;
+      }
+
+      /**
+       * Invoked when the future is completed, it must cleanup all task related to this collector.
+       * <p>
+       * The tasks includes removing the collector from the map and cancel the timeout task.
+       */
+      @Override
+      public final void accept(T t, Throwable throwable) {
+         collectorMap.remove(id);
+         timeoutTask.cancel(false);
+      }
+
+      synchronized final void completeExceptionally(Throwable throwable, int topologyId) {
          if (trace) {
             log.tracef(throwable, "[Collector#%s] completed exceptionally. TopologyId=%s (expected=%s)",
                   id, topologyId, this.topologyId);
@@ -341,16 +316,57 @@ public class CommandAckCollector {
          doCompleteExceptionally(throwable);
       }
 
+      abstract boolean hasPendingBackupAcks();
+
+      final CompletableFuture<T> getFuture() {
+         return future;
+      }
+
+      abstract void onMembersChange(Collection<Address> members);
+
+      abstract void doCompleteExceptionally(Throwable throwable);
+
+      final CompletableFuture<T> addCleanupTasksAndGetFuture() {
+         if (future.isDone()) {
+            collectorMap.remove(id);
+            return future;
+         }
+         this.timeoutTask = timeoutExecutor.schedule(this, timeoutNanoSeconds, TimeUnit.NANOSECONDS);
+         return future.whenComplete(this);
+      }
+   }
+
+   private class SingleKeyCollector extends Collector<Object> {
+      private final Collection<Address> owners;
+      private final Address primaryOwner;
+      private Object returnValue;
+
+      private SingleKeyCollector(CommandInvocationId id, Collection<Address> owners, int topologyId) {
+         super(id, topologyId);
+         this.primaryOwner = owners.iterator().next();
+         this.owners = new HashSet<>(owners); //removal is fast
+      }
+
+      private SingleKeyCollector(CommandInvocationId id, Object returnValue, Collection<Address> owners,
+            int topologyId) {
+         super(id, topologyId);
+         this.returnValue = returnValue;
+         this.primaryOwner = owners.iterator().next();
+         Collection<Address> tmpOwners = new HashSet<>(owners);
+         tmpOwners.remove(primaryOwner);
+         if (tmpOwners.isEmpty()) { //num owners is 1 or single member in cluster
+            this.owners = Collections.emptyList();
+            this.future.complete(returnValue);
+         } else {
+            this.owners = tmpOwners;
+         }
+      }
+
       @Override
       public synchronized boolean hasPendingBackupAcks() {
          return owners.size() > 1 || //at least one backup + primary address
                //if one is missing, make sure that it isn't the primary
                owners.size() == 1 && !primaryOwner.equals(owners.iterator().next());
-      }
-
-      @Override
-      public CompletableFuture<Object> getFuture() {
-         return future;
       }
 
       @Override
@@ -403,56 +419,35 @@ public class CommandAckCollector {
          }
       }
 
+      void doCompleteExceptionally(Throwable throwable) {
+         owners.clear();
+         future.completeExceptionally(throwable);
+      }
+
       private void markReady() {
          if (trace) {
             log.tracef("[Collector#%s] Ready! Return value=%ss.", id, returnValue);
          }
          future.complete(returnValue);
       }
-
-      private void doCompleteExceptionally(Throwable throwable) {
-         owners.clear();
-         future.completeExceptionally(throwable);
-      }
    }
 
-   private static class MultiKeyCollector implements Collector<Map<Object, Object>> {
-      private final CommandInvocationId id;
+   private class MultiKeyCollector extends Collector<Map<Object, Object>> {
       private final Collection<Address> primary;
       private final Map<Address, Collection<Integer>> backups;
-      private final CompletableFuture<Map<Object, Object>> future;
-      private final int topologyId;
       private Map<Object, Object> returnValue;
 
       MultiKeyCollector(CommandInvocationId id, Collection<Address> primary, Map<Address, Collection<Integer>> backups,
             int topologyId) {
-         this.id = id;
-         this.topologyId = topologyId;
+         super(id, topologyId);
          this.returnValue = null;
          this.backups = backups;
          this.primary = new HashSet<>(primary);
-         future = new CompletableFuture<>();
-      }
-
-      public synchronized void completeExceptionally(Throwable throwable, int topologyId) {
-         if (trace) {
-            log.tracef(throwable, "[Collector#%s] completed exceptionally. TopologyId=%s (expected=%s)",
-                  id, topologyId, this.topologyId);
-         }
-         if (this.topologyId != topologyId) {
-            return;
-         }
-         doCompleteExceptionally(throwable);
       }
 
       @Override
       public synchronized boolean hasPendingBackupAcks() {
          return !backups.isEmpty();
-      }
-
-      @Override
-      public CompletableFuture<Map<Object, Object>> getFuture() {
-         return future;
       }
 
       @Override
@@ -505,6 +500,13 @@ public class CommandAckCollector {
          }
       }
 
+      void doCompleteExceptionally(Throwable throwable) {
+         returnValue = null;
+         primary.clear();
+         backups.clear();
+         future.completeExceptionally(throwable);
+      }
+
       private void checkCompleted() {
          if (primary.isEmpty() && backups.isEmpty()) {
             if (trace) {
@@ -513,14 +515,5 @@ public class CommandAckCollector {
             future.complete(returnValue);
          }
       }
-
-      private void doCompleteExceptionally(Throwable throwable) {
-         returnValue = null;
-         primary.clear();
-         backups.clear();
-         future.completeExceptionally(throwable);
-      }
-
-
    }
 }
