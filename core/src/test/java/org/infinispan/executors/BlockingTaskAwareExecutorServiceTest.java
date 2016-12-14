@@ -1,5 +1,9 @@
 package org.infinispan.executors;
 
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertFalse;
+import static org.testng.AssertJUnit.assertTrue;
+
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -27,20 +31,19 @@ public class BlockingTaskAwareExecutorServiceTest extends AbstractInfinispanTest
    private static final AtomicInteger THREAD_ID = new AtomicInteger(0);
 
    public void testSimpleExecution() throws Exception {
-      BlockingTaskAwareExecutorService executorService = createExecutorService();
+      BlockingTaskAwareExecutorService executorService = createExecutorService(false);
       try {
          final DoSomething doSomething = new DoSomething();
          executorService.execute(doSomething);
 
          Thread.sleep(100);
 
-         assert !doSomething.isReady();
-         assert !doSomething.isExecuted();
+         assertFalse(doSomething.isReady());
+         assertFalse(doSomething.isExecuted());
 
          doSomething.markReady();
+         assertTrue(doSomething.isReady());
          executorService.checkForReadyTasks();
-
-         assert doSomething.isReady();
 
          eventually(doSomething::isExecuted);
       } finally {
@@ -49,7 +52,7 @@ public class BlockingTaskAwareExecutorServiceTest extends AbstractInfinispanTest
    }
 
    public void testMultipleExecutions() throws Exception {
-      BlockingTaskAwareExecutorServiceImpl executorService = createExecutorService();
+      BlockingTaskAwareExecutorServiceImpl executorService = createExecutorService(false);
       try {
          List<DoSomething> tasks = new LinkedList<>();
 
@@ -76,11 +79,18 @@ public class BlockingTaskAwareExecutorServiceTest extends AbstractInfinispanTest
       }
    }
 
-   private BlockingTaskAwareExecutorServiceImpl createExecutorService() {
+   public void testExecuteOnSubmitThread() {
+      BlockingTaskAwareExecutorService executorService = createExecutorService(true);
+      DoOtherThing doOtherThing = new DoOtherThing();
+      executorService.submit(doOtherThing);
+      assertEquals(Thread.currentThread(), doOtherThing.executionThread);
+   }
+
+   private BlockingTaskAwareExecutorServiceImpl createExecutorService(boolean executeOnSubmitThread) {
       final String controllerName = "Controller-" + getClass().getSimpleName();
       final ExecutorService realOne = new ThreadPoolExecutor(1, 2, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(),
-                                                             new DummyThreadFactory());
-      return new BlockingTaskAwareExecutorServiceImpl(controllerName, realOne, TIME_SERVICE);
+            new DummyThreadFactory());
+      return new BlockingTaskAwareExecutorServiceImpl(controllerName, realOne, TIME_SERVICE, executeOnSubmitThread);
    }
 
    public static class DummyThreadFactory implements ThreadFactory {
@@ -88,6 +98,21 @@ public class BlockingTaskAwareExecutorServiceTest extends AbstractInfinispanTest
       @Override
       public Thread newThread(Runnable runnable) {
          return new Thread(runnable, "Remote-" + getClass().getSimpleName() + "-" + THREAD_ID.incrementAndGet());
+      }
+   }
+
+   public static class DoOtherThing implements BlockingRunnable {
+
+      private volatile Thread executionThread;
+
+      @Override
+      public boolean isReady() {
+         return true;
+      }
+
+      @Override
+      public void run() {
+         executionThread = Thread.currentThread();
       }
    }
 
@@ -106,11 +131,11 @@ public class BlockingTaskAwareExecutorServiceTest extends AbstractInfinispanTest
          executed = true;
       }
 
-      public synchronized final void markReady() {
+      synchronized final void markReady() {
          ready = true;
       }
 
-      public synchronized final boolean isExecuted() {
+      synchronized final boolean isExecuted() {
          return executed;
       }
    }

@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.infinispan.commons.executors.ThreadPoolExecutorFactory;
+import org.infinispan.remoting.transport.jgroups.MergeJGroupsThreadPoolExecutorFactory;
 import org.infinispan.util.TimeService;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
@@ -78,10 +79,7 @@ public final class LazyInitializingBlockingTaskAwareExecutorService implements B
 
    @Override
    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-      if (delegate == null)
-         return true;
-      else
-         return delegate.awaitTermination(timeout, unit);
+      return delegate == null || delegate.awaitTermination(timeout, unit);
    }
 
    @Override
@@ -142,7 +140,7 @@ public final class LazyInitializingBlockingTaskAwareExecutorService implements B
             if (delegate == null) {
                delegate = new BlockingTaskAwareExecutorServiceImpl(controllerThreadName ,
                                                                    executorFactory.createExecutor(threadFactory),
-                                                                   timeService);
+                                                                   timeService, executorFactory instanceof MergeJGroupsThreadPoolExecutorFactory);
             }
          }
       }

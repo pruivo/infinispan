@@ -57,7 +57,7 @@ public class ExceptionInCommandTest extends MultipleCacheManagersTest {
    private static class MyDelta implements Delta , Serializable, ExternalPojo {
       public DeltaAware merge(DeltaAware d) {
          String threadName = Thread.currentThread().getName();
-         if (threadName.contains("OOB-") || threadName.contains("remote-"))
+         if (threadName.contains("OOB-") || threadName.contains("remote-") || threadName.contains("jgroups-"))
             throw new RuntimeException("Induced!");
          return new AtomicHashMap();
       }

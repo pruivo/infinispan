@@ -82,7 +82,7 @@ public class AsynchronousInvocationTest extends AbstractInfinispanTest {
    public void setUp() throws Throwable {
       executorService = new DummyTaskCountExecutorService();
       final BlockingTaskAwareExecutorService remoteExecutorService = new BlockingTaskAwareExecutorServiceImpl("AsynchronousInvocationTest-Controller", executorService,
-                                                                                                              TIME_SERVICE);
+                                                                                                              TIME_SERVICE,false);
       ConfigurationBuilder builder = getDefaultCacheConfiguration(false);
       builder.clustering().cacheMode(CacheMode.DIST_SYNC);
       cacheManager = createClusteredCacheManager(builder);

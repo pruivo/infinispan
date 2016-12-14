@@ -180,7 +180,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
                           CacheManagerNotifier notifier, GlobalComponentRegistry gcr,
                           TimeService timeService, InboundInvocationHandler globalHandler,
                           @ComponentName(KnownComponentNames.TIMEOUT_SCHEDULE_EXECUTOR) ScheduledExecutorService timeoutExecutor,
-                          @ComponentName(KnownComponentNames.REMOTE_COMMAND_EXECUTOR) ExecutorService remoteExecutor) {
+                          @ComponentName(KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR) ExecutorService remoteExecutor) {
       this.marshaller = marshaller;
       this.notifier = notifier;
       this.gcr = gcr;

@@ -56,7 +56,7 @@ public abstract class BaseStateTransferInterceptor extends DDAsyncInterceptor {
    public void init(StateTransferLock stateTransferLock, Configuration configuration,
                     StateTransferManager stateTransferManager, GroupManager groupManager,
                     @ComponentName(KnownComponentNames.TIMEOUT_SCHEDULE_EXECUTOR) ScheduledExecutorService timeoutExecutor,
-                    @ComponentName(KnownComponentNames.REMOTE_COMMAND_EXECUTOR) Executor remoteExecutor) {
+                    @ComponentName(KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR) Executor remoteExecutor) {
       this.stateTransferLock = stateTransferLock;
       this.stateTransferManager = stateTransferManager;
       this.groupManager = groupManager;

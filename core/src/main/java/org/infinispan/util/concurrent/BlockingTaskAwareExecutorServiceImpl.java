@@ -24,7 +24,8 @@ import org.infinispan.util.logging.LogFactory;
  * @author Pedro Ruivo
  * @since 5.3
  */
-public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorService implements BlockingTaskAwareExecutorService {
+public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorService implements
+      BlockingTaskAwareExecutorService {
 
    private static final Log log = LogFactory.getLog(BlockingTaskAwareExecutorServiceImpl.class);
    private static final boolean trace = log.isTraceEnabled();
@@ -32,9 +33,12 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
    private final ExecutorService executorService;
    private final TimeService timeService;
    private final ControllerThread controllerThread;
+   private final boolean executeOnSubmitThread;
    private volatile boolean shutdown;
 
-   public BlockingTaskAwareExecutorServiceImpl(String controllerThreadName, ExecutorService executorService, TimeService timeService) {
+   public BlockingTaskAwareExecutorServiceImpl(String controllerThreadName, ExecutorService executorService,
+         TimeService timeService, boolean executeOnSubmitThread) {
+      this.executeOnSubmitThread = executeOnSubmitThread;
       this.blockedTasks = new ConcurrentLinkedQueue<>();
       this.executorService = executorService;
       this.timeService = timeService;
@@ -49,6 +53,13 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
          throw new RejectedExecutionException("Executor Service is already shutdown");
       }
       if (runnable.isReady()) {
+         if (executeOnSubmitThread) {
+            if (trace) {
+               log.tracef("Executing task directly: %d task(s) are waiting", blockedTasks.size());
+            }
+            runnable.run();
+            return;
+         }
          doExecute(runnable);
          if (trace) {
             log.tracef("Added a new task directly: %d task(s) are waiting", blockedTasks.size());
@@ -68,6 +79,7 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       shutdown = true;
    }
 
+   @SuppressWarnings("NullableProblems")
    @Override
    public List<Runnable> shutdownNow() {
       shutdown = true;
@@ -88,6 +100,7 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       return shutdown && blockedTasks.isEmpty() && executorService.isTerminated();
    }
 
+   @SuppressWarnings("NullableProblems")
    @Override
    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
       final long endTime = timeService.expectedEndTime(timeout, unit);
@@ -104,6 +117,7 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       controllerThread.checkForReadyTask();
    }
 
+   @SuppressWarnings("NullableProblems")
    @Override
    public void execute(Runnable command) {
       if (shutdown) {
@@ -129,18 +143,33 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
       }
    }
 
+   private static class RunnableWrapper implements BlockingRunnable {
+
+      private final Runnable runnable;
+
+      private RunnableWrapper(Runnable runnable) {
+         this.runnable = runnable;
+      }
+
+      @Override
+      public boolean isReady() {
+         return true;
+      }
+
+      @Override
+      public void run() {
+         runnable.run();
+      }
+   }
+
    private class ControllerThread extends Thread {
 
       private final Semaphore semaphore;
       private volatile boolean interrupted;
 
-      public ControllerThread(String controllerThreadName) {
+      private ControllerThread(String controllerThreadName) {
          super(controllerThreadName);
          semaphore = new Semaphore(0);
-      }
-
-      public void checkForReadyTask() {
-         semaphore.release();
       }
 
       @Override
@@ -183,24 +212,9 @@ public class BlockingTaskAwareExecutorServiceImpl extends AbstractExecutorServic
             }
          }
       }
-   }
 
-   private static class RunnableWrapper implements BlockingRunnable {
-
-      private final Runnable runnable;
-
-      private RunnableWrapper(Runnable runnable) {
-         this.runnable = runnable;
-      }
-
-      @Override
-      public boolean isReady() {
-         return true;
-      }
-
-      @Override
-      public void run() {
-         runnable.run();
+      private void checkForReadyTask() {
+         semaphore.release();
       }
    }
 }

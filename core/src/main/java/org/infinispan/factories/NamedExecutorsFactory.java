@@ -28,6 +28,8 @@ import org.infinispan.executors.LazyInitializingScheduledExecutorService;
 import org.infinispan.factories.annotations.DefaultFactoryFor;
 import org.infinispan.factories.annotations.Stop;
 import org.infinispan.factories.threads.DefaultThreadFactory;
+import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
+import org.infinispan.remoting.transport.jgroups.MergeJGroupsThreadPoolExecutorFactory;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 
 /**
@@ -165,10 +167,10 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
                : createThreadFactoryWithDefaults(globalConfiguration, componentName);
          executorFactory = threadPoolConfiguration.threadPoolFactory() != null
                ? threadPoolConfiguration.threadPoolFactory()
-               : createThreadPoolFactoryWithDefaults(componentName, type);
+               : createThreadPoolFactoryWithDefaults(componentName, type, globalConfiguration);
       } else {
          threadFactory = createThreadFactoryWithDefaults(globalConfiguration, componentName);
-         executorFactory = createThreadPoolFactoryWithDefaults(componentName, type);
+         executorFactory = createThreadPoolFactoryWithDefaults(componentName, type, globalConfiguration);
       }
 
       switch (type) {
@@ -191,8 +193,16 @@ public class NamedExecutorsFactory extends NamedComponentFactory implements Auto
             globalCfg.transport().nodeName(), shortened(componentName));
    }
 
-   private ThreadPoolExecutorFactory createThreadPoolFactoryWithDefaults(
-         final String componentName, ExecutorServiceType type) {
+   private ThreadPoolExecutorFactory createThreadPoolFactoryWithDefaults(final String componentName,
+         ExecutorServiceType type, GlobalConfiguration globalConfiguration) {
+      if (REMOTE_COMMAND_EXECUTOR.equals(componentName) && globalConfiguration.transport()
+            .transport() instanceof JGroupsTransport) {
+         int queueSize = KnownComponentNames.getDefaultQueueSize(componentName);
+         int maxThreads = KnownComponentNames.getDefaultThreads(componentName);
+         return new MergeJGroupsThreadPoolExecutorFactory(
+               (JGroupsTransport) globalConfiguration.transport().transport(), queueSize == 0 ? 1 : maxThreads,
+               maxThreads, queueSize, 60000);
+      }
       switch (type) {
          case SCHEDULED:
             return ScheduledThreadPoolExecutorFactory.create();

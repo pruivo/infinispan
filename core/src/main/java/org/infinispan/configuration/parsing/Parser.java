@@ -64,12 +64,14 @@ import org.infinispan.distribution.group.Grouper;
 import org.infinispan.eviction.EvictionStrategy;
 import org.infinispan.eviction.EvictionThreadPolicy;
 import org.infinispan.eviction.EvictionType;
+import org.infinispan.factories.KnownComponentNames;
 import org.infinispan.factories.threads.DefaultThreadFactory;
 import org.infinispan.jmx.MBeanServerLookup;
 import org.infinispan.persistence.cluster.ClusterLoader;
 import org.infinispan.persistence.file.SingleFileStore;
 import org.infinispan.persistence.spi.CacheLoader;
 import org.infinispan.remoting.transport.Transport;
+import org.infinispan.remoting.transport.jgroups.MergeJGroupsThreadPoolExecutorFactory;
 import org.infinispan.security.AuditLogger;
 import org.infinispan.security.PrincipalRoleMapper;
 import org.infinispan.security.impl.ClusterRoleMapper;
@@ -233,6 +235,9 @@ public class Parser implements ConfigurationParser {
             default: {
                throw ParseUtils.unexpectedElement(reader);
             }
+         }
+         if (threadPools.containsKey(MergeJGroupsThreadPoolExecutorFactory.MERGE_THREAD_POOL_NAME)) {
+            ParseUtils.invalidThreadPoolName(reader, MergeJGroupsThreadPoolExecutorFactory.MERGE_THREAD_POOL_NAME);
          }
       }
 
@@ -865,8 +870,7 @@ public class Parser implements ConfigurationParser {
                }
             }
             case REMOTE_COMMAND_EXECUTOR: {
-               globalBuilder.transport().remoteCommandThreadPool().read(
-                     createThreadPoolConfiguration(value, REMOTE_COMMAND_EXECUTOR));
+               createRemoteThreadPoolConfiguration(transport, value);
                break;
             }
             case EVICTION_EXECUTOR:
@@ -1155,6 +1159,20 @@ public class Parser implements ConfigurationParser {
       DefaultThreadFactory threadFactory = threadPoolConfiguration.threadFactory();
       threadFactory.setComponent(shortened(componentName));
       return threadPoolConfiguration;
+   }
+
+   private void createRemoteThreadPoolConfiguration(TransportConfigurationBuilder builder, String threadPoolName) {
+      if (MergeJGroupsThreadPoolExecutorFactory.MERGE_THREAD_POOL_NAME.equals(threadPoolName)) {
+         return;
+      }
+      ThreadPoolConfigurationBuilder threadPool = threadPools.get(threadPoolName);
+      if (threadPool == null)
+         throw log.undefinedThreadPoolName(threadPoolName);
+
+      ThreadPoolConfiguration threadPoolConfiguration = threadPool.create();
+      DefaultThreadFactory threadFactory = threadPoolConfiguration.threadFactory();
+      threadFactory.setComponent(shortened(KnownComponentNames.REMOTE_COMMAND_EXECUTOR));
+      builder.remoteCommandThreadPool().read(threadPoolConfiguration);
    }
 
    private void parseLocalCache(XMLExtendedStreamReader reader, ConfigurationBuilderHolder holder, boolean template) throws XMLStreamException {

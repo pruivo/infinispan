@@ -998,7 +998,7 @@ public class DefaultCacheManager implements EmbeddedCacheManager {
       if (transport != null) {
          long time = getCacheManagerConfiguration().transport().distributedSyncTimeout();
          return new ClusterExecutorImpl(null, this, transport, time, TimeUnit.MILLISECONDS,
-                 globalComponentRegistry.getComponent(ExecutorService.class, KnownComponentNames.REMOTE_COMMAND_EXECUTOR));
+                 globalComponentRegistry.getComponent(ExecutorService.class, KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR));
       } else {
          return new ClusterExecutorImpl(null, this, null, -1, TimeUnit.MILLISECONDS, ForkJoinPool.commonPool());
       }

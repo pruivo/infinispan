@@ -279,4 +279,9 @@ public final class ParseUtils {
    public static String[] getListAttributeValue(String value) {
       return value.split("\\s+");
    }
+
+   public static void invalidThreadPoolName(XMLExtendedStreamReader reader, String threadPoolName)
+         throws XMLStreamException {
+        throw new XMLStreamException(String.format("Invalid thread pool name: %s", threadPoolName), reader.getLocation());
+   }
 }

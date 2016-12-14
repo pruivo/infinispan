@@ -370,9 +370,12 @@ public class TestCacheManagerFactory {
             STATE_TRANSFER_EXEC_MAX_THREADS, STATE_TRANSFER_EXEC_QUEUE_SIZE, KEEP_ALIVE);
       builder.stateTransferThreadPool().threadPoolFactory(executorFactory);
 
-      executorFactory = new BlockingThreadPoolExecutorFactory(REMOTE_EXEC_MAX_THREADS,
-            REMOTE_EXEC_MAX_THREADS, REMOTE_EXEC_QUEUE_SIZE, KEEP_ALIVE);
-      builder.transport().remoteCommandThreadPool().threadPoolFactory(executorFactory);
+      //thread pool is merged with jgroups. check if not null
+      if (builder.transport().remoteCommandThreadPool().create().threadPoolFactory() != null) {
+         executorFactory = new BlockingThreadPoolExecutorFactory(REMOTE_EXEC_MAX_THREADS,
+               REMOTE_EXEC_MAX_THREADS, REMOTE_EXEC_QUEUE_SIZE, KEEP_ALIVE);
+         builder.transport().remoteCommandThreadPool().threadPoolFactory(executorFactory);
+      }
 
       executorFactory = new BlockingThreadPoolExecutorFactory(
             TRANSPORT_EXEC_MAX_THREADS, TRANSPORT_EXEC_MAX_THREADS, TRANSPORT_EXEC_QUEUE_SIZE, KEEP_ALIVE);
