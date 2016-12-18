@@ -17,7 +17,6 @@ import org.infinispan.interceptors.AsyncInterceptorChain;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
 import org.infinispan.util.ByteString;
-import org.infinispan.util.concurrent.CompletableFutures;
 
 /**
  * A command sent from the primary owner to the backup owners of a key with the new update.
@@ -40,6 +39,7 @@ public class BackupWriteRcpCommand extends BaseRpcCommand implements TopologyAff
    private Metadata metadata;
    private int topologyId;
    private long flags;
+   private long sequence;
 
    private InvocationContextFactory invocationContextFactory;
    private AsyncInterceptorChain interceptorChain;
@@ -117,8 +117,7 @@ public class BackupWriteRcpCommand extends BaseRpcCommand implements TopologyAff
       command.setTopologyId(topologyId);
       InvocationContext invocationContext = invocationContextFactory
             .createRemoteInvocationContextForCommand(command, getOrigin());
-      interceptorChain.invokeAsync(invocationContext, command);
-      return CompletableFutures.completedNull();
+      return interceptorChain.invokeAsync(invocationContext, command);
    }
 
    public Object getKey() {
@@ -157,6 +156,7 @@ public class BackupWriteRcpCommand extends BaseRpcCommand implements TopologyAff
          default:
       }
       output.writeLong(Flag.copyWithoutRemotableFlags(flags));
+      output.writeLong(sequence);
    }
 
    @Override
@@ -176,6 +176,7 @@ public class BackupWriteRcpCommand extends BaseRpcCommand implements TopologyAff
          default:
       }
       this.flags = input.readLong();
+      this.sequence = input.readLong();
    }
 
    @Override
@@ -188,6 +189,7 @@ public class BackupWriteRcpCommand extends BaseRpcCommand implements TopologyAff
             ", metadata=" + metadata +
             ", topologyId=" + topologyId +
             ", flags=" + EnumUtil.prettyPrintBitSet(flags, Flag.class) +
+            ", sequence=" + sequence +
             '}';
    }
 
@@ -207,6 +209,14 @@ public class BackupWriteRcpCommand extends BaseRpcCommand implements TopologyAff
 
    public Object getValue() {
       return value;
+   }
+
+   public long getSequence() {
+      return sequence;
+   }
+
+   public void setSequence(long sequence) {
+      this.sequence = sequence;
    }
 
    private void setCommonAttributes(CommandInvocationId commandInvocationId, Object key, long flags, int topologyId) {

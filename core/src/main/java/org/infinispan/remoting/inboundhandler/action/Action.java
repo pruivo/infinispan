@@ -25,11 +25,13 @@ public interface Action {
     *
     * @param listener the {@link ActionListener} to add.
     */
-   void addListener(ActionListener listener);
+   default void addListener(ActionListener listener) {}
 
    /**
     * Cleanups when it is no longer needed.
     * @param state
     */
-   void cleanup(ActionState state);
+   default void cleanup(ActionState state) {}
+
+   default void onFinally(ActionState state) {}
 }

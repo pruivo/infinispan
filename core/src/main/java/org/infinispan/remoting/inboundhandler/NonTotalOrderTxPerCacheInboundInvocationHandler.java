@@ -2,6 +2,7 @@ package org.infinispan.remoting.inboundhandler;
 
 import java.util.Collection;
 
+import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.control.LockControlCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.tx.PrepareCommand;
@@ -123,7 +124,8 @@ public class NonTotalOrderTxPerCacheInboundInvocationHandler extends BasePerCach
       }
    }
 
-   private ReadyAction createReadyAction(int topologyId, TransactionalRemoteLockCommand command) {
+   private ReadyAction createReadyAction(int topologyId, ReplicableCommand replicableCommand) {
+      TransactionalRemoteLockCommand command = (TransactionalRemoteLockCommand) replicableCommand;
       if (command.hasSkipLocking()) {
          return null;
       }
@@ -133,7 +135,7 @@ public class NonTotalOrderTxPerCacheInboundInvocationHandler extends BasePerCach
       }
       final long timeoutMillis = command.hasZeroLockAcquisition() ? 0 : configuration.locking().lockAcquisitionTimeout();
 
-      DefaultReadyAction action = new DefaultReadyAction(new ActionState(command, topologyId, timeoutMillis),
+      DefaultReadyAction action = new DefaultReadyAction(new ActionState(replicableCommand, topologyId, timeoutMillis),
                                                          checkTopologyAction,
                                                          new PendingTxAction(pendingLockManager, clusteringDependentLogic),
                                                          new LockAction(lockManager, clusteringDependentLogic));

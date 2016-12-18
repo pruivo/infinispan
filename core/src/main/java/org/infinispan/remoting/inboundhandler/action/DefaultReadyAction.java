@@ -68,4 +68,11 @@ public class DefaultReadyAction implements ReadyAction, ActionListener {
          notifier.complete(null);
       }
    }
+
+   @Override
+   public void onFinally() {
+      for (Action action : actions) {
+         action.onFinally(state);
+      }
+   }
 }

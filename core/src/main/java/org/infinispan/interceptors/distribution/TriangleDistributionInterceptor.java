@@ -25,6 +25,7 @@ import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.distribution.DistributionInfo;
+import org.infinispan.distribution.TriangleOrderManager;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.BasicInvocationStage;
@@ -77,11 +78,13 @@ public class TriangleDistributionInterceptor extends NonTxDistributionIntercepto
    private static final boolean trace = log.isTraceEnabled();
    private CommandAckCollector commandAckCollector;
    private CommandsFactory commandsFactory;
+   private TriangleOrderManager triangleOrderManager;
 
    @Inject
-   public void inject(CommandAckCollector commandAckCollector, CommandsFactory commandsFactory) {
+   public void inject(CommandAckCollector commandAckCollector, CommandsFactory commandsFactory, TriangleOrderManager triangleOrderManager) {
       this.commandAckCollector = commandAckCollector;
       this.commandsFactory = commandsFactory;
+      this.triangleOrderManager = triangleOrderManager;
    }
 
    @Override
@@ -244,9 +247,11 @@ public class TriangleDistributionInterceptor extends NonTxDistributionIntercepto
             if (trace) {
                log.tracef("Command %s send to backup owner %s.", dwCommand.getCommandInvocationId(), backupOwners);
             }
+            long sequenceNumber = triangleOrderManager.next(distributionInfo.getSegmentId(), dwCommand.getTopologyId());
+            BackupWriteRcpCommand backupWriteRcpCommand = commandsFactory.buildBackupWriteRcpCommand(dwCommand);
+            backupWriteRcpCommand.setSequence(sequenceNumber);
             // we must send the message only after the collector is registered in the map
-            rpcManager.sendToMany(backupOwners, commandsFactory.buildBackupWriteRcpCommand(dwCommand),
-                  DeliverOrder.PER_SENDER);
+            rpcManager.sendToMany(backupOwners, backupWriteRcpCommand, DeliverOrder.NONE);
          }
       });
    }

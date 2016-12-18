@@ -42,6 +42,7 @@ import org.infinispan.container.entries.ImmortalCacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.distribution.TestAddress;
+import org.infinispan.distribution.TriangleOrderManager;
 import org.infinispan.distribution.ch.impl.DefaultConsistentHash;
 import org.infinispan.distribution.ch.impl.DefaultConsistentHashFactory;
 import org.infinispan.interceptors.InterceptorChain;
@@ -206,7 +207,7 @@ public class StateConsumerTest extends AbstractInfinispanTest {
       final StateConsumerImpl stateConsumer = new StateConsumerImpl();
       stateConsumer.init(cache, pooledExecutorService, stateTransferManager, interceptorChain, icf, configuration, rpcManager, null,
             commandsFactory, persistenceManager, dataContainer, transactionTable, stateTransferLock, cacheNotifier,
-            totalOrderManager, remoteCommandsExecutor, new CommitManager(), new CommandAckCollector());
+            totalOrderManager, remoteCommandsExecutor, new CommitManager(), new CommandAckCollector(), new TriangleOrderManager());
       stateConsumer.start();
 
       final List<InternalCacheEntry> cacheEntries = new ArrayList<InternalCacheEntry>();

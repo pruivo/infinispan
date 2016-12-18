@@ -78,6 +78,14 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
       this.stateTransferManager = stateTransferManager;
    }
 
+   public StateTransferManager getStateTransferManager() {
+      return stateTransferManager;
+   }
+
+   public BlockingTaskAwareExecutorService getRemoteExecutor() {
+      return remoteCommandsExecutor;
+   }
+
    final CompletableFuture<Response> invokeCommand(CacheRpcCommand cmd) throws Throwable {
       try {
          if (isTraceEnabled()) {

@@ -45,6 +45,11 @@ public class CompositeAction implements ReadyAction, ActionListener {
    }
 
    @Override
+   public void onFinally() {
+      actions.forEach(ReadyAction::onFinally);
+   }
+
+   @Override
    public void onComplete() {
       ActionListener actionListener = listener;
       if (isReady() && actionListener != null && notify.compareAndSet(false, true)) {
