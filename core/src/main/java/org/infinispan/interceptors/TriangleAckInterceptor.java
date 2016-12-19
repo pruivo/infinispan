@@ -215,7 +215,7 @@ public class TriangleAckInterceptor extends DDAsyncInterceptor {
       }
       PrimaryAckCommand ackCommand = commandsFactory.buildPrimaryAckCommand();
       command.initPrimaryAck(ackCommand, returnValue);
-      rpcManager.sendTo(origin, ackCommand, command.isSuccessful() ? DeliverOrder.NONE : DeliverOrder.PER_SENDER);
+      rpcManager.sendTo(origin, ackCommand, DeliverOrder.NONE);
    }
 
    private void sendBackupAck(DataWriteCommand command) {
