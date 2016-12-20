@@ -9,7 +9,6 @@ import org.infinispan.commands.CommandInvocationId;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.write.DataWriteCommand;
-import org.infinispan.commands.write.PrimaryAckCommand;
 import org.infinispan.commands.write.PrimaryMultiKeyAckCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
@@ -23,12 +22,14 @@ import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.remoting.inboundhandler.DeliverOrder;
+import org.infinispan.remoting.responses.PrimaryWriteResponse;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.OutdatedTopologyException;
 import org.infinispan.statetransfer.StateTransferManager;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.util.concurrent.CommandAckCollector;
+import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -161,11 +162,10 @@ public class TriangleAckInterceptor extends DDAsyncInterceptor {
          VisitableCommand rCommand, Object rv, Throwable throwable) {
       DataWriteCommand command = (DataWriteCommand) rCommand;
       if (throwable != null) {
-         sendExceptionAck(command.getCommandInvocationId(), command.getTopologyId(), throwable);
+         return stage;
       } else {
-         sendPrimaryAck(command, rv);
+         return returnWith(new PrimaryWriteResponse(command.isSuccessful(), command.isReturnValueExpected() ? rv : null));
       }
-      return stage;
    }
 
    @SuppressWarnings("unused")
@@ -184,12 +184,19 @@ public class TriangleAckInterceptor extends DDAsyncInterceptor {
    private BasicInvocationStage onLocalWriteCommand(BasicInvocationStage stage, InvocationContext rCtx,
          VisitableCommand rCommand, Object rv, Throwable throwable) {
       final DataWriteCommand cmd = (DataWriteCommand) rCommand;
-      cmd.getCommandInvocationId();
-      if (throwable != null) {
+      if (throwable != null || !cmd.isSuccessful()) {
          disposeCollectorOnException(cmd.getCommandInvocationId());
          return stage;
       }
-      return waitCollectorAsync(stage, cmd.getCommandInvocationId());
+      CompletableFuture<Object> collectorFuture = commandAckCollector.getCollectorCompletableFutureToWait(cmd.getCommandInvocationId());
+      if (collectorFuture == null) {
+         //no collector, return immediately.
+         return stage;
+      }
+      return returnWithAsync(collectorFuture.handle((o, throwable1) -> {
+         CompletableFutures.rethrowException(throwable1);
+         return rv;
+      }));
    }
 
    private void disposeCollectorOnException(CommandInvocationId id) {
@@ -205,17 +212,6 @@ public class TriangleAckInterceptor extends DDAsyncInterceptor {
          return stage;
       }
       return returnWithAsync(collectorFuture);
-   }
-
-   private void sendPrimaryAck(DataWriteCommand command, Object returnValue) {
-      final CommandInvocationId id = command.getCommandInvocationId();
-      final Address origin = id.getAddress();
-      if (trace) {
-         log.tracef("Sending ack for command %s. Originator=%s.", id, origin);
-      }
-      PrimaryAckCommand ackCommand = commandsFactory.buildPrimaryAckCommand();
-      command.initPrimaryAck(ackCommand, returnValue);
-      rpcManager.sendTo(origin, ackCommand, command.isSuccessful() ? DeliverOrder.NONE : DeliverOrder.PER_SENDER);
    }
 
    private void sendBackupAck(DataWriteCommand command) {

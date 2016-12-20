@@ -79,24 +79,6 @@ public class CommandAckCollector {
    }
 
    /**
-    * Creates a collector for a single key write operation.
-    * <p>
-    * It should be used when the primary owner is the local node and the return value and its acknowledge is already
-    * known.
-    *
-    * @param id          the {@link CommandInvocationId}.
-    * @param returnValue the primary owner result.
-    * @param owners      the owners of the key. It assumes the first element as primary owner.
-    * @param topologyId  the current topology id.
-    */
-   public void create(CommandInvocationId id, Object returnValue, Collection<Address> owners, int topologyId) {
-      collectorMap.putIfAbsent(id, new SingleKeyCollector(id, returnValue, owners, topologyId));
-      if (trace) {
-         log.tracef("Created new collector for %s. ReturnValue=%s. Owners=%s", id, returnValue, owners);
-      }
-   }
-
-   /**
     * Creates a collector for {@link org.infinispan.commands.write.PutMapCommand}.
     *
     * @param id         the {@link CommandInvocationId}.
@@ -155,25 +137,6 @@ public class CommandAckCollector {
       SingleKeyCollector collector = (SingleKeyCollector) collectorMap.get(id);
       if (collector != null) {
          collector.backupAck(topologyId, from);
-      }
-   }
-
-   /**
-    * Acknowledges a write operation completion in the primary owner.
-    * <p>
-    * If the operation does not succeed (conditional commands), the collector is completed without waiting for the
-    * acknowledges from the backup owners.
-    *
-    * @param id          the {@link CommandInvocationId}.
-    * @param returnValue the return value.
-    * @param success     {@code true} if the operation succeed in the primary owner, {@code false} otherwise.
-    * @param from        the primary owner.
-    * @param topologyId  the topology id.
-    */
-   public void primaryAck(CommandInvocationId id, Object returnValue, boolean success, Address from, int topologyId) {
-      SingleKeyCollector collector = (SingleKeyCollector) collectorMap.get(id);
-      if (collector != null) {
-         collector.primaryAck(topologyId, returnValue, success, from);
       }
    }
 
@@ -341,75 +304,27 @@ public class CommandAckCollector {
    private class SingleKeyCollector extends Collector<Object> {
       @GuardedBy("this")
       private final Collection<Address> owners;
-      @GuardedBy("this")
-      private final Address primaryOwner;
-      @GuardedBy("this")
-      private Object returnValue;
 
       private SingleKeyCollector(CommandInvocationId id, Collection<Address> owners, int topologyId) {
          super(id, topologyId);
-         this.primaryOwner = owners.iterator().next();
          this.owners = new HashSet<>(owners); //removal is fast
-      }
-
-      private SingleKeyCollector(CommandInvocationId id, Object returnValue, Collection<Address> owners,
-            int topologyId) {
-         super(id, topologyId);
-         this.returnValue = returnValue;
-         this.primaryOwner = owners.iterator().next();
-         Collection<Address> tmpOwners = new HashSet<>(owners);
-         tmpOwners.remove(primaryOwner);
-         if (tmpOwners.isEmpty()) { //num owners is 1 or single member in cluster
-            this.owners = Collections.emptyList();
-            this.future.complete(returnValue);
-         } else {
-            this.owners = tmpOwners;
-         }
-      }
-
-      @Override
-      public synchronized boolean hasPendingBackupAcks() {
-         return owners.size() > 1 || //at least one backup + primary address
-               //if one is missing, make sure that it isn't the primary
-               owners.size() == 1 && !primaryOwner.equals(owners.iterator().next());
-      }
-
-      @Override
-      public synchronized void onMembersChange(Collection<Address> members) {
-         if (!members.contains(primaryOwner)) {
-            //primary owner left. throw OutdatedTopologyException to trigger a retry
-            if (trace) {
-               log.tracef("[Collector#%s] The Primary Owner left the cluster.", id);
-            }
-            doCompleteExceptionally(OutdatedTopologyException.getCachedInstance());
-         } else if (owners.retainAll(members) && owners.isEmpty()) {
-            if (trace) {
-               log.tracef("[Collector#%s] Some backups left the cluster.", id);
-            }
+         if (owners.isEmpty()) {
             markReady();
          }
       }
 
-      synchronized void primaryAck(int topologyId, Object returnValue, boolean success, Address from) {
-         if (trace) {
-            log.tracef(
-                  "[Collector#%s] Primary ACK. Success=%s. ReturnValue=%s. Address=%s, TopologyId=%s (expected=%s)",
-                  id, success, returnValue, from, topologyId, this.topologyId);
-         }
-         if (this.topologyId != topologyId || !owners.remove(from)) {
-            //already received!
-            return;
-         }
-         this.returnValue = returnValue;
 
-         if (!success) {
-            //we are not receiving any backups ack!
-            owners.clear();
-            future.complete(returnValue);
+      @Override
+      public synchronized boolean hasPendingBackupAcks() {
+         return owners.size() != 0;
+      }
+
+      @Override
+      public synchronized void onMembersChange(Collection<Address> members) {
+         if (owners.retainAll(members) && owners.isEmpty()) {
             if (trace) {
-               log.tracef("[Collector#%s] Ready! Command not succeed on primary.", id);
+               log.tracef("[Collector#%s] Some backups left the cluster.", id);
             }
-         } else if (owners.isEmpty()) {
             markReady();
          }
       }
@@ -433,9 +348,9 @@ public class CommandAckCollector {
       @GuardedBy("this")
       private void markReady() {
          if (trace) {
-            log.tracef("[Collector#%s] Ready! Return value=%ss.", id, returnValue);
+            log.tracef("[Collector#%s] Ready!", id);
          }
-         future.complete(returnValue);
+         future.complete(null);
       }
    }
 

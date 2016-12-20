@@ -5,7 +5,9 @@ import java.util.Collection;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
+import org.infinispan.commands.write.BackupWriteRcpCommand;
 import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.distribution.TriangleOrderManager;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.remoting.inboundhandler.action.ActionState;
@@ -13,6 +15,7 @@ import org.infinispan.remoting.inboundhandler.action.CheckTopologyAction;
 import org.infinispan.remoting.inboundhandler.action.DefaultReadyAction;
 import org.infinispan.remoting.inboundhandler.action.LockAction;
 import org.infinispan.remoting.inboundhandler.action.ReadyAction;
+import org.infinispan.remoting.inboundhandler.action.TriangleOrderAction;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.locks.LockListener;
@@ -36,19 +39,24 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
    private static final boolean trace = log.isTraceEnabled();
 
    private final CheckTopologyAction checkTopologyAction;
+   private final TriangleOrderAction triangleOrderAction;
 
    private LockManager lockManager;
    private ClusteringDependentLogic clusteringDependentLogic;
+   private TriangleOrderManager triangleOrderManager;
    private long lockTimeout;
 
    public NonTotalOrderPerCacheInboundInvocationHandler() {
       checkTopologyAction = new CheckTopologyAction(this);
+      triangleOrderAction = new TriangleOrderAction(this);
    }
 
    @Inject
-   public void inject(LockManager lockManager, ClusteringDependentLogic clusteringDependentLogic, Configuration configuration) {
+   public void inject(LockManager lockManager, ClusteringDependentLogic clusteringDependentLogic, Configuration configuration,
+         TriangleOrderManager triangleOrderManager) {
       this.lockManager = lockManager;
       this.clusteringDependentLogic = clusteringDependentLogic;
+      this.triangleOrderManager = triangleOrderManager;
       lockTimeout = configuration.locking().lockAcquisitionTimeout();
    }
 
@@ -68,6 +76,10 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                runnable = onExecutorService ?
                      createReadyActionRunnable(command, reply, commandTopologyId, sync, createReadyAction(commandTopologyId, (SingleRpcCommand) command)) :
                      createDefaultRunnable(command, reply, commandTopologyId, TopologyMode.WAIT_TX_DATA, sync);
+               break;
+            case BackupWriteRcpCommand.COMMAND_ID:
+               runnable = createReadyActionRunnable(command, reply, commandTopologyId, false, createReadyAction(
+                     (BackupWriteRcpCommand) command, commandTopologyId));
                break;
             default:
                runnable = createDefaultRunnable(command, reply, commandTopologyId,
@@ -95,6 +107,10 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
       return trace;
    }
 
+   public TriangleOrderManager getTriangleOrderManager() {
+      return triangleOrderManager;
+   }
+
    private BlockingRunnable createReadyActionRunnable(CacheRpcCommand command, Reply reply, int commandTopologyId,
                                                       boolean sync, ReadyAction readyAction) {
       if (readyAction != null) {
@@ -110,13 +126,19 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
                super.onException(throwable);
                readyAction.cleanup();
             }
+
+            @Override
+            protected void onFinally() {
+               super.onFinally();
+               readyAction.onFinally();
+            }
          };
       } else {
          return new DefaultTopologyRunnable(this, command, reply, TopologyMode.READY_TX_DATA, commandTopologyId, sync);
       }
    }
 
-   private ReadyAction createReadyAction(int topologyId, RemoteLockCommand command) {
+   private <T extends ReplicableCommand & RemoteLockCommand> ReadyAction createReadyAction(int topologyId, T command) {
       if (command.hasSkipLocking()) {
          return null;
       }
@@ -135,6 +157,10 @@ public class NonTotalOrderPerCacheInboundInvocationHandler extends BasePerCacheI
 
    private ReadyAction createReadyAction(int topologyId, SingleRpcCommand singleRpcCommand) {
       ReplicableCommand command = singleRpcCommand.getCommand();
-      return command instanceof RemoteLockCommand ? createReadyAction(topologyId, (RemoteLockCommand) command) : null;
+      return command instanceof RemoteLockCommand ? createReadyAction(topologyId, (RemoteLockCommand & ReplicableCommand) command) : null;
+   }
+
+   private ReadyAction createReadyAction(BackupWriteRcpCommand command, int topologyId) {
+      return new DefaultReadyAction(new ActionState(command, topologyId, 0), checkTopologyAction, triangleOrderAction);
    }
 }

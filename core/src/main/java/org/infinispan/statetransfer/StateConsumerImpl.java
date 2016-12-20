@@ -45,6 +45,7 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.distexec.DistributedCallable;
+import org.infinispan.distribution.TriangleOrderManager;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.executors.LimitedExecutor;
 import org.infinispan.factories.KnownComponentNames;
@@ -120,6 +121,7 @@ public class StateConsumerImpl implements StateConsumer {
    private CommitManager commitManager;
    private ExecutorService stateTransferExecutor;
    private CommandAckCollector commandAckCollector;
+   private TriangleOrderManager triangleOrderManager;
 
    private volatile CacheTopology cacheTopology;
 
@@ -195,7 +197,8 @@ public class StateConsumerImpl implements StateConsumer {
                     TotalOrderManager totalOrderManager,
                     @ComponentName(KnownComponentNames.REMOTE_COMMAND_EXECUTOR) BlockingTaskAwareExecutorService remoteCommandsExecutor,
                     CommitManager commitManager,
-                    CommandAckCollector commandAckCollector) {
+                    CommandAckCollector commandAckCollector,
+                    TriangleOrderManager triangleOrderManager) {
       this.cache = cache;
       this.cacheName = cache.getName();
       this.stateTransferExecutor = stateTransferExecutor;
@@ -215,6 +218,7 @@ public class StateConsumerImpl implements StateConsumer {
       this.remoteCommandsExecutor = remoteCommandsExecutor;
       this.commitManager = commitManager;
       this.commandAckCollector = commandAckCollector;
+      this.triangleOrderManager = triangleOrderManager;
 
       isInvalidationMode = configuration.clustering().cacheMode().isInvalidation();
 
@@ -406,6 +410,7 @@ public class StateConsumerImpl implements StateConsumer {
          }
       } finally {
          stateTransferLock.notifyTransactionDataReceived(cacheTopology.getTopologyId());
+         triangleOrderManager.updateCacheTopology(cacheTopology);
          remoteCommandsExecutor.checkForReadyTasks();
 
          // Only set the flag here, after all the transfers have been added to the transfersBySource map

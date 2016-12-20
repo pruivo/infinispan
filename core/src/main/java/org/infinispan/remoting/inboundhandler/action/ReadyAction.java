@@ -25,4 +25,6 @@ public interface ReadyAction {
     * Cleanup when it is no longer needed.
     */
    void cleanup();
+
+   void onFinally();
 }

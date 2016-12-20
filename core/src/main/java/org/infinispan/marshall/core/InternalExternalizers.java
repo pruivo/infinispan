@@ -88,6 +88,7 @@ import org.infinispan.partitionhandling.AvailabilityMode;
 import org.infinispan.remoting.MIMECacheEntry;
 import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.remoting.responses.ExceptionResponse;
+import org.infinispan.remoting.responses.PrimaryWriteResponse;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.responses.UnsuccessfulResponse;
 import org.infinispan.remoting.responses.UnsureResponse;
@@ -241,6 +242,7 @@ final class InternalExternalizers {
       addInternalExternalizer(new WrappedByteArray.Externalizer(), exts);
       addInternalExternalizer(new XSiteState.XSiteStateExternalizer(), exts);
       addInternalExternalizer(new TriangleAckExternalizer(cmdFactory), exts);
+      addInternalExternalizer(PrimaryWriteResponse.EXTERNALIZER, exts);
 
       return exts;
    }

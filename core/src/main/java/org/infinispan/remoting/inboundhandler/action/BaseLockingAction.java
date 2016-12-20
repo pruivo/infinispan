@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import org.infinispan.distribution.Ownership;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.util.concurrent.locks.LockUtil;
+import org.infinispan.util.concurrent.locks.RemoteLockCommand;
 
 /**
  * A base {@link Action} implementation for locking.
@@ -68,7 +69,8 @@ public abstract class BaseLockingAction implements Action {
    protected final List<Object> getAndUpdateFilteredKeys(ActionState state) {
       List<Object> filteredKeys = state.getFilteredKeys();
       if (filteredKeys == null) {
-         Collection<?> rawKeys = state.getCommand().getKeysToLock();
+         RemoteLockCommand remoteLockCommand = (RemoteLockCommand) state.getCommand();
+         Collection<?> rawKeys = remoteLockCommand.getKeysToLock();
          filteredKeys = new ArrayList<>(rawKeys.size());
          filterByPrimaryOwner(rawKeys, filteredKeys);
          state.updateFilteredKeys(filteredKeys);

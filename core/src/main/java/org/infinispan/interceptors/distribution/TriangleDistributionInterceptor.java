@@ -1,10 +1,12 @@
 package org.infinispan.interceptors.distribution;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import org.infinispan.commands.CommandInvocationId;
 import org.infinispan.commands.CommandsFactory;
@@ -21,20 +23,27 @@ import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
+import org.infinispan.commons.CacheException;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.distribution.DistributionInfo;
+import org.infinispan.distribution.TriangleOrderManager;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.BasicInvocationStage;
 import org.infinispan.interceptors.TriangleAckInterceptor;
 import org.infinispan.remoting.inboundhandler.DeliverOrder;
+import org.infinispan.remoting.responses.CacheNotFoundResponse;
+import org.infinispan.remoting.responses.ExceptionResponse;
+import org.infinispan.remoting.responses.PrimaryWriteResponse;
+import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.OutdatedTopologyException;
 import org.infinispan.statetransfer.StateTransferInterceptor;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.util.concurrent.CommandAckCollector;
+import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -77,11 +86,14 @@ public class TriangleDistributionInterceptor extends NonTxDistributionIntercepto
    private static final boolean trace = log.isTraceEnabled();
    private CommandAckCollector commandAckCollector;
    private CommandsFactory commandsFactory;
+   private TriangleOrderManager triangleOrderManager;
 
    @Inject
-   public void inject(CommandAckCollector commandAckCollector, CommandsFactory commandsFactory) {
+   public void inject(CommandAckCollector commandAckCollector, CommandsFactory commandsFactory,
+         TriangleOrderManager triangleOrderManager) {
       this.commandAckCollector = commandAckCollector;
       this.commandsFactory = commandsFactory;
+      this.triangleOrderManager = triangleOrderManager;
    }
 
    @Override
@@ -236,17 +248,16 @@ public class TriangleDistributionInterceptor extends NonTxDistributionIntercepto
          if (distributionInfo.owners().size() > 1) {
             Collection<Address> backupOwners = distributionInfo.backups();
             if (rCtx.isOriginLocal() && (isSynchronous(dwCommand) || dwCommand.isReturnValueExpected())) {
-               commandAckCollector.create(id, rv, distributionInfo.owners(), dwCommand.getTopologyId());
-               //check the topology after registering the collector.
-               //if we don't, the collector may wait forever (==timeout) for non-existing acknowledges.
-               checkTopologyId(dwCommand);
+               commandAckCollector.create(id, backupOwners, dwCommand.getTopologyId());
             }
             if (trace) {
                log.tracef("Command %s send to backup owner %s.", dwCommand.getCommandInvocationId(), backupOwners);
             }
+            long sequenceNumber = triangleOrderManager.next(distributionInfo.getSegmentId(), dwCommand.getTopologyId());
+            BackupWriteRcpCommand backupWriteRcpCommand = commandsFactory.buildBackupWriteRcpCommand(dwCommand);
+            backupWriteRcpCommand.setSequence(sequenceNumber);
             // we must send the message only after the collector is registered in the map
-            rpcManager.sendToMany(backupOwners, commandsFactory.buildBackupWriteRcpCommand(dwCommand),
-                  DeliverOrder.PER_SENDER);
+            rpcManager.sendToMany(backupOwners, backupWriteRcpCommand, DeliverOrder.NONE);
          }
       });
    }
@@ -255,15 +266,40 @@ public class TriangleDistributionInterceptor extends NonTxDistributionIntercepto
          DistributionInfo distributionInfo) {
       assert context.isOriginLocal();
       final CommandInvocationId invocationId = command.getCommandInvocationId();
-      if ((isSynchronous(command) || command.isReturnValueExpected()) &&
-            !command.hasFlag(Flag.PUT_FOR_EXTERNAL_READ)) {
-         commandAckCollector.create(invocationId, distributionInfo.owners(), command.getTopologyId());
+      final boolean sync = isSynchronous(command) || command.isReturnValueExpected();
+      if (sync && !command.hasFlag(Flag.PUT_FOR_EXTERNAL_READ)) {
+         commandAckCollector.create(invocationId, distributionInfo.backups(), command.getTopologyId());
       }
-      if (command.hasFlag(Flag.COMMAND_RETRY)) {
-         command.setValueMatcher(command.getValueMatcher().matcherForRetry());
+      CompletableFuture<Map<Address, Response>> remoteInvocation;
+      remoteInvocation = rpcManager.invokeRemotelyAsync(Collections.singletonList(distributionInfo.primary()), command,
+            rpcManager.getDefaultRpcOptions(sync));
+      if (sync) {
+         return returnWithAsync(remoteInvocation.handle((addressResponseMap, throwable) -> {
+            if (throwable != null) {
+               commandAckCollector.dispose(invocationId);
+               throw CompletableFutures.asCompletionException(throwable);
+            }
+            Response response = addressResponseMap.values().iterator().next();
+            if (response instanceof PrimaryWriteResponse) {
+               if (!((PrimaryWriteResponse) response).isCommandSuccessful()) {
+                  commandAckCollector.dispose(invocationId);
+               }
+               Object returnValue = ((PrimaryWriteResponse) response).getReturnValue();
+               command.updateStatusFromRemoteResponse(returnValue);
+               return returnValue;
+            } else if (response == CacheNotFoundResponse.INSTANCE) {
+               throw CompletableFutures.asCompletionException(OutdatedTopologyException.getCachedInstance());
+            } else {
+               Throwable cause = response instanceof ExceptionResponse ? ((ExceptionResponse) response)
+                     .getException() : null;
+               throw CompletableFutures.asCompletionException(
+                     new CacheException("Got unsuccessful response from primary owner: " + distributionInfo.primary(),
+                           cause));
+            }
+         }));
+      } else {
+         return returnWith(null);
       }
-      rpcManager.sendTo(distributionInfo.primary(), command, DeliverOrder.NONE);
-      return returnWith(null);
    }
 
    /**

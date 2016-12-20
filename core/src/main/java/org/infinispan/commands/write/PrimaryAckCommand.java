@@ -50,19 +50,7 @@ public class PrimaryAckCommand extends BaseRpcCommand {
 
    @Override
    public CompletableFuture<Object> invokeAsync() throws Throwable {
-      switch (type) {
-         case SUCCESS_WITH_BOOL_RETURN_VALUE:
-         case SUCCESS_WITH_RETURN_VALUE:
-         case SUCCESS_WITHOUT_RETURN_VALUE:
-            commandAckCollector.primaryAck(commandInvocationId, returnValue, true, getOrigin(), topologyId);
-            break;
-         case UNSUCCESSFUL_WITH_BOOL_RETURN_VALUE:
-         case UNSUCCESSFUL_WITH_RETURN_VALUE:
-         case UNSUCCESSFUL_WITHOUT_RETURN_VALUE:
-            commandAckCollector.primaryAck(commandInvocationId, returnValue, false, getOrigin(), topologyId);
-            break;
-      }
-      return CompletableFutures.completedNull();
+      throw new IllegalStateException();
    }
 
    @Override
