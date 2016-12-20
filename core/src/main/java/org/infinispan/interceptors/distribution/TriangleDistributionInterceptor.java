@@ -17,7 +17,6 @@ import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.BackupMultiKeyAckCommand;
 import org.infinispan.commands.write.BackupWriteRcpCommand;
 import org.infinispan.commands.write.DataWriteCommand;
-import org.infinispan.commands.write.PrimaryAckCommand;
 import org.infinispan.commands.write.PrimaryMultiKeyAckCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
@@ -58,7 +57,7 @@ import org.infinispan.util.logging.LogFactory;
  * <ul>
  * <li>The command if forwarded to the primary owner of the key.</li>
  * <li>The primary owner locks the key and executes the operation; sends the {@link BackupWriteRcpCommand} to the backup
- * owners; releases the lock; sends the {@link PrimaryAckCommand} back to the originator.</li>
+ * owners; releases the lock; sends the {@link PrimaryWriteResponse} back to the originator.</li>
  * <li>The backup owner applies the update and sends a {@link BackupAckCommand} back to the originator.</li>
  * <li>The originator collects the ack from all the owners and returns.</li>
  * </ul>

@@ -46,7 +46,6 @@ import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.ExceptionAckCommand;
 import org.infinispan.commands.write.InvalidateCommand;
 import org.infinispan.commands.write.InvalidateL1Command;
-import org.infinispan.commands.write.PrimaryAckCommand;
 import org.infinispan.commands.write.PrimaryMultiKeyAckCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
@@ -316,9 +315,6 @@ public class RemoteCommandsFactory {
                break;
             case BackupAckCommand.COMMAND_ID:
                command = new BackupAckCommand(cacheName);
-               break;
-            case PrimaryAckCommand.COMMAND_ID:
-               command = new PrimaryAckCommand(cacheName);
                break;
             case BackupMultiKeyAckCommand.COMMAND_ID:
                command = new BackupMultiKeyAckCommand(cacheName);

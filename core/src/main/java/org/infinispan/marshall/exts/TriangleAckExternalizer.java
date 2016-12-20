@@ -12,7 +12,6 @@ import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.BackupMultiKeyAckCommand;
 import org.infinispan.commands.write.ExceptionAckCommand;
-import org.infinispan.commands.write.PrimaryAckCommand;
 import org.infinispan.commands.write.PrimaryMultiKeyAckCommand;
 import org.infinispan.commons.marshall.AdvancedExternalizer;
 import org.infinispan.commons.util.Util;
@@ -37,7 +36,7 @@ public class TriangleAckExternalizer implements AdvancedExternalizer<CacheRpcCom
 
    public Set<Class<? extends CacheRpcCommand>> getTypeClasses() {
       //noinspection unchecked
-      return Util.asSet(PrimaryAckCommand.class, BackupAckCommand.class, ExceptionAckCommand.class,
+      return Util.asSet(BackupAckCommand.class, ExceptionAckCommand.class,
             PrimaryMultiKeyAckCommand.class, BackupMultiKeyAckCommand.class);
    }
 

@@ -65,7 +65,6 @@ import org.infinispan.commands.write.EvictCommand;
 import org.infinispan.commands.write.ExceptionAckCommand;
 import org.infinispan.commands.write.InvalidateCommand;
 import org.infinispan.commands.write.InvalidateL1Command;
-import org.infinispan.commands.write.PrimaryAckCommand;
 import org.infinispan.commands.write.PrimaryMultiKeyAckCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
@@ -515,9 +514,6 @@ public class CommandsFactoryImpl implements CommandsFactory {
             BackupWriteRcpCommand bwc = (BackupWriteRcpCommand) c;
             bwc.init(icf, interceptorChain, notifier);
             break;
-         case PrimaryAckCommand.COMMAND_ID:
-            ((PrimaryAckCommand) c).setCommandAckCollector(commandAckCollector);
-            break;
          case BackupMultiKeyAckCommand.COMMAND_ID:
             ((BackupMultiKeyAckCommand) c).setCommandAckCollector(commandAckCollector);
             break;
@@ -736,11 +732,6 @@ public class CommandsFactoryImpl implements CommandsFactory {
    @Override
    public BackupAckCommand buildBackupAckCommand(CommandInvocationId id, int topologyId) {
       return new BackupAckCommand(cacheName, id, topologyId);
-   }
-
-   @Override
-   public PrimaryAckCommand buildPrimaryAckCommand() {
-      return new PrimaryAckCommand(cacheName);
    }
 
    @Override

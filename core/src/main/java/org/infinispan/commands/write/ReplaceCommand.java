@@ -239,13 +239,4 @@ public class ReplaceCommand extends AbstractDataWriteCommand implements Metadata
       command.setReplace(commandInvocationId, key, newValue, metadata, getFlagsBitSet(), getTopologyId());
    }
 
-   @Override
-   public void initPrimaryAck(PrimaryAckCommand command, Object localReturnValue) {
-      command.initCommandInvocationIdAndTopologyId(commandInvocationId, getTopologyId());
-      if (oldValue == null) {
-         command.initWithReturnValue(successful, localReturnValue);
-      } else {
-         command.initWithBoolReturnValue(successful);
-      }
-   }
 }
