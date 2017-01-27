@@ -24,6 +24,8 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.AsyncInterceptorChain;
 import org.infinispan.interceptors.BaseCustomAsyncInterceptor;
 import org.infinispan.interceptors.BasicInvocationStage;
+import org.infinispan.metadata.EmbeddedMetadata;
+import org.infinispan.metadata.Metadata;
 import org.infinispan.protostream.DescriptorParserException;
 import org.infinispan.protostream.FileDescriptorSource;
 import org.infinispan.protostream.SerializationContext;
@@ -45,6 +47,15 @@ final class ProtobufMetadataManagerInterceptor extends BaseCustomAsyncIntercepto
    private AsyncInterceptorChain invoker;
 
    private SerializationContext serializationContext;
+
+   private Metadata defaultMetadata;
+
+   @Override
+   protected void start() {
+      super.start();
+      defaultMetadata = new EmbeddedMetadata.Builder().lifespan(cacheConfiguration.expiration().lifespan())
+            .maxIdle(cacheConfiguration.expiration().maxIdle()).build();
+   }
 
    /**
     * A no-op callback.
@@ -79,7 +90,8 @@ final class ProtobufMetadataManagerInterceptor extends BaseCustomAsyncIntercepto
       public void handleError(String fileName, DescriptorParserException exception) {
          // handle first error per file, ignore the rest if any
          if (errorFiles.add(fileName)) {
-            VisitableCommand cmd = commandsFactory.buildPutKeyValueCommand(fileName + ERRORS_KEY_SUFFIX, exception.getMessage(), null, flagsBitSet);
+            VisitableCommand cmd = commandsFactory.buildPutKeyValueCommand(fileName + ERRORS_KEY_SUFFIX, exception.getMessage(),
+                  defaultMetadata, flagsBitSet);
             invoker.invoke(ctx.clone(), cmd);
          }
       }
@@ -312,14 +324,14 @@ final class ProtobufMetadataManagerInterceptor extends BaseCustomAsyncIntercepto
                      sb.append('\n');
                   }
                   sb.append(fd.getName());
-                  PutKeyValueCommand put = commandsFactory.buildPutKeyValueCommand(fd.getName() + ERRORS_KEY_SUFFIX, "One of the imported files is missing or has errors", null, EnumUtil.EMPTY_BIT_SET);
+                  PutKeyValueCommand put = commandsFactory.buildPutKeyValueCommand(fd.getName() + ERRORS_KEY_SUFFIX, "One of the imported files is missing or has errors", defaultMetadata, EnumUtil.EMPTY_BIT_SET);
                   put.setPutIfAbsent(true);
                   invoker.invoke(ctx.clone(), put);
                }
             }
 
             if (sb.length() > 0) {
-               cmd = commandsFactory.buildPutKeyValueCommand(ERRORS_KEY_SUFFIX, sb.toString(), null, EnumUtil.EMPTY_BIT_SET);
+               cmd = commandsFactory.buildPutKeyValueCommand(ERRORS_KEY_SUFFIX, sb.toString(), defaultMetadata, EnumUtil.EMPTY_BIT_SET);
             } else {
                cmd = commandsFactory.buildRemoveCommand(ERRORS_KEY_SUFFIX, null, EnumUtil.EMPTY_BIT_SET);
             }
@@ -408,7 +420,7 @@ final class ProtobufMetadataManagerInterceptor extends BaseCustomAsyncIntercepto
             }
             sb.append(fileName);
          }
-         cmd = commandsFactory.buildPutKeyValueCommand(ERRORS_KEY_SUFFIX, sb.toString(), null, flagsBitSet);
+         cmd = commandsFactory.buildPutKeyValueCommand(ERRORS_KEY_SUFFIX, sb.toString(), defaultMetadata, flagsBitSet);
       }
       invoker.invoke(ctx.clone(), cmd);
    }
