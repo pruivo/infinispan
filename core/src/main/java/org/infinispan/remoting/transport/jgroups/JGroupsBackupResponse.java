@@ -129,6 +129,16 @@ public class JGroupsBackupResponse implements BackupResponse {
    }
 
    @Override
+   public boolean isDone() {
+      for (Future<ValidResponse> future : syncBackupCalls.values()) {
+         if (!future.isDone()) {
+            return false;
+         }
+      }
+      return true;
+   }
+
+   @Override
    public Map<String, Throwable> getFailedBackups() {
       return errors;
    }

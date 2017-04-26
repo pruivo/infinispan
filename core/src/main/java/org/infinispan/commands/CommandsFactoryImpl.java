@@ -149,6 +149,7 @@ import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.BackupSender;
 import org.infinispan.xsite.SingleXSiteRpcCommand;
 import org.infinispan.xsite.XSiteAdminCommand;
+import org.infinispan.xsite.async.AsyncUpdateCommand;
 import org.infinispan.xsite.statetransfer.XSiteState;
 import org.infinispan.xsite.statetransfer.XSiteStateConsumer;
 import org.infinispan.xsite.statetransfer.XSiteStateProvider;
@@ -797,6 +798,11 @@ public class CommandsFactoryImpl implements CommandsFactory {
    @Override
    public ExceptionAckCommand buildExceptionAckCommand(long id, Throwable throwable, int topologyId) {
       return new ExceptionAckCommand(cacheName, id, throwable, topologyId);
+   }
+
+   @Override
+   public AsyncUpdateCommand buildAsyncUpdateCommand(int batchSize) {
+      return new AsyncUpdateCommand(cacheName, batchSize);
    }
 
    private ValueMatcher getValueMatcher(Object o) {

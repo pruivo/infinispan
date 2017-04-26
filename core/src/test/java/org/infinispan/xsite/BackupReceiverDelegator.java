@@ -23,7 +23,7 @@ public abstract class BackupReceiverDelegator implements BackupReceiver {
    }
 
    @Override
-   public Cache getCache() {
+   public Cache<Object, Object> getCache() {
       return delegate.getCache();
    }
 

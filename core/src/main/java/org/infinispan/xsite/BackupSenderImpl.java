@@ -88,13 +88,13 @@ public class BackupSenderImpl implements BackupSender {
    @Inject private EventLogManager eventLogManager;
    @Inject private GlobalConfiguration globalConfig;
    @Inject private KeyPartitioner keyPartitioner;
+   @Inject
+   private SiteStatusManager siteStatusManager;
 
    private final Map<String, CustomFailurePolicy> siteFailurePolicy = new HashMap<>();
    private final ConcurrentMap<String, OfflineStatus> offlineStatus = CollectionFactory.makeConcurrentMap();
    private final String localSiteName;
    private String cacheName;
-
-   private enum BackupFilter {KEEP_1PC_ONLY, KEEP_2PC_ONLY, KEEP_ALL}
 
    public BackupSenderImpl(String localSiteName) {
       this.localSiteName = localSiteName;
@@ -137,10 +137,12 @@ public class BackupSenderImpl implements BackupSender {
          return EMPTY_RESPONSE;
       }
       PrepareCommand prepare = commandsFactory.buildPrepareCommand(command.getGlobalTransaction(), modifications,
-                                                                   command.isOnePhaseCommit());
+            command.isOnePhaseCommit());
       //if we run a 2PC then filter out 1PC prepare backup calls as they will happen during the local commit phase.
-      BackupFilter filter = !prepare.isOnePhaseCommit() ? BackupFilter.KEEP_2PC_ONLY : BackupFilter.KEEP_ALL;
-      List<XSiteBackup> backups = calculateBackupInfo(filter);
+      SiteStatusManager.BackupFilter filter = !prepare
+            .isOnePhaseCommit() ? SiteStatusManager.BackupFilter.KEEP_2PC_ONLY
+                                : SiteStatusManager.BackupFilter.KEEP_ALL;
+      List<XSiteBackup> backups = siteStatusManager.calculateSyncBackups(filter);
       return backupCommand(prepare, backups);
    }
 
@@ -150,33 +152,17 @@ public class BackupSenderImpl implements BackupSender {
    }
 
    @Override
-   public void processResponses(BackupResponse backupResponse, VisitableCommand command, Transaction transaction) throws Throwable {
+   public void processResponses(BackupResponse backupResponse, VisitableCommand command, Transaction transaction)
+         throws Throwable {
       log.tracef("Processing backup response %s for command %s", backupResponse, command);
       backupResponse.waitForBackupToFinish();
-      updateOfflineSites(backupResponse);
-      processFailedResponses(backupResponse, command, transaction);
-   }
-
-   private void updateOfflineSites(BackupResponse backupResponse) {
-      if (offlineStatus.isEmpty() || backupResponse.isEmpty()) return;
-      Set<String> communicationErrors = backupResponse.getCommunicationErrors();
-      for (Map.Entry<String, OfflineStatus> statusEntry : offlineStatus.entrySet()) {
-         OfflineStatus status = statusEntry.getValue();
-         if (!status.isEnabled()) {
-            continue;
-         }
-         if (communicationErrors.contains(statusEntry.getKey())) {
-            status.updateOnCommunicationFailure(backupResponse.getSendTimeMillis());
-            log.tracef("OfflineStatus updated %s", status);
-         } else if (!status.isOffline()) {
-            status.reset();
-         }
-      }
+      siteStatusManager.updateOfflineSites(backupResponse);
+      siteStatusManager.processFailedResponses(backupResponse, command, transaction);
    }
 
    @Override
    public BackupResponse backupWrite(WriteCommand command) throws Exception {
-      List<XSiteBackup> xSiteBackups = calculateBackupInfo(BackupFilter.KEEP_ALL);
+      List<XSiteBackup> xSiteBackups = siteStatusManager.calculateSyncBackups(SiteStatusManager.BackupFilter.KEEP_ALL);
       return backupCommand(command, xSiteBackups);
    }
 
@@ -184,14 +170,16 @@ public class BackupSenderImpl implements BackupSender {
    public BackupResponse backupCommit(CommitCommand command) throws Exception {
       //we have a 2PC: we didn't backup the 1PC stuff during prepare, we need to do it now.
       BackupResponse onePcResponse = sendTo1PCBackups(command);
-      List<XSiteBackup> xSiteBackups = calculateBackupInfo(BackupFilter.KEEP_2PC_ONLY);
+      List<XSiteBackup> xSiteBackups = siteStatusManager
+            .calculateSyncBackups(SiteStatusManager.BackupFilter.KEEP_2PC_ONLY);
       BackupResponse twoPcResponse = backupCommand(command, xSiteBackups);
       return new AggregateBackupResponse(onePcResponse, twoPcResponse);
    }
 
    @Override
    public BackupResponse backupRollback(RollbackCommand command) throws Exception {
-      List<XSiteBackup> xSiteBackups = calculateBackupInfo(BackupFilter.KEEP_2PC_ONLY);
+      List<XSiteBackup> xSiteBackups = siteStatusManager
+            .calculateSyncBackups(SiteStatusManager.BackupFilter.KEEP_2PC_ONLY);
       log.tracef("Backing up rollback command to: %s", xSiteBackups);
       return backupCommand(command, xSiteBackups);
    }
@@ -199,24 +187,21 @@ public class BackupSenderImpl implements BackupSender {
 
    @Override
    public BringSiteOnlineResponse bringSiteOnline(String siteName) {
-      if (!config.sites().hasInUseBackup(siteName)) {
-         log.tryingToBringOnlineNonexistentSite(siteName);
-         return BringSiteOnlineResponse.NO_SUCH_SITE;
-      } else {
-         OfflineStatus offline = offlineStatus.get(siteName);
-         boolean broughtOnline = offline.bringOnline();
-         return broughtOnline ? BringSiteOnlineResponse.BROUGHT_ONLINE : BringSiteOnlineResponse.ALREADY_ONLINE;
-      }
+      return siteStatusManager.bringSiteOnline(siteName);
    }
 
    @Override
    public TakeSiteOfflineResponse takeSiteOffline(String siteName) {
-      if (!config.sites().hasInUseBackup(siteName)) {
-         return TakeSiteOfflineResponse.NO_SUCH_SITE;
-      } else {
-         OfflineStatus offline = offlineStatus.get(siteName);
-         return offline.forceOffline() ? TakeSiteOfflineResponse.TAKEN_OFFLINE : TakeSiteOfflineResponse.ALREADY_OFFLINE;
-      }
+      return siteStatusManager.takeSiteOffline(siteName);
+   }
+
+   public OfflineStatus getOfflineStatus(String site) {
+      return siteStatusManager.getOfflineStatus(site);
+   }
+
+   @Override
+   public Map<String, Boolean> status() {
+      return siteStatusManager.status();
    }
 
    private BackupResponse backupCommand(VisitableCommand command, List<XSiteBackup> xSiteBackups) throws Exception {
@@ -235,9 +220,9 @@ public class BackupSenderImpl implements BackupSender {
       if (modifications.isEmpty()) {
          return EMPTY_RESPONSE;
       }
-      List<XSiteBackup> backups = calculateBackupInfo(BackupFilter.KEEP_1PC_ONLY);
+      List<XSiteBackup> backups = siteStatusManager.calculateSyncBackups(SiteStatusManager.BackupFilter.KEEP_1PC_ONLY);
       PrepareCommand prepare = commandsFactory.buildPrepareCommand(command.getGlobalTransaction(),
-                                                                   modifications, true);
+            modifications, true);
       return backupCommand(prepare, backups);
    }
 
@@ -263,7 +248,7 @@ public class BackupSenderImpl implements BackupSender {
          throw backupException;
    }
 
-   private List<XSiteBackup> calculateBackupInfo(BackupFilter backupFilter) {
+   private List<XSiteBackup> calculateBackupInfo(SiteStatusManager.BackupFilter backupFilter) {
       List<XSiteBackup> backupInfo = new ArrayList<>(2);
       SitesConfiguration sites = config.sites();
       for (BackupConfiguration bc : sites.enabledBackups()) {
@@ -272,12 +257,12 @@ public class BackupSenderImpl implements BackupSender {
             continue;
          }
          boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
-         if (backupFilter == BackupFilter.KEEP_1PC_ONLY) {
+         if (backupFilter == SiteStatusManager.BackupFilter.KEEP_1PC_ONLY) {
             if (isSync && bc.isTwoPhaseCommit())
                continue;
          }
 
-         if (backupFilter == BackupFilter.KEEP_2PC_ONLY) {
+         if (backupFilter == SiteStatusManager.BackupFilter.KEEP_2PC_ONLY) {
             if (!isSync || (!bc.isTwoPhaseCommit()))
                continue;
          }
@@ -486,19 +471,6 @@ public class BackupSenderImpl implements BackupSender {
       }
    }
 
-   public OfflineStatus getOfflineStatus(String site) {
-      return offlineStatus.get(site);
-   }
-
-   @Override
-   public Map<String, Boolean> status() {
-      Map<String, Boolean> result = new HashMap<>(offlineStatus.size());
-      for (Map.Entry<String, OfflineStatus> os : offlineStatus.entrySet()) {
-         result.put(os.getKey(), !os.getValue().isOffline());
-      }
-      return result;
-   }
-
    private static class EmptyBackupResponse implements BackupResponse {
 
       @Override
@@ -526,6 +498,11 @@ public class BackupSenderImpl implements BackupSender {
 
       @Override
       public boolean isEmpty() {
+         return true;
+      }
+
+      @Override
+      public boolean isDone() {
          return true;
       }
 

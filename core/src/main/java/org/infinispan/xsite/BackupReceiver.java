@@ -14,7 +14,7 @@ import org.infinispan.xsite.statetransfer.XSiteStateTransferControlCommand;
  */
 public interface BackupReceiver {
 
-   Cache getCache();
+   Cache<Object, Object> getCache();
 
    Object handleRemoteCommand(VisitableCommand command) throws Throwable;
 

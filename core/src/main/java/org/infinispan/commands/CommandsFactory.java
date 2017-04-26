@@ -95,6 +95,7 @@ import org.infinispan.stream.impl.intops.IntermediateOperation;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.xsite.SingleXSiteRpcCommand;
 import org.infinispan.xsite.XSiteAdminCommand;
+import org.infinispan.xsite.async.AsyncUpdateCommand;
 import org.infinispan.xsite.statetransfer.XSiteState;
 import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
 import org.infinispan.xsite.statetransfer.XSiteStateTransferControlCommand;
@@ -602,4 +603,6 @@ public interface CommandsFactory {
    MultiEntriesFunctionalBackupWriteCommand buildMultiEntriesFunctionalBackupWriteCommand();
 
    MultiKeyFunctionalBackupWriteCommand buildMultiKeyFunctionalBackupWriteCommand();
+
+   AsyncUpdateCommand buildAsyncUpdateCommand(int batchSize);
 }

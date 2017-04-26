@@ -104,6 +104,7 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.SingleXSiteRpcCommand;
 import org.infinispan.xsite.XSiteAdminCommand;
+import org.infinispan.xsite.async.AsyncUpdateCommand;
 import org.infinispan.xsite.statetransfer.XSiteState;
 import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
 import org.infinispan.xsite.statetransfer.XSiteStateTransferControlCommand;
@@ -561,5 +562,10 @@ public class ControlledCommandFactory implements CommandsFactory {
    @Override
    public MultiKeyFunctionalBackupWriteCommand buildMultiKeyFunctionalBackupWriteCommand() {
       return actual.buildMultiKeyFunctionalBackupWriteCommand();
+   }
+
+   @Override
+   public AsyncUpdateCommand buildAsyncUpdateCommand(int batchSize) {
+      return actual.buildAsyncUpdateCommand(batchSize);
    }
 }

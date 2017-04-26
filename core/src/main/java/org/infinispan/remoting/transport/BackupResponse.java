@@ -30,6 +30,8 @@ public interface BackupResponse {
 
    boolean isEmpty();
 
+   boolean isDone();
+
    /**
     * Registers a listener that is notified when the cross-site request is finished.
     * <p>

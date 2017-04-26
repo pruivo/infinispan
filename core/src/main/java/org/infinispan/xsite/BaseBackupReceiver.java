@@ -67,7 +67,7 @@ public abstract class BaseBackupReceiver implements BackupReceiver {
    }
 
    @Override
-   public final Cache getCache() {
+   public final Cache<Object, Object> getCache() {
       return cache;
    }
 
