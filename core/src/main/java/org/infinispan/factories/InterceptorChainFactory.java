@@ -20,6 +20,7 @@ import org.infinispan.interceptors.distribution.L1LastChanceInterceptor;
 import org.infinispan.interceptors.distribution.L1NonTxInterceptor;
 import org.infinispan.interceptors.distribution.L1TxInterceptor;
 import org.infinispan.interceptors.distribution.NonTxDistributionInterceptor;
+import org.infinispan.interceptors.distribution.TriangleAckInterceptor;
 import org.infinispan.interceptors.distribution.TriangleDistributionInterceptor;
 import org.infinispan.interceptors.distribution.TxDistributionInterceptor;
 import org.infinispan.interceptors.distribution.VersionedDistributionInterceptor;
@@ -153,6 +154,10 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
          if (transactionMode.isTransactional()) {
             interceptorChain.appendInterceptor(createInterceptor(new TransactionSynchronizerInterceptor(), TransactionSynchronizerInterceptor.class), false);
          }
+      }
+
+      if (transactionMode == TransactionMode.NON_TRANSACTIONAL && cacheMode.isDistributed() && Configurations.isEmbeddedMode(globalConfiguration)) {
+         interceptorChain.appendInterceptor(createInterceptor(new TriangleAckInterceptor(), TriangleAckInterceptor.class), false);
       }
 
       // The partition handling must run every time the state transfer interceptor retries a command (in non-transactional caches)

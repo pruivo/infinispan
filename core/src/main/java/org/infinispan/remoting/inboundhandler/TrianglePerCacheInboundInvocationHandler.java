@@ -2,19 +2,20 @@ package org.infinispan.remoting.inboundhandler;
 
 import static org.infinispan.remoting.inboundhandler.DeliverOrder.NONE;
 
-import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Function;
 
+import org.infinispan.IllegalLifecycleStateException;
 import org.infinispan.commands.CommandInvocationId;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
-import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commands.write.BackupMultiKeyAckCommand;
 import org.infinispan.commands.write.BackupPutMapRpcCommand;
 import org.infinispan.commands.write.BackupWriteRpcCommand;
 import org.infinispan.commands.write.ExceptionAckCommand;
-import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.distribution.TriangleOrderManager;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
@@ -23,19 +24,18 @@ import org.infinispan.remoting.inboundhandler.action.Action;
 import org.infinispan.remoting.inboundhandler.action.ActionState;
 import org.infinispan.remoting.inboundhandler.action.ActionStatus;
 import org.infinispan.remoting.inboundhandler.action.DefaultReadyAction;
-import org.infinispan.remoting.inboundhandler.action.LockAction;
 import org.infinispan.remoting.inboundhandler.action.ReadyAction;
 import org.infinispan.remoting.inboundhandler.action.TriangleOrderAction;
+import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.statetransfer.OutdatedTopologyException;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.concurrent.CommandAckCollector;
 import org.infinispan.util.concurrent.locks.LockListener;
-import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.concurrent.locks.LockState;
-import org.infinispan.util.concurrent.locks.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -52,9 +52,7 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
    private static final Log log = LogFactory.getLog(TrianglePerCacheInboundInvocationHandler.class);
    private static final boolean trace = log.isTraceEnabled();
 
-   private LockManager lockManager;
    private ClusteringDependentLogic clusteringDependentLogic;
-   private long lockTimeout;
    private TriangleOrderManager triangleOrderManager;
    private RpcManager rpcManager;
    private CommandAckCollector commandAckCollector;
@@ -62,13 +60,10 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
    private Address localAddress;
 
    @Inject
-   public void inject(LockManager lockManager,
-         ClusteringDependentLogic clusteringDependentLogic,
-         Configuration configuration, TriangleOrderManager anotherTriangleOrderManager, RpcManager rpcManager,
+   public void inject(ClusteringDependentLogic clusteringDependentLogic,
+         TriangleOrderManager anotherTriangleOrderManager, RpcManager rpcManager,
          CommandAckCollector commandAckCollector, CommandsFactory commandsFactory) {
-      this.lockManager = lockManager;
       this.clusteringDependentLogic = clusteringDependentLogic;
-      lockTimeout = configuration.locking().lockAcquisitionTimeout();
       this.triangleOrderManager = anotherTriangleOrderManager;
       this.rpcManager = rpcManager;
       this.commandAckCollector = commandAckCollector;
@@ -87,9 +82,6 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
       }
       try {
          switch (command.getCommandId()) {
-            case SingleRpcCommand.COMMAND_ID:
-               handleSingleRpcCommand((SingleRpcCommand) command, reply, order);
-               return;
             case BackupWriteRpcCommand.COMMAND_ID:
                handleBackupWriteRpcCommand((BackupWriteRpcCommand) command);
                return;
@@ -161,26 +153,22 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
    }
 
    private void handleStateRequestCommand(StateRequestCommand command, Reply reply, DeliverOrder order) {
-      if (executeOnExecutorService(order, command)) {
-         BlockingRunnable runnable = createDefaultRunnable(command, reply, extractCommandTopologyId(command),
-               TopologyMode.READY_TOPOLOGY, order.preserveOrder());
-         remoteCommandsExecutor.execute(runnable);
-      } else {
-         BlockingRunnable runnable = createDefaultRunnable(command, reply, extractCommandTopologyId(command),
-               TopologyMode.WAIT_TOPOLOGY, order.preserveOrder());
-         runnable.run();
+      final int commandTopologyId = extractCommandTopologyId(command);
+      CompletableFuture<Void> future = getStateTransferLock().topologyFuture(Math.max(commandTopologyId, 0))
+            .thenApply(new CheckTopologyAndInvoke(commandTopologyId, command, reply));
+
+      if (order.preserveOrder()) {
+         future.join();
       }
    }
 
    private void handleDefaultCommand(CacheRpcCommand command, Reply reply, DeliverOrder order) {
-      if (executeOnExecutorService(order, command)) {
-         BlockingRunnable runnable = createDefaultRunnable(command, reply, extractCommandTopologyId(command),
-               TopologyMode.READY_TX_DATA, order.preserveOrder());
-         remoteCommandsExecutor.execute(runnable);
-      } else {
-         BlockingRunnable runnable = createDefaultRunnable(command, reply, extractCommandTopologyId(command),
-               TopologyMode.WAIT_TX_DATA, order.preserveOrder());
-         runnable.run();
+      final int commandTopologyId = extractCommandTopologyId(command);
+      CompletableFuture<Void> future = getStateTransferLock().transactionDataFuture(Math.max(commandTopologyId, 0))
+            .thenApply(new CheckTopologyAndInvoke(commandTopologyId, command, reply));
+
+      if (order.preserveOrder()) {
+         future.join();
       }
    }
 
@@ -193,10 +181,9 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
    }
 
    private void handleBackupWriteRpcCommand(BackupWriteRpcCommand command) {
-      final int topologyId = command.getTopologyId();
-      ReadyAction readyAction = createTriangleOrderAction(command, topologyId, command.getSequence(), command.getKey());
-      BlockingRunnable runnable = createBackupWriteRpcRunnable(command, topologyId, readyAction);
-      remoteCommandsExecutor.execute(runnable);
+      final int commandTopologyId = command.getTopologyId();
+      getStateTransferLock().transactionDataFuture(Math.max(commandTopologyId, 0))
+            .thenApply(new CheckTopologyAndBackupWriteInvoke(commandTopologyId, command)).join();
    }
 
    private void handleExceptionAck(ExceptionAckCommand command) {
@@ -211,16 +198,24 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
       command.ack();
    }
 
-   private void handleSingleRpcCommand(SingleRpcCommand command, Reply reply, DeliverOrder order) {
-      if (executeOnExecutorService(order, command)) {
-         int commandTopologyId = extractCommandTopologyId(command);
-         BlockingRunnable runnable = createReadyActionRunnable(command, reply, commandTopologyId, order.preserveOrder(),
-               createReadyAction(commandTopologyId, command));
-         remoteCommandsExecutor.execute(runnable);
+   private void replyException(Throwable t, CacheRpcCommand command, Reply reply) {
+      Throwable throwable = unwrap(t);
+      if (throwable instanceof InterruptedException) {
+         reply.reply(interruptedException(command));
+      } else if (throwable instanceof OutdatedTopologyException) {
+         reply.reply(outdatedTopology((OutdatedTopologyException) throwable));
+      } else if (throwable instanceof IllegalLifecycleStateException) {
+         reply.reply(CacheNotFoundResponse.INSTANCE);
       } else {
-         createDefaultRunnable(command, reply, extractCommandTopologyId(command), TopologyMode.WAIT_TX_DATA,
-               order.preserveOrder()).run();
+         reply.reply(exceptionHandlingCommand(command, throwable));
       }
+   }
+
+   private Throwable unwrap(Throwable throwable) {
+      if (throwable instanceof CompletionException && throwable.getCause() != null) {
+         throwable = throwable.getCause();
+      }
+      return throwable;
    }
 
    private void sendExceptionAck(CommandInvocationId id, Throwable throwable, int topologyId) {
@@ -249,7 +244,7 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
    }
 
    private BlockingRunnable createBackupWriteRpcRunnable(BackupWriteRpcCommand command, int commandTopologyId,
-                                                         ReadyAction readyAction) {
+         ReadyAction readyAction) {
       readyAction.addListener(remoteCommandsExecutor::checkForReadyTasks);
       return new DefaultTopologyRunnable(this, command, Reply.NO_OP, TopologyMode.READY_TX_DATA, commandTopologyId,
             false) {
@@ -289,7 +284,7 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
    }
 
    private BlockingRunnable createBackupPutMapRunnable(BackupPutMapRpcCommand command, int commandTopologyId,
-                                                       ReadyAction readyAction) {
+         ReadyAction readyAction) {
       readyAction.addListener(remoteCommandsExecutor::checkForReadyTasks);
       return new DefaultTopologyRunnable(this, command, Reply.NO_OP, TopologyMode.READY_TX_DATA, commandTopologyId,
             false) {
@@ -318,32 +313,72 @@ public class TrianglePerCacheInboundInvocationHandler extends BasePerCacheInboun
       };
    }
 
-   private ReadyAction createReadyAction(int topologyId, RemoteLockCommand command) {
-      if (command.hasSkipLocking()) {
-         return null;
-      }
-      Collection<?> keys = command.getKeysToLock();
-      if (keys.isEmpty()) {
-         return null;
-      }
-      final long timeoutMillis = command.hasZeroLockAcquisition() ? 0 : lockTimeout;
-
-      DefaultReadyAction action = new DefaultReadyAction(new ActionState(command, topologyId, timeoutMillis),
-            this,
-            new LockAction(lockManager, clusteringDependentLogic));
-      action.registerListener();
-      return action;
-   }
-
-   private ReadyAction createReadyAction(int topologyId, SingleRpcCommand singleRpcCommand) {
-      ReplicableCommand command = singleRpcCommand.getCommand();
-      return command instanceof RemoteLockCommand ?
-            createReadyAction(topologyId, (RemoteLockCommand & ReplicableCommand) command) :
-            null;
-   }
-
    private ReadyAction createTriangleOrderAction(ReplicableCommand command, int topologyId, long sequence, Object key) {
       return new DefaultReadyAction(new ActionState(command, topologyId, 0), this,
             new TriangleOrderAction(this, sequence, key));
+   }
+
+   private class CheckTopologyAndInvoke implements Function<Void, Void> {
+
+      private final int commandTopologyId;
+      private final CacheRpcCommand command;
+      private final Reply reply;
+
+      private CheckTopologyAndInvoke(int commandTopologyId, CacheRpcCommand command, Reply reply) {
+         this.commandTopologyId = commandTopologyId;
+         this.command = command;
+         this.reply = reply;
+      }
+
+      @Override
+      public Void apply(Void nil) {
+         if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+            reply.reply(CacheNotFoundResponse.INSTANCE);
+         } else {
+            try {
+               invokeCommand(command).whenComplete((rsp, throwable) -> {
+                  if (throwable != null) {
+                     replyException(throwable, command, reply);
+                  } else {
+                     reply.reply(rsp);
+                  }
+               });
+            } catch (Throwable throwable) {
+               reply.reply(exceptionHandlingCommand(command, throwable));
+            }
+         }
+         return null;
+      }
+   }
+
+   private class CheckTopologyAndBackupWriteInvoke implements Function<Void, Void> {
+
+      private final int commandTopologyId;
+      private final BackupWriteRpcCommand command;
+
+      private CheckTopologyAndBackupWriteInvoke(int commandTopologyId, BackupWriteRpcCommand command) {
+         this.commandTopologyId = commandTopologyId;
+         this.command = command;
+      }
+
+      @Override
+      public Void apply(Void nil) {
+         if (isCommandSentBeforeFirstTopology(commandTopologyId)) {
+            return null;
+         } else {
+            try {
+               invokeCommand(command).whenComplete((rsp, throwable) -> {
+                  if (throwable != null) {
+                     sendExceptionAck(command.getCommandInvocationId(), throwable, commandTopologyId);
+                  } else {
+                     sendBackupAck(command.getCommandInvocationId(), commandTopologyId);
+                  }
+               });
+            } catch (Throwable throwable) {
+               sendExceptionAck(command.getCommandInvocationId(), throwable, commandTopologyId);
+            }
+         }
+         return null;
+      }
    }
 }

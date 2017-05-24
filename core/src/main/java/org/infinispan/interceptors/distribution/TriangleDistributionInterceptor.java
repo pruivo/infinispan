@@ -348,7 +348,7 @@ public class TriangleDistributionInterceptor extends NonTxDistributionIntercepto
             checkTopologyId(topologyId, collector);
             collector.primaryResult(rv, true);
             sendToBackups(distributionInfo, dwCommand, backupOwners);
-            return asyncValue(collector.getFuture());
+            return rv;
          } else {
             sendToBackups(distributionInfo, dwCommand, backupOwners);
             return rv;
@@ -385,14 +385,14 @@ public class TriangleDistributionInterceptor extends NonTxDistributionIntercepto
       if (trace) {
          log.tracef("Command %s send to backup owner %s.", id, backupOwners);
       }
-      long sequenceNumber = triangleOrderManager.next(segmentId, command.getTopologyId());
+      //long sequenceNumber = triangleOrderManager.next(segmentId, command.getTopologyId());
       BackupWriteRpcCommand backupWriteRpcCommand = commandsFactory.buildBackupWriteRpcCommand(command);
-      backupWriteRpcCommand.setSequence(sequenceNumber);
+      //backupWriteRpcCommand.setSequence(sequenceNumber);
       if (trace) {
-         log.tracef("Command %s got sequence %s for segment %s", id, sequenceNumber, segmentId);
+         log.tracef("Command %s got sequence %s for segment %s", id, /*sequenceNumber*/ 0, segmentId);
       }
       // we must send the message only after the collector is registered in the map
-      rpcManager.sendToMany(backupOwners, backupWriteRpcCommand, DeliverOrder.NONE);
+      rpcManager.sendToMany(backupOwners, backupWriteRpcCommand, DeliverOrder.PER_SENDER);
    }
 
    private Object localWriteInvocation(InvocationContext context, DataWriteCommand command,

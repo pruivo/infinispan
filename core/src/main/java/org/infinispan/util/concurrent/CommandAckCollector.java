@@ -24,7 +24,6 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.interceptors.distribution.Collector;
-import org.infinispan.interceptors.distribution.PrimaryOwnerOnlyCollector;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -75,10 +74,9 @@ public class CommandAckCollector {
     * @param topologyId   the current topology id.
     */
    public Collector<Object> create(long id, Collection<Address> backupOwners, int topologyId) {
-      if (backupOwners.isEmpty()) {
-         return new PrimaryOwnerOnlyCollector<>();
-      }
-      SingleKeyCollector collector = new SingleKeyCollector(id, backupOwners, topologyId);
+      BaseCollector<Object> collector = backupOwners.isEmpty() ?
+            new PrimaryOwnerOnlyCollector<>(id, topologyId) :
+            new SingleKeyCollector(id, backupOwners, topologyId);
       collectorMap.put(id, collector);
       if (trace) {
          log.tracef("Created new collector for %s. BackupOwners=%s", id, backupOwners);
@@ -97,7 +95,7 @@ public class CommandAckCollector {
    public Collector<Map<Object, Object>> createMultiKeyCollector(long id, Collection<Address> primary,
          Map<Address, Collection<Integer>> backups, int topologyId) {
       if (backups.isEmpty()) {
-         return new PrimaryOwnerOnlyCollector<>();
+         return new PrimaryOwnerOnlyCollector<>(id, topologyId);
       }
       MultiKeyCollector collector = new MultiKeyCollector(id, backups, topologyId);
       collectorMap.put(id, collector);
@@ -179,6 +177,10 @@ public class CommandAckCollector {
       for (BaseCollector<?> collector : collectorMap.values()) {
          collector.onMembersChange(currentMembers);
       }
+   }
+
+   public <T> Collector<T> getCollector(CommandInvocationId commandInvocationId) {
+      return (Collector<T>) collectorMap.get(commandInvocationId.getId());
    }
 
    private TimeoutException createTimeoutException(long id) {
@@ -368,6 +370,33 @@ public class CommandAckCollector {
             }
             future.complete(primaryResult);
          }
+      }
+   }
+
+   private class PrimaryOwnerOnlyCollector<T> extends BaseCollector<T> {
+
+      PrimaryOwnerOnlyCollector(long id, int topologyId) {
+         super(id, topologyId);
+      }
+
+      @Override
+      public void primaryException(Throwable throwable) {
+         future.completeExceptionally(throwable);
+      }
+
+      @Override
+      public void primaryResult(T result, boolean success) {
+         future.complete(result);
+      }
+
+      @Override
+      boolean hasPendingBackupAcks() {
+         return false;
+      }
+
+      @Override
+      void onMembersChange(Collection<Address> members) {
+         //no-op
       }
    }
 }
