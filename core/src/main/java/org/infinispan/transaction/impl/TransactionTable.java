@@ -94,7 +94,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
    private TransactionFactory txFactory;
    protected RpcManager rpcManager;
    protected CommandsFactory commandsFactory;
-   protected ClusteringDependentLogic clusteringLogic;
+   private ClusteringDependentLogic clusteringLogic;
    private CacheNotifier notifier;
    private TransactionSynchronizationRegistry transactionSynchronizationRegistry;
    private CompletedTransactionsInfo completedTransactionsInfo;
@@ -113,6 +113,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
    private Lock minTopologyRecalculationLock;
    protected boolean clustered = false;
    protected volatile boolean running = false;
+   private TransactionOriginatorChecker transactionOriginatorChecker;
 
    @Inject
    public void initialize(RpcManager rpcManager, Configuration configuration, CacheNotifier notifier,
@@ -121,7 +122,8 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
                           CommandsFactory commandsFactory, ClusteringDependentLogic clusteringDependentLogic,
                           Cache cache, TimeService timeService, CacheManagerNotifier cacheManagerNotifier,
                           PartitionHandlingManager partitionHandlingManager,
-                          @ComponentName(TIMEOUT_SCHEDULE_EXECUTOR) ScheduledExecutorService timeoutExecutor) {
+                          @ComponentName(TIMEOUT_SCHEDULE_EXECUTOR) ScheduledExecutorService timeoutExecutor,
+                          TransactionOriginatorChecker transactionOriginatorChecker) {
       this.rpcManager = rpcManager;
       this.configuration = configuration;
       this.notifier = notifier;
@@ -135,6 +137,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       this.timeService = timeService;
       this.partitionHandlingManager = partitionHandlingManager;
       this.timeoutExecutor = timeoutExecutor;
+      this.transactionOriginatorChecker = transactionOriginatorChecker;
 
       this.clustered = configuration.clustering().cacheMode().isClustered();
    }
@@ -205,13 +208,6 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       shutDownGracefully();
    }
 
-   public Set<Object> getLockedKeysForRemoteTransaction(GlobalTransaction gtx) {
-      RemoteTransaction transaction = remoteTransactions.get(gtx);
-      if (transaction == null) return Collections.emptySet();
-      return transaction.getLockedKeys();
-   }
-
-
    public void remoteTransactionPrepared(GlobalTransaction gtx) {
       //do nothing
    }
@@ -252,15 +248,6 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       }
    }
 
-   /**
-    * Returns true if the given transaction is already registered with the transaction table.
-    *
-    * @param tx if null false is returned
-    */
-   public boolean containsLocalTx(Transaction tx) {
-      return tx != null && localTransactions.containsKey(tx);
-   }
-
    public int getMinTopologyId() {
       return minTxTopologyId;
    }
@@ -277,7 +264,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       for (Map.Entry<GlobalTransaction, RemoteTransaction> e : remoteTransactions.entrySet()) {
          GlobalTransaction gt = e.getKey();
          if (trace) log.tracef("Checking transaction %s", gt);
-         if (!membersSet.contains(gt.getAddress())) {
+         if (transactionOriginatorChecker.isOriginatorMissing(gt, membersSet)) {
             toKill.add(gt);
          }
       }
@@ -619,6 +606,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
             for (RemoteTransaction tx : remoteTransactions.values()) {
                // By synchronizing on the transaction we are waiting for in-progress commands affecting
                // this transaction (and synchronizing on it in TransactionSynchronizerInterceptor).
+               //noinspection SynchronizationOnLocalVariableOrMethodParameter
                synchronized (tx) {
                   // Don't actually roll back the transaction, it would just delay the shutdown
                   tx.markForRollback(true);
@@ -696,7 +684,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       // The highest transaction id previously cleared, with any originator
       volatile long globalMaxPrunedTxId;
 
-      public CompletedTransactionsInfo() {
+      CompletedTransactionsInfo() {
          nodeMaxPrunedTxIds = new ConcurrentHashMap<>();
          completedTransactions = new ConcurrentHashMap<>();
          globalMaxPrunedTxId = -1;
@@ -708,7 +696,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
        * on a remote node. This might cause leaks, e.g. if the transaction is prepared, committed and prepared again.
        * Once marked as completed (because of commit or rollback) any further prepare received on that transaction are discarded.
        */
-      public void markTransactionCompleted(GlobalTransaction globalTx, boolean successful) {
+      void markTransactionCompleted(GlobalTransaction globalTx, boolean successful) {
          if (trace) log.tracef("Marking transaction %s as completed", globalTx);
          completedTransactions.put(globalTx, new CompletedTransactionInfo(timeService.time(), successful));
       }
@@ -716,7 +704,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       /**
        * @see #markTransactionCompleted(GlobalTransaction, boolean)
        */
-      public boolean isTransactionCompleted(GlobalTransaction gtx) {
+      boolean isTransactionCompleted(GlobalTransaction gtx) {
          if (completedTransactions.containsKey(gtx))
             return true;
 
@@ -731,7 +719,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
          return nodeMaxPrunedTxId != null && gtx.getId() <= nodeMaxPrunedTxId;
       }
 
-      public CompletedTransactionStatus getTransactionStatus(GlobalTransaction gtx) {
+      CompletedTransactionStatus getTransactionStatus(GlobalTransaction gtx) {
          CompletedTransactionInfo completedTx = completedTransactions.get(gtx);
          if (completedTx != null) {
             return completedTx.successful ? CompletedTransactionStatus.COMMITTED : CompletedTransactionStatus.ABORTED;
@@ -757,7 +745,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
          }
       }
 
-      public void cleanupCompletedTransactions() {
+      void cleanupCompletedTransactions() {
          if (completedTransactions.isEmpty())
             return;
 
