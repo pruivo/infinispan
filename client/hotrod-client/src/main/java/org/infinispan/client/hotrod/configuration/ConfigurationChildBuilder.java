@@ -196,6 +196,11 @@ public interface ConfigurationChildBuilder {
    ConfigurationBuilder batchSize(int batchSize);
 
    /**
+    *
+    */
+   TransactionConfigurationBuilder transaction();
+
+   /**
     * Configures this builder using the specified properties
     */
    ConfigurationBuilder withProperties(Properties properties);

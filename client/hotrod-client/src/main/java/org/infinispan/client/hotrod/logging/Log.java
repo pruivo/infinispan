@@ -257,4 +257,9 @@ public interface Log extends BasicLogger {
    @Message(value = "Class '%s' blocked by Java standard deserialization white list. Adjust the client configuration java serialization white list regular expression to include this class.", id = 4068)
    CacheException classNotInWhitelist(String className);
 
+   @Message(value = "TransactionMode must be non-null.", id = 4069)
+   CacheConfigurationException invalidTransactionMode();
+
+   @Message(value = "TransactionManagerLookup must be non-null", id = 4070)
+   CacheConfigurationException invalidTransactionManagerLookup();
 }

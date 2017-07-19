@@ -508,7 +508,7 @@ public class RemoteCacheImpl<K, V> extends RemoteCacheSupport<K, V> {
       return operationsFactory.newFaultTolerantPingOperation().execute();
    }
 
-   byte[] obj2bytes(Object o, boolean isKey) {
+   protected byte[] obj2bytes(Object o, boolean isKey) {
       try {
          return marshaller.objectToByteBuffer(o, isKey ? estimateKeySize : estimateValueSize);
       } catch (IOException ioe) {
@@ -520,7 +520,7 @@ public class RemoteCacheImpl<K, V> extends RemoteCacheSupport<K, V> {
       }
    }
 
-   private void assertRemoteCacheManagerIsStarted() {
+   protected void assertRemoteCacheManagerIsStarted() {
       if (!remoteCacheManager.isStarted()) {
          String message = "Cannot perform operations on a cache associated with an unstarted RemoteCacheManager. Use RemoteCacheManager.start before using the remote cache.";
          if (log.isInfoEnabled()) {

@@ -9,9 +9,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.transaction.TransactionManager;
+
 import org.infinispan.client.hotrod.configuration.Configuration;
 import org.infinispan.client.hotrod.configuration.ConfigurationBuilder;
 import org.infinispan.client.hotrod.configuration.NearCacheConfiguration;
+import org.infinispan.client.hotrod.configuration.TransactionMode;
 import org.infinispan.client.hotrod.event.ClientListenerNotifier;
 import org.infinispan.client.hotrod.exceptions.HotRodClientException;
 import org.infinispan.client.hotrod.impl.InvalidatedNearRemoteCache;
@@ -22,6 +25,9 @@ import org.infinispan.client.hotrod.impl.operations.PingOperation.PingResult;
 import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.protocol.CodecFactory;
 import org.infinispan.client.hotrod.impl.protocol.HotRodConstants;
+import org.infinispan.client.hotrod.impl.transaction.SyncModeTransactionTable;
+import org.infinispan.client.hotrod.impl.transaction.TransactionTable;
+import org.infinispan.client.hotrod.impl.transaction.TransactionalRemoteCache;
 import org.infinispan.client.hotrod.impl.transport.TransportFactory;
 import org.infinispan.client.hotrod.impl.transport.tcp.TcpTransportFactory;
 import org.infinispan.client.hotrod.logging.Log;
@@ -71,6 +77,7 @@ public class RemoteCacheManager implements RemoteCacheContainer {
    protected ClientListenerNotifier listenerNotifier;
    private final Runnable start = this::start;
    private final Runnable stop = this::stop;
+   private final TransactionTable syncTransactionTable = new SyncModeTransactionTable();
 
    /**
     *
@@ -174,6 +181,18 @@ public class RemoteCacheManager implements RemoteCacheContainer {
       return createRemoteCache("", forceReturnValue);
    }
 
+   @Override
+   public <K, V> RemoteCache<K, V> getTransactionalCache(String cacheName, TransactionManager transactionManager,
+         TransactionMode transactionMode) {
+      return createRemoteTransactionalCache(cacheName, configuration.forceReturnValues(), getTransactionManager(transactionManager), getTransactionMode(transactionMode));
+   }
+
+   @Override
+   public <K, V> RemoteCache<K, V> getTransactionalCache(String cacheName, boolean forceReturnValue,
+         TransactionManager transactionManager, TransactionMode transactionMode) {
+      return createRemoteTransactionalCache(cacheName, forceReturnValue, getTransactionManager(transactionManager), getTransactionMode(transactionMode));
+   }
+
    public CompletableFuture<Void> startAsync() {
       createExecutorService();
       return CompletableFuture.runAsync(start, asyncExecutorService);
@@ -226,7 +245,7 @@ public class RemoteCacheManager implements RemoteCacheContainer {
       }
    }
 
-   private final void warnAboutUberJarDuplicates() {
+   private void warnAboutUberJarDuplicates() {
       UberJarDuplicatedJarsWarner scanner = new ManifestUberJarDuplicatedJarsWarner();
       scanner.isClasspathCorrectAsync()
               .thenAcceptAsync(isClasspathCorrect -> {
@@ -275,13 +294,12 @@ public class RemoteCacheManager implements RemoteCacheContainer {
       return properties;
    }
 
-   @SuppressWarnings("unchecked")
-   private <K, V> RemoteCache<K, V> createRemoteCache(String cacheName, Boolean forceReturnValueOverride) {
+   private <K, V> RemoteCache<K, V> createRemoteCache(String cacheName, boolean forceReturnValueOverride) {
       synchronized (cacheName2RemoteCache) {
          RemoteCacheKey key = new RemoteCacheKey(cacheName, forceReturnValueOverride);
          if (!cacheName2RemoteCache.containsKey(key)) {
             RemoteCacheImpl<K, V> result = createRemoteCache(cacheName);
-            RemoteCacheHolder rcc = new RemoteCacheHolder(result, forceReturnValueOverride == null ? configuration.forceReturnValues() : forceReturnValueOverride);
+            RemoteCacheHolder rcc = new RemoteCacheHolder(result, forceReturnValueOverride);
             startRemoteCache(rcc);
 
             PingResult pingResult = result.resolveCompatibility();
@@ -297,7 +315,7 @@ public class RemoteCacheManager implements RemoteCacheContainer {
             cacheName2RemoteCache.put(key, rcc);
             return result;
          } else {
-            return (RemoteCache<K, V>) cacheName2RemoteCache.get(key).remoteCache;
+            return cacheName2RemoteCache.get(key).remoteCache();
          }
       }
    }
@@ -318,7 +336,7 @@ public class RemoteCacheManager implements RemoteCacheContainer {
    }
 
    private void startRemoteCache(RemoteCacheHolder remoteCacheHolder) {
-      RemoteCacheImpl<?, ?> remoteCache = remoteCacheHolder.remoteCache;
+      RemoteCacheImpl<?, ?> remoteCache = remoteCacheHolder.remoteCache();
       OperationsFactory operationsFactory = new OperationsFactory(
               transportFactory, remoteCache.getName(), remoteCacheHolder.forceReturnValue, codec, listenerNotifier,
             asyncExecutorService, configuration);
@@ -344,6 +362,60 @@ public class RemoteCacheManager implements RemoteCacheContainer {
    public RemoteCacheManagerAdmin administration() {
       OperationsFactory operationsFactory = new OperationsFactory(transportFactory, codec, asyncExecutorService, configuration);
       return new RemoteCacheManagerAdminImpl(operationsFactory);
+   }
+
+   private TransactionManager getTransactionManager(TransactionManager override) {
+      try {
+         return override == null ? configuration.transaction().transactionManagerLookup().getTransactionManager() : override;
+      } catch (Exception e) {
+         throw new HotRodClientException(e);
+      }
+   }
+
+   private TransactionMode getTransactionMode(TransactionMode override) {
+      return override == null ? configuration.transaction().transactionMode() : override;
+   }
+
+   private TransactionTable getTransactionTable(TransactionMode transactionMode) {
+      switch (transactionMode) {
+         case NON_XA:
+            return syncTransactionTable;
+         case FULL_XA:
+         case NON_DURABLE_XA:
+         default:
+            throw new IllegalArgumentException("XA isn't supported yet!");
+      }
+   }
+
+   private <K, V> RemoteCache<K, V> createRemoteTransactionalCache(String cacheName, boolean forceReturnValues, TransactionManager transactionManager, TransactionMode transactionMode) {
+      synchronized (cacheName2RemoteCache) {
+         RemoteCacheKey key = new RemoteCacheKey(cacheName, forceReturnValues);
+         if (!cacheName2RemoteCache.containsKey(key)) {
+            RemoteCacheImpl<K, V> result = new TransactionalRemoteCache<>(this, cacheName, forceReturnValues, transactionManager, getTransactionTable(transactionMode));
+            RemoteCacheHolder rcc = new RemoteCacheHolder(result, forceReturnValues);
+            startRemoteCache(rcc);
+
+            PingResult pingResult = result.resolveCompatibility();
+            // If ping not successful assume that the cache does not exist
+            // Default cache is always started, so don't do for it
+            if (!cacheName.equals(RemoteCacheManager.DEFAULT_CACHE_NAME) &&
+                  pingResult == PingResult.CACHE_DOES_NOT_EXIST) {
+               return null;
+            }
+
+            result.start();
+            // If ping on startup is disabled, or cache is defined in server
+            cacheName2RemoteCache.put(key, rcc);
+            return result;
+         } else {
+            RemoteCache<K, V> remoteCache = cacheName2RemoteCache.get(key).remoteCache();
+            if (remoteCache instanceof TransactionalRemoteCache) {
+               return remoteCache;
+            } else {
+               throw new IllegalStateException("Cache %s isn't a transactional cache.");
+            }
+         }
+      }
    }
 
    private static class RemoteCacheKey {
@@ -382,6 +454,11 @@ public class RemoteCacheManager implements RemoteCacheContainer {
       RemoteCacheHolder(RemoteCacheImpl<?, ?> remoteCache, boolean forceReturnValue) {
          this.remoteCache = remoteCache;
          this.forceReturnValue = forceReturnValue;
+      }
+
+      <K, V> RemoteCacheImpl<K, V> remoteCache() {
+         //noinspection unchecked
+         return (RemoteCacheImpl<K, V>) remoteCache;
       }
    }
 }

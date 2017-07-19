@@ -115,6 +115,12 @@
       </dependency>
 
       <dependency>
+         <groupId>org.jboss.spec.javax.transaction</groupId>
+         <artifactId>jboss-transaction-api_1.1_spec</artifactId>
+         <optional>true</optional>
+      </dependency>
+
+      <dependency>
          <groupId>org.infinispan.protostream</groupId>
          <artifactId>sample-domain-definition</artifactId>
          <scope>test</scope>
@@ -135,6 +141,11 @@
       <dependency>
          <groupId>org.mockito</groupId>
          <artifactId>mockito-core</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.apache.geronimo.components</groupId>
+         <artifactId>geronimo-transaction</artifactId>
          <scope>test</scope>
       </dependency>
 

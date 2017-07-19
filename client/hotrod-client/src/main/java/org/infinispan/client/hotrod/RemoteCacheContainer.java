@@ -1,6 +1,9 @@
 package org.infinispan.client.hotrod;
 
+import javax.transaction.TransactionManager;
+
 import org.infinispan.client.hotrod.configuration.Configuration;
+import org.infinispan.client.hotrod.configuration.TransactionMode;
 import org.infinispan.commons.api.BasicCacheContainer;
 import org.infinispan.commons.marshall.Marshaller;
 
@@ -26,6 +29,20 @@ public interface RemoteCacheContainer extends BasicCacheContainer {
    <K, V> RemoteCache<K, V> getCache(String cacheName, boolean forceReturnValue);
 
    <K, V> RemoteCache<K, V> getCache(boolean forceReturnValue);
+
+   default <K, V> RemoteCache<K, V> getTransactionalCache(String cacheName) {
+      return getTransactionalCache(cacheName, null, null);
+   }
+
+   default <K, V> RemoteCache<K, V> getTransactionalCache(String cacheName, boolean forceReturnValue) {
+      return getTransactionalCache(cacheName, forceReturnValue, null, null);
+   }
+
+   <K, V> RemoteCache<K, V> getTransactionalCache(String cacheName, TransactionManager transactionManager,
+         TransactionMode transactionMode);
+
+   <K, V> RemoteCache<K, V> getTransactionalCache(String cacheName, boolean forceReturnValue,
+         TransactionManager transactionManager, TransactionMode transactionMode);
 
    boolean isStarted();
 

@@ -176,6 +176,11 @@ public abstract class AbstractConfigurationChildBuilder implements Configuration
    }
 
    @Override
+   public TransactionConfigurationBuilder transaction() {
+      return builder.transaction();
+   }
+
+   @Override
    public ConfigurationBuilder withProperties(Properties properties) {
       return builder.withProperties(properties);
    }

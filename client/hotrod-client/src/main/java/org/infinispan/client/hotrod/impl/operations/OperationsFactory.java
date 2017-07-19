@@ -1,10 +1,13 @@
 package org.infinispan.client.hotrod.impl.operations;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.transaction.xa.Xid;
 
 import org.infinispan.client.hotrod.CacheTopologyInfo;
 import org.infinispan.client.hotrod.Flag;
@@ -15,6 +18,7 @@ import org.infinispan.client.hotrod.impl.iteration.KeyTracker;
 import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.protocol.HotRodConstants;
 import org.infinispan.client.hotrod.impl.query.RemoteQuery;
+import org.infinispan.client.hotrod.impl.transaction.entry.Modification;
 import org.infinispan.client.hotrod.impl.transport.Transport;
 import org.infinispan.client.hotrod.impl.transport.TransportFactory;
 
@@ -290,5 +294,15 @@ public class OperationsFactory implements HotRodConstants {
 
    public <K> PutStreamOperation newPutIfAbsentStreamOperation(K key, byte[] keyBytes, long lifespan, TimeUnit lifespanUnit, long maxIdle, TimeUnit maxIdleUnit) {
       return new PutStreamOperation(codec, transportFactory, key, keyBytes, cacheNameBytes, topologyId, flags(), cfg, PutStreamOperation.VERSION_PUT_IF_ABSENT, lifespan, lifespanUnit, maxIdle, maxIdleUnit);
+   }
+
+   public PrepareTransactionOperation newPrepareTransactionOperation(Xid xid, boolean onePhaseCommit,
+         Collection<Modification> modifications) {
+      return new PrepareTransactionOperation(codec, transportFactory, cacheNameBytes, topologyId, cfg, xid,
+            onePhaseCommit, modifications);
+   }
+
+   public CompleteTransactionOperation newCompleteTransactionOperation(Xid xid, boolean commit) {
+      return new CompleteTransactionOperation(codec, transportFactory, cacheNameBytes, topologyId, cfg, xid, commit);
    }
 }

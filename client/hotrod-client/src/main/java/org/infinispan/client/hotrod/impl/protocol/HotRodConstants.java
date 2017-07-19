@@ -55,6 +55,9 @@ public interface HotRodConstants {
    byte ITERATION_END_REQUEST = 0x35;
    byte GET_STREAM_REQUEST = 0x37;
    byte PUT_STREAM_REQUEST = 0x39;
+   byte PREPARE_REQUEST = 0x3B;
+   byte COMMIT_REQUEST = 0x3D;
+   byte ROLLBACK_REQUEST = 0x3F;
 
    //responses
    byte PUT_RESPONSE = 0x02;
@@ -86,6 +89,9 @@ public interface HotRodConstants {
    byte ITERATION_END_RESPONSE = 0x36;
    byte GET_STREAM_RESPONSE = 0x38;
    byte PUT_STREAM_RESPONSE = 0x3A;
+   byte PREPARE_RESPONSE = 0x3C;
+   byte COMMIT_RESPONSE = 0x3E;
+   byte ROLLBACK_RESPONSE = 0x40;
    byte ERROR_RESPONSE = 0x50;
    byte CACHE_ENTRY_CREATED_EVENT_RESPONSE = 0x60;
    byte CACHE_ENTRY_MODIFIED_EVENT_RESPONSE = 0x61;
