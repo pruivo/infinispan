@@ -1,7 +1,6 @@
 package org.infinispan.client.hotrod.impl.operations;
 
 import java.net.SocketAddress;
-import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -11,9 +10,9 @@ import javax.transaction.xa.Xid;
 import org.infinispan.client.hotrod.configuration.Configuration;
 import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.protocol.HeaderParams;
-import org.infinispan.client.hotrod.impl.transaction.entry.Modification;
 import org.infinispan.client.hotrod.impl.transport.Transport;
 import org.infinispan.client.hotrod.impl.transport.TransportFactory;
+import org.infinispan.client.hotrod.transaction.manager.RemoteXid;
 
 /**
  * // TODO: Document this
@@ -49,9 +48,12 @@ public class CompleteTransactionOperation extends RetryOnFailureOperation<Intege
    }
 
    private void writeXid(Transport transport) {
-      //TODO optimize for XidImpl?
-      transport.writeSignedVInt(xid.getFormatId());
-      transport.writeArray(xid.getGlobalTransactionId());
-      transport.writeArray(xid.getBranchQualifier());
+      if (xid instanceof RemoteXid) {
+         ((RemoteXid) xid).writeTo(transport);
+      } else {
+         transport.writeSignedVInt(xid.getFormatId());
+         transport.writeArray(xid.getGlobalTransactionId());
+         transport.writeArray(xid.getBranchQualifier());
+      }
    }
 }

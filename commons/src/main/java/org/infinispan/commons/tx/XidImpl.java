@@ -92,12 +92,12 @@ public class XidImpl implements Xid {
 
    @Override
    public byte[] getGlobalTransactionId() {
-      return Arrays.copyOfRange(rawId, globalIdOffset(), globalIdLength());
+      return Arrays.copyOfRange(rawId, globalIdOffset(), branchQualifierOffset());
    }
 
    @Override
    public byte[] getBranchQualifier() {
-      return Arrays.copyOfRange(rawId, branchQualifierOffset(), branchQualifierLength());
+      return Arrays.copyOfRange(rawId, branchQualifierOffset(), rawId.length);
    }
 
    @Override

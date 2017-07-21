@@ -124,6 +124,12 @@ public class HeaderParams {
             return HotRodConstants.GET_STREAM_RESPONSE;
          case HotRodConstants.PUT_STREAM_REQUEST:
             return HotRodConstants.PUT_STREAM_RESPONSE;
+         case HotRodConstants.PREPARE_REQUEST:
+            return HotRodConstants.PREPARE_RESPONSE;
+         case HotRodConstants.COMMIT_REQUEST:
+            return HotRodConstants.COMMIT_RESPONSE;
+         case HotRodConstants.ROLLBACK_REQUEST:
+            return HotRodConstants.ROLLBACK_RESPONSE;
          default:
             throw new IllegalStateException("Unknown operation code: " + opCode);
       }

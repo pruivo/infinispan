@@ -1,5 +1,7 @@
 package org.infinispan.client.hotrod.impl.transaction;
 
+import static org.infinispan.commons.util.Util.toStr;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -12,6 +14,8 @@ import org.infinispan.client.hotrod.MetadataValue;
 import org.infinispan.client.hotrod.impl.operations.OperationsFactory;
 import org.infinispan.client.hotrod.impl.transaction.entry.Modification;
 import org.infinispan.client.hotrod.impl.transaction.entry.TransactionEntry;
+import org.infinispan.client.hotrod.logging.Log;
+import org.infinispan.client.hotrod.logging.LogFactory;
 import org.infinispan.commons.util.ByRef;
 
 /**
@@ -21,6 +25,9 @@ import org.infinispan.commons.util.ByRef;
  * @since 8.0
  */
 class TransactionContext<K, V> {
+
+   private static final Log log = LogFactory.getLog(TransactionContext.class, Log.class);
+   private static final boolean trace = log.isTraceEnabled();
 
    private final Map<WrappedKey<K>, TransactionEntry<K, V>> entries;
    private final Function<K, byte[]> keyMarshaller;
@@ -65,17 +72,12 @@ class TransactionContext<K, V> {
       return cacheName;
    }
 
-   <T> T compute(K key, Function<TransactionEntry<K, V>, T> function,
-         Function<K, MetadataValue<V>> remoteValueSupplier) {
-      ByRef<T> result = new ByRef<>(null);
-      entries.compute(wrap(key), (wKey, entry) -> {
-         if (entry == null) {
-            entry = createEntryFromRemote(wKey.key, remoteValueSupplier);
-         }
-         result.set(function.apply(entry));
-         return entry;
-      });
-      return result.get();
+   @Override
+   public String toString() {
+      return "TransactionContext{" +
+            "cacheName='" + cacheName + '\'' +
+            ", context-size=" + entries.size() + " (entries)" +
+            '}';
    }
 
    <T> T compute(K key, Function<TransactionEntry<K, V>, T> function) {
@@ -84,7 +86,13 @@ class TransactionContext<K, V> {
          if (entry == null) {
             entry = TransactionEntry.notReadEntry(wKey.key);
          }
+         if (trace) {
+            log.tracef("Compute key (%s). Before=%s", wKey, entry);
+         }
          result.set(function.apply(entry));
+         if (trace) {
+            log.tracef("Compute key (%s). After=%s (result=%s)", wKey, entry, result.get());
+         }
          return entry;
       });
       return result.get();
@@ -102,17 +110,37 @@ class TransactionContext<K, V> {
             .collect(Collectors.toList());
    }
 
+   <T> T compute(K key, Function<TransactionEntry<K, V>, T> function,
+         Function<K, MetadataValue<V>> remoteValueSupplier) {
+      ByRef<T> result = new ByRef<>(null);
+      entries.compute(wrap(key), (wKey, entry) -> {
+         if (entry == null) {
+            entry = createEntryFromRemote(wKey.key, remoteValueSupplier);
+            if (trace) {
+               log.tracef("Fetched key (%s) from remote. Entry=%s", wKey, entry);
+            }
+         }
+         if (trace) {
+            log.tracef("Compute key (%s). Before=%s", wKey, entry);
+         }
+         result.set(function.apply(entry));
+         if (trace) {
+            log.tracef("Compute key (%s). After=%s (result=%s)", wKey, entry, result.get());
+         }
+         return entry;
+      });
+      return result.get();
+   }
+
    private WrappedKey<K> wrap(K key) {
       return new WrappedKey<>(key);
    }
 
    private static class WrappedKey<K> {
       private final K key;
-      private final boolean isArray;
 
       private WrappedKey(K key) {
          this.key = key;
-         isArray = key.getClass().isArray();
       }
 
       @Override
@@ -126,20 +154,39 @@ class TransactionContext<K, V> {
 
          WrappedKey<?> that = (WrappedKey<?>) o;
 
-         return isArray && that.isArray && isKeyEquals(that);
+         return Objects.deepEquals(key, that.key);
       }
 
       @Override
       public int hashCode() {
-         return isArray ? Arrays.hashCode(keyAsArray()) : key.hashCode();
+         if (key instanceof Object[]) {
+            return Arrays.deepHashCode((Object[]) key);
+         } else if (key instanceof byte[]) {
+            return Arrays.hashCode((byte[]) key);
+         } else if (key instanceof short[]) {
+            return Arrays.hashCode((short[]) key);
+         } else if (key instanceof int[]) {
+            return Arrays.hashCode((int[]) key);
+         } else if (key instanceof long[]) {
+            return Arrays.hashCode((long[]) key);
+         } else if (key instanceof char[]) {
+            return Arrays.hashCode((char[]) key);
+         } else if (key instanceof float[]) {
+            return Arrays.hashCode((float[]) key);
+         } else if (key instanceof double[]) {
+            return Arrays.hashCode((double[]) key);
+         } else if (key instanceof boolean[]) {
+            return Arrays.hashCode((boolean[]) key);
+         } else {
+            return Objects.hashCode(key);
+         }
       }
 
-      private boolean isKeyEquals(WrappedKey<?> other) {
-         return isArray ? Arrays.equals(keyAsArray(), other.keyAsArray()) : key.equals(other.key);
-      }
-
-      private Object[] keyAsArray() {
-         return (Object[]) key;
+      @Override
+      public String toString() {
+         return "WrappedKey{" +
+               "key=" + toStr(key) +
+               '}';
       }
    }
 

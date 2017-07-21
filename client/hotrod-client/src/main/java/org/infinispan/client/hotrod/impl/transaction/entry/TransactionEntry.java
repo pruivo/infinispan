@@ -1,5 +1,7 @@
 package org.infinispan.client.hotrod.impl.transaction.entry;
 
+import static org.infinispan.commons.util.Util.toStr;
+
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -89,6 +91,7 @@ public class TransactionEntry<K, V> {
       if (created && lifespan >= 0) {
          this.created = System.currentTimeMillis();
       }
+      this.modified = true;
    }
 
    private int getLifespan() {
@@ -101,6 +104,7 @@ public class TransactionEntry<K, V> {
 
    public void remove() {
       this.value = null;
+      this.modified = true;
    }
 
    public Modification toModification(Function<K, byte[]> keyMarshaller, Function<V, byte[]> valueMarshaller) {
@@ -121,5 +125,21 @@ public class TransactionEntry<K, V> {
       this.lifespanTimeUnit = TimeUnit.SECONDS;
       this.maxIdle = metadataValue.getMaxIdle();
       this.maxIdleTimeUnit = TimeUnit.SECONDS;
+   }
+
+   @Override
+   public String toString() {
+      return "TransactionEntry{" +
+            "key=" + toStr(key) +
+            ", version=" + version +
+            ", readControl=" + ControlByte.prettyPrint(readControl) +
+            ", value=" + toStr(value) +
+            ", created=" + created +
+            ", lifespan=" + lifespan +
+            ", lifespanTimeUnit=" + lifespanTimeUnit +
+            ", maxIdle=" + maxIdle +
+            ", maxIdleTimeUnit=" + maxIdleTimeUnit +
+            ", modified=" + modified +
+            '}';
    }
 }
