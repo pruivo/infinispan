@@ -357,7 +357,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       }
 
       int viewId = rpcManager.getTransport().getViewId();
-      if (transactionOriginatorChecker.isOriginatorMissing(globalTx)) {
+      if (transactionOriginatorChecker.isOriginatorMissing(globalTx, rpcManager.getTransport().getMembers())) {
          throw new IllegalStateException(
                "Cannot create remote transaction " + globalTx + ", the originator is not in the cluster view");
       }
@@ -385,7 +385,7 @@ public class TransactionTable implements org.infinispan.transaction.TransactionT
       });
 
       if (rpcManager.getTransport().getViewId() != viewId &&
-            transactionOriginatorChecker.isOriginatorMissing(globalTx)) {
+            transactionOriginatorChecker.isOriginatorMissing(globalTx, rpcManager.getTransport().getMembers())) {
          // Either cleanupLeaverTransactions didn't run for this view yet, or it missed the transaction we just created.
          // Kill the transaction here if necessary, but return normally, as if the cleanup task did it.
          if (partitionHandlingManager.canRollbackTransactionAfterOriginatorLeave(globalTx)) {
