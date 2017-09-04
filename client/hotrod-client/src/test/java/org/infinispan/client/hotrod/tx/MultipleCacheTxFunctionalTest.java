@@ -4,6 +4,8 @@ import static org.testng.AssertJUnit.assertSame;
 
 import java.lang.reflect.Method;
 
+import javax.transaction.RollbackException;
+import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
 
 import org.infinispan.client.hotrod.RemoteCache;
@@ -14,6 +16,7 @@ import org.infinispan.client.hotrod.test.MultiHotRodServersTest;
 import org.infinispan.client.hotrod.tx.util.KeyValueGenerator;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
+import org.infinispan.test.Exceptions;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.transaction.lookup.EmbeddedTransactionManagerLookup;
 import org.infinispan.util.concurrent.IsolationLevel;
@@ -108,7 +111,100 @@ public class MultipleCacheTxFunctionalTest<K, V> extends MultiHotRodServersTest 
       assertEntryInAllClients(CACHE_A, k1, v1);
       assertEntryInAllClients(CACHE_B, k1, v2);
       assertEntryInAllClients(CACHE_C, k1, v3);
+   }
 
+   public void testMultipleCacheWithConflict(Method method) throws Exception {
+      final K k1 = kvGenerator.generateKey(method, 1);
+      final V v1 = kvGenerator.generateValue(method, 1);
+      final V v2 = kvGenerator.generateValue(method, 2);
+      final V v3 = kvGenerator.generateValue(method, 3);
+      final V v4 = kvGenerator.generateValue(method, 4);
+
+      TransactionalRemoteCache<K, V> remoteCacheA = remoteCache(CACHE_A, 0);
+      TransactionalRemoteCache<K, V> remoteCacheB = remoteCache(CACHE_B, 0);
+      TransactionalRemoteCache<K, V> remoteCacheC = remoteCache(CACHE_C, 0);
+
+      assertSame(remoteCacheA.getTransactionManager(), remoteCacheB.getTransactionManager());
+      assertSame(remoteCacheA.getTransactionManager(), remoteCacheC.getTransactionManager());
+
+      final TransactionManager tm = remoteCacheA.getTransactionManager();
+      tm.begin();
+      kvGenerator.assertValueEquals(null, remoteCacheA.get(k1));
+      kvGenerator.assertValueEquals(null, remoteCacheA.put(k1, v1));
+      kvGenerator.assertValueEquals(null, remoteCacheB.put(k1, v2));
+      kvGenerator.assertValueEquals(null, remoteCacheC.put(k1, v3));
+      kvGenerator.assertValueEquals(v1, remoteCacheA.get(k1));
+      kvGenerator.assertValueEquals(v2, remoteCacheB.get(k1));
+      kvGenerator.assertValueEquals(v3, remoteCacheC.get(k1));
+      final Transaction tx = tm.suspend();
+
+      client(0).getCache(CACHE_A).put(k1, v4);
+
+      tm.resume(tx);
+      Exceptions.expectException(RollbackException.class, tm::commit);
+
+      assertEntryInAllClients(CACHE_A, k1, v4);
+      assertEntryInAllClients(CACHE_B, k1, null);
+      assertEntryInAllClients(CACHE_C, k1, null);
+   }
+
+   public void testMultipleCacheRollback(Method method) throws Exception {
+      final K k1 = kvGenerator.generateKey(method, 1);
+      final V v1 = kvGenerator.generateValue(method, 1);
+      final V v2 = kvGenerator.generateValue(method, 2);
+      final V v3 = kvGenerator.generateValue(method, 3);
+
+
+      TransactionalRemoteCache<K, V> remoteCacheA = remoteCache(CACHE_A, 0);
+      TransactionalRemoteCache<K, V> remoteCacheB = remoteCache(CACHE_B, 0);
+      TransactionalRemoteCache<K, V> remoteCacheC = remoteCache(CACHE_C, 0);
+
+      assertSame(remoteCacheA.getTransactionManager(), remoteCacheB.getTransactionManager());
+      assertSame(remoteCacheA.getTransactionManager(), remoteCacheC.getTransactionManager());
+
+      final TransactionManager tm = remoteCacheA.getTransactionManager();
+      tm.begin();
+      kvGenerator.assertValueEquals(null, remoteCacheA.put(k1, v1));
+      kvGenerator.assertValueEquals(null, remoteCacheB.put(k1, v2));
+      kvGenerator.assertValueEquals(null, remoteCacheC.put(k1, v3));
+      kvGenerator.assertValueEquals(v1, remoteCacheA.get(k1));
+      kvGenerator.assertValueEquals(v2, remoteCacheB.get(k1));
+      kvGenerator.assertValueEquals(v3, remoteCacheC.get(k1));
+      tm.rollback();
+
+      assertEntryInAllClients(CACHE_A, k1, null);
+      assertEntryInAllClients(CACHE_B, k1, null);
+      assertEntryInAllClients(CACHE_C, k1, null);
+   }
+
+   public void testMultipleCacheSetRollbackOnly(Method method) throws Exception {
+      final K k1 = kvGenerator.generateKey(method, 1);
+      final V v1 = kvGenerator.generateValue(method, 1);
+      final V v2 = kvGenerator.generateValue(method, 2);
+      final V v3 = kvGenerator.generateValue(method, 3);
+
+
+      TransactionalRemoteCache<K, V> remoteCacheA = remoteCache(CACHE_A, 0);
+      TransactionalRemoteCache<K, V> remoteCacheB = remoteCache(CACHE_B, 0);
+      TransactionalRemoteCache<K, V> remoteCacheC = remoteCache(CACHE_C, 0);
+
+      assertSame(remoteCacheA.getTransactionManager(), remoteCacheB.getTransactionManager());
+      assertSame(remoteCacheA.getTransactionManager(), remoteCacheC.getTransactionManager());
+
+      final TransactionManager tm = remoteCacheA.getTransactionManager();
+      tm.begin();
+      kvGenerator.assertValueEquals(null, remoteCacheA.put(k1, v1));
+      kvGenerator.assertValueEquals(null, remoteCacheB.put(k1, v2));
+      kvGenerator.assertValueEquals(null, remoteCacheC.put(k1, v3));
+      kvGenerator.assertValueEquals(v1, remoteCacheA.get(k1));
+      kvGenerator.assertValueEquals(v2, remoteCacheB.get(k1));
+      kvGenerator.assertValueEquals(v3, remoteCacheC.get(k1));
+      tm.setRollbackOnly();
+      Exceptions.expectException(RollbackException.class, tm::commit);
+
+      assertEntryInAllClients(CACHE_A, k1, null);
+      assertEntryInAllClients(CACHE_B, k1, null);
+      assertEntryInAllClients(CACHE_C, k1, null);
    }
 
    @BeforeClass(alwaysRun = true)
@@ -133,8 +229,7 @@ public class MultipleCacheTxFunctionalTest<K, V> extends MultiHotRodServersTest 
 
    @Override
    protected void createCacheManagers() throws Throwable {
-      org.infinispan.configuration.cache.ConfigurationBuilder cacheBuilder = getDefaultClusteredCacheConfig(
-            CacheMode.DIST_SYNC, true);
+      ConfigurationBuilder cacheBuilder = getDefaultClusteredCacheConfig(CacheMode.DIST_SYNC, true);
       cacheBuilder.transaction().transactionManagerLookup(new EmbeddedTransactionManagerLookup());
       cacheBuilder.transaction().lockingMode(LockingMode.PESSIMISTIC);
       cacheBuilder.locking().isolationLevel(IsolationLevel.REPEATABLE_READ);

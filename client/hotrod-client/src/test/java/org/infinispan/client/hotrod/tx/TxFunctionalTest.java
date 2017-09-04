@@ -411,8 +411,7 @@ public class TxFunctionalTest<K, V> extends MultiHotRodServersTest {
 
    @Override
    protected void createCacheManagers() throws Throwable {
-      org.infinispan.configuration.cache.ConfigurationBuilder cacheBuilder = getDefaultClusteredCacheConfig(
-            CacheMode.DIST_SYNC, true);
+      ConfigurationBuilder cacheBuilder = getDefaultClusteredCacheConfig(CacheMode.DIST_SYNC, true);
       cacheBuilder.transaction().transactionManagerLookup(new EmbeddedTransactionManagerLookup());
       cacheBuilder.transaction().lockingMode(LockingMode.PESSIMISTIC);
       cacheBuilder.locking().isolationLevel(IsolationLevel.REPEATABLE_READ);
