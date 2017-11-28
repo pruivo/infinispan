@@ -19,7 +19,7 @@ public abstract class BaseCounterTest extends MultipleCacheManagersTest {
    }
 
    @Override
-   protected final void createCacheManagers() throws Throwable {
+   protected void createCacheManagers() throws Throwable {
       final int size = clusterSize();
       for (int i = 0; i < size; ++i) {
          addClusterEnabledCacheManager(configure(i), getDefaultClusteredCacheConfig(CacheMode.DIST_SYNC));
