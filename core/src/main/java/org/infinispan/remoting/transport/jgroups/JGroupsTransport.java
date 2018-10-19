@@ -36,18 +36,19 @@ import javax.management.ObjectName;
 import org.infinispan.IllegalLifecycleStateException;
 import org.infinispan.commands.FlagAffectedCommand;
 import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.commands.write.BackupAckCommand;
 import org.infinispan.commons.CacheConfigurationException;
 import org.infinispan.commons.CacheException;
-import org.infinispan.commons.jmx.JmxUtil;
-import org.infinispan.configuration.global.GlobalJmxStatisticsConfiguration;
-import org.infinispan.util.logging.TraceException;
 import org.infinispan.commons.io.ByteBuffer;
+import org.infinispan.commons.jmx.JmxUtil;
 import org.infinispan.commons.marshall.StreamingMarshaller;
+import org.infinispan.commons.time.TimeService;
 import org.infinispan.commons.util.FileLookup;
 import org.infinispan.commons.util.FileLookupFactory;
 import org.infinispan.commons.util.TypedProperties;
 import org.infinispan.commons.util.Util;
 import org.infinispan.configuration.global.GlobalConfiguration;
+import org.infinispan.configuration.global.GlobalJmxStatisticsConfiguration;
 import org.infinispan.configuration.global.TransportConfiguration;
 import org.infinispan.configuration.global.TransportConfigurationBuilder;
 import org.infinispan.configuration.parsing.XmlConfigHelper;
@@ -80,13 +81,15 @@ import org.infinispan.remoting.transport.impl.RequestRepository;
 import org.infinispan.remoting.transport.impl.SingleResponseCollector;
 import org.infinispan.remoting.transport.impl.SingleTargetRequest;
 import org.infinispan.remoting.transport.impl.SingletonMapResponseCollector;
-import org.infinispan.commons.time.TimeService;
+import org.infinispan.remoting.transport.jgroups.message.BackupAckMessage;
 import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.util.logging.TraceException;
 import org.infinispan.xsite.XSiteBackup;
 import org.infinispan.xsite.XSiteReplicateCommand;
 import org.jgroups.AnycastAddress;
+import org.jgroups.BytesMessage;
 import org.jgroups.Event;
 import org.jgroups.Header;
 import org.jgroups.JChannel;
@@ -458,37 +461,19 @@ public class JGroupsTransport implements Transport {
       }
    }
 
-   private void startJGroupsChannelIfNeeded() {
-      String clusterName = configuration.transport().clusterName();
-      if (connectChannel) {
-         try {
-            channel.connect(clusterName);
-         } catch (Exception e) {
-            throw new CacheException("Unable to start JGroups Channel", e);
-         }
-
-         try {
-            // Normally this would be done by CacheManagerJmxRegistration but
-            // the channel is not started when the cache manager starts but
-            // when first cache starts, so it's safer to do it here.
-            GlobalJmxStatisticsConfiguration jmxConfig = configuration.globalJmxStatistics();
-            globalStatsEnabled = jmxConfig.enabled();
-            if (globalStatsEnabled) {
-               String groupName = String.format("type=channel,cluster=%s", ObjectName.quote(clusterName));
-               mbeanServer = JmxUtil.lookupMBeanServer(jmxConfig.mbeanServerLookup(), jmxConfig.properties());
-               domain = JmxUtil.buildJmxDomain(jmxConfig.domain(), mbeanServer, groupName);
-               JmxConfigurator.registerChannel(channel, mbeanServer, domain, clusterName, true);
-            }
-         } catch (Exception e) {
-            throw new CacheException("Channel connected, but unable to register MBeans", e);
-         }
+   private static void setMessageFlags(Message message, DeliverOrder deliverOrder, boolean rsvp, boolean noRelay) {
+      if (noRelay) {
+         message.setFlag(Message.Flag.NO_RELAY.value(), false);
       }
-      if (!connectChannel) {
-         // the channel was already started externally, we need to initialize our member list
-         receiveClusterView(channel.getView());
+      short flags = encodeDeliverMode(deliverOrder);
+      message.setFlag(flags, false);
+      // Only the commands in total order must be received by the originator.
+      if (deliverOrder != DeliverOrder.TOTAL) {
+         message.setFlag(Message.TransientFlag.DONT_LOOPBACK.value(), true);
       }
-      if (log.isInfoEnabled())
-         log.localAndPhysicalAddress(clusterName, getAddress(), getPhysicalAddresses());
+      if (rsvp) {
+         message.setFlag(Message.Flag.RSVP.value(), false);
+      }
    }
 
    private void waitForInitialNodes() {
@@ -988,8 +973,16 @@ public class JGroupsTransport implements Transport {
       if (checkView && !clusterView.contains(target))
          return;
 
-      Message message = new Message(toJGroupsAddress(target));
-      marshallRequest(message, command, requestId);
+      Message message;
+      switch (command.getCommandId()) {
+         case BackupAckCommand.COMMAND_ID:
+            BackupAckCommand bCmd = (BackupAckCommand) command;
+            message = new BackupAckMessage(toJGroupsAddress(target), bCmd);
+            break;
+         default:
+            message = new BytesMessage(toJGroupsAddress(target));
+            marshallRequest((BytesMessage) message, command, requestId);
+      }
       setMessageFlags(message, deliverOrder, rsvp, noRelay);
 
       send(message);
@@ -1004,30 +997,52 @@ public class JGroupsTransport implements Transport {
       return ((JGroupsAddress) address).getJGroupsAddress();
    }
 
-   private void marshallRequest(Message message, ReplicableCommand command, long requestId) {
+   private void startJGroupsChannelIfNeeded() {
+      String clusterName = configuration.transport().clusterName();
+      if (connectChannel) {
+         try {
+            channel.connect(clusterName);
+         } catch (Exception e) {
+            throw new CacheException("Unable to start JGroups Channel", e);
+         }
+
+         try {
+            // Normally this would be done by CacheManagerJmxRegistration but
+            // the channel is not started when the cache manager starts but
+            // when first cache starts, so it's safer to do it here.
+            GlobalJmxStatisticsConfiguration jmxConfig = configuration.globalJmxStatistics();
+            globalStatsEnabled = jmxConfig.enabled();
+            if (globalStatsEnabled) {
+               String groupName = String.format("type=channel,cluster=%s", ObjectName.quote(clusterName));
+               mbeanServer = JmxUtil.lookupMBeanServer(jmxConfig.mbeanServerLookup(), jmxConfig.properties());
+               domain = JmxUtil.buildJmxDomain(jmxConfig.domain(), mbeanServer, groupName);
+               JmxConfigurator.registerChannel(channel, mbeanServer, domain, clusterName, true);
+            }
+         } catch (Exception e) {
+            throw new CacheException("Channel connected, but unable to register MBeans", e);
+         }
+      }
+      if (!connectChannel) {
+         // the channel was already started externally, we need to initialize our member list
+         receiveClusterView(channel.getView());
+      }
+      if (log.isInfoEnabled()) {
+         log.localAndPhysicalAddress(clusterName, getAddress(), getPhysicalAddresses());
+      }
+
+      channel.getProtocolStack().getTransport().getMessageFactory()
+            .register(BackupAckMessage.MESSAGE_TYPE, BackupAckMessage::new);
+   }
+
+   private void marshallRequest(BytesMessage message, ReplicableCommand command, long requestId) {
       try {
          ByteBuffer bytes = marshaller.objectToBuffer(command);
-         message.setBuffer(bytes.getBuf(), bytes.getOffset(), bytes.getLength());
+         message.setArray(bytes.getBuf(), bytes.getOffset(), bytes.getLength());
          addRequestHeader(message, requestId);
       } catch (RuntimeException e) {
          throw e;
       } catch (Exception e) {
          throw new RuntimeException("Failure to marshal argument(s)", e);
-      }
-   }
-
-   private static void setMessageFlags(Message message, DeliverOrder deliverOrder, boolean rsvp, boolean noRelay) {
-      if (noRelay) {
-         message.setFlag(Message.Flag.NO_RELAY.value());
-      }
-      short flags = encodeDeliverMode(deliverOrder);
-      message.setFlag(flags);
-      // Only the commands in total order must be received by the originator.
-      if (deliverOrder != DeliverOrder.TOTAL) {
-         message.setTransientFlag(Message.TransientFlag.DONT_LOOPBACK.value());
-      }
-      if (rsvp) {
-         message.setFlag(Message.Flag.RSVP.value());
       }
    }
 
@@ -1150,12 +1165,12 @@ public class JGroupsTransport implements Transport {
     * Doesn't send the command to itself unless {@code deliverOrder == TOTAL}.
     */
    private void sendCommandToAll(ReplicableCommand command, long requestId, DeliverOrder deliverOrder, boolean rsvp) {
-      Message message = new Message();
+      BytesMessage message = new BytesMessage();
       marshallRequest(message, command, requestId);
       setMessageFlags(message, deliverOrder, rsvp, true);
 
       if (deliverOrder == DeliverOrder.TOTAL) {
-         message.dest(new AnycastAddress());
+         message.setDest(new AnycastAddress());
       }
 
       send(message);
@@ -1205,12 +1220,12 @@ public class JGroupsTransport implements Transport {
    private void sendCommand(Collection<Address> targets, ReplicableCommand command, long requestId,
                             DeliverOrder deliverOrder, boolean rsvp, boolean checkView) {
       Objects.requireNonNull(targets);
-      Message message = new Message();
+      BytesMessage message = new BytesMessage();
       marshallRequest(message, command, requestId);
       setMessageFlags(message, deliverOrder, rsvp, true);
 
       if (deliverOrder == DeliverOrder.TOTAL) {
-         message.dest(new AnycastAddress(toJGroupsAddressList(targets)));
+         message.setDest(new AnycastAddress(toJGroupsAddressList(targets)));
          send(message);
       } else {
          Message copy = message;
@@ -1223,12 +1238,12 @@ public class JGroupsTransport implements Transport {
             if (address.equals(getAddress()))
                continue;
 
-            copy.dest(toJGroupsAddress(address));
+            copy.setDest(toJGroupsAddress(address));
             send(copy);
 
             // Send a different Message instance to each target
             if (it.hasNext()) {
-               copy = copy.copy(true);
+               copy = copy.copy(true, true);
             }
          }
       }
@@ -1243,11 +1258,7 @@ public class JGroupsTransport implements Transport {
    }
 
    private void processMessage(Message message) {
-      org.jgroups.Address src = message.src();
-      short flags = message.getFlags();
-      byte[] buffer = message.rawBuffer();
-      int offset = message.offset();
-      int length = message.length();
+      org.jgroups.Address src = message.getSrc();
       RequestCorrelator.Header header = message.getHeader(HEADER_ID);
       byte type;
       long requestId;
@@ -1269,10 +1280,10 @@ public class JGroupsTransport implements Transport {
       switch (type) {
          case SINGLE_MESSAGE:
          case REQUEST:
-            processRequest(src, flags, buffer, offset, length, requestId);
+            processRequest(message, requestId);
             break;
          case RESPONSE:
-            processResponse(src, buffer, offset, length, requestId);
+            processResponse(message, requestId);
             break;
          default:
             log.invalidMessageType(type, src);
@@ -1304,8 +1315,8 @@ public class JGroupsTransport implements Transport {
       }
 
       try {
-         Message message = new Message(target).setFlag(REPLY_FLAGS);
-         message.setBuffer(bytes.getBuf(), bytes.getOffset(), bytes.getLength());
+         Message message = new BytesMessage(target).setFlag(REPLY_FLAGS, false);
+         message.setArray(bytes.getBuf(), bytes.getOffset(), bytes.getLength());
          RequestCorrelator.Header header = new RequestCorrelator.Header(RESPONSE, requestId,
                                                                         CORRELATOR_ID);
          message.putHeader(HEADER_ID, header);
@@ -1318,10 +1329,10 @@ public class JGroupsTransport implements Transport {
       }
    }
 
-   private void processRequest(org.jgroups.Address src, short flags, byte[] buffer, int offset, int length,
-                               long requestId) {
+   private void processRequest(Message message, long requestId) {
+      org.jgroups.Address src = message.getSrc();
       try {
-         DeliverOrder deliverOrder = decodeDeliverMode(flags);
+         DeliverOrder deliverOrder = decodeDeliverMode(message.getFlags(false));
          if (deliverOrder != DeliverOrder.TOTAL && src.equals(((JGroupsAddress) getAddress()).getJGroupsAddress())) {
             // DISCARD ignores the DONT_LOOPBACK flag, see https://issues.jboss.org/browse/JGRP-2205
             if (trace)
@@ -1329,7 +1340,15 @@ public class JGroupsTransport implements Transport {
             return;
          }
 
-         ReplicableCommand command = (ReplicableCommand) marshaller.objectFromByteBuffer(buffer, offset, length);
+         ReplicableCommand command;
+         switch (message.getType()) {
+            case BackupAckMessage.MESSAGE_TYPE:
+               command = ((BackupAckMessage) message).createCommand();
+               break;
+            default:
+               command = (ReplicableCommand) marshaller
+                     .objectFromByteBuffer(message.getArray(), message.getOffset(), message.getLength());
+         }
          Reply reply;
          if (requestId != Request.NO_REQUEST_ID) {
             if (trace)
@@ -1354,20 +1373,24 @@ public class JGroupsTransport implements Transport {
       }
    }
 
-   private void processResponse(org.jgroups.Address src, byte[] buffer, int offset, int length, long requestId) {
+   private void processResponse(Message message, long requestId) {
+      int length = message.getLength();
+      org.jgroups.Address src = message.getSrc();
       try {
          Response response;
          if (length == 0) {
             // Empty buffer signals the ForkChannel with this name is not running on the remote node
             response = CacheNotFoundResponse.INSTANCE;
          } else {
-            response = (Response) marshaller.objectFromByteBuffer(buffer, offset, length);
+            response = (Response) marshaller.objectFromByteBuffer(message.getArray(), message.getOffset(), length);
             if (response == null) {
                response = SuccessfulResponse.SUCCESSFUL_EMPTY_RESPONSE;
             }
          }
-         if (trace)
-            log.tracef("%s received response for request %d from %s: %s", getAddress(), requestId, src, response);
+         if (trace) {
+            log.tracef("%s received response for request %d from %s: %s", getAddress(), requestId, message.getSrc(),
+                  response);
+         }
          Address address = fromJGroupsAddress(src);
          requests.addResponse(requestId, address, response);
       } catch (Throwable t) {
@@ -1376,8 +1399,8 @@ public class JGroupsTransport implements Transport {
    }
 
    private DeliverOrder decodeDeliverMode(short flags) {
-      boolean noTotalOrder = Message.isFlagSet(flags, Message.Flag.NO_TOTAL_ORDER);
-      boolean oob = Message.isFlagSet(flags, Message.Flag.OOB);
+      boolean noTotalOrder = org.jgroups.util.Util.isFlagSet(flags, Message.Flag.NO_TOTAL_ORDER);
+      boolean oob = org.jgroups.util.Util.isFlagSet(flags, Message.Flag.OOB);
       if (!noTotalOrder && oob) {
          return DeliverOrder.TOTAL;
       } else if (noTotalOrder && oob) {

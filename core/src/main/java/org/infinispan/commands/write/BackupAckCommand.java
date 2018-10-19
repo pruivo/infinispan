@@ -79,4 +79,12 @@ public class BackupAckCommand extends BaseRpcCommand {
             ", topologyId=" + topologyId +
             '}';
    }
+
+   public long getId() {
+      return id;
+   }
+
+   public int getTopologyId() {
+      return topologyId;
+   }
 }

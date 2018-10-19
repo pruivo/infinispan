@@ -160,7 +160,7 @@
       <version.jboss.logging>3.3.2.Final</version.jboss.logging>
       <version.jboss.marshalling>2.0.6.Final</version.jboss.marshalling>
       <version.jetty>9.4.5.v20170502</version.jetty>
-      <version.jgroups>4.0.15.Final</version.jgroups>
+      <version.jgroups>5.0.0-SNAPSHOT</version.jgroups>
       <version.junit>4.12</version.junit>
       <version.karaf>4.2.0</version.karaf>
       <version.log4j>2.8.2</version.log4j>

@@ -1,5 +1,7 @@
 package org.infinispan.util;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
@@ -77,5 +79,27 @@ public class ByteString {
       byte[] b = new byte[len];
       input.readFully(b);
       return new ByteString(b);
+   }
+
+   public static void writeObject(DataOutput output, ByteString object) throws IOException {
+      output.writeByte(object.b.length);
+      if (object.b.length > 0) {
+         output.write(object.b);
+      }
+   }
+
+   public static ByteString readObject(DataInput input) throws IOException {
+      int len = input.readUnsignedByte();
+      if (len == 0)
+         return EMPTY;
+
+      byte[] b = new byte[len];
+      input.readFully(b);
+      return new ByteString(b);
+   }
+
+
+   public int serializedSize() {
+      return b.length;
    }
 }
