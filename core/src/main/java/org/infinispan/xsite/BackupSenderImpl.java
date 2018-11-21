@@ -45,7 +45,6 @@ import org.infinispan.commons.util.Util;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.BackupFailurePolicy;
 import org.infinispan.configuration.cache.Configuration;
-import org.infinispan.configuration.cache.SitesConfiguration;
 import org.infinispan.configuration.global.GlobalConfiguration;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.context.InvocationContext;
@@ -93,11 +92,9 @@ public class BackupSenderImpl implements BackupSender {
 
    private final Map<String, CustomFailurePolicy> siteFailurePolicy = new HashMap<>();
    private final ConcurrentMap<String, OfflineStatus> offlineStatus = CollectionFactory.makeConcurrentMap();
-   private final String localSiteName;
    private String cacheName;
 
-   public BackupSenderImpl(String localSiteName) {
-      this.localSiteName = localSiteName;
+   public BackupSenderImpl() {
    }
 
    @Start
@@ -224,62 +221,6 @@ public class BackupSenderImpl implements BackupSender {
       PrepareCommand prepare = commandsFactory.buildPrepareCommand(command.getGlobalTransaction(),
             modifications, true);
       return backupCommand(prepare, backups);
-   }
-
-   private void processFailedResponses(BackupResponse backupResponse, VisitableCommand command, Transaction transaction) throws Throwable {
-      SitesConfiguration sitesConfiguration = config.sites();
-      Map<String, Throwable> failures = backupResponse.getFailedBackups();
-      BackupFailureException backupException = null;
-      for (Map.Entry<String, Throwable> failure : failures.entrySet()) {
-         BackupFailurePolicy policy = sitesConfiguration.getFailurePolicy(failure.getKey());
-         if (policy == BackupFailurePolicy.CUSTOM) {
-            CustomFailurePolicy customFailurePolicy = siteFailurePolicy.get(failure.getKey());
-            command.acceptVisitor(null, new CustomBackupPolicyInvoker(failure.getKey(), customFailurePolicy, transaction));
-         }
-         if (policy == BackupFailurePolicy.WARN) {
-            log.warnXsiteBackupFailed(cacheName, failure.getKey(), failure.getValue());
-         } else if (policy == BackupFailurePolicy.FAIL) {
-            if (backupException == null)
-               backupException = new BackupFailureException(cacheName);
-            backupException.addFailure(failure.getKey(), failure.getValue());
-         }
-      }
-      if (backupException != null)
-         throw backupException;
-   }
-
-   private List<XSiteBackup> calculateBackupInfo(SiteStatusManager.BackupFilter backupFilter) {
-      List<XSiteBackup> backupInfo = new ArrayList<>(2);
-      SitesConfiguration sites = config.sites();
-      for (BackupConfiguration bc : sites.enabledBackups()) {
-         if (bc.site().equals(localSiteName)) {
-            log.cacheBackupsDataToSameSite(localSiteName);
-            continue;
-         }
-         boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
-         if (backupFilter == SiteStatusManager.BackupFilter.KEEP_1PC_ONLY) {
-            if (isSync && bc.isTwoPhaseCommit())
-               continue;
-         }
-
-         if (backupFilter == SiteStatusManager.BackupFilter.KEEP_2PC_ONLY) {
-            if (!isSync || (!bc.isTwoPhaseCommit()))
-               continue;
-         }
-
-         if (isOffline(bc.site())) {
-            log.tracef("The site '%s' is offline, not backing up information to it", bc.site());
-            continue;
-         }
-         XSiteBackup bi = new XSiteBackup(bc.site(), isSync, bc.replicationTimeout());
-         backupInfo.add(bi);
-      }
-      return backupInfo;
-   }
-
-   private boolean isOffline(String site) {
-      OfflineStatus offline = offlineStatus.get(site);
-      return offline != null && offline.isOffline();
    }
 
    private List<WriteCommand> filterModifications(WriteCommand[] modifications, Map<Object, CacheEntry> lookedUpEntries) {

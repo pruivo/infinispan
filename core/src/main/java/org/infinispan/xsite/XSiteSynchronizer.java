@@ -24,8 +24,6 @@ public class XSiteSynchronizer {
       return state == State.RECEIVING;
    }
 
-   
-
 
    private enum State {
       /**

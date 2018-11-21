@@ -71,6 +71,11 @@ public class DelegatingTransport extends AbstractDelegatingTransport {
          }
 
          @Override
+         public boolean isDone() {
+            return true;
+         }
+
+         @Override
          public void notifyFinish(LongConsumer timeElapsedConsumer) {
             //no-op
          }

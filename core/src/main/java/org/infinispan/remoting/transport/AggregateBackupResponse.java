@@ -87,6 +87,16 @@ public class AggregateBackupResponse implements BackupResponse {
    }
 
    @Override
+   public boolean isDone() {
+      for (BackupResponse br : responses) {
+         if (!br.isDone()) {
+            return false;
+         }
+      }
+      return true;
+   }
+
+   @Override
    public void notifyFinish(LongConsumer timeElapsedConsumer) {
       for (BackupResponse br : responses) {
          br.notifyFinish(timeElapsedConsumer);
