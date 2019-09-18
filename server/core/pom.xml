@@ -27,14 +27,6 @@
          <classifier>${os.detected.classifier}</classifier>
          <optional>true</optional>
       </dependency>
-       <!-- Workaround for ISPN-8843 -->
-       <dependency>
-         <groupId>io.netty</groupId>
-         <artifactId>netty-tcnative</artifactId>
-         <version>${versionx.io.netty.netty-tcnative}</version>
-         <classifier>${os.detected.classifier}</classifier>
-         <optional>true</optional>
-      </dependency>
       <dependency>
          <groupId>io.netty</groupId>
          <artifactId>netty-transport-native-epoll</artifactId>
@@ -96,6 +88,10 @@
          <groupId>org.testng</groupId>
          <artifactId>testng</artifactId>
          <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.wildfly.openssl</groupId>
+         <artifactId>wildfly-openssl</artifactId>
       </dependency>
    </dependencies>
 

@@ -16,6 +16,8 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.wildfly.openssl.OpenSSLProvider;
+
 /**
  * SslContextFactory.
  *
@@ -66,7 +68,10 @@ public class SslContextFactory {
             trustManagers = tmf.getTrustManagers();
          }
 
-         SSLContext sslContext = SSLContext.getInstance(sslProtocol == null ? DEFAULT_SSL_PROTOCOL : sslProtocol);
+         OpenSSLProvider.register();
+         String openSslProtocol = sslProtocol == null ? DEFAULT_SSL_PROTOCOL : sslProtocol;
+         openSslProtocol = "openssl." + openSslProtocol;
+         SSLContext sslContext = SSLContext.getInstance(openSslProtocol);
          sslContext.init(keyManagers, trustManagers, null);
          return sslContext;
       } catch (Exception e) {

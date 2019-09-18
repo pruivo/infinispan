@@ -99,8 +99,8 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-tcnative-boringssl-static</artifactId>
+            <groupId>org.wildfly.openssl</groupId>
+            <artifactId>wildfly-openssl</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

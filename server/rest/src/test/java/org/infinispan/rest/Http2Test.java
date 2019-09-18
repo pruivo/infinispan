@@ -17,6 +17,7 @@ import org.infinispan.test.AbstractInfinispanTest;
 import org.infinispan.test.fwk.TestResourceTracker;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
+import org.wildfly.openssl.OpenSSLProvider;
 
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -105,6 +106,7 @@ public final class Http2Test extends AbstractInfinispanTest {
    }
 
    private void secureUpgradeTest(Protocol choice) throws Exception {
+      OpenSSLProvider.register();
       if (!OpenSsl.isAlpnSupported()) {
          throw new IllegalStateException("OpenSSL is not present, can not test TLS/ALPN support. " +
                "Version: " + OpenSsl.versionString() + " Cause: " + OpenSsl.unavailabilityCause());

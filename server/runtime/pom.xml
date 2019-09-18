@@ -123,9 +123,8 @@
          <artifactId>metainf-services</artifactId>
       </dependency>
       <dependency>
-         <groupId>io.netty</groupId>
-         <artifactId>netty-tcnative</artifactId>
-         <classifier>linux-x86_64</classifier>
+         <groupId>org.wildfly.openssl</groupId>
+         <artifactId>wildfly-openssl</artifactId>
       </dependency>
       <!-- Test dependencies -->
       <dependency>
