@@ -35,6 +35,7 @@ import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.ResponseGenerator;
 import org.infinispan.statetransfer.OutdatedTopologyException;
 import org.infinispan.statetransfer.StateTransferLock;
+import org.infinispan.util.concurrent.ActionSequencer;
 import org.infinispan.util.concurrent.BlockingRunnable;
 import org.infinispan.util.concurrent.BlockingTaskAwareExecutorService;
 import org.infinispan.util.concurrent.CompletableFutures;
@@ -65,6 +66,7 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
    private final LongAdder syncXsiteReceived = new LongAdder();
    private final LongAdder asyncXsiteReceived = new LongAdder();
    private volatile boolean statisticsEnabled = false;
+   private volatile ActionSequencer xsiteSequencer;
 
    private static int extractCommandTopologyId(SingleRpcCommand command) {
       ReplicableCommand innerCmd = command.getCommand();
@@ -104,6 +106,12 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
 
    public boolean isStopped() {
       return stopped;
+   }
+
+   @Override
+   public void registerXSiteActionSequence(ActionSequencer sequencer) {
+      this.xsiteSequencer = sequencer;
+      sequencer.setStatisticEnabled(statisticsEnabled);
    }
 
    final CompletableFuture<Response> invokeCommand(CacheRpcCommand cmd) throws Throwable {
@@ -224,6 +232,10 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
    public void resetStatistics() {
       syncXsiteReceived.reset();
       asyncXsiteReceived.reset();
+      ActionSequencer sequencer = xsiteSequencer;
+      if (sequencer != null) {
+         sequencer.resetStatistics();
+      }
    }
 
    @ManagedAttribute(description = "Enables or disables the gathering of statistics by this component",
@@ -237,6 +249,10 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
    @Override
    public void setStatisticsEnabled(boolean enabled) {
       this.statisticsEnabled = enabled;
+      ActionSequencer sequencer = xsiteSequencer;
+      if (sequencer != null) {
+         sequencer.setStatisticEnabled(enabled);
+      }
    }
 
    @ManagedAttribute(description = "Returns the number of sync cross-site requests received by this node",
@@ -253,6 +269,42 @@ public abstract class BasePerCacheInboundInvocationHandler implements PerCacheIn
          displayType = DisplayType.SUMMARY)
    public long getAsyncXSiteRequestsReceived() {
       return statisticsEnabled ? asyncXsiteReceived.sum() : 0;
+   }
+
+   @ManagedAttribute(description = "Returns the number of Cross-Site requests queued and running",
+         displayName = "Number of Cross-Site Requests running or queued.",
+         units = Units.NONE,
+         displayType = DisplayType.SUMMARY)
+   public long getXSitePendingRequests() {
+      ActionSequencer sequencer = xsiteSequencer;
+      return statisticsEnabled && sequencer != null ? sequencer.getPendingActions() : 0;
+   }
+
+   @ManagedAttribute(description = "Returns the number of Cross-Site requests running",
+         displayName = "Number of Cross-Site Requests running.",
+         units = Units.NONE,
+         displayType = DisplayType.SUMMARY)
+   public long getXSiteRunningRequests() {
+      ActionSequencer sequencer = xsiteSequencer;
+      return statisticsEnabled && sequencer != null ? sequencer.getRunningActions() : 0;
+   }
+
+   @ManagedAttribute(description = "Returns the average queue time for Cross-Site requests in nanoseconds",
+         displayName = "Queue time for received Cross-Site Requests",
+         units = Units.NANOSECONDS,
+         displayType = DisplayType.SUMMARY)
+   public long getXSiteRequestQueueTime() {
+      ActionSequencer sequencer = xsiteSequencer;
+      return statisticsEnabled && sequencer != null ? sequencer.getAverageQueueTimeNanos() : -1;
+   }
+
+   @ManagedAttribute(description = "Returns the average running time for Cross-Site requests in nanoseconds",
+         displayName = "Running time for received Cross-Site Requests",
+         units = Units.NANOSECONDS,
+         displayType = DisplayType.SUMMARY)
+   public long getXSiteRequestRunningTime() {
+      ActionSequencer sequencer = xsiteSequencer;
+      return statisticsEnabled && sequencer != null ? sequencer.getAverageRunningTimeNanos() : -1;
    }
 
    private BlockingRunnable createNonNullReadyActionRunnable(CacheRpcCommand command, Reply reply, int commandTopologyId, boolean sync, ReadyAction readyAction) {

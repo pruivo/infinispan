@@ -2,6 +2,7 @@ package org.infinispan.remoting.inboundhandler;
 
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.jmx.JmxStatisticsExposer;
+import org.infinispan.util.concurrent.ActionSequencer;
 
 /**
  * Interface to invoke when a {@link org.infinispan.commands.remote.CacheRpcCommand} is received from other node in the
@@ -36,4 +37,9 @@ public interface PerCacheInboundInvocationHandler extends JmxStatisticsExposer {
    int getFirstTopologyAsMember();
 
    void registerXSiteCommandReceiver(boolean sync);
+
+   //TODO! quick and dirty... needs to be properly coded... eventually...
+   default void registerXSiteActionSequence(ActionSequencer sequencer) {
+      //no-op. avoids breaking some code...
+   }
 }

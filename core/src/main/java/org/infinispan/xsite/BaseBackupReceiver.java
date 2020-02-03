@@ -39,6 +39,7 @@ import org.infinispan.functional.impl.FunctionalMapImpl;
 import org.infinispan.functional.impl.WriteOnlyMapImpl;
 import org.infinispan.lifecycle.ComponentStatus;
 import org.infinispan.marshall.core.MarshallableFunctions;
+import org.infinispan.remoting.inboundhandler.PerCacheInboundInvocationHandler;
 import org.infinispan.transaction.TransactionMode;
 import org.infinispan.transaction.impl.LocalTransaction;
 import org.infinispan.transaction.impl.TransactionTable;
@@ -74,7 +75,11 @@ public abstract class BaseBackupReceiver implements BackupReceiver {
       ExecutorService executor = registry.getComponent(ExecutorService.class, REMOTE_COMMAND_EXECUTOR);
       TransactionHandler txHandler = new TransactionHandler(cache);
       this.defaultHandler = new DefaultHandler(txHandler, executor);
-      this.asyncBackupHandler = new AsyncBackupHandler(txHandler, executor);
+      this.asyncBackupHandler = new AsyncBackupHandler(txHandler, executor, timeService);
+      PerCacheInboundInvocationHandler handler = registry.getPerCacheInboundInvocationHandler();
+      if (handler != null) {
+         handler.registerXSiteActionSequence(asyncBackupHandler.sequencer);
+      }
    }
 
    static XSiteStatePushCommand newStatePushCommand(AdvancedCache<?, ?> cache, List<XSiteState> stateList) {
@@ -181,9 +186,9 @@ public abstract class BaseBackupReceiver implements BackupReceiver {
 
       private final ActionSequencer sequencer;
 
-      private AsyncBackupHandler(TransactionHandler txHandler, ExecutorService executor) {
+      private AsyncBackupHandler(TransactionHandler txHandler, ExecutorService executor, TimeService timeService) {
          super(txHandler, executor);
-         sequencer = new ActionSequencer(executor);
+         sequencer = new ActionSequencer(executor, timeService);
       }
 
       @Override
