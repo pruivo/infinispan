@@ -3,11 +3,11 @@ package org.infinispan.container.entries.metadata;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Collections;
 import java.util.Set;
 
 import org.infinispan.commons.io.UnsignedNumeric;
 import org.infinispan.commons.marshall.AbstractExternalizer;
-import org.infinispan.commons.util.Util;
 import org.infinispan.container.entries.ExpiryHelper;
 import org.infinispan.container.entries.ImmortalCacheValue;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -15,8 +15,7 @@ import org.infinispan.marshall.core.Ids;
 import org.infinispan.metadata.Metadata;
 
 /**
- * A mortal cache value, to correspond with
- * {@link org.infinispan.container.entries.metadata.MetadataMortalCacheEntry}
+ * A mortal cache value, to correspond with {@link org.infinispan.container.entries.metadata.MetadataMortalCacheEntry}
  *
  * @author Galder Zamarreño
  * @since 5.1
@@ -32,9 +31,10 @@ public class MetadataMortalCacheValue extends ImmortalCacheValue implements Meta
       this.created = created;
    }
 
-   @Override
-   public InternalCacheEntry toInternalCacheEntry(Object key) {
-      return new MetadataMortalCacheEntry(key, value, metadata, created);
+   protected MetadataMortalCacheValue(CommonData data, Metadata metadata, long created) {
+      super(data);
+      this.metadata = metadata;
+      this.created = created;
    }
 
    @Override
@@ -73,20 +73,32 @@ public class MetadataMortalCacheValue extends ImmortalCacheValue implements Meta
       return true;
    }
 
+   @Override
+   protected InternalCacheEntry createEntry(Object key) {
+      return new MetadataMortalCacheEntry(key, value, metadata, created);
+   }
+
+   @Override
+   protected void appendFieldsToString(StringBuilder builder) {
+      super.appendFieldsToString(builder);
+      builder.append(", metadata=").append(metadata);
+      builder.append(", created=").append(created);
+   }
+
    public static class Externalizer extends AbstractExternalizer<MetadataMortalCacheValue> {
       @Override
       public void writeObject(ObjectOutput output, MetadataMortalCacheValue mcv) throws IOException {
-         output.writeObject(mcv.value);
+         writeCommonDataTo(mcv, output);
          output.writeObject(mcv.metadata);
          UnsignedNumeric.writeUnsignedLong(output, mcv.created);
       }
 
       @Override
       public MetadataMortalCacheValue readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         Object v = input.readObject();
+         CommonData data = readCommonDataFrom(input);
          Metadata metadata = (Metadata) input.readObject();
          long created = UnsignedNumeric.readUnsignedLong(input);
-         return new MetadataMortalCacheValue(v, metadata, created);
+         return new MetadataMortalCacheValue(data, metadata, created);
       }
 
       @Override
@@ -96,7 +108,7 @@ public class MetadataMortalCacheValue extends ImmortalCacheValue implements Meta
 
       @Override
       public Set<Class<? extends MetadataMortalCacheValue>> getTypeClasses() {
-         return Util.<Class<? extends MetadataMortalCacheValue>>asSet(MetadataMortalCacheValue.class);
+         return Collections.singleton(MetadataMortalCacheValue.class);
       }
    }
 

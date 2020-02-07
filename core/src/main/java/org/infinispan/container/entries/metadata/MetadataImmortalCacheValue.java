@@ -1,22 +1,20 @@
 package org.infinispan.container.entries.metadata;
 
-import static org.infinispan.commons.util.Util.toStr;
-
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Collections;
 import java.util.Set;
 
 import org.infinispan.commons.marshall.AbstractExternalizer;
-import org.infinispan.commons.util.Util;
 import org.infinispan.container.entries.ImmortalCacheValue;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.marshall.core.Ids;
 import org.infinispan.metadata.Metadata;
 
 /**
- * A form of {@link org.infinispan.container.entries.ImmortalCacheValue} that
- * is {@link org.infinispan.container.entries.metadata.MetadataAware}
+ * A form of {@link org.infinispan.container.entries.ImmortalCacheValue} that is {@link
+ * org.infinispan.container.entries.metadata.MetadataAware}
  *
  * @author Galder Zamarreño
  * @since 5.3
@@ -30,9 +28,9 @@ public class MetadataImmortalCacheValue extends ImmortalCacheValue implements Me
       this.metadata = metadata;
    }
 
-   @Override
-   public InternalCacheEntry toInternalCacheEntry(Object key) {
-      return new MetadataImmortalCacheEntry(key, value, metadata);
+   private MetadataImmortalCacheValue(CommonData data, Metadata metadata) {
+      super(data);
+      this.metadata = metadata;
    }
 
    @Override
@@ -46,25 +44,28 @@ public class MetadataImmortalCacheValue extends ImmortalCacheValue implements Me
    }
 
    @Override
-   public String toString() {
-      return getClass().getSimpleName() + " {" +
-            "value=" + toStr(value) +
-            ", metadata=" + metadata +
-            '}';
+   protected InternalCacheEntry createEntry(Object key) {
+      return new MetadataImmortalCacheEntry(key, value, metadata);
+   }
+
+   @Override
+   protected void appendFieldsToString(StringBuilder builder) {
+      super.appendFieldsToString(builder);
+      builder.append(", metadata=").append(metadata);
    }
 
    public static class Externalizer extends AbstractExternalizer<MetadataImmortalCacheValue> {
       @Override
       public void writeObject(ObjectOutput output, MetadataImmortalCacheValue icv) throws IOException {
-         output.writeObject(icv.value);
+         writeCommonDataTo(icv, output);
          output.writeObject(icv.metadata);
       }
 
       @Override
       public MetadataImmortalCacheValue readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         Object v = input.readObject();
+         CommonData data = readCommonDataFrom(input);
          Metadata metadata = (Metadata) input.readObject();
-         return new MetadataImmortalCacheValue(v, metadata);
+         return new MetadataImmortalCacheValue(data, metadata);
       }
 
       @Override
@@ -74,7 +75,7 @@ public class MetadataImmortalCacheValue extends ImmortalCacheValue implements Me
 
       @Override
       public Set<Class<? extends MetadataImmortalCacheValue>> getTypeClasses() {
-         return Util.<Class<? extends MetadataImmortalCacheValue>>asSet(MetadataImmortalCacheValue.class);
+         return Collections.singleton(MetadataImmortalCacheValue.class);
       }
    }
 

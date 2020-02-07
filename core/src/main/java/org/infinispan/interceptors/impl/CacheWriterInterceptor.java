@@ -15,6 +15,7 @@ import javax.transaction.TransactionManager;
 
 import org.infinispan.commands.FlagAffectedCommand;
 import org.infinispan.commands.SegmentSpecificCommand;
+import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.functional.FunctionalCommand;
 import org.infinispan.commands.functional.ReadWriteKeyCommand;
 import org.infinispan.commands.functional.ReadWriteKeyValueCommand;
@@ -99,13 +100,14 @@ public class CacheWriterInterceptor extends JmxStatsCommandInterceptor {
 
    @Override
    public Object visitCommitCommand(TxInvocationContext ctx, CommitCommand command) throws Throwable {
-      return asyncInvokeNext(ctx, command, commitCommand(ctx));
+      //note: commit after invoke next. The IRAC interceptor will set the versions in the context and it is later in the chain
+      return invokeNextThenApply(ctx, command, this::afterCommit);
    }
 
    @Override
    public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
       if (command.isOnePhaseCommit()) {
-         return asyncInvokeNext(ctx, command, commitCommand(ctx));
+         return invokeNextThenApply(ctx, command, this::afterCommit);
       }
       return invokeNext(ctx, command);
    }
@@ -127,6 +129,11 @@ public class CacheWriterInterceptor extends JmxStatsCommandInterceptor {
          if (trace) getLog().trace("Commit called with no modifications; ignoring.");
          return null;
       }
+   }
+
+   private Object afterCommit(InvocationContext context, VisitableCommand command, Object rv) throws Throwable {
+      CompletionStage<Void> commit = commitCommand((TxInvocationContext) context);
+      return commit == null ? rv : asyncValue(commit).thenReturn(context, command, rv);
    }
 
    private void resumeRunningTx(Transaction xaTx) throws InvalidTransactionException, SystemException {
@@ -501,7 +508,7 @@ public class CacheWriterInterceptor extends JmxStatsCommandInterceptor {
 
    MarshallableEntry marshalledEntry(InvocationContext ctx, Object key) {
       InternalCacheValue sv = entryFactory.getValueFromCtx(key, ctx);
-      return sv != null ? marshalledEntryFactory.create(key, sv.getValue(), sv.getMetadata(), sv.getCreated(), sv.getLastUsed()) : null;
+      return sv != null ? marshalledEntryFactory.create(key, sv) : null;
    }
 
    protected boolean skipSharedStores(InvocationContext ctx, Object key, FlagAffectedCommand command) {

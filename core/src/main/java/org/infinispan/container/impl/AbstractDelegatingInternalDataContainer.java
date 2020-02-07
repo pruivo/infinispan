@@ -10,6 +10,7 @@ import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.factories.annotations.Stop;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
+import org.infinispan.functional.impl.MetaParamsInternalMetadata;
 import org.infinispan.metadata.Metadata;
 
 /**
@@ -52,8 +53,10 @@ public abstract class AbstractDelegatingInternalDataContainer<K, V> implements I
    }
 
    @Override
-   public void put(int segment, K k, V v, Metadata metadata, long createdTimestamp, long lastUseTimestamp) {
-      delegate().put(segment, k, v, metadata, createdTimestamp, lastUseTimestamp);
+   public void put(int segment, K k, V v, Metadata metadata,
+         MetaParamsInternalMetadata internalMetadata, long createdTimestamp,
+         long lastUseTimestamp) {
+      delegate().put(segment, k, v, metadata, internalMetadata, createdTimestamp, lastUseTimestamp);
    }
 
    @Override

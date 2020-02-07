@@ -3,11 +3,11 @@ package org.infinispan.container.entries.metadata;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Collections;
 import java.util.Set;
 
 import org.infinispan.commons.io.UnsignedNumeric;
 import org.infinispan.commons.marshall.AbstractExternalizer;
-import org.infinispan.commons.util.Util;
 import org.infinispan.container.entries.AbstractInternalCacheEntry;
 import org.infinispan.container.entries.ExpiryHelper;
 import org.infinispan.container.entries.InternalCacheValue;
@@ -15,33 +15,27 @@ import org.infinispan.marshall.core.Ids;
 import org.infinispan.metadata.Metadata;
 
 /**
- * A cache entry that is transient, i.e., it can be considered expired after
- * a period of not being used, and {@link org.infinispan.container.entries.metadata.MetadataAware}
+ * A cache entry that is transient, i.e., it can be considered expired after a period of not being used, and {@link
+ * org.infinispan.container.entries.metadata.MetadataAware}
  *
  * @author Galder Zamarreño
  * @since 5.3
  */
 public class MetadataTransientCacheEntry extends AbstractInternalCacheEntry implements MetadataAware {
 
-   protected Object value;
    protected Metadata metadata;
    protected long lastUsed;
 
    public MetadataTransientCacheEntry(Object key, Object value, Metadata metadata, long lastUsed) {
-      super(key);
-      this.value = value;
+      super(key, value);
       this.metadata = metadata;
       this.lastUsed = lastUsed;
    }
 
-   @Override
-   public Object getValue() {
-      return value;
-   }
-
-   @Override
-   public Object setValue(Object value) {
-      return this.value = value;
+   private MetadataTransientCacheEntry(CommonData data, Metadata metadata, long lastUsed) {
+      super(data);
+      this.metadata = metadata;
+      this.lastUsed = lastUsed;
    }
 
    @Override
@@ -97,11 +91,6 @@ public class MetadataTransientCacheEntry extends AbstractInternalCacheEntry impl
    }
 
    @Override
-   public InternalCacheValue toInternalCacheValue() {
-      return new MetadataTransientCacheValue(value, metadata, lastUsed);
-   }
-
-   @Override
    public Metadata getMetadata() {
       return metadata;
    }
@@ -111,22 +100,32 @@ public class MetadataTransientCacheEntry extends AbstractInternalCacheEntry impl
       this.metadata = metadata;
    }
 
+   @Override
+   protected InternalCacheValue createCacheValue() {
+      return new MetadataTransientCacheValue(value, metadata, lastUsed);
+   }
+
+   @Override
+   protected void appendFieldsToString(StringBuilder builder) {
+      super.appendFieldsToString(builder);
+      builder.append(", metadata=").append(metadata);
+      builder.append(", lastUsed=").append(lastUsed);
+   }
+
    public static class Externalizer extends AbstractExternalizer<MetadataTransientCacheEntry> {
       @Override
       public void writeObject(ObjectOutput output, MetadataTransientCacheEntry ice) throws IOException {
-         output.writeObject(ice.key);
-         output.writeObject(ice.value);
+         writeCommonDataTo(ice, output);
          output.writeObject(ice.metadata);
          UnsignedNumeric.writeUnsignedLong(output, ice.lastUsed);
       }
 
       @Override
       public MetadataTransientCacheEntry readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         Object k = input.readObject();
-         Object v = input.readObject();
+         CommonData data = readCommonDataFrom(input);
          Metadata metadata = (Metadata) input.readObject();
          long lastUsed = UnsignedNumeric.readUnsignedLong(input);
-         return new MetadataTransientCacheEntry(k, v, metadata, lastUsed);
+         return new MetadataTransientCacheEntry(data, metadata, lastUsed);
       }
 
       @Override
@@ -136,7 +135,7 @@ public class MetadataTransientCacheEntry extends AbstractInternalCacheEntry impl
 
       @Override
       public Set<Class<? extends MetadataTransientCacheEntry>> getTypeClasses() {
-         return Util.asSet(MetadataTransientCacheEntry.class);
+         return Collections.singleton(MetadataTransientCacheEntry.class);
       }
    }
 }

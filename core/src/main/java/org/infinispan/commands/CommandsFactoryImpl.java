@@ -31,6 +31,11 @@ import org.infinispan.commands.functional.WriteOnlyKeyCommand;
 import org.infinispan.commands.functional.WriteOnlyKeyValueCommand;
 import org.infinispan.commands.functional.WriteOnlyManyCommand;
 import org.infinispan.commands.functional.WriteOnlyManyEntriesCommand;
+import org.infinispan.commands.irac.IracCleanupKeyCommand;
+import org.infinispan.commands.irac.IracMetadataRequestCommand;
+import org.infinispan.commands.irac.IracRequestStateCommand;
+import org.infinispan.commands.irac.IracStateResponseCommand;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
 import org.infinispan.commands.module.ModuleCommandInitializer;
 import org.infinispan.commands.read.EntrySetCommand;
 import org.infinispan.commands.read.GetAllCommand;
@@ -108,6 +113,7 @@ import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.marshall.core.GlobalMarshaller;
 import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.notifications.cachelistener.cluster.ClusterEvent;
 import org.infinispan.notifications.cachelistener.cluster.MultiClusterEventCommand;
 import org.infinispan.reactive.publisher.impl.DeliveryGuarantee;
@@ -662,5 +668,31 @@ public class CommandsFactoryImpl implements CommandsFactory {
    @Override
    public TouchCommand buildTouchCommand(Object key, int segment) {
       return new TouchCommand(cacheName, key, segment);
+   }
+
+   @Override
+   public IracUpdateKeyCommand buildIracUpdateKeyCommand(Object key, Object value, Metadata metadata,
+         IracMetadata iracMetadata) {
+      return new IracUpdateKeyCommand(cacheName, key, value, metadata, iracMetadata);
+   }
+
+   @Override
+   public IracCleanupKeyCommand buildIracCleanupKeyCommand(Object key, Object lockOwner) {
+      return new IracCleanupKeyCommand(cacheName, key, lockOwner);
+   }
+
+   @Override
+   public IracMetadataRequestCommand buildIracMetadataRequestCommand(int segment) {
+      return new IracMetadataRequestCommand(cacheName, segment);
+   }
+
+   @Override
+   public IracRequestStateCommand buildIracRequestStateCommand(IntSet segments) {
+      return new IracRequestStateCommand(cacheName, segments);
+   }
+
+   @Override
+   public IracStateResponseCommand buildIracStateResponseCommand(Object key, Object lockOwner, IracMetadata tombstone) {
+      return new IracStateResponseCommand(cacheName, key, lockOwner, tombstone);
    }
 }

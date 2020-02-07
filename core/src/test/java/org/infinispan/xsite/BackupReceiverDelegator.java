@@ -4,6 +4,9 @@ import java.util.concurrent.CompletionStage;
 
 import org.infinispan.Cache;
 import org.infinispan.commands.VisitableCommand;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
+import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
 import org.infinispan.xsite.statetransfer.XSiteStateTransferControlCommand;
 
@@ -35,6 +38,22 @@ public abstract class BackupReceiverDelegator implements BackupReceiver {
    }
 
    @Override
+   public CompletionStage<Void> putKeyValue(Object key, Object value, Metadata metadata,
+         IracMetadata iracMetadata) {
+      return delegate.putKeyValue(key, value, metadata, iracMetadata);
+   }
+
+   @Override
+   public CompletionStage<Void> removeKey(Object key, IracMetadata iracMetadata) {
+      return delegate.removeKey(key, iracMetadata);
+   }
+
+   @Override
+   public CompletionStage<Void> clearKeys() {
+      return delegate.clearKeys();
+   }
+
+   @Override
    public CompletionStage<Void> handleStateTransferControl(XSiteStateTransferControlCommand command) {
       return delegate.handleStateTransferControl(command);
    }
@@ -42,5 +61,10 @@ public abstract class BackupReceiverDelegator implements BackupReceiver {
    @Override
    public CompletionStage<Void> handleStateTransferState(XSiteStatePushCommand cmd) {
       return delegate.handleStateTransferState(cmd);
+   }
+
+   @Override
+   public CompletionStage<Void> forwardToPrimary(IracUpdateKeyCommand command) {
+      return delegate.forwardToPrimary(command);
    }
 }

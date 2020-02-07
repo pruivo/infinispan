@@ -13,8 +13,11 @@ import java.util.function.BiFunction;
 
 import org.infinispan.AdvancedCache;
 import org.infinispan.Cache;
-import org.infinispan.commons.IllegalLifecycleStateException;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
+import org.infinispan.commons.IllegalLifecycleStateException;
+import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.distribution.DistributionInfo;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.lifecycle.ComponentStatus;
 import org.infinispan.remoting.LocalInvocation;
@@ -28,6 +31,9 @@ import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.ResponseCollector;
 import org.infinispan.remoting.transport.ResponseCollectors;
+import org.infinispan.remoting.transport.impl.VoidResponseCollector;
+import org.infinispan.transaction.LockingMode;
+import org.infinispan.transaction.TransactionMode;
 import org.infinispan.util.concurrent.AggregateCompletionStage;
 import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.concurrent.TimeoutException;
@@ -48,8 +54,13 @@ public class ClusteredCacheBackupReceiver extends BaseBackupReceiver {
    private static final Log log = LogFactory.getLog(ClusteredCacheBackupReceiver.class);
    private static final boolean trace = log.isDebugEnabled();
 
+   private final boolean pessimisticTransaction;
+
    ClusteredCacheBackupReceiver(Cache<Object, Object> cache) {
       super(cache);
+      Configuration config = cache.getCacheConfiguration();
+      this.pessimisticTransaction = config.transaction().transactionMode() == TransactionMode.TRANSACTIONAL &&
+                                    config.transaction().lockingMode() == LockingMode.PESSIMISTIC;
    }
 
    @Override
@@ -72,8 +83,7 @@ public class ClusteredCacheBackupReceiver extends BaseBackupReceiver {
       }
 
       final long endTime = timeService.expectedEndTime(cmd.getTimeout(), TimeUnit.MILLISECONDS);
-      final ClusteringDependentLogic clusteringDependentLogic = cache.getComponentRegistry()
-            .getComponent(ClusteringDependentLogic.class);
+      final ClusteringDependentLogic clusteringDependentLogic = getClusteringDependentLogic();
       final Map<Address, List<XSiteState>> primaryOwnersChunks = new HashMap<>();
       final Address localAddress = clusteringDependentLogic.getAddress();
 
@@ -116,6 +126,37 @@ public class ClusteredCacheBackupReceiver extends BaseBackupReceiver {
       }
 
       return cf.freeze().thenApply(this::assertAllowInvocationFunction);
+   }
+
+   @Override
+   public CompletionStage<Void> forwardToPrimary(IracUpdateKeyCommand command) {
+      Object key = command.getKey();
+      if (key == null || !pessimisticTransaction) {
+         //key == null => clear. it is destructive anyway
+         //if not pessimistic transaction, we can execute the update locally.
+         return command.executeOperation(this);
+      }
+
+      DistributionInfo dInfo = getClusteringDependentLogic().getCacheTopology().getDistribution(key);
+      if (dInfo.isPrimary()) {
+         return command.executeOperation(this);
+      }
+      Address primary = dInfo.primary();
+      IracUpdateKeyCommand remoteCmd = command.copyForCacheName(cacheName);
+      RpcManager rpcManager = cache.getRpcManager();
+      //not sure if it useful to retry in case of failure
+      //the origin site has retry implemented and it will send the up-to-date value
+      return rpcManager.invokeCommand(primary, remoteCmd, VoidResponseCollector.validOnly(),
+            rpcManager.getSyncRpcOptions());
+   }
+
+   @Override
+   Log getLog() {
+      return log;
+   }
+
+   private ClusteringDependentLogic getClusteringDependentLogic() {
+      return cache.getComponentRegistry().getComponent(ClusteringDependentLogic.class);
    }
 
    private CompletionStage<Void> invokeRemotelyInLocalSite(CacheRpcCommand command) {

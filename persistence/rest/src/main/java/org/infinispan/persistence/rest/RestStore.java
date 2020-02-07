@@ -243,7 +243,7 @@ public class RestStore<K, V> implements AdvancedLoadWriteStore<K, V> {
                value = null;
             }
 
-            return entryFactory.create(key, value, metadata, created, lastUsed);
+            return entryFactory.create(key, value, metadata, null, created, lastUsed);
 
          } else if (response.getStatus() == 404) {
             return null;

@@ -13,12 +13,15 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 
 import javax.transaction.TransactionManager;
 
 import org.infinispan.AdvancedCache;
 import org.infinispan.Cache;
-import org.infinispan.commons.IllegalLifecycleStateException;
+import org.infinispan.cache.impl.CacheImpl;
+import org.infinispan.cache.impl.InvocationHelper;
+import org.infinispan.cache.impl.IracDecoratedCache;
 import org.infinispan.commands.AbstractVisitor;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.VisitableCommand;
@@ -30,16 +33,23 @@ import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.commons.IllegalLifecycleStateException;
 import org.infinispan.commons.time.TimeService;
+import org.infinispan.commons.util.EnumUtil;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.distribution.ch.KeyPartitioner;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.functional.FunctionalMap;
 import org.infinispan.functional.impl.FunctionalMapImpl;
+import org.infinispan.functional.impl.MetaParamsInternalMetadata;
 import org.infinispan.functional.impl.WriteOnlyMapImpl;
 import org.infinispan.lifecycle.ComponentStatus;
 import org.infinispan.marshall.core.MarshallableFunctions;
+import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetaParam;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.transaction.TransactionMode;
 import org.infinispan.transaction.impl.LocalTransaction;
 import org.infinispan.transaction.impl.TransactionTable;
@@ -61,11 +71,16 @@ import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
  */
 public abstract class BaseBackupReceiver implements BackupReceiver {
 
+   private static final long IRAC_FLAG_BITSET = EnumUtil.bitSetOf(Flag.IGNORE_RETURN_VALUES, Flag.SKIP_XSITE_BACKUP, Flag.IRAC_UPDATE);
+
    protected final AdvancedCache<Object, Object> cache;
    protected final ByteString cacheName;
    protected final TimeService timeService;
    private final DefaultHandler defaultHandler;
    private final AsyncBackupHandler asyncBackupHandler;
+   private final InvocationHelper invocationHelper;
+   private final CommandsFactory commandsFactory;
+   private final KeyPartitioner keyPartitioner;
 
    BaseBackupReceiver(Cache<Object, Object> cache) {
       this.cache = cache.getAdvancedCache();
@@ -76,6 +91,9 @@ public abstract class BaseBackupReceiver implements BackupReceiver {
       TransactionHandler txHandler = new TransactionHandler(cache);
       this.defaultHandler = new DefaultHandler(txHandler, executor);
       this.asyncBackupHandler = new AsyncBackupHandler(txHandler, executor);
+      this.invocationHelper = registry.getComponent(InvocationHelper.class);
+      this.commandsFactory = registry.getCommandsFactory();
+      this.keyPartitioner = registry.getComponent(KeyPartitioner.class);
    }
 
    static XSiteStatePushCommand newStatePushCommand(AdvancedCache<?, ?> cache, List<XSiteState> stateList) {
@@ -99,6 +117,24 @@ public abstract class BaseBackupReceiver implements BackupReceiver {
       }
    }
 
+   @Override
+   public CompletionStage<Void> putKeyValue(Object key, Object value, Metadata metadata, IracMetadata iracMetadata) {
+      PutKeyValueCommand cmd = commandsFactory.buildPutKeyValueCommand(key, value, segment(key), metadata, IRAC_FLAG_BITSET);
+      cmd.setInternalMetadata(internalMetadata(iracMetadata));
+      return invocationHelper.invokeAsync(cmd, 1);
+   }
+
+   @Override
+   public CompletionStage<Void> removeKey(Object key, IracMetadata iracMetadata) {
+      RemoveCommand cmd = commandsFactory.buildRemoveCommand(key, null, segment(key), IRAC_FLAG_BITSET);
+      cmd.setInternalMetadata(internalMetadata(iracMetadata));
+      return invocationHelper.invokeAsync(cmd, 1);
+   }
+
+   @Override
+   public CompletionStage<Void> clearKeys() {
+      return defaultHandler.cache().clearAsync();
+   }
 
    final <T> CompletableFuture<T> checkInvocationAllowedFuture() {
       ComponentStatus status = cache.getStatus();
@@ -116,6 +152,42 @@ public abstract class BaseBackupReceiver implements BackupReceiver {
       }
       return null;
    }
+
+   abstract Log getLog();
+
+   private MetaParamsInternalMetadata internalMetadata(IracMetadata metadata) {
+      return new MetaParamsInternalMetadata.Builder().add(new IracMetaParam(metadata)).build();
+   }
+
+   private int segment(Object key) {
+      return keyPartitioner.getSegment(key);
+   }
+
+   private static class IracCacheTransform<K, V> implements Function<AdvancedCache<K, V>, AdvancedCache<K, V>> {
+
+      private final IracMetadata iracMetadata;
+
+      private IracCacheTransform(IracMetadata iracMetadata) {
+         this.iracMetadata = iracMetadata;
+      }
+
+      @Override
+      public AdvancedCache<K, V> apply(AdvancedCache<K, V> cache) {
+         if (cache instanceof CacheImpl) {
+            return new IracDecoratedCache<>((CacheImpl<K, V>) cache, iracMetadata);
+         } else {
+            return cache;
+         }
+      }
+
+      @Override
+      public String toString() {
+         return "IracCacheTransform{" +
+                "iracMetadata=" + iracMetadata +
+                '}';
+      }
+   }
+
 
    private static class DefaultHandler extends AbstractVisitor {
 

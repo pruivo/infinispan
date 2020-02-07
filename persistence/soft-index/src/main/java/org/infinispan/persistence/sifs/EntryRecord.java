@@ -15,6 +15,7 @@ public class EntryRecord {
    private byte[] key;
    private byte[] value;
    private EntryMetadata meta;
+   private byte[] internalMetadata;
 
    EntryRecord(EntryHeader header, byte[] key) {
       this.header = header;
@@ -31,6 +32,10 @@ public class EntryRecord {
 
    public byte[] getMetadata() {
       return meta == null ? null : meta.getBytes();
+   }
+
+   public byte[] getInternalMetadata() {
+      return internalMetadata;
    }
 
    public byte[] getValue() {
@@ -50,6 +55,9 @@ public class EntryRecord {
          meta = readMetadata(handle, header, offset);
       }
       value = readValue(handle, header, offset);
+      if (header.internalMetadataLength() > 0) {
+         internalMetadata = readInternalMetadata(handle, header, offset);
+      }
       return this;
    }
 
@@ -93,6 +101,18 @@ public class EntryRecord {
       }
       buffer.flip();
       return new EntryMetadata(metadata, buffer.getLong(), buffer.getLong());
+   }
+
+   public static byte[] readInternalMetadata(FileProvider.Handle handle, EntryHeader header, long offset) throws IOException {
+      final int length = header.internalMetadataLength();
+      assert length > 0;
+      offset += EntryHeader.HEADER_SIZE + header.keyLength() + header.metadataLength() + header.valueLength();
+      byte[] metadata = new byte[length];
+      if (read(handle, ByteBuffer.wrap(metadata), offset, length) < 0) {
+         throw new IllegalStateException("End of file reached when reading internal metadata on "
+               + handle.getFileId() + ":" + offset + ": " + header);
+      }
+      return metadata;
    }
 
    public static byte[] readValue(FileProvider.Handle handle, EntryHeader header, long offset) throws IOException {
@@ -141,7 +161,9 @@ public class EntryRecord {
    }
 
    public static void writeEntry(FileChannel fileChannel, org.infinispan.commons.io.ByteBuffer serializedKey,
-                                 org.infinispan.commons.io.ByteBuffer serializedMetadata, org.infinispan.commons.io.ByteBuffer serializedValue,
+                                 org.infinispan.commons.io.ByteBuffer serializedMetadata,
+                                 org.infinispan.commons.io.ByteBuffer serializedInternalMetadata,
+                                 org.infinispan.commons.io.ByteBuffer serializedValue,
                                  long seqId, long expiration, long created, long lastUsed) throws IOException {
       ByteBuffer header = ByteBuffer.allocate(EntryHeader.HEADER_SIZE);
       if (EntryHeader.useMagic) {
@@ -150,6 +172,7 @@ public class EntryRecord {
       header.putShort((short) serializedKey.getLength());
       header.putShort(EntryMetadata.size(serializedMetadata));
       header.putInt(serializedValue == null ? 0 : serializedValue.getLength());
+      header.putInt(serializedInternalMetadata == null ? 0 : serializedInternalMetadata.getLength());
       header.putLong(seqId);
       header.putLong(expiration);
       header.flip();
@@ -161,6 +184,9 @@ public class EntryRecord {
       }
       if (serializedValue != null) {
          write(fileChannel, ByteBuffer.wrap(serializedValue.getBuf(), serializedValue.getOffset(), serializedValue.getLength()));
+      }
+      if (serializedInternalMetadata != null) {
+         write(fileChannel, ByteBuffer.wrap(serializedInternalMetadata.getBuf(), serializedInternalMetadata.getOffset(), serializedInternalMetadata.getLength()));
       }
    }
 

@@ -100,6 +100,7 @@ import org.infinispan.remoting.MIMECacheEntry;
 import org.infinispan.remoting.responses.BiasRevocationResponse;
 import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.remoting.responses.ExceptionResponse;
+import org.infinispan.remoting.responses.PrepareResponse;
 import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.responses.UnsuccessfulResponse;
 import org.infinispan.remoting.responses.UnsureResponse;
@@ -275,6 +276,7 @@ final class InternalExternalizers {
       addInternalExternalizer(ThrowableExternalizer.INSTANCE, exts);
       addInternalExternalizer(new ImmutableListCopy.Externalizer(), exts);
       addInternalExternalizer(EnumExternalizer.INSTANCE, exts);
+      addInternalExternalizer(PrepareResponse.EXTERNALIZER, exts);
 
       return exts;
    }

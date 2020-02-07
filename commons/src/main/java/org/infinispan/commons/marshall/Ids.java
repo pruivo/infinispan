@@ -218,6 +218,8 @@ public interface Ids {
 
    int PUBLISHER_RESPONSE = 149;
 
+   int PREPARE_RESPONSE = 150;
+
    int COUNTER_CONFIGURATION = 2000; //from counter
    int COUNTER_STATE = 2001; //from counter
 }

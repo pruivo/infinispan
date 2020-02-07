@@ -1,14 +1,12 @@
 package org.infinispan.container.entries;
 
-import static org.infinispan.commons.util.Util.toStr;
-
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Collections;
 import java.util.Set;
 
 import org.infinispan.commons.marshall.AbstractExternalizer;
-import org.infinispan.commons.util.Util;
 import org.infinispan.marshall.core.Ids;
 import org.infinispan.metadata.EmbeddedMetadata;
 import org.infinispan.metadata.Metadata;
@@ -21,11 +19,12 @@ import org.infinispan.metadata.Metadata;
  */
 public class ImmortalCacheEntry extends AbstractInternalCacheEntry {
 
-   public Object value;
-
    public ImmortalCacheEntry(Object key, Object value) {
-      super(key);
-      this.value = value;
+      super(key, value);
+   }
+
+   protected ImmortalCacheEntry(CommonData data) {
+      super(data);
    }
 
    @Override
@@ -74,21 +73,6 @@ public class ImmortalCacheEntry extends AbstractInternalCacheEntry {
    }
 
    @Override
-   public InternalCacheValue toInternalCacheValue() {
-      return new ImmortalCacheValue(value);
-   }
-
-   @Override
-   public Object getValue() {
-      return value;
-   }
-
-   @Override
-   public Object setValue(Object value) {
-      return this.value = value;
-   }
-
-   @Override
    public Metadata getMetadata() {
       return EmbeddedMetadata.EMPTY;
    }
@@ -104,18 +88,20 @@ public class ImmortalCacheEntry extends AbstractInternalCacheEntry {
       return (ImmortalCacheEntry) super.clone();
    }
 
+   @Override
+   protected InternalCacheValue createCacheValue() {
+      return new ImmortalCacheValue(value);
+   }
+
    public static class Externalizer extends AbstractExternalizer<ImmortalCacheEntry> {
       @Override
       public void writeObject(ObjectOutput output, ImmortalCacheEntry ice) throws IOException {
-         output.writeObject(ice.key);
-         output.writeObject(ice.value);
+         writeCommonDataTo(ice, output);
       }
 
       @Override
       public ImmortalCacheEntry readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         Object k = input.readObject();
-         Object v = input.readObject();
-         return new ImmortalCacheEntry(k, v);
+         return new ImmortalCacheEntry(readCommonDataFrom(input));
       }
 
       @Override
@@ -125,16 +111,8 @@ public class ImmortalCacheEntry extends AbstractInternalCacheEntry {
 
       @Override
       public Set<Class<? extends ImmortalCacheEntry>> getTypeClasses() {
-         return Util.asSet(ImmortalCacheEntry.class);
+         return Collections.singleton(ImmortalCacheEntry.class);
       }
-   }
-
-   @Override
-   public String toString() {
-      return "ImmortalCacheEntry{" +
-            "key=" + toStr(key) +
-            ", value=" + toStr(value) +
-            "}";
    }
 
 }

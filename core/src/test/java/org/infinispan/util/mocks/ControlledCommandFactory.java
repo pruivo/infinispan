@@ -39,6 +39,11 @@ import org.infinispan.commands.functional.WriteOnlyKeyCommand;
 import org.infinispan.commands.functional.WriteOnlyKeyValueCommand;
 import org.infinispan.commands.functional.WriteOnlyManyCommand;
 import org.infinispan.commands.functional.WriteOnlyManyEntriesCommand;
+import org.infinispan.commands.irac.IracCleanupKeyCommand;
+import org.infinispan.commands.irac.IracMetadataRequestCommand;
+import org.infinispan.commands.irac.IracRequestStateCommand;
+import org.infinispan.commands.irac.IracStateResponseCommand;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
 import org.infinispan.commands.read.EntrySetCommand;
 import org.infinispan.commands.read.GetAllCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
@@ -89,6 +94,7 @@ import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.functional.EntryView;
 import org.infinispan.functional.impl.Params;
 import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.notifications.cachelistener.cluster.ClusterEvent;
 import org.infinispan.notifications.cachelistener.cluster.MultiClusterEventCommand;
 import org.infinispan.reactive.publisher.impl.DeliveryGuarantee;
@@ -611,5 +617,31 @@ public class ControlledCommandFactory implements CommandsFactory {
    @Override
    public TouchCommand buildTouchCommand(Object key, int segment) {
       return actual.buildTouchCommand(key, segment);
+   }
+
+   @Override
+   public IracUpdateKeyCommand buildIracUpdateKeyCommand(Object key, Object value, Metadata metadata,
+         IracMetadata iracMetadata) {
+      return actual.buildIracUpdateKeyCommand(key, value, metadata, iracMetadata);
+   }
+
+   @Override
+   public IracCleanupKeyCommand buildIracCleanupKeyCommand(Object key, Object lockOwner) {
+      return actual.buildIracCleanupKeyCommand(key, lockOwner);
+   }
+
+   @Override
+   public IracMetadataRequestCommand buildIracMetadataRequestCommand(int segment) {
+      return actual.buildIracMetadataRequestCommand(segment);
+   }
+
+   @Override
+   public IracRequestStateCommand buildIracRequestStateCommand(IntSet segments) {
+      return actual.buildIracRequestStateCommand(segments);
+   }
+
+   @Override
+   public IracStateResponseCommand buildIracStateResponseCommand(Object key, Object lockOwner, IracMetadata tombstone) {
+      return actual.buildIracStateResponseCommand(key, lockOwner, tombstone);
    }
 }

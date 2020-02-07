@@ -38,7 +38,7 @@ public class MarshalledEntryImpl<K,V> extends MarshallableEntryImpl<K,V> impleme
    }
 
    MarshalledEntryImpl(K key, V value, InternalMetadata metadata, Marshaller marshaller) {
-      super(key, value, InternalMetadataImpl.extractMetadata(metadata), created(metadata), lastUsed(metadata), marshaller);
+      super(key, value, InternalMetadataImpl.extractMetadata(metadata), null, created(metadata), lastUsed(metadata), marshaller);
    }
 
    private static long created(InternalMetadata internalMetadata) {

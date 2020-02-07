@@ -5,16 +5,20 @@ import static org.infinispan.util.logging.Log.CONTAINER;
 
 import org.infinispan.batch.BatchContainer;
 import org.infinispan.cache.impl.CacheConfigurationMBean;
+import org.infinispan.cache.impl.InvocationHelper;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.CommandsFactoryImpl;
 import org.infinispan.commons.io.ByteBufferFactory;
 import org.infinispan.commons.io.ByteBufferFactoryImpl;
 import org.infinispan.configuration.cache.BiasAcquisition;
 import org.infinispan.configuration.cache.CacheMode;
+import org.infinispan.configuration.cache.Configurations;
 import org.infinispan.container.offheap.OffHeapEntryFactory;
 import org.infinispan.container.offheap.OffHeapEntryFactoryImpl;
 import org.infinispan.container.offheap.OffHeapMemoryAllocator;
 import org.infinispan.container.offheap.UnpooledOffHeapMemoryAllocator;
+import org.infinispan.container.versioning.irac.DefaultIracVersionGenerator;
+import org.infinispan.container.versioning.irac.IracVersionGenerator;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.context.impl.NonTransactionalInvocationContextFactory;
 import org.infinispan.context.impl.TransactionalInvocationContextFactory;
@@ -63,6 +67,9 @@ import org.infinispan.util.concurrent.CommandAckCollector;
 import org.infinispan.xsite.BackupSender;
 import org.infinispan.xsite.BackupSenderImpl;
 import org.infinispan.xsite.NoOpBackupSender;
+import org.infinispan.xsite.irac.DefaultIracManager;
+import org.infinispan.xsite.irac.IracManager;
+import org.infinispan.xsite.irac.NoOpIracManager;
 import org.infinispan.xsite.statetransfer.NoOpXSiteStateProvider;
 import org.infinispan.xsite.statetransfer.NoOpXSiteStateTransferManager;
 import org.infinispan.xsite.statetransfer.XSiteStateConsumer;
@@ -71,6 +78,9 @@ import org.infinispan.xsite.statetransfer.XSiteStateProvider;
 import org.infinispan.xsite.statetransfer.XSiteStateProviderImpl;
 import org.infinispan.xsite.statetransfer.XSiteStateTransferManager;
 import org.infinispan.xsite.statetransfer.XSiteStateTransferManagerImpl;
+import org.infinispan.xsite.status.DefaultTakeOfflineManager;
+import org.infinispan.xsite.status.NoOpTakeOfflineManager;
+import org.infinispan.xsite.status.TakeOfflineManager;
 
 /**
  * Simple factory that just uses reflection and an empty constructor of the component type.
@@ -89,7 +99,10 @@ import org.infinispan.xsite.statetransfer.XSiteStateTransferManagerImpl;
                               XSiteStateTransferManager.class, XSiteStateConsumer.class, XSiteStateProvider.class,
                               FunctionalNotifier.class, CommandAckCollector.class, TriangleOrderManager.class,
                               OrderedUpdatesManager.class, ScatteredVersionManager.class, TransactionOriginatorChecker.class,
-                              BiasManager.class, OffHeapEntryFactory.class, OffHeapMemoryAllocator.class, PublisherHandler.class})
+                              BiasManager.class, OffHeapEntryFactory.class, OffHeapMemoryAllocator.class, PublisherHandler.class,
+                              TakeOfflineManager.class, IracManager.class, IracVersionGenerator.class,
+                              InvocationHelper.class
+})
 public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheComponentFactory implements AutoInstantiableFactory {
 
    @Override
@@ -202,6 +215,17 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
          return ComponentAlias.of(L1Manager.class);
       } else if (componentName.equals(PublisherHandler.class.getName())) {
          return new PublisherHandler();
+      } else if (componentName.equals(TakeOfflineManager.class.getName())) {
+         return configuration.sites().hasEnabledBackups() ? new DefaultTakeOfflineManager(componentRegistry.getCacheName())
+                                                          : NoOpTakeOfflineManager.getInstance();
+      } else if (componentName.equals(IracManager.class.getName())) {
+         return Configurations.isIracEnabled(configuration) ?
+                new DefaultIracManager(globalConfiguration.sites().localSite()) :
+                NoOpIracManager.getInstance();
+      } else if (componentName.equals(IracVersionGenerator.class.getName())) {
+         return new DefaultIracVersionGenerator(globalConfiguration.sites().localSite());
+      } else if (componentName.equals(InvocationHelper.class.getName())) {
+         return new InvocationHelper();
       }
 
       throw CONTAINER.factoryCannotConstructComponent(componentName);

@@ -16,6 +16,8 @@ import org.infinispan.functional.MetaParam.MetaLifespan;
 import org.infinispan.functional.MetaParam.MetaMaxIdle;
 import org.infinispan.metadata.InternalMetadata;
 import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetaParam;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.protostream.annotations.ProtoFactory;
 import org.infinispan.protostream.annotations.ProtoField;
 import org.infinispan.protostream.annotations.ProtoTypeId;
@@ -37,7 +39,7 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
 
    @ProtoFactory
    MetaParamsInternalMetadata(NumericVersion numericVersion, SimpleClusteredVersion clusteredVersion,
-                              long created, long lastUsed, long lifespan, long maxIdle) {
+                              long created, long lastUsed, long lifespan, long maxIdle, IracMetadata iracMetadata) {
       this.params = new MetaParams(MetaParams.EMPTY_ARRAY, 0);
       if (numericVersion != null || clusteredVersion != null) {
          this.params.add(new MetaEntryVersion(numericVersion == null ? clusteredVersion : numericVersion));
@@ -46,6 +48,9 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
       if (lastUsed > -1) params.add(new MetaLastUsed(lastUsed));
       if (lifespan > -1) params.add(new MetaLifespan(lifespan));
       if (maxIdle > -1) params.add(new MetaMaxIdle(maxIdle));
+      if (iracMetadata != null) {
+         this.params.add(new IracMetaParam(iracMetadata));
+      }
    }
 
    private MetaParamsInternalMetadata(MetaParams params) {
@@ -114,6 +119,12 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
             .orElse(MetaMaxIdle.defaultValue()).get();
    }
 
+   @ProtoField(number = 7)
+   //TODO! why do I need to add this? why not marshalling all the params?
+   public IracMetadata iracMetadata() {
+      return params.find(IracMetaParam.class).map(IracMetaParam::get).orElse(null);
+   }
+
    @Override
    public EntryVersion version() {
       return params.find(MetaEntryVersion.class).map(MetaEntryVersion::get).orElse(null);
@@ -132,6 +143,12 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
    @Override
    public String toString() {
       return "MetaParamsInternalMetadata{params=" + params + '}';
+   }
+
+   public static MetaParamsInternalMetadata.Builder getBuilder(MetaParamsInternalMetadata metadata) {
+      return metadata == null ?
+             new MetaParamsInternalMetadata.Builder() :
+             metadata.builder();
    }
 
    public static class Builder implements Metadata.Builder {
@@ -178,6 +195,11 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
       @Override
       public MetaParamsInternalMetadata build() {
          return new MetaParamsInternalMetadata(params);
+      }
+
+      public Builder add(MetaParam<?> metaParam) {
+         params.add(metaParam);
+         return this;
       }
 
       @Override

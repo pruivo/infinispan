@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 import org.infinispan.Cache;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
 import org.infinispan.remoting.LocalInvocation;
 import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.logging.Log;
@@ -27,6 +28,11 @@ public class LocalCacheBackupReceiver extends BaseBackupReceiver {
 
    LocalCacheBackupReceiver(Cache<Object, Object> cache) {
       super(cache);
+   }
+
+   @Override
+   Log getLog() {
+      return log;
    }
 
    @Override
@@ -56,6 +62,11 @@ public class LocalCacheBackupReceiver extends BaseBackupReceiver {
 
       return LocalInvocation.newInstanceFromCache(cache, newStatePushCommand(cache, localChunks)).callAsync()
             .thenApply(this::assertAllowInvocationFunction);
+   }
+
+   @Override
+   public CompletionStage<Void> forwardToPrimary(IracUpdateKeyCommand command) {
+      return command.executeOperation(this);
    }
 
 }

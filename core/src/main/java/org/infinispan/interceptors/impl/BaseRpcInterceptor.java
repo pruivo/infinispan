@@ -16,11 +16,13 @@ import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.DDAsyncInterceptor;
+import org.infinispan.remoting.responses.PrepareResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.impl.MapResponseCollector;
 import org.infinispan.transaction.impl.LocalTransaction;
+import org.infinispan.transaction.impl.WriteSkewHelper;
 import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.logging.Log;
 
@@ -128,8 +130,11 @@ public abstract class BaseRpcInterceptor extends DDAsyncInterceptor {
          return remoteInvocation.handle((responses, t) -> {
             transactionRemotelyPrepared(ctx);
             CompletableFutures.rethrowException(t);
-
-            return null;
+            PrepareResponse prepareResponse = new PrepareResponse();
+            for(Response r : responses.values()) {
+               WriteSkewHelper.mergePrepareResponses(r, prepareResponse);
+            }
+            return prepareResponse;
          });
       } catch (Throwable t) {
          transactionRemotelyPrepared(ctx);

@@ -2,6 +2,7 @@ package org.infinispan.persistence.spi;
 
 import org.infinispan.commons.io.ByteBuffer;
 import org.infinispan.marshall.core.MarshalledEntry;
+import org.infinispan.functional.impl.MetaParamsInternalMetadata;
 import org.infinispan.metadata.Metadata;
 
 /**
@@ -31,6 +32,8 @@ public interface MarshallableEntry<K, V> {
     */
    ByteBuffer getMetadataBytes();
 
+   ByteBuffer getInternalMetadataBytes();
+
    /**
     * Returns the same key as {@link #getKeyBytes()}, but unmarshalled.
     */
@@ -45,6 +48,8 @@ public interface MarshallableEntry<K, V> {
     * @return might be null if there's no metadata associated with the object (e.g. expiry info, version..).
     */
    Metadata getMetadata();
+
+   MetaParamsInternalMetadata getInternalMetadata();
 
    long created();
 

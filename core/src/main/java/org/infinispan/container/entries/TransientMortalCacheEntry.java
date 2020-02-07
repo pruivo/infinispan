@@ -1,16 +1,15 @@
 package org.infinispan.container.entries;
 
 import static java.lang.Math.min;
-import static org.infinispan.commons.util.Util.toStr;
 
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Collections;
 import java.util.Set;
 
 import org.infinispan.commons.io.UnsignedNumeric;
 import org.infinispan.commons.marshall.AbstractExternalizer;
-import org.infinispan.commons.util.Util;
 import org.infinispan.marshall.core.Ids;
 import org.infinispan.metadata.EmbeddedMetadata;
 import org.infinispan.metadata.Metadata;
@@ -23,41 +22,39 @@ import org.infinispan.metadata.Metadata;
  */
 public class TransientMortalCacheEntry extends AbstractInternalCacheEntry {
 
-   protected Object value;
-   protected long maxIdle = -1;
+   protected long maxIdle;
    protected long lastUsed;
-   protected long lifespan = -1;
+   protected long lifespan;
    protected long created;
 
    public TransientMortalCacheEntry(Object key, Object value, long maxIdle, long lifespan, long currentTimeMillis) {
       this(key, value, maxIdle, lifespan, currentTimeMillis, currentTimeMillis);
    }
 
-   public TransientMortalCacheEntry(Object key, Object value, long maxIdle, long lifespan, long lastUsed, long created) {
-      super(key);
-      this.value = value;
+   public TransientMortalCacheEntry(Object key, Object value, long maxIdle, long lifespan, long lastUsed,
+         long created) {
+      super(key, value);
       this.maxIdle = maxIdle;
       this.lifespan = lifespan;
       this.created = created;
       this.lastUsed = lastUsed;
    }
 
-   public void setLifespan(long lifespan) {
-      this.lifespan = lifespan;
-   }
-
-   public void setMaxIdle(long maxIdle) {
+   private TransientMortalCacheEntry(CommonData data, long maxIdle, long lifespan, long lastUsed, long created) {
+      super(data);
       this.maxIdle = maxIdle;
-   }
-
-   @Override
-   public Object getValue() {
-      return value;
+      this.lifespan = lifespan;
+      this.created = created;
+      this.lastUsed = lastUsed;
    }
 
    @Override
    public long getLifespan() {
       return lifespan;
+   }
+
+   public void setLifespan(long lifespan) {
+      this.lifespan = lifespan;
    }
 
    @Override
@@ -84,15 +81,13 @@ public class TransientMortalCacheEntry extends AbstractInternalCacheEntry {
    public final long getExpiryTime() {
       long lset = lifespan > -1 ? created + lifespan : -1;
       long muet = maxIdle > -1 ? lastUsed + maxIdle : -1;
-      if (lset == -1) return muet;
-      if (muet == -1) return lset;
+      if (lset == -1) {
+         return muet;
+      }
+      if (muet == -1) {
+         return lset;
+      }
       return min(lset, muet);
-   }
-
-
-   @Override
-   public InternalCacheValue toInternalCacheValue() {
-      return new TransientMortalCacheValue(value, created, lifespan, maxIdle, lastUsed);
    }
 
    @Override
@@ -115,9 +110,8 @@ public class TransientMortalCacheEntry extends AbstractInternalCacheEntry {
       return maxIdle;
    }
 
-   @Override
-   public Object setValue(Object value) {
-      return this.value = value;
+   public void setMaxIdle(long maxIdle) {
+      this.maxIdle = maxIdle;
    }
 
    @Override
@@ -139,18 +133,23 @@ public class TransientMortalCacheEntry extends AbstractInternalCacheEntry {
    }
 
    @Override
-   public String toString() {
-      return getClass().getSimpleName() + "{" +
-            "key=" + toStr(key) +
-            ", value=" + toStr(value) +
-            "}";
+   protected InternalCacheValue createCacheValue() {
+      return new TransientMortalCacheValue(value, created, lifespan, maxIdle, lastUsed);
+   }
+
+   @Override
+   protected void appendFieldsToString(StringBuilder builder) {
+      super.appendFieldsToString(builder);
+      builder.append(", created=").append(created);
+      builder.append(", lifespan=").append(lifespan);
+      builder.append(", lastUsed=").append(lastUsed);
+      builder.append(", maxIdle=").append(maxIdle);
    }
 
    public static class Externalizer extends AbstractExternalizer<TransientMortalCacheEntry> {
       @Override
       public void writeObject(ObjectOutput output, TransientMortalCacheEntry entry) throws IOException {
-         output.writeObject(entry.key);
-         output.writeObject(entry.value);
+         writeCommonDataTo(entry, output);
          UnsignedNumeric.writeUnsignedLong(output, entry.created);
          output.writeLong(entry.lifespan); // could be negative so should not use unsigned longs
          UnsignedNumeric.writeUnsignedLong(output, entry.lastUsed);
@@ -159,13 +158,12 @@ public class TransientMortalCacheEntry extends AbstractInternalCacheEntry {
 
       @Override
       public TransientMortalCacheEntry readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         Object k = input.readObject();
-         Object v = input.readObject();
+         CommonData data = readCommonDataFrom(input);
          long created = UnsignedNumeric.readUnsignedLong(input);
-         Long lifespan = input.readLong();
+         long lifespan = input.readLong();
          long lastUsed = UnsignedNumeric.readUnsignedLong(input);
-         Long maxIdle = input.readLong();
-         return new TransientMortalCacheEntry(k, v, maxIdle, lifespan, lastUsed, created);
+         long maxIdle = input.readLong();
+         return new TransientMortalCacheEntry(data, maxIdle, lifespan, lastUsed, created);
       }
 
       @Override
@@ -175,7 +173,7 @@ public class TransientMortalCacheEntry extends AbstractInternalCacheEntry {
 
       @Override
       public Set<Class<? extends TransientMortalCacheEntry>> getTypeClasses() {
-         return Util.asSet(TransientMortalCacheEntry.class);
+         return Collections.singleton(TransientMortalCacheEntry.class);
       }
    }
 }

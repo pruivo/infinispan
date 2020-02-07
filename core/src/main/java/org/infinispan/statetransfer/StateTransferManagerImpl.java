@@ -57,6 +57,7 @@ import org.infinispan.topology.LocalTopologyManager;
 import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.irac.IracManager;
 
 /**
  * {@link StateTransferManager} implementation.
@@ -88,6 +89,8 @@ public class StateTransferManagerImpl implements StateTransferManager {
    @Inject PreloadManager preloadManager;
    // Make sure we can handle incoming requests before joining
    @Inject PerCacheInboundInvocationHandler inboundInvocationHandler;
+   @Inject
+   IracManager iracManager;
 
    private Optional<Integer> persistentStateChecksum;
 
@@ -210,6 +213,7 @@ public class StateTransferManagerImpl implements StateTransferManager {
       CacheTopology partitionerCacheTopology = addPartitioner(newCacheTopology);
       int newRebalanceId = newCacheTopology.getRebalanceId();
       CacheTopology.Phase phase = newCacheTopology.getPhase();
+      iracManager.onTopologyUpdate(oldCacheTopology, newCacheTopology);
 
       return cacheNotifier.notifyTopologyChanged(oldCacheTopology, partitionerCacheTopology, newTopologyId, true)
                           .thenCompose(ignored -> {

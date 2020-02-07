@@ -1,14 +1,11 @@
 package org.infinispan.xsite;
 
-import java.util.Collections;
-import java.util.Map;
-
 import javax.transaction.Transaction;
 
-import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
 import org.infinispan.commands.tx.RollbackCommand;
+import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
@@ -43,7 +40,12 @@ public class NoOpBackupSender implements BackupSender {
    }
 
    @Override
-   public InvocationStage backupWrite(WriteCommand command, VisitableCommand originalCommand) {
+   public InvocationStage backupWrite(WriteCommand command, WriteCommand originalCommand) {
+      return SyncInvocationStage.completedNullStage();
+   }
+
+   @Override
+   public InvocationStage backupClear(ClearCommand command) {
       return SyncInvocationStage.completedNullStage();
    }
 
@@ -55,26 +57,6 @@ public class NoOpBackupSender implements BackupSender {
    @Override
    public InvocationStage backupRollback(RollbackCommand command, Transaction transaction) {
       return SyncInvocationStage.completedNullStage();
-   }
-
-   @Override
-   public OfflineStatus getOfflineStatus(String siteName) {
-      return null;
-   }
-
-   @Override
-   public Map<String, Boolean> status() {
-      return Collections.emptyMap();
-   }
-
-   @Override
-   public BringSiteOnlineResponse bringSiteOnline(String siteName) {
-      return BringSiteOnlineResponse.NO_SUCH_SITE;
-   }
-
-   @Override
-   public TakeSiteOfflineResponse takeSiteOffline(String siteName) {
-      return TakeSiteOfflineResponse.NO_SUCH_SITE;
    }
 
    @Override

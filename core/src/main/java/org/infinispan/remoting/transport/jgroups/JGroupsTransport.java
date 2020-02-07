@@ -447,7 +447,6 @@ public class JGroupsTransport implements Transport {
 
       channel.setUpHandler(channelCallbacks);
       setXSiteViewListener(channelCallbacks);
-      setSiteMasterPicker(new SiteMasterPickerImpl());
 
       startJGroupsChannelIfNeeded();
 
@@ -501,13 +500,6 @@ public class JGroupsTransport implements Transport {
       RELAY2 relay2 = findRelay2();
       if (relay2 != null) {
          relay2.setRouteStatusListener(listener);
-      }
-   }
-
-   private void setSiteMasterPicker(SiteMasterPickerImpl siteMasterPicker) {
-      RELAY2 relay2 = findRelay2();
-      if (relay2 != null) {
-         relay2.siteMasterPicker(siteMasterPicker);
       }
    }
 
@@ -1410,6 +1402,9 @@ public class JGroupsTransport implements Transport {
          }
       } catch (Throwable t) {
          CLUSTER.errorProcessingRequest(requestId, src);
+         if (trace) {
+            log.tracef(t, "Error processing request %d@%s", requestId, src);
+         }
          Exception e = t instanceof Exception ? ((Exception) t) : new CacheException(t);
          sendResponse(src, new ExceptionResponse(e), requestId, null);
       }

@@ -1,6 +1,5 @@
 package org.infinispan.interceptors.totalorder;
 
-import java.util.ArrayList;
 import java.util.concurrent.CompletionStage;
 
 import org.infinispan.commands.FlagAffectedCommand;
@@ -64,22 +63,21 @@ public class TotalOrderVersionedEntryWrappingInterceptor extends VersionedEntryW
 
    private Object afterPrepareHandler(InvocationContext ctx, VersionedPrepareCommand prepareCommand, Object rv) {
       TxInvocationContext txInvocationContext = (TxInvocationContext) ctx;
-      CompletionStage<EntryVersionsMap> versionsMap =
+      CompletionStage<Object> versionsMap =
             cdl.createNewVersionsAndCheckForWriteSkews(versionGenerator, txInvocationContext,
-                  prepareCommand);
+                  prepareCommand).thenApply(o -> rv);
 
       InvocationStage versionStage = asyncValue(versionsMap);
 
       return versionStage.thenApply(ctx, prepareCommand, (rCtx, rCmd, rv2) -> {
-         Object result = rv2 == null ? rv : new ArrayList<>(((EntryVersionsMap) rv2).keySet());
-         if (prepareCommand.isOnePhaseCommit()) {
-            return delayedValue(commitContextEntries(txInvocationContext, null), result);
+         if (rCmd.isOnePhaseCommit()) {
+            return delayedValue(commitContextEntries(rCtx, null), rv2);
          } else {
             if (trace)
                log.tracef("Transaction %s will be committed in the 2nd phase",
-                     txInvocationContext.getGlobalTransaction().globalId());
+                     rCmd.getGlobalTransaction().globalId());
          }
-         return result;
+         return rv2;
       });
    }
 
@@ -102,6 +100,9 @@ public class TotalOrderVersionedEntryWrappingInterceptor extends VersionedEntryW
             newVersion = versionGenerator.increment((IncrementableEntryVersion) existingVersion);
          }
 
+         // TODO! the expiration is dropped for total order transactions. However, the expiration algorithm doesn't work with TO.
+         // Metadata commitMetadata = createMetadataForCommit(entry, newVersion);
+         // entry.setMetadata(commitMetadata);
          entry.setMetadata(new EmbeddedMetadata.Builder().version(newVersion).build());
          return cdl.commitEntry(entry, command, ctx, null, l1Invalidation);
       } else {

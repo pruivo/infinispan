@@ -163,7 +163,7 @@ public class InternalMetadataTest {
       private final long lastUsed;
 
       private TestInternalCacheEntry(Metadata metadata, long created, long lastUsed) {
-         super(null);
+         super(null, null);
          this.metadata = metadata;
          this.created = created;
          this.lastUsed = lastUsed;
@@ -203,16 +203,6 @@ public class InternalMetadataTest {
       }
 
       @Override
-      public InternalCacheValue toInternalCacheValue() {
-         return null;
-      }
-
-      @Override
-      public Object getValue() {
-         return null;
-      }
-
-      @Override
       public long getLifespan() {
          return metadata.lifespan();
       }
@@ -223,13 +213,13 @@ public class InternalMetadataTest {
       }
 
       @Override
-      public Object setValue(Object value) {
-         return null;
+      public Metadata getMetadata() {
+         return metadata;
       }
 
       @Override
-      public Metadata getMetadata() {
-         return metadata;
+      protected InternalCacheValue createCacheValue() {
+         return null;
       }
    }
 

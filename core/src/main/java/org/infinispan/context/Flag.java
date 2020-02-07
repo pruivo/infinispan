@@ -243,6 +243,12 @@ public enum Flag {
     * an end user would not need to do this.
     */
    IGNORE_TRANSACTION,
+
+   /**
+    * Internal use
+    */
+   IRAC_UPDATE,
+   IRAC_STATE,
    ;
 
    /**
