@@ -15,6 +15,7 @@ import org.infinispan.notifications.Listener;
 import org.infinispan.notifications.cachelistener.CacheNotifier;
 import org.infinispan.notifications.cachelistener.annotation.TopologyChanged;
 import org.infinispan.notifications.cachelistener.event.TopologyChangedEvent;
+import org.infinispan.remoting.transport.Transport;
 
 /**
  * // TODO: Document this
@@ -26,21 +27,24 @@ import org.infinispan.notifications.cachelistener.event.TopologyChangedEvent;
 @Scope(Scopes.NAMED_CACHE)
 public class DefaultIracVersionGenerator implements IracVersionGenerator {
 
-   private final String localSite;
    private final Map<Integer, Map<String, TopologyIracVersion>> segmentVersion;
    private final Map<Object, IracMetadata> tombstone;
    @Inject
    CacheNotifier<?, ?> cacheNotifier;
+   @Inject
+   Transport transport;
+   private String localSite;
    private volatile int topologyId;
 
-   public DefaultIracVersionGenerator(String localSite) {
-      this.localSite = localSite;
+   public DefaultIracVersionGenerator() {
       this.segmentVersion = new ConcurrentHashMap<>();
       this.tombstone = new ConcurrentHashMap<>();
    }
 
    @Start
    public void start() {
+      transport.checkCrossSiteAvailable();
+      localSite = transport.localSiteName();
       cacheNotifier.addListener(this);
    }
 
@@ -58,6 +62,29 @@ public class DefaultIracVersionGenerator implements IracVersionGenerator {
    @TopologyChanged
    public void onTopologyChange(TopologyChangedEvent<?, ?> tce) {
       topologyId = tce.getNewTopologyId();
+   }
+
+   @Override
+   public void storeTombstone(Object key, IracMetadata metadata) {
+      tombstone.put(key, metadata);
+   }
+
+   @Override
+   public void storeTombstoneIfAbsent(Object key, IracMetadata metadata) {
+      if (metadata == null) {
+         return;
+      }
+      tombstone.putIfAbsent(key, metadata);
+   }
+
+   @Override
+   public Optional<IracMetadata> findTombstone(Object key) {
+      return Optional.ofNullable(tombstone.get(key));
+   }
+
+   @Override
+   public void removeTombstone(Object key, IracMetadata iracMetadata) {
+      tombstone.remove(key, iracMetadata);
    }
 
    private Map<String, TopologyIracVersion> generateNewVectorFunction(Integer s,
@@ -86,28 +113,5 @@ public class DefaultIracVersionGenerator implements IracVersionGenerator {
          }
          return Collections.unmodifiableMap(copy);
       }
-   }
-
-   @Override
-   public void storeTombstone(Object key, IracMetadata metadata) {
-      tombstone.put(key, metadata);
-   }
-
-   @Override
-   public void storeTombstoneIfAbsent(Object key, IracMetadata metadata) {
-      if (metadata == null) {
-         return;
-      }
-      tombstone.putIfAbsent(key, metadata);
-   }
-
-   @Override
-   public Optional<IracMetadata> findTombstone(Object key) {
-      return Optional.ofNullable(tombstone.get(key));
-   }
-
-   @Override
-   public void removeTombstone(Object key, IracMetadata iracMetadata) {
-      tombstone.remove(key, iracMetadata);
    }
 }

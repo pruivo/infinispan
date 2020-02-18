@@ -19,6 +19,7 @@ import org.infinispan.container.offheap.OffHeapMemoryAllocator;
 import org.infinispan.container.offheap.UnpooledOffHeapMemoryAllocator;
 import org.infinispan.container.versioning.irac.DefaultIracVersionGenerator;
 import org.infinispan.container.versioning.irac.IracVersionGenerator;
+import org.infinispan.container.versioning.irac.NoOpIracVersionGenerator;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.context.impl.NonTransactionalInvocationContextFactory;
 import org.infinispan.context.impl.TransactionalInvocationContextFactory;
@@ -220,10 +221,12 @@ public class EmptyConstructorNamedCacheFactory extends AbstractNamedCacheCompone
                                                           : NoOpTakeOfflineManager.getInstance();
       } else if (componentName.equals(IracManager.class.getName())) {
          return Configurations.isIracEnabled(configuration) ?
-                new DefaultIracManager(globalConfiguration.sites().localSite()) :
+                new DefaultIracManager() :
                 NoOpIracManager.getInstance();
       } else if (componentName.equals(IracVersionGenerator.class.getName())) {
-         return new DefaultIracVersionGenerator(globalConfiguration.sites().localSite());
+         return Configurations.isIracEnabled(configuration) ?
+                new DefaultIracVersionGenerator() :
+                NoOpIracVersionGenerator.getInstance();
       } else if (componentName.equals(InvocationHelper.class.getName())) {
          return new InvocationHelper();
       }

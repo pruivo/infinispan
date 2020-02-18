@@ -68,8 +68,6 @@ public class DefaultIracManager implements IracManager, Runnable {
 
    private static final Log log = LogFactory.getLog(DefaultIracManager.class);
    private static final boolean trace = log.isTraceEnabled();
-
-   private final String localSiteName;
    private final Map<Object, Object> updatedKeys;
    private final Semaphore senderNotifier;
    @Inject
@@ -92,14 +90,13 @@ public class DefaultIracManager implements IracManager, Runnable {
    IracVersionGenerator iracVersionGenerator;
    @Inject
    KeyPartitioner keyPartitioner;
-
+   private String localSiteName;
    private volatile boolean hasClear;
    private volatile Collection<XSiteBackup> asyncBackups;
    private volatile Thread sender;
    private volatile boolean running;
 
-   public DefaultIracManager(String localSiteName) {
-      this.localSiteName = localSiteName;
+   public DefaultIracManager() {
       this.updatedKeys = new ConcurrentHashMap<>();
       this.senderNotifier = new Semaphore(0);
    }
@@ -133,6 +130,8 @@ public class DefaultIracManager implements IracManager, Runnable {
 
    @Start
    public void start() {
+      transport.checkCrossSiteAvailable();
+      localSiteName = transport.localSiteName();
       asyncBackups = asyncBackups(config.sites().enabledBackups(), localSiteName);
       if (trace) {
          Collection<String> b = asyncBackups.stream().map(XSiteBackup::getSiteName).collect(Collectors.toList());
@@ -274,11 +273,6 @@ public class DefaultIracManager implements IracManager, Runnable {
             .filter(this::isWriteOwner);
    }
 
-   private void sendStateRequest(Address primary, IntSet segments) {
-      CacheRpcCommand cmd = commandsFactory.buildIracRequestStateCommand(segments);
-      rpcManager.sendTo(primary, cmd, DeliverOrder.NONE);
-   }
-
    @Override
    public void run() {
       try {
@@ -290,6 +284,11 @@ public class DefaultIracManager implements IracManager, Runnable {
       } catch (InterruptedException e) {
          Thread.currentThread().interrupt();
       }
+   }
+
+   private void sendStateRequest(Address primary, IntSet segments) {
+      CacheRpcCommand cmd = commandsFactory.buildIracRequestStateCommand(segments);
+      rpcManager.sendTo(primary, cmd, DeliverOrder.NONE);
    }
 
    private boolean isWriteOwner(Object key) {
