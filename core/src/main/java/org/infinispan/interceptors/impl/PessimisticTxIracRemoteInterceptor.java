@@ -21,7 +21,6 @@ public class PessimisticTxIracRemoteInterceptor extends AbstractIracRemoteInterc
    private static final Log log = LogFactory.getLog(PessimisticTxIracRemoteInterceptor.class);
    private static final boolean trace = log.isTraceEnabled();
 
-
    @Override
    public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
       return visitDataWriteCommand(ctx, command);
@@ -35,11 +34,6 @@ public class PessimisticTxIracRemoteInterceptor extends AbstractIracRemoteInterc
    @Override
    boolean isTraceEnabled() {
       return trace;
-   }
-
-   @Override
-   boolean isDebugEnabled() {
-      return log.isDebugEnabled();
    }
 
    @Override

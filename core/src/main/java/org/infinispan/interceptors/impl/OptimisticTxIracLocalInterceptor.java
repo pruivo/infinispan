@@ -8,6 +8,7 @@ import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.irac.IracUtils;
 
 /**
  * // TODO: Document this
@@ -24,7 +25,7 @@ public class OptimisticTxIracLocalInterceptor extends AbstractIracInterceptor {
    public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
       final Object key = command.getKey();
       if (isIracState(command)) {
-         setMetadataToCacheEntry(ctx.lookupEntry(key), getIracMetadataFromCommand(command, key));
+         setMetadataToCacheEntry(ctx.lookupEntry(key), IracUtils.getIracMetadataFromCommand(command, key));
       }
       return invokeNext(ctx, command);
    }
@@ -59,11 +60,6 @@ public class OptimisticTxIracLocalInterceptor extends AbstractIracInterceptor {
    @Override
    boolean isTraceEnabled() {
       return trace;
-   }
-
-   @Override
-   boolean isDebugEnabled() {
-      return log.isDebugEnabled();
    }
 
    @Override

@@ -50,4 +50,14 @@ public class ControlledIracVersionGenerator implements IracVersionGenerator {
    public void removeTombstone(Object key, IracMetadata iracMetadata) {
       actual.removeTombstone(key, iracMetadata);
    }
+
+   @Override
+   public void start() {
+      actual.start();
+   }
+
+   @Override
+   public void stop() {
+      actual.stop();
+   }
 }

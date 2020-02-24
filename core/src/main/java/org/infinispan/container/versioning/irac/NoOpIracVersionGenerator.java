@@ -53,4 +53,14 @@ public class NoOpIracVersionGenerator implements IracVersionGenerator {
    public void removeTombstone(Object key, IracMetadata iracMetadata) {
       //no-op
    }
+
+   @Override
+   public void start() {
+      //no-op
+   }
+
+   @Override
+   public void stop() {
+      //no-op
+   }
 }

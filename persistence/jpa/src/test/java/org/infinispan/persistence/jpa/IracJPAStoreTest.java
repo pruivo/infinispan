@@ -13,7 +13,7 @@ import org.testng.annotations.Test;
  * @author Pedro Ruivo
  * @since 9.0
  */
-@Test(groups = "functional", testName = "persistence.jpa.IracMetadataJPAStoreTest")
+@Test(groups = "functional", testName = "persistence.jpa.IracJPAStoreTest")
 public class IracJPAStoreTest extends BaseIracPersistenceTest<KeyValueEntity> {
 
 

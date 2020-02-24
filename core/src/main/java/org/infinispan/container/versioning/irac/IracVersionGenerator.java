@@ -2,6 +2,7 @@ package org.infinispan.container.versioning.irac;
 
 import java.util.Optional;
 
+import org.infinispan.commons.api.Lifecycle;
 import org.infinispan.metadata.impl.IracMetadata;
 
 /**
@@ -10,7 +11,7 @@ import org.infinispan.metadata.impl.IracMetadata;
  * @author Pedro Ruivo
  * @since 10.1
  */
-public interface IracVersionGenerator {
+public interface IracVersionGenerator extends Lifecycle {
    IracMetadata generateNewMetadata(int segment);
 
    void updateVersion(int segment, IracEntryVersion remoteVersion);

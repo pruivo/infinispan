@@ -261,6 +261,9 @@ public class IracEntryVersion {
             vectorClock.put(site, v);
          }
          v.ours = version;
+         if (v.theirs == null) {
+            v.theirs = new TopologyIracVersion(0, 0);
+         }
       }
 
       void setTheirs(String site, TopologyIracVersion version) {
@@ -270,6 +273,9 @@ public class IracEntryVersion {
             vectorClock.put(site, v);
          }
          v.theirs = version;
+         if (v.ours == null) {
+            v.ours = new TopologyIracVersion(0, 0);
+         }
       }
 
       Collection<VersionCompare> values() {

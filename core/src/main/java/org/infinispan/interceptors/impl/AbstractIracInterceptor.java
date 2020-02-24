@@ -1,6 +1,5 @@
 package org.infinispan.interceptors.impl;
 
-import static org.infinispan.functional.impl.MetaParamsInternalMetadata.getBuilder;
 import static org.infinispan.remoting.responses.PrepareResponse.asPrepareResponse;
 
 import java.util.HashMap;
@@ -24,13 +23,12 @@ import org.infinispan.distribution.DistributionInfo;
 import org.infinispan.distribution.LocalizedCacheTopology;
 import org.infinispan.distribution.Ownership;
 import org.infinispan.factories.annotations.Inject;
-import org.infinispan.functional.impl.MetaParamsInternalMetadata;
 import org.infinispan.interceptors.DDAsyncInterceptor;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
-import org.infinispan.metadata.impl.IracMetaParam;
 import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.remoting.responses.PrepareResponse;
 import org.infinispan.util.logging.Log;
+import org.infinispan.xsite.irac.IracUtils;
 
 /**
  * // TODO: Document this
@@ -53,29 +51,6 @@ public abstract class AbstractIracInterceptor extends DDAsyncInterceptor {
       return command.hasAnyFlag(FlagBitSets.IRAC_STATE);
    }
 
-
-   static IracMetadata getIracMetadataFromCommand(WriteCommand command, Object key) {
-      return getIracMetadataFromInternalMetadata(command.getInternalMetadata(key));
-   }
-
-   static IracMetadata getIracMetadataFromInternalMetadata(MetaParamsInternalMetadata metadata) {
-      return metadata.findMetaParam(IracMetaParam.class)
-            .map(IracMetaParam::get)
-            .orElse(null);
-   }
-
-   static void updateCacheEntryMetadata(CacheEntry<?, ?> entry, IracMetadata iracMetadata) {
-      MetaParamsInternalMetadata.Builder builder = getBuilder(entry.getInternalMetadata());
-      builder.add(new IracMetaParam(iracMetadata));
-      entry.setInternalMetadata(builder.build());
-   }
-
-   static void updateCommandMetadata(Object key, WriteCommand command, IracMetadata iracMetadata) {
-      MetaParamsInternalMetadata.Builder builder = getBuilder(command.getInternalMetadata(key));
-      builder.add(new IracMetaParam(iracMetadata));
-      command.setInternalMetadata(key, builder.build());
-   }
-
    static LocalTxInvocationContext asLocalTxInvocationContext(InvocationContext ctx) {
       assert ctx.isOriginLocal();
       assert ctx.isInTxScope();
@@ -89,8 +64,6 @@ public abstract class AbstractIracInterceptor extends DDAsyncInterceptor {
    }
 
    abstract boolean isTraceEnabled();
-
-   abstract boolean isDebugEnabled();
 
    abstract Log getLog();
 
@@ -133,10 +106,14 @@ public abstract class AbstractIracInterceptor extends DDAsyncInterceptor {
          }
          return;
       }
+      setIracMetadata(entry, metadata);
+   }
+
+   protected final void setIracMetadata(CacheEntry<?, ?> entry, IracMetadata metadata) {
       if (entry.isRemoved()) {
-         updateEntryForRemove(entry.getKey(), metadata);
+         IracUtils.updateEntryForRemove(getLog(), iracVersionGenerator, entry, metadata);
       } else {
-         updateEntryForWrite(entry, metadata);
+         IracUtils.updateEntryForWrite(getLog(), entry, metadata);
       }
    }
 
@@ -157,13 +134,6 @@ public abstract class AbstractIracInterceptor extends DDAsyncInterceptor {
       return command.getAffectedKeys().stream().map(key -> new StreamData(key, command, getSegment(key)));
    }
 
-   protected void updateEntryForWrite(CacheEntry<?, ?> entry, IracMetadata metadata) {
-      final Object key = entry.getKey();
-      logIracMetadataAssociated(key, metadata);
-      assert metadata != null : "[IRAC] Metadata must not be null!";
-      updateCacheEntryMetadata(entry, metadata);
-   }
-
    //used by TotalOrder and Optimistic transaction. Can be moved after total order is removed!
    protected void afterLocalTwoPhasePrepare(InvocationContext ctx, PrepareCommand command, Object rv) {
       if (isTraceEnabled()) {
@@ -182,7 +152,7 @@ public abstract class AbstractIracInterceptor extends DDAsyncInterceptor {
             metadata = segmentMetadata.computeIfAbsent(data.segment, prepareResponse::getIracMetadata);
          }
          assert metadata != null : "[IRAC] metadata is null after successful prepare! Data=" + data;
-         updateCommandMetadata(data.key, data.command, metadata);
+         IracUtils.updateCommandMetadata(data.key, data.command, metadata);
       }
    }
 
@@ -216,7 +186,7 @@ public abstract class AbstractIracInterceptor extends DDAsyncInterceptor {
       Iterator<StreamData> iterator = streamKeysFromModifications(ctx.getModifications()).iterator();
       while (iterator.hasNext()) {
          StreamData data = iterator.next();
-         IracMetadata metadata = getIracMetadataFromCommand(data.command, data.key);
+         IracMetadata metadata = IracUtils.getIracMetadataFromCommand(data.command, data.key);
 
          command.addIracMetadata(data.segment, metadata);
          if (isWriteOwner(data)) {
@@ -242,24 +212,6 @@ public abstract class AbstractIracInterceptor extends DDAsyncInterceptor {
       return invokeNext(ctx, command);
    }
 
-   protected void logIracMetadataAssociated(Object key, IracMetadata metadata) {
-      if (isDebugEnabled()) {
-         getLog().debugf("[IRAC] IracMetadata %s associated with key '%s'", metadata, key);
-      }
-   }
-
-   protected void logTombstoneAssociated(Object key, IracMetadata metadata) {
-      if (isDebugEnabled()) {
-         getLog().debugf("[IRAC] Store tombstone %s for key '%s'", metadata, key);
-      }
-   }
-
-   private void updateEntryForRemove(Object key, IracMetadata metadata) {
-      logTombstoneAssociated(key, metadata);
-      assert metadata != null : "[IRAC] Metadata must not be null!";
-      iracVersionGenerator.storeTombstone(key, metadata);
-   }
-
    static class StreamData {
       final Object key;
       final WriteCommand command;
@@ -275,10 +227,10 @@ public abstract class AbstractIracInterceptor extends DDAsyncInterceptor {
       @Override
       public String toString() {
          return "StreamData{" +
-               "key=" + key +
-               ", command=" + command +
-               ", segment=" + segment +
-               '}';
+                "key=" + key +
+                ", command=" + command +
+                ", segment=" + segment +
+                '}';
       }
 
       @Override

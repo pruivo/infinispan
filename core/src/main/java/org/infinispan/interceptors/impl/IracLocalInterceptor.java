@@ -30,6 +30,7 @@ import org.infinispan.distribution.Ownership;
 import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.irac.IracUtils;
 
 /**
  * // TODO: Document this
@@ -159,11 +160,6 @@ public class IracLocalInterceptor extends AbstractIracInterceptor {
    }
 
    @Override
-   boolean isDebugEnabled() {
-      return log.isDebugEnabled();
-   }
-
-   @Override
    Log getLog() {
       return log;
    }
@@ -171,7 +167,7 @@ public class IracLocalInterceptor extends AbstractIracInterceptor {
    private Object visitDataWriteCommand(InvocationContext ctx, DataWriteCommand command) {
       final Object key = command.getKey();
       if (isIracState(command)) { //all the state transfer/preload is done via put commands.
-         setMetadataToCacheEntry(ctx.lookupEntry(key), getIracMetadataFromCommand(command, key));
+         setMetadataToCacheEntry(ctx.lookupEntry(key), IracUtils.getIracMetadataFromCommand(command, key));
          return invokeNext(ctx, command);
       }
       if (skipCommand(ctx, command)) {
@@ -204,7 +200,7 @@ public class IracLocalInterceptor extends AbstractIracInterceptor {
       if (log.isDebugEnabled()) {
          log.debugf("[IRAC] New metadata for key '%s' is %s", key, metadata);
       }
-      updateCommandMetadata(key, command, metadata);
+      IracUtils.updateCommandMetadata(key, command, metadata);
       if (trace) {
          log.tracef("[IRAC] Command: %s", command);
       }
@@ -215,7 +211,7 @@ public class IracLocalInterceptor extends AbstractIracInterceptor {
       if (!command.isSuccessful() || skipEntryCommit(ctx, key)) {
          return;
       }
-      setMetadataToCacheEntry(ctx.lookupEntry(key), getIracMetadataFromCommand(command, key));
+      setMetadataToCacheEntry(ctx.lookupEntry(key), IracUtils.getIracMetadataFromCommand(command, key));
    }
 
    private void handleWriteCommand(InvocationContext ctx, WriteCommand command, Object rv, Throwable t) {
@@ -226,7 +222,7 @@ public class IracLocalInterceptor extends AbstractIracInterceptor {
          if (skipEntryCommit(ctx, key)) {
             continue;
          }
-         setMetadataToCacheEntry(ctx.lookupEntry(key), getIracMetadataFromCommand(command, key));
+         setMetadataToCacheEntry(ctx.lookupEntry(key), IracUtils.getIracMetadataFromCommand(command, key));
       }
    }
 

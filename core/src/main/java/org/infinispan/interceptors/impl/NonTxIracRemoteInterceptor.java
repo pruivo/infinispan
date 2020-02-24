@@ -20,7 +20,6 @@ public class NonTxIracRemoteInterceptor extends AbstractIracRemoteInterceptor {
    private static final Log log = LogFactory.getLog(NonTxIracRemoteInterceptor.class);
    private static final boolean trace = log.isTraceEnabled();
 
-
    @Override
    public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
       return visitDataWriteCommand(ctx, command);
@@ -34,11 +33,6 @@ public class NonTxIracRemoteInterceptor extends AbstractIracRemoteInterceptor {
    @Override
    boolean isTraceEnabled() {
       return trace;
-   }
-
-   @Override
-   boolean isDebugEnabled() {
-      return log.isDebugEnabled();
    }
 
    @Override

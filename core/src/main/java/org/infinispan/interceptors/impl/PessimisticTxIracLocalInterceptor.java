@@ -49,6 +49,7 @@ import org.infinispan.util.concurrent.AggregateCompletionStage;
 import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.irac.IracUtils;
 
 /**
  * // TODO: Document this
@@ -190,11 +191,6 @@ public class PessimisticTxIracLocalInterceptor extends AbstractIracInterceptor {
    }
 
    @Override
-   boolean isDebugEnabled() {
-      return log.isDebugEnabled();
-   }
-
-   @Override
    Log getLog() {
       return log;
    }
@@ -202,7 +198,7 @@ public class PessimisticTxIracLocalInterceptor extends AbstractIracInterceptor {
    private Object visitDataWriteCommand(InvocationContext ctx, DataWriteCommand command) {
       final Object key = command.getKey();
       if (isIracState(command)) {
-         setMetadataToCacheEntry(ctx.lookupEntry(key), getIracMetadataFromCommand(command, key));
+         setMetadataToCacheEntry(ctx.lookupEntry(key), IracUtils.getIracMetadataFromCommand(command, key));
          return invokeNext(ctx, command);
       }
       return skipCommand(ctx, command) ?
@@ -255,7 +251,7 @@ public class PessimisticTxIracLocalInterceptor extends AbstractIracInterceptor {
             .iterator();
       while (iterator.hasNext()) {
          StreamData data = iterator.next();
-         setMetadataToCacheEntry(ctx.lookupEntry(data.key), getIracMetadataFromCommand(data.command, data.key));
+         setMetadataToCacheEntry(ctx.lookupEntry(data.key), IracUtils.getIracMetadataFromCommand(data.command, data.key));
       }
       return invokeNext(ctx, command);
    }
@@ -263,7 +259,7 @@ public class PessimisticTxIracLocalInterceptor extends AbstractIracInterceptor {
    private void setMetadataBeforeSendingPrepare(LocalTxInvocationContext ctx, StreamData data, IracMetadata metadata) {
       CacheEntry<?, ?> entry = ctx.lookupEntry(data.key);
       assert entry != null;
-      updateCommandMetadata(data.key, data.command, metadata);
+      IracUtils.updateCommandMetadata(data.key, data.command, metadata);
       if (isWriteOwner(data)) {
          setMetadataToCacheEntry(entry, metadata);
       }

@@ -182,15 +182,6 @@ public class IracLocalStateTransferTest extends AbstractXSiteTest {
       assertNotInDataContainer(NYC, key);
    }
 
-   public void testStateTransferWhenReceiveUpdate(Method method) {
-      String key = TestingUtil.k(method);
-      String value = TestingUtil.v(method);
-
-      assertOwnership(LON, key, 0, 1);
-
-      //TODO test handling xsite update while state transfer is in progress
-   }
-
    @BeforeMethod(alwaysRun = true)
    @Override
    public void createBeforeMethod() {

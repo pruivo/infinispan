@@ -23,7 +23,6 @@ public class OptimisticTxIracRemoteInterceptor extends AbstractIracRemoteInterce
    private static final Log log = LogFactory.getLog(OptimisticTxIracRemoteInterceptor.class);
    private static final boolean trace = log.isTraceEnabled();
 
-
    @Override
    public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
       if (skipCommand(command.getModifications())) {
@@ -53,11 +52,6 @@ public class OptimisticTxIracRemoteInterceptor extends AbstractIracRemoteInterce
    @Override
    boolean isTraceEnabled() {
       return trace;
-   }
-
-   @Override
-   boolean isDebugEnabled() {
-      return log.isDebugEnabled();
    }
 
    @Override

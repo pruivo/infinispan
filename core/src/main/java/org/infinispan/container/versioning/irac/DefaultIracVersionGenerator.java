@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
+import org.infinispan.factories.annotations.Stop;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.metadata.impl.IracMetadata;
@@ -42,10 +43,18 @@ public class DefaultIracVersionGenerator implements IracVersionGenerator {
    }
 
    @Start
+   @Override
    public void start() {
       transport.checkCrossSiteAvailable();
       localSite = transport.localSiteName();
+      cacheNotifier.removeListener(this);
       cacheNotifier.addListener(this);
+   }
+
+   @Stop
+   @Override
+   public void stop() {
+      cacheNotifier.removeListener(this);
    }
 
    @Override
