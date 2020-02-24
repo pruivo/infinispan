@@ -4,6 +4,9 @@ import java.util.concurrent.CompletionStage;
 
 import org.infinispan.Cache;
 import org.infinispan.commands.VisitableCommand;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
+import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.xsite.commands.XSiteStateTransferFinishReceiveCommand;
 import org.infinispan.xsite.commands.XSiteStateTransferStartReceiveCommand;
 import org.infinispan.xsite.statetransfer.XSiteStatePushCommand;
@@ -20,6 +23,15 @@ public interface BackupReceiver {
    Cache getCache();
 
    CompletionStage<Void> handleRemoteCommand(VisitableCommand command, boolean preserveOrder);
+
+   CompletionStage<Void> putKeyValue(Object key, Object value, Metadata metadata,
+         IracMetadata iracMetadata);
+
+   CompletionStage<Void> removeKey(Object key, IracMetadata iracMetadata);
+
+   CompletionStage<Void> clearKeys();
+
+   CompletionStage<Void> forwardToPrimary(IracUpdateKeyCommand command);
 
    /**
     * It handles starting the state transfer from a remote site. The command must be broadcast to the entire cluster in

@@ -18,6 +18,8 @@ import org.infinispan.AdvancedCache;
 import org.infinispan.CacheCollection;
 import org.infinispan.CacheSet;
 import org.infinispan.LockedStream;
+import org.infinispan.commands.write.PutKeyValueCommand;
+import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commons.dataconversion.Encoder;
 import org.infinispan.commons.dataconversion.Wrapper;
 import org.infinispan.commons.util.EnumUtil;
@@ -48,6 +50,9 @@ import org.infinispan.stream.impl.local.ValueCacheCollection;
  * @since 5.1
  */
 public class DecoratedCache<K, V> extends AbstractDelegatingAdvancedCache<K, V> {
+
+   private static final Function<?,?> IDENTITY = t -> t;
+
    private final long flags;
    private final Object lockOwner;
    private final CacheImpl<K, V> cacheImplementation;
@@ -399,7 +404,7 @@ public class DecoratedCache<K, V> extends AbstractDelegatingAdvancedCache<K, V> 
 
    @Override
    public CompletableFuture<V> removeAsync(Object key) {
-      return cacheImplementation.removeAsync(key, flags, contextBuilder);
+      return cacheImplementation.removeAsync(key, flags, contextBuilder, getRemoveKeyTransform());
    }
 
    @Override
@@ -677,7 +682,7 @@ public class DecoratedCache<K, V> extends AbstractDelegatingAdvancedCache<K, V> 
 
    @Override
    public CompletableFuture<V> putAsync(K key, V value, Metadata metadata) {
-      return cacheImplementation.putAsync(key, value, metadata, flags, contextBuilder);
+      return cacheImplementation.putAsync(key, value, metadata, flags, contextBuilder, getPutKeyValueTransform());
    }
 
    @Override
@@ -739,5 +744,13 @@ public class DecoratedCache<K, V> extends AbstractDelegatingAdvancedCache<K, V> 
          ctx.setLockOwner(lockOwner);
       }
       return ctx;
+   }
+
+   protected Function<PutKeyValueCommand, PutKeyValueCommand> getPutKeyValueTransform() {
+      return (Function<PutKeyValueCommand, PutKeyValueCommand>) IDENTITY;
+   }
+
+   protected Function<RemoveCommand, RemoveCommand> getRemoveKeyTransform() {
+      return (Function<RemoveCommand, RemoveCommand>) IDENTITY;
    }
 }

@@ -446,7 +446,6 @@ public class JGroupsTransport implements Transport {
 
       channel.setUpHandler(channelCallbacks);
       setXSiteViewListener(channelCallbacks);
-      setSiteMasterPicker(new SiteMasterPickerImpl());
 
       startJGroupsChannelIfNeeded();
 
@@ -500,13 +499,6 @@ public class JGroupsTransport implements Transport {
       RELAY2 relay2 = findRelay2();
       if (relay2 != null) {
          relay2.setRouteStatusListener(listener);
-      }
-   }
-
-   private void setSiteMasterPicker(SiteMasterPickerImpl siteMasterPicker) {
-      RELAY2 relay2 = findRelay2();
-      if (relay2 != null) {
-         relay2.siteMasterPicker(siteMasterPicker);
       }
    }
 

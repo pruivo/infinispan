@@ -128,4 +128,13 @@ public class Configurations {
             .maxIdle(configuration.expiration().maxIdle())
             .build();
    }
+
+   public static boolean isIracEnabled(Configuration configuration) {
+      for (BackupConfiguration c : configuration.sites().enabledBackups()) {
+         if (c.isAsyncBackup()) {
+            return true;
+         }
+      }
+      return false;
+   }
 }

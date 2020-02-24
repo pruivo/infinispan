@@ -48,7 +48,7 @@ public class JCacheLoaderAdapter<K, V> implements org.infinispan.persistence.spi
             long now = ctx.getTimeService().wallClockTime();
             long exp = now + expiry.getTimeUnit().toMillis(expiry.getDurationAmount());
             Metadata meta = new EmbeddedMetadata.Builder().lifespan(exp - now).build();
-            return ctx.<K,V>getMarshallableEntryFactory().create(key, value, meta, now, -1);
+            return ctx.<K,V>getMarshallableEntryFactory().create(key, value, meta, null, now, -1);
          }
       }
       return null;

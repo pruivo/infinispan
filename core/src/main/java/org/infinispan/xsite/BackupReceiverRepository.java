@@ -1,5 +1,6 @@
 package org.infinispan.xsite;
 
+import org.infinispan.Cache;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 
@@ -20,4 +21,6 @@ public interface BackupReceiverRepository {
     * is invoked.
     */
    BackupReceiver getBackupReceiver(String originSiteName, String cacheName);
+
+   BackupReceiver getBackupReceiver(Cache<Object, Object> cache);
 }

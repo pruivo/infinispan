@@ -7,6 +7,11 @@ import java.util.Set;
 
 import org.infinispan.commands.CreateCacheCommand;
 import org.infinispan.commands.control.LockControlCommand;
+import org.infinispan.commands.irac.IracCleanupKeyCommand;
+import org.infinispan.commands.irac.IracMetadataRequestCommand;
+import org.infinispan.commands.irac.IracRequestStateCommand;
+import org.infinispan.commands.irac.IracStateResponseCommand;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.CheckTransactionRpcCommand;
 import org.infinispan.commands.remote.ClusteredGetAllCommand;
@@ -110,7 +115,10 @@ public final class CacheRpcCommandExternalizer extends AbstractExternalizer<Cach
             XSiteStateTransferStatusRequestCommand.class, ConflictResolutionStartCommand.class,
             ScatteredStateGetKeysCommand.class, ScatteredStateConfirmRevokedCommand.class,
             StateTransferCancelCommand.class, StateTransferGetListenersCommand.class,
-            StateTransferGetTransactionsCommand.class, StateTransferStartCommand.class);
+            StateTransferGetTransactionsCommand.class, StateTransferStartCommand.class,
+            IracUpdateKeyCommand.class,
+            IracCleanupKeyCommand.class, IracMetadataRequestCommand.class, IracRequestStateCommand.class,
+            IracStateResponseCommand.class);
       // Only interested in cache specific replicable commands
       coreCommands.addAll(gcr.getModuleProperties().moduleCacheRpcCommands());
       return coreCommands;

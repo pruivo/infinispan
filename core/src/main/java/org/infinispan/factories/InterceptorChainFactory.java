@@ -39,11 +39,17 @@ import org.infinispan.interceptors.impl.EntryWrappingInterceptor;
 import org.infinispan.interceptors.impl.GroupingInterceptor;
 import org.infinispan.interceptors.impl.InvalidationInterceptor;
 import org.infinispan.interceptors.impl.InvocationContextInterceptor;
+import org.infinispan.interceptors.impl.IracLocalInterceptor;
 import org.infinispan.interceptors.impl.IsMarshallableInterceptor;
+import org.infinispan.interceptors.impl.NonTxIracRemoteInterceptor;
 import org.infinispan.interceptors.impl.NotificationInterceptor;
+import org.infinispan.interceptors.impl.OptimisticTxIracLocalInterceptor;
+import org.infinispan.interceptors.impl.OptimisticTxIracRemoteInterceptor;
 import org.infinispan.interceptors.impl.PassivationCacheLoaderInterceptor;
 import org.infinispan.interceptors.impl.PassivationClusteredCacheLoaderInterceptor;
 import org.infinispan.interceptors.impl.PassivationWriterInterceptor;
+import org.infinispan.interceptors.impl.PessimisticTxIracLocalInterceptor;
+import org.infinispan.interceptors.impl.PessimisticTxIracRemoteInterceptor;
 import org.infinispan.interceptors.impl.PrefetchInterceptor;
 import org.infinispan.interceptors.impl.RetryingEntryWrappingInterceptor;
 import org.infinispan.interceptors.impl.ScatteredCacheWriterInterceptor;
@@ -156,7 +162,7 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
 
       // load the tx interceptor
       if (transactionMode.isTransactional())
-         interceptorChain.appendInterceptor(createInterceptor(new TxInterceptor(), TxInterceptor.class), false);
+         interceptorChain.appendInterceptor(createInterceptor(new TxInterceptor<>(), TxInterceptor.class), false);
 
       //the total order protocol doesn't need locks
       if (!cacheMode.isScattered()) {
@@ -266,6 +272,19 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
          }
       }
 
+      if (Configurations.isIracEnabled(configuration)) {
+         if (transactionMode == TransactionMode.TRANSACTIONAL) {
+            if (configuration.transaction().lockingMode() == LockingMode.OPTIMISTIC) {
+               interceptorChain.appendInterceptor(createInterceptor(new OptimisticTxIracLocalInterceptor(), OptimisticTxIracLocalInterceptor.class), false);
+            } else {
+               interceptorChain.appendInterceptor(createInterceptor(new PessimisticTxIracLocalInterceptor(), PessimisticTxIracLocalInterceptor.class), false);
+            }
+         } else {
+            interceptorChain.appendInterceptor(createInterceptor(new IracLocalInterceptor(), IracLocalInterceptor.class), false);
+         }
+
+      }
+
       switch (cacheMode) {
          case INVALIDATION_SYNC:
          case INVALIDATION_ASYNC:
@@ -298,6 +317,16 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
             break;
          case LOCAL:
             //Nothing...
+      }
+
+      if (transactionMode == TransactionMode.TRANSACTIONAL) {
+         if (configuration.transaction().lockingMode() == LockingMode.OPTIMISTIC) {
+            interceptorChain.appendInterceptor(createInterceptor(new OptimisticTxIracRemoteInterceptor(), OptimisticTxIracRemoteInterceptor.class), false);
+         } else {
+            interceptorChain.appendInterceptor(createInterceptor(new PessimisticTxIracRemoteInterceptor(), PessimisticTxIracRemoteInterceptor.class), false);
+         }
+      } else {
+         interceptorChain.appendInterceptor(createInterceptor(new NonTxIracRemoteInterceptor(), NonTxIracRemoteInterceptor.class), false);
       }
 
       AsyncInterceptor callInterceptor = createInterceptor(new CallInterceptor(), CallInterceptor.class);

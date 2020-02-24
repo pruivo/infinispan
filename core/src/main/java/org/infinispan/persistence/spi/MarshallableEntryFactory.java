@@ -1,6 +1,9 @@
 package org.infinispan.persistence.spi;
 
 import org.infinispan.commons.io.ByteBuffer;
+import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.container.entries.InternalCacheValue;
+import org.infinispan.functional.impl.MetaParamsInternalMetadata;
 import org.infinispan.metadata.Metadata;
 
 /**
@@ -16,7 +19,7 @@ public interface MarshallableEntryFactory<K,V> {
     * {@code created} defaults to -1
     * {@code lastUsed} defaults to -1
     *
-    * @see #create(ByteBuffer, ByteBuffer, ByteBuffer, long, long)
+    * @see #create(ByteBuffer, ByteBuffer, ByteBuffer, ByteBuffer, long, long)
     */
    MarshallableEntry<K,V> create(ByteBuffer key, ByteBuffer valueBytes);
 
@@ -26,27 +29,31 @@ public interface MarshallableEntryFactory<K,V> {
     * @param key           {@link ByteBuffer} of serialized key object
     * @param valueBytes    {@link ByteBuffer} of serialized value object
     * @param metadataBytes {@link ByteBuffer} of serialized metadata object
+    * @param internalMetadataBytes
     * @param created       timestamp of when the entry was created, -1 means this value is ignored
     * @param lastUsed      timestamp of last time entry was accessed in memory
     * @return {@link MarshallableEntry} instance that lazily handles unmarshalling of keys, values and metadata via the
     * {@link MarshallableEntry#getKey()}, {@link MarshallableEntry#getValue()} and {@link MarshallableEntry#getMetadata()}
     * methods.
     */
-   MarshallableEntry<K,V> create(ByteBuffer key, ByteBuffer valueBytes, ByteBuffer metadataBytes, long created, long lastUsed);
+   MarshallableEntry<K,V> create(ByteBuffer key, ByteBuffer valueBytes, ByteBuffer metadataBytes,
+         ByteBuffer internalMetadataBytes, long created, long lastUsed);
 
    /**
     * Creates a {@link MarshallableEntry} using a object key and already marshalled value/metadata as arguments
     *
-    * @param key           entry key
-    * @param valueBytes    {@link ByteBuffer} of serialized value object
-    * @param metadataBytes {@link ByteBuffer} of serialized metadata object
-    * @param created       timestamp of when the entry was created, -1 means this value is ignored
-    * @param lastUsed      timestamp of last time entry was accessed in memory
+    * @param key                   entry key
+    * @param valueBytes            {@link ByteBuffer} of serialized value object
+    * @param metadataBytes         {@link ByteBuffer} of serialized metadata object
+    * @param internalMetadataBytes {@link ByteBuffer} of serialized internal metadata object
+    * @param created               timestamp of when the entry was created, -1 means this value is ignored
+    * @param lastUsed              timestamp of last time entry was accessed in memory
     * @return {@link MarshallableEntry} instance that lazily handles unmarshalling of values and metadata via the {@link
     * MarshallableEntry#getKey()}, {@link MarshallableEntry#getValue()} and {@link MarshallableEntry#getMetadata()}
     * methods.
     */
-   MarshallableEntry<K,V> create(Object key, ByteBuffer valueBytes, ByteBuffer metadataBytes, long created, long lastUsed);
+   MarshallableEntry<K, V> create(Object key, ByteBuffer valueBytes, ByteBuffer metadataBytes,
+         ByteBuffer internalMetadataBytes, long created, long lastUsed);
 
    /**
     * {@code value} defaults to null
@@ -60,23 +67,34 @@ public interface MarshallableEntryFactory<K,V> {
     * {@code created} defaults to -1
     * {@code lastUsed} defaults to -1
     *
-    * @see #create(Object, Object, Metadata, long, long)
+    * @see #create(Object, Object, Metadata, MetaParamsInternalMetadata, long, long)
     */
    MarshallableEntry<K,V> create(Object key, Object value);
 
    /**
     * Creates a {@link MarshallableEntry} using non-marshalled POJOs as arguments
     *
-    * @param key      entry key
-    * @param value    entry value
-    * @param metadata entry metadata
-    * @param created  timestamp of when the entry was created, -1 means this value is ignored
-    * @param lastUsed timestamp of last time entry was accessed in memory
+    * @param key              entry key
+    * @param value            entry value
+    * @param metadata         entry metadata
+    * @param internalMetadata entry internal metadata
+    * @param created          timestamp of when the entry was created, -1 means this value is ignored
+    * @param lastUsed         timestamp of last time entry was accessed in memory
     * @return {@link MarshallableEntry} instance that lazily handles serialization of keys, values and metadata via the
     * {@link MarshallableEntry#getKeyBytes()}, {@link MarshallableEntry#getValueBytes()} and {@link
     * MarshallableEntry#getMetadataBytes()} methods.
     */
-   MarshallableEntry<K,V> create(Object key, Object value, Metadata metadata, long created, long lastUsed);
+   MarshallableEntry<K, V> create(Object key, Object value, Metadata metadata,
+         MetaParamsInternalMetadata internalMetadata, long created, long lastUsed);
+
+   default MarshallableEntry<K, V> create(Object key, InternalCacheValue<V> v) {
+      return create(key, v.getValue(), v.getMetadata(), v.getInternalMetadata(), v.getCreated(), v.getLastUsed());
+   }
+
+   default MarshallableEntry<K, V> create(InternalCacheEntry<K, V> e) {
+      return create(e.getKey(), e.getValue(), e.getMetadata(), e.getInternalMetadata(), e.getCreated(),
+            e.getLastUsed());
+   }
 
    /**
     * Creates a {@link MarshallableEntry} using a Key {@link MarshalledValue}.

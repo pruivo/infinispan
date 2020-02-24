@@ -24,10 +24,12 @@ import javax.transaction.TransactionManager;
 
 import org.infinispan.AdvancedCache;
 import org.infinispan.Cache;
+import org.infinispan.cache.impl.InvocationHelper;
 import org.infinispan.commands.AbstractVisitor;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.functional.WriteOnlyManyEntriesCommand;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
@@ -38,16 +40,24 @@ import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.commons.IllegalLifecycleStateException;
 import org.infinispan.commons.time.TimeService;
+import org.infinispan.commons.util.EnumUtil;
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.distribution.DistributionInfo;
+import org.infinispan.distribution.ch.KeyPartitioner;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.functional.FunctionalMap;
 import org.infinispan.functional.impl.FunctionalMapImpl;
+import org.infinispan.functional.impl.MetaParamsInternalMetadata;
 import org.infinispan.functional.impl.WriteOnlyMapImpl;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.lifecycle.ComponentStatus;
 import org.infinispan.marshall.core.MarshallableFunctions;
+import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetaParam;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.remoting.LocalInvocation;
 import org.infinispan.remoting.RpcException;
 import org.infinispan.remoting.responses.CacheNotFoundResponse;
@@ -59,6 +69,8 @@ import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.ResponseCollector;
 import org.infinispan.remoting.transport.ResponseCollectors;
+import org.infinispan.remoting.transport.impl.VoidResponseCollector;
+import org.infinispan.transaction.LockingMode;
 import org.infinispan.transaction.TransactionMode;
 import org.infinispan.transaction.impl.LocalTransaction;
 import org.infinispan.transaction.impl.TransactionTable;
@@ -86,12 +98,19 @@ public class ClusteredCacheBackupReceiver implements BackupReceiver {
 
    private static final Log log = LogFactory.getLog(ClusteredCacheBackupReceiver.class);
    private static final boolean trace = log.isDebugEnabled();
+   private static final long IRAC_FLAG_BITSET = EnumUtil
+         .bitSetOf(Flag.IGNORE_RETURN_VALUES, Flag.SKIP_XSITE_BACKUP, Flag.IRAC_UPDATE);
+
    private final AdvancedCache<Object, Object> cache;
    private final ByteString cacheName;
    private final TimeService timeService;
    private final DefaultHandler defaultHandler;
    private final AsyncBackupHandler asyncBackupHandler;
    private final CommandsFactory commandsFactory;
+   private final InvocationHelper invocationHelper;
+   private final KeyPartitioner keyPartitioner;
+
+   private final boolean pessimisticTransaction;
 
    ClusteredCacheBackupReceiver(Cache<Object, Object> cache) {
       this.cache = cache.getAdvancedCache();
@@ -103,6 +122,11 @@ public class ClusteredCacheBackupReceiver implements BackupReceiver {
       TransactionHandler txHandler = new TransactionHandler(cache);
       this.defaultHandler = new DefaultHandler(txHandler, executor);
       this.asyncBackupHandler = new AsyncBackupHandler(txHandler, executor, timeService);
+      this.invocationHelper = registry.getComponent(InvocationHelper.class);
+      this.keyPartitioner = registry.getComponent(KeyPartitioner.class);
+      Configuration config = cache.getCacheConfiguration();
+      this.pessimisticTransaction = config.transaction().transactionMode() == TransactionMode.TRANSACTIONAL &&
+            config.transaction().lockingMode() == LockingMode.PESSIMISTIC;
    }
 
    @Override
@@ -120,6 +144,10 @@ public class ClusteredCacheBackupReceiver implements BackupReceiver {
       return invokeRemotelyInLocalSite(XSiteStateTransferFinishReceiveCommand.copyForCache(command, cacheName));
    }
 
+   private static MetaParamsInternalMetadata internalMetadata(IracMetadata metadata) {
+      return new MetaParamsInternalMetadata.Builder().add(new IracMetaParam(metadata)).build();
+   }
+
    @Override
    public CompletionStage<Void> handleStateTransferState(XSiteStatePushCommand cmd) {
       //split the state and forward it to the primary owners...
@@ -129,8 +157,7 @@ public class ClusteredCacheBackupReceiver implements BackupReceiver {
       }
 
       final long endTime = timeService.expectedEndTime(cmd.getTimeout(), TimeUnit.MILLISECONDS);
-      final ClusteringDependentLogic clusteringDependentLogic = cache.getComponentRegistry()
-            .getComponent(ClusteringDependentLogic.class);
+      final ClusteringDependentLogic clusteringDependentLogic = getClusteringDependentLogic();
       final Map<Address, List<XSiteState>> primaryOwnersChunks = new HashMap<>();
       final Address localAddress = clusteringDependentLogic.getAddress();
 
@@ -186,6 +213,21 @@ public class ClusteredCacheBackupReceiver implements BackupReceiver {
       }
    }
 
+   @Override
+   public CompletionStage<Void> putKeyValue(Object key, Object value, Metadata metadata, IracMetadata iracMetadata) {
+      PutKeyValueCommand cmd = commandsFactory
+            .buildPutKeyValueCommand(key, value, segment(key), metadata, IRAC_FLAG_BITSET);
+      cmd.setInternalMetadata(internalMetadata(iracMetadata));
+      return invocationHelper.invokeAsync(cmd, 1);
+   }
+
+   @Override
+   public CompletionStage<Void> removeKey(Object key, IracMetadata iracMetadata) {
+      RemoveCommand cmd = commandsFactory.buildRemoveCommand(key, null, segment(key), IRAC_FLAG_BITSET);
+      cmd.setInternalMetadata(internalMetadata(iracMetadata));
+      return invocationHelper.invokeAsync(cmd, 1);
+   }
+
    private <T> CompletableFuture<T> checkInvocationAllowedFuture() {
       ComponentStatus status = cache.getStatus();
       if (!status.allowInvocations()) {
@@ -208,12 +250,47 @@ public class ClusteredCacheBackupReceiver implements BackupReceiver {
       return commandsFactory.buildXSiteStatePushCommand(stateList.toArray(new XSiteState[0]), 0);
    }
 
+   @Override
+   public CompletionStage<Void> clearKeys() {
+      return defaultHandler.cache().clearAsync();
+   }
+
+   @Override
+   public CompletionStage<Void> forwardToPrimary(IracUpdateKeyCommand command) {
+      Object key = command.getKey();
+      if (key == null || !pessimisticTransaction) {
+         //key == null => clear. it is destructive anyway
+         //if not pessimistic transaction, we can execute the update locally.
+         return command.executeOperation(this);
+      }
+
+      DistributionInfo dInfo = getClusteringDependentLogic().getCacheTopology().getDistribution(key);
+      if (dInfo.isPrimary()) {
+         return command.executeOperation(this);
+      }
+      Address primary = dInfo.primary();
+      IracUpdateKeyCommand remoteCmd = command.copyForCacheName(cacheName);
+      RpcManager rpcManager = cache.getRpcManager();
+      //not sure if it useful to retry in case of failure
+      //the origin site has retry implemented and it will send the up-to-date value
+      return rpcManager.invokeCommand(primary, remoteCmd, VoidResponseCollector.validOnly(),
+            rpcManager.getSyncRpcOptions());
+   }
+
    private CompletionStage<Void> invokeRemotelyInLocalSite(CacheRpcCommand command) {
       final RpcManager rpcManager = cache.getRpcManager();
       CompletionStage<Map<Address, Response>> remote = rpcManager
             .invokeCommandOnAll(command, validOnly(), rpcManager.getSyncRpcOptions());
       CompletionStage<Response> local = LocalInvocation.newInstanceFromCache(cache, command).callAsync();
       return CompletableFuture.allOf(remote.toCompletableFuture(), local.toCompletableFuture());
+   }
+
+   private ClusteringDependentLogic getClusteringDependentLogic() {
+      return cache.getComponentRegistry().getComponent(ClusteringDependentLogic.class);
+   }
+
+   private int segment(Object key) {
+      return keyPartitioner.getSegment(key);
    }
 
    private static class DefaultHandler extends AbstractVisitor {

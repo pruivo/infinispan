@@ -135,13 +135,22 @@ public class BackupSenderImpl implements BackupSender {
       //if we run a 2PC then filter out 1PC prepare backup calls as they will happen during the local commit phase.
       BackupFilter filter = !prepare.isOnePhaseCommit() ? BackupFilter.KEEP_2PC_ONLY : BackupFilter.KEEP_ALL;
       List<XSiteBackup> backups = calculateBackupInfo(filter);
+      if (backups.isEmpty()) {
+         return SyncInvocationStage.completedNullStage();
+      }
       return backupCommand(prepare, command, backups, transaction);
    }
 
    @Override
-   public InvocationStage backupWrite(WriteCommand command, VisitableCommand originalCommand) {
+   public InvocationStage backupWrite(WriteCommand command, WriteCommand originalCommand) {
       List<XSiteBackup> xSiteBackups = calculateBackupInfo(BackupFilter.KEEP_ALL);
       return backupCommand(command, originalCommand, xSiteBackups, null);
+   }
+
+   @Override
+   public InvocationStage backupClear(ClearCommand command) {
+      List<XSiteBackup> xSiteBackups = calculateBackupInfo(BackupFilter.KEEP_ALL);
+      return backupCommand(command, command, xSiteBackups, null);
    }
 
    @Override
@@ -210,22 +219,23 @@ public class BackupSenderImpl implements BackupSender {
             log.cacheBackupsDataToSameSite(localSiteName);
             continue;
          }
-         boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
-         if (backupFilter == BackupFilter.KEEP_1PC_ONLY) {
-            if (isSync && bc.isTwoPhaseCommit())
-               continue;
+         if (bc.isAsyncBackup()) {
+            //async are handled by IRAC!
+            continue;
+         }
+         boolean is2PC = bc.isTwoPhaseCommit();
+         if (backupFilter == BackupFilter.KEEP_1PC_ONLY && is2PC) {
+            continue;
          }
 
-         if (backupFilter == BackupFilter.KEEP_2PC_ONLY) {
-            if (!isSync || (!bc.isTwoPhaseCommit()))
-               continue;
+         if (backupFilter == BackupFilter.KEEP_2PC_ONLY && !is2PC) {
+            continue;
          }
-
          if (takeOfflineManager.getSiteState(bc.site()) == SiteState.OFFLINE) {
             log.tracef("The site '%s' is offline, not backing up information to it", bc.site());
             continue;
          }
-         XSiteBackup bi = new XSiteBackup(bc.site(), isSync, bc.replicationTimeout());
+         XSiteBackup bi = new XSiteBackup(bc.site(), true, bc.replicationTimeout());
          backupInfo.add(bi);
       }
       return backupInfo;

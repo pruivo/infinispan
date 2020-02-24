@@ -29,9 +29,7 @@ import org.infinispan.distribution.LocalizedCacheTopology;
 import org.infinispan.encoding.DataConversion;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.functional.impl.Params;
-import org.infinispan.interceptors.InvocationStage;
 import org.infinispan.interceptors.InvocationSuccessFunction;
-import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.marshall.core.MarshallableFunctions;
 
 /**
@@ -47,7 +45,6 @@ public class NonTransactionalBackupInterceptor extends BaseBackupInterceptor {
    private final InvocationSuccessFunction<WriteCommand> handleMultipleKeysWriteReturn = this::handleMultipleKeysWriteReturn;
 
    @Inject CommandsFactory commandsFactory;
-   @Inject ClusteringDependentLogic clusteringDependentLogic;
    @Inject InternalEntryFactory internalEntryFactory;
 
    @Override
@@ -128,32 +125,33 @@ public class NonTransactionalBackupInterceptor extends BaseBackupInterceptor {
    }
 
    private Object handleSingleKeyWriteReturn(InvocationContext ctx, DataWriteCommand dataWriteCommand, Object rv) throws Throwable {
+      if (!dataWriteCommand.isSuccessful()) {
+         return rv;
+      }
       int segment = dataWriteCommand.getSegment();
-      if (dataWriteCommand.isSuccessful() &&
-            clusteringDependentLogic.getCacheTopology().getSegmentDistribution(segment).isPrimary()) {
-         CacheEntry entry = ctx.lookupEntry(dataWriteCommand.getKey());
-         DataWriteCommand crossSiteCommand;
-         if (entry.isRemoved()) {
-            crossSiteCommand = commandsFactory.buildRemoveCommand(dataWriteCommand.getKey(), null, segment,
-                  dataWriteCommand.getFlagsBitSet());
-         } else {
-            crossSiteCommand = commandsFactory.buildPutKeyValueCommand(dataWriteCommand.getKey(), entry.getValue(),
-                  segment, entry.getMetadata(), dataWriteCommand.getFlagsBitSet());
-         }
-         InvocationStage stage = backupSender.backupWrite(crossSiteCommand, dataWriteCommand);
-         return stage.thenReturn(ctx, dataWriteCommand, rv);
+      DistributionInfo dInfo = clusteringDependentLogic.getCacheTopology().getSegmentDistribution(segment);
+      if (dInfo.isWriteOwner()) {
+         iracManager.trackUpdatedKey(dataWriteCommand.getKey(), dataWriteCommand.getCommandInvocationId());
+      }
+      if (dInfo.isPrimary()) {
+         CacheEntry<?,?> entry = ctx.lookupEntry(dataWriteCommand.getKey());
+         WriteCommand crossSiteCommand = createCommandForXSite(entry, segment, dataWriteCommand.getFlagsBitSet());
+         return backupSender.backupWrite(crossSiteCommand, dataWriteCommand).thenReturn(ctx, dataWriteCommand, rv);
       }
       return rv;
+   }
+
+   private WriteCommand createCommandForXSite(CacheEntry<?, ?> entry, int segment, long flagsBitSet) {
+      return entry.isRemoved() ?
+             commandsFactory.buildRemoveCommand(entry.getKey(), null, segment, flagsBitSet) :
+             commandsFactory.buildPutKeyValueCommand(entry.getKey(), entry.getValue(), segment, entry.getMetadata(),
+                   flagsBitSet);
    }
 
    private Object handleMultipleKeysWriteCommand(InvocationContext ctx, WriteCommand command) {
       if (trace) log.tracef("Processing %s", command);
       if (skipXSiteBackup(command)) {
          return invokeNext(ctx, command);
-      } else if (command instanceof ReadWriteKeyCommand) {
-         ReadWriteKeyCommand readWriteKeyCommand = (ReadWriteKeyCommand) command;
-         return commandsFactory.buildReadWriteKeyCommand(readWriteKeyCommand.getKey(), readWriteKeyCommand.getFunction(),
-               readWriteKeyCommand.getSegment(), readWriteKeyCommand.getParams(), readWriteKeyCommand.getKeyDataConversion(), readWriteKeyCommand.getValueDataConversion());
       }
       return invokeNextThenApply(ctx, command, handleMultipleKeysWriteReturn);
    }
@@ -162,7 +160,7 @@ public class NonTransactionalBackupInterceptor extends BaseBackupInterceptor {
       if (trace) log.tracef("Processing post %s", writeCommand);
       if (!writeCommand.isSuccessful()) {
          if (trace) {
-            log.tracef("Command %s is not succesful, not replicating", writeCommand);
+            log.tracef("Command %s is not successful, not replicating", writeCommand);
          }
          return rv;
       }
@@ -170,15 +168,18 @@ public class NonTransactionalBackupInterceptor extends BaseBackupInterceptor {
       LocalizedCacheTopology localizedCacheTopology = clusteringDependentLogic.getCacheTopology();
       for (Object key : writeCommand.getAffectedKeys()) {
          DistributionInfo info = localizedCacheTopology.getDistribution(key);
+         if (info.isWriteOwner()) {
+            iracManager.trackUpdatedKey(key, writeCommand.getCommandInvocationId());
+         }
          if (!info.isPrimary()) {
             if (trace) {
                log.tracef("Not replicating write to key %s as the primary owner is %s", key, info.primary());
             }
             continue;
          }
-         CacheEntry entry = ctx.lookupEntry(key);
+         CacheEntry<?,?> entry = ctx.lookupEntry(key);
          if (entry instanceof InternalCacheEntry) {
-            map.put(key, ((InternalCacheEntry) entry).toInternalCacheValue());
+            map.put(key, ((InternalCacheEntry<?,?>) entry).toInternalCacheValue());
          } else {
             map.put(key, internalEntryFactory.createValue(entry));
          }
@@ -187,9 +188,10 @@ public class NonTransactionalBackupInterceptor extends BaseBackupInterceptor {
          return rv;
       }
       //TODO: Converters
-      WriteOnlyManyEntriesCommand crossSiteCommand = commandsFactory.buildWriteOnlyManyEntriesCommand(map,
-            MarshallableFunctions.setInternalCacheValueConsumer(), Params.fromFlagsBitSet(writeCommand.getFlagsBitSet()), DataConversion.DEFAULT_KEY, DataConversion.DEFAULT_VALUE);
-      InvocationStage stage = backupSender.backupWrite(crossSiteCommand, writeCommand);
-      return stage.thenReturn(ctx, writeCommand, rv);
+      WriteCommand crossSiteCommand = commandsFactory.buildWriteOnlyManyEntriesCommand(map,
+            MarshallableFunctions.setInternalCacheValueConsumer(),
+            Params.fromFlagsBitSet(writeCommand.getFlagsBitSet()), DataConversion.DEFAULT_KEY,
+            DataConversion.DEFAULT_VALUE);
+      return backupSender.backupWrite(crossSiteCommand, writeCommand).thenReturn(ctx, writeCommand, rv);
    }
 }

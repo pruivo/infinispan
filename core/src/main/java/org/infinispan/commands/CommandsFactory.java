@@ -27,6 +27,11 @@ import org.infinispan.commands.functional.WriteOnlyKeyCommand;
 import org.infinispan.commands.functional.WriteOnlyKeyValueCommand;
 import org.infinispan.commands.functional.WriteOnlyManyCommand;
 import org.infinispan.commands.functional.WriteOnlyManyEntriesCommand;
+import org.infinispan.commands.irac.IracCleanupKeyCommand;
+import org.infinispan.commands.irac.IracMetadataRequestCommand;
+import org.infinispan.commands.irac.IracRequestStateCommand;
+import org.infinispan.commands.irac.IracStateResponseCommand;
+import org.infinispan.commands.irac.IracUpdateKeyCommand;
 import org.infinispan.commands.read.EntrySetCommand;
 import org.infinispan.commands.read.GetAllCommand;
 import org.infinispan.commands.read.GetCacheEntryCommand;
@@ -78,6 +83,7 @@ import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.commons.util.IntSet;
 import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.encoding.DataConversion;
 import org.infinispan.expiration.impl.TouchCommand;
 import org.infinispan.factories.ComponentRegistry;
@@ -87,8 +93,11 @@ import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.functional.EntryView.ReadEntryView;
 import org.infinispan.functional.EntryView.ReadWriteEntryView;
 import org.infinispan.functional.EntryView.WriteEntryView;
+import org.infinispan.functional.impl.MetaParamsInternalMetadata;
 import org.infinispan.functional.impl.Params;
 import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetaParam;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.notifications.cachelistener.cluster.ClusterEvent;
 import org.infinispan.notifications.cachelistener.cluster.MultiClusterEventCommand;
 import org.infinispan.reactive.publisher.impl.DeliveryGuarantee;
@@ -628,4 +637,22 @@ public interface CommandsFactory {
    CheckTransactionRpcCommand buildCheckTransactionRpcCommand(Collection<GlobalTransaction> globalTransactions);
 
    TouchCommand buildTouchCommand(Object key, int segment);
+
+    IracUpdateKeyCommand buildIracUpdateKeyCommand(Object key, Object value, Metadata metadata,
+         IracMetadata iracMetadata);
+
+   default <K,V> IracUpdateKeyCommand  buildIracUpdateKeyCommand(InternalCacheEntry<K, V> entry) {
+      MetaParamsInternalMetadata internalMetadata = entry.getInternalMetadata();
+      assert internalMetadata != null : "[IRAC] Metadata to send to remote site is null! key=" + entry.getKey();
+      IracMetadata iracMetadata = internalMetadata.findMetaParam(IracMetaParam.class).map(IracMetaParam::get).get();
+      return buildIracUpdateKeyCommand(entry.getKey(), entry.getValue(), entry.getMetadata(), iracMetadata);
+   }
+
+   IracCleanupKeyCommand buildIracCleanupKeyCommand(Object key, Object lockOwner);
+
+   IracMetadataRequestCommand buildIracMetadataRequestCommand(int segment);
+
+   IracRequestStateCommand buildIracRequestStateCommand(IntSet segments);
+
+   IracStateResponseCommand buildIracStateResponseCommand(Object key, Object lockOwner, IracMetadata tombstone);
 }

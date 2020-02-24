@@ -20,6 +20,7 @@ import org.infinispan.commons.time.TimeService;
 import org.infinispan.commons.util.AbstractIterator;
 import org.infinispan.commons.util.CloseableIterator;
 import org.infinispan.commons.util.Util;
+import org.infinispan.functional.impl.MetaParamsInternalMetadata;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.persistence.sifs.configuration.SoftIndexFileStoreConfiguration;
 import org.infinispan.persistence.spi.AdvancedLoadWriteStore;
@@ -172,7 +173,7 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
 
          Flowable<Integer> filePublisher = filePublisher();
          CompletionStage<Void> stage = handleFilePublisher(filePublisher.doAfterNext(compactor::completeFile), false, false,
-               (file, offset, size, serializedKey, entryMetadata, serializedValue, seqId, expiration) -> {
+               (file, offset, size, serializedKey, entryMetadata, serializedValue, serializedInternalMetadata, seqId, expiration) -> {
                   long prevSeqId;
                   while (seqId > (prevSeqId = maxSeqId.get()) && !maxSeqId.compareAndSet(prevSeqId, seqId)) {
                   }
@@ -413,7 +414,10 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
       try {
          byte[] serializedValue;
          byte[] serializedKey;
-         EntryMetadata entryMetadata;
+         byte[] serializedMetadata;
+         byte[] serializedInternalMetadata;
+         long created;
+         long lastUsed;
          for (;;) {
             EntryPosition entry = temporaryTable.get(key);
             if (entry != null) {
@@ -439,9 +443,14 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
                         throw new IllegalStateException("Error reading key from "  + entry.file + ":" + entry.offset);
                      }
                      if (header.metadataLength() > 0) {
-                        entryMetadata = EntryRecord.readMetadata(handle, header, entry.offset);
+                        EntryMetadata metadata = EntryRecord.readMetadata(handle, header, entry.offset);
+                        serializedMetadata = metadata.getBytes();
+                        created = metadata.getCreated();
+                        lastUsed = metadata.getLastUsed();
                      } else {
-                        entryMetadata = null;
+                        serializedMetadata = null;
+                        created = -1;
+                        lastUsed = -1;
                      }
                      if (header.valueLength() > 0) {
                         serializedValue = EntryRecord.readValue(handle, header, entry.offset);
@@ -454,11 +463,14 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
                         }
                         return null;
                      }
-                     if (entryMetadata == null)
-                        return marshallableEntryFactory.create(toBuffer(serializedKey), toBuffer(serializedValue));
+                     if (header.internalMetadataLength() > 0) {
+                        serializedInternalMetadata = EntryRecord.readInternalMetadata(handle, header, entry.offset);
+                     } else {
+                        serializedInternalMetadata = null;
+                     }
 
                      return marshallableEntryFactory.create(toBuffer(serializedKey), toBuffer(serializedValue),
-                           toBuffer(entryMetadata.getBytes()), entryMetadata.getCreated(), entryMetadata.getLastUsed());
+                           toBuffer(serializedMetadata), toBuffer(serializedInternalMetadata), created, lastUsed);
                   } finally {
                      handle.close();
                   }
@@ -467,7 +479,7 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
                EntryRecord record = index.getRecord(key, marshaller.objectToByteBuffer(key));
                if (record == null) return null;
                return marshallableEntryFactory.create(toBuffer(record.getKey()), toBuffer(record.getValue()),
-                     toBuffer(record.getMetadata()), record.getCreated(), record.getLastUsed());
+                     toBuffer(record.getMetadata()), toBuffer(record.getInternalMetadata()), record.getCreated(), record.getLastUsed());
             }
          }
       } catch (Exception e) {
@@ -500,7 +512,7 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
    }
 
    private interface EntryFunctor<R> {
-      R apply(int file, int offset, int size, byte[] serializedKey, EntryMetadata metadata, byte[] serializedValue, long seqId, long expiration) throws Exception;
+      R apply(int file, int offset, int size, byte[] serializedKey, EntryMetadata metadata, byte[] serializedValue, byte[] serializedInternalMetadata, long seqId, long expiration) throws Exception;
    }
 
    private Flowable<Integer> filePublisher() {
@@ -542,7 +554,7 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
    @Override
    public Publisher publishKeys(Predicate filter) {
       return handleFilePublisher(filePublisher(), false, true,
-            (file, offset, size, serializedKey, entryMetadata, serializedValue, seqId, expiration) -> {
+            (file, offset, size, serializedKey, entryMetadata, serializedValue, serializedInternalMetadata, seqId, expiration) -> {
 
                final Object key = marshaller.objectFromByteBuffer(serializedKey);
 
@@ -556,7 +568,7 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
    @Override
    public Publisher<MarshallableEntry> entryPublisher(Predicate filter, boolean fetchValue, boolean fetchMetadata) {
       return handleFilePublisher(filePublisher(), fetchValue, fetchMetadata,
-            (file, offset, size, serializedKey, entryMetadata, serializedValue, seqId, expiration) -> {
+            (file, offset, size, serializedKey, entryMetadata, serializedValue, serializedInternalMetadata, seqId, expiration) -> {
 
                final Object key = marshaller.objectFromByteBuffer(serializedKey);
 
@@ -564,11 +576,12 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
                if (serializedValue != null && (filter == null || filter.test(key)) && !isSeqIdOld(seqId, key, serializedKey)) {
                   // EMPTY_BYTES is used to symbolize when fetchValue is false but there was an entry
                   final Object value = serializedValue == Util.EMPTY_BYTE_ARRAY ? null : marshaller.objectFromByteBuffer(serializedValue);
+                  MetaParamsInternalMetadata internalMetadata = (MetaParamsInternalMetadata) marshaller.objectFromByteBuffer(serializedInternalMetadata);
                   if (entryMetadata == null)
-                     return marshallableEntryFactory.create(key, value);
+                     return marshallableEntryFactory.create(key, value, null, internalMetadata, -1, -1);
 
                   final Metadata metadata = (Metadata) marshaller.objectFromByteBuffer(entryMetadata.getBytes());
-                  return marshallableEntryFactory.create(key, value, metadata, entryMetadata.getCreated(), entryMetadata.getLastUsed());
+                  return marshallableEntryFactory.create(key, value, metadata, internalMetadata, entryMetadata.getCreated(), entryMetadata.getLastUsed());
                }
                return null;
             });
@@ -624,9 +637,13 @@ public class SoftIndexFileStore implements AdvancedLoadWriteStore {
                   } else {
                      offsetOrNegation = ~innerOffset;
                   }
+                  byte[] serializedInternalMetadata = null;
+                  if (fetchMetadata && header.internalMetadataLength() > 0) {
+                     serializedInternalMetadata = EntryRecord.readInternalMetadata(handle, header, innerOffset);
+                  }
 
                   next = functor.apply(file, offsetOrNegation, header.totalLength(), serializedKey, meta,
-                        serializedValue, header.seqId(), header.expiryTime());
+                        serializedValue, serializedInternalMetadata, header.seqId(), header.expiryTime());
                } finally {
                   innerOffset = offset.addAndGet(header.totalLength());
                }

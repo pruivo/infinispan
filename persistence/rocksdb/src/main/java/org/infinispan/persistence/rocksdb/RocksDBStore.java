@@ -441,7 +441,7 @@ public class RocksDBStore<K,V> implements SegmentedAdvancedLoadWriteStore<K,V> {
         if (value == null) return null;
 
         ByteBuffer metadataBytes = fetchMeta ? value.getMetadataBytes() : null;
-        return entryFactory.create(key, value.getValueBytes(), metadataBytes, value.getCreated(), value.getLastUsed());
+        return entryFactory.create(key, value.getValueBytes(), metadataBytes, value.getInternalMetadataBytes(), value.getCreated(), value.getLastUsed());
     }
 
     private void addNewExpiry(MarshallableEntry entry) throws RocksDBException, IOException, ClassNotFoundException {

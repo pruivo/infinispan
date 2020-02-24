@@ -1,20 +1,12 @@
 package org.infinispan.persistence.manager;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.infinispan.context.Flag.CACHE_MODE_LOCAL;
-import static org.infinispan.context.Flag.IGNORE_RETURN_VALUES;
-import static org.infinispan.context.Flag.SKIP_CACHE_STORE;
-import static org.infinispan.context.Flag.SKIP_INDEXING;
-import static org.infinispan.context.Flag.SKIP_LOCKING;
-import static org.infinispan.context.Flag.SKIP_OWNERSHIP_CHECK;
-import static org.infinispan.context.Flag.SKIP_XSITE_BACKUP;
 import static org.infinispan.factories.KnownComponentNames.BLOCKING_EXECUTOR;
 import static org.infinispan.factories.KnownComponentNames.EXPIRATION_SCHEDULED_EXECUTOR;
 import static org.infinispan.factories.KnownComponentNames.NON_BLOCKING_EXECUTOR;
 import static org.infinispan.util.logging.Log.PERSISTENCE;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -47,12 +39,16 @@ import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
 
 import org.infinispan.AdvancedCache;
+import org.infinispan.cache.impl.InvocationHelper;
+import org.infinispan.commands.CommandsFactory;
+import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commons.CacheException;
 import org.infinispan.commons.api.Lifecycle;
 import org.infinispan.commons.executors.BlockingResource;
 import org.infinispan.commons.io.ByteBufferFactory;
 import org.infinispan.commons.marshall.StreamAwareMarshaller;
 import org.infinispan.commons.time.TimeService;
+import org.infinispan.commons.util.EnumUtil;
 import org.infinispan.commons.util.IntSet;
 import org.infinispan.commons.util.Util;
 import org.infinispan.configuration.cache.AbstractSegmentedStoreConfiguration;
@@ -60,7 +56,7 @@ import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.StoreConfiguration;
 import org.infinispan.configuration.global.GlobalConfiguration;
-import org.infinispan.context.Flag;
+import org.infinispan.context.impl.FlagBitSets;
 import org.infinispan.distribution.ch.KeyPartitioner;
 import org.infinispan.eviction.EvictionType;
 import org.infinispan.expiration.impl.InternalExpirationManager;
@@ -146,6 +142,10 @@ public class PersistenceManagerImpl implements PersistenceManager {
    @Inject Transport transport;
    @Inject @ComponentName(NON_BLOCKING_EXECUTOR)
    ExecutorService nonBlockingExecutor;
+   @Inject
+   ComponentRef<InvocationHelper> invocationHelper;
+   @Inject
+   ComponentRef<CommandsFactory> commandsFactory;
 
    @GuardedBy("storesMutex")
    private final List<CacheLoader> loaders = new ArrayList<>();
@@ -384,11 +384,11 @@ public class PersistenceManagerImpl implements PersistenceManager {
       long start = timeService.time();
 
       final long maxEntries = getMaxEntries();
-      final AdvancedCache<Object, Object> flaggedCache = getCacheForStateInsertion();
+      final long flags = getFlagsForStateInsertion();
       return Flowable.fromPublisher(preloadCl.entryPublisher(null, true, true))
             .take(maxEntries)
             .observeOn(nonBlockingScheduler)
-            .concatMapSingle(me -> preloadKey(flaggedCache, me))
+            .concatMapSingle(me -> preloadKey(flags, me))
             .count()
             .subscribeOn(blockingScheduler)
             .to(RxJavaInterop.singleToCompletionStage())
@@ -1313,10 +1313,14 @@ public class PersistenceManagerImpl implements PersistenceManager {
       }
    }
 
-   private AdvancedCache<Object, Object> getCacheForStateInsertion() {
-      List<Flag> flags = new ArrayList<>(Arrays.asList(
-            CACHE_MODE_LOCAL, SKIP_OWNERSHIP_CHECK, IGNORE_RETURN_VALUES, SKIP_CACHE_STORE, SKIP_LOCKING,
-            SKIP_XSITE_BACKUP));
+   private long getFlagsForStateInsertion() {
+      long flags = FlagBitSets.CACHE_MODE_LOCAL |
+            FlagBitSets.SKIP_OWNERSHIP_CHECK |
+            FlagBitSets.IGNORE_RETURN_VALUES |
+            FlagBitSets.SKIP_CACHE_STORE |
+            FlagBitSets.SKIP_LOCKING |
+            FlagBitSets.SKIP_XSITE_BACKUP |
+            FlagBitSets.IRAC_STATE;
 
       boolean hasShared = false;
       storesMutex.readLock().lock();
@@ -1333,12 +1337,12 @@ public class PersistenceManagerImpl implements PersistenceManager {
 
       if (hasShared) {
          if (indexShareable())
-            flags.add(SKIP_INDEXING);
+            flags = EnumUtil.mergeBitSets(flags, FlagBitSets.SKIP_INDEXING);
       } else {
-         flags.add(SKIP_INDEXING);
+         flags = EnumUtil.mergeBitSets(flags, FlagBitSets.SKIP_INDEXING);
       }
 
-      return cache.wired().withFlags(flags.toArray(new Flag[flags.size()]));
+      return flags;
    }
 
    private boolean indexShareable() {
@@ -1351,16 +1355,20 @@ public class PersistenceManagerImpl implements PersistenceManager {
       return Long.MAX_VALUE;
    }
 
-   private Single<?> preloadKey(AdvancedCache<Object, Object> cache, MarshallableEntry me) {
+   private Single<?> preloadKey(long flags, MarshallableEntry me) {
       // CallInterceptor will preserve the timestamps if the metadata is an InternalMetadataImpl instance
       InternalMetadataImpl metadata = new InternalMetadataImpl(me.getMetadata(), me.created(), me.lastUsed());
+      Object key = me.getKey();
+      PutKeyValueCommand cmd = commandsFactory.wired().buildPutKeyValueCommand(key,me.getValue(), keyPartitioner.getSegment(key), metadata, flags);
+      cmd.setInternalMetadata(me.getInternalMetadata());
+
       CompletionStage<Object> stage;
       if (configuration.transaction().transactionMode().isTransactional() && transactionManager != null) {
          final Transaction transaction = suspendIfNeeded();
          CompletionStage<Transaction> putStage;
          try {
             beginIfNeeded();
-            putStage = cache.putAsync(me.getKey(), me.getValue(), metadata)
+            putStage = invocationHelper.wired().invokeAsync(cmd, 1)
                .thenApply(ignore -> {
                   try {
                      return transactionManager.suspend();
@@ -1382,7 +1390,7 @@ public class PersistenceManagerImpl implements PersistenceManager {
             }
          }, blockingExecutor);
       } else {
-         stage = cache.putAsync(me.getKey(), me.getValue(), metadata);
+         stage = invocationHelper.wired().invokeAsync(cmd, 1);
       }
       return RxJavaInterop.completionStageToMaybe(stage)
             .toSingle(me);

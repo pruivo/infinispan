@@ -1,5 +1,6 @@
 package org.infinispan.functional.impl;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +18,8 @@ import org.infinispan.functional.MetaParam.MetaLifespan;
 import org.infinispan.functional.MetaParam.MetaMaxIdle;
 import org.infinispan.metadata.InternalMetadata;
 import org.infinispan.metadata.Metadata;
+import org.infinispan.metadata.impl.IracMetaParam;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.protostream.annotations.ProtoFactory;
 import org.infinispan.protostream.annotations.ProtoField;
 import org.infinispan.protostream.annotations.ProtoTypeId;
@@ -40,7 +43,8 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
 
    @ProtoFactory
    MetaParamsInternalMetadata(NumericVersion numericVersion, SimpleClusteredVersion clusteredVersion,
-                              long created, long lastUsed, long lifespan, long maxIdle, CounterConfiguration counterConfiguration) {
+                              long created, long lastUsed, long lifespan, long maxIdle, CounterConfiguration counterConfiguration,
+                              IracMetadata iracMetadata) {
       this.params = new MetaParams(MetaParams.EMPTY_ARRAY, 0);
       if (numericVersion != null || clusteredVersion != null) {
          this.params.add(new MetaEntryVersion(numericVersion == null ? clusteredVersion : numericVersion));
@@ -51,6 +55,9 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
       if (maxIdle > -1) params.add(new MetaMaxIdle(maxIdle));
       if (counterConfiguration != null) {
          params.add(new CounterConfigurationMetaParam(counterConfiguration));
+      }
+      if (iracMetadata != null) {
+         this.params.add(new IracMetaParam(iracMetadata));
       }
    }
 
@@ -125,6 +132,11 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
       return params.find(CounterConfigurationMetaParam.class).map(CounterConfigurationMetaParam::get).orElse(null);
    }
 
+   @ProtoField(number = 8)
+   public IracMetadata iracMetadata() {
+      return params.find(IracMetaParam.class).map(IracMetaParam::get).orElse(null);
+   }
+
    @Override
    public EntryVersion version() {
       return params.find(MetaEntryVersion.class).map(MetaEntryVersion::get).orElse(null);
@@ -147,6 +159,29 @@ public final class MetaParamsInternalMetadata implements InternalMetadata, MetaP
    @Override
    public String toString() {
       return "MetaParamsInternalMetadata{params=" + params + '}';
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if (this == o) {
+         return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+         return false;
+      }
+      MetaParamsInternalMetadata that = (MetaParamsInternalMetadata) o;
+      return created() == that.created() &&
+            lastUsed() == that.lastUsed() &&
+            lifespan() == that.lifespan() &&
+            maxIdle() == that.maxIdle() &&
+            Objects.equals(version(), that.version()) &&
+            Objects.equals(counterConfiguration(), that.counterConfiguration()) &&
+            Objects.equals(iracMetadata(), that.iracMetadata());
+   }
+
+   @Override
+   public int hashCode() {
+      return Objects.hash(created(), lastUsed(), lastUsed(), maxIdle(), version(), counterConfiguration(), iracMetadata());
    }
 
    public static MetaParamsInternalMetadata.Builder getBuilder(MetaParamsInternalMetadata metadata) {
