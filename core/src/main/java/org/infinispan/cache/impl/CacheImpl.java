@@ -1420,11 +1420,9 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
       return putAsync(key, value, metadata);
    }
 
-   final CompletableFuture<V> putAsync(final K key, final V value, final Metadata metadata, final long explicitFlags,
-         ContextBuilder contextBuilder, Function<PutKeyValueCommand, PutKeyValueCommand> transform) {
+   final CompletableFuture<V> putAsync(final K key, final V value, final Metadata metadata, final long explicitFlags, ContextBuilder contextBuilder) {
       assertKeyValueNotNull(key, value);
       PutKeyValueCommand command = createPutCommand(key, value, metadata, explicitFlags);
-      command = transform.apply(command);
       return invocationHelper.invokeAsync(contextBuilder, command, 1);
    }
 
@@ -1481,13 +1479,12 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
 
    @Override
    public final CompletableFuture<V> removeAsync(Object key) {
-      return removeAsync(key, EnumUtil.EMPTY_BIT_SET, invocationHelper.defaultContextBuilderForWrite(), Function.identity());
+      return removeAsync(key, EnumUtil.EMPTY_BIT_SET, invocationHelper.defaultContextBuilderForWrite());
    }
 
-   final CompletableFuture<V> removeAsync(final Object key, final long explicitFlags, ContextBuilder contextBuilder, Function<RemoveCommand, RemoveCommand> transform) {
+   final CompletableFuture<V> removeAsync(final Object key, final long explicitFlags, ContextBuilder contextBuilder) {
       assertKeyNotNull(key);
       RemoveCommand command = createRemoveCommand(key, explicitFlags);
-      command = transform.apply(command);
       return invocationHelper.invokeAsync(contextBuilder, command, 1);
    }
 
@@ -1841,7 +1838,7 @@ public class CacheImpl<K, V> implements AdvancedCache<K, V> {
 
    @Override
    public CompletableFuture<V> putAsync(K key, V value, Metadata metadata) {
-      return putAsync(key, value, metadata, EnumUtil.EMPTY_BIT_SET, invocationHelper.defaultContextBuilderForWrite(), Function.identity());
+      return putAsync(key, value, metadata, EnumUtil.EMPTY_BIT_SET, invocationHelper.defaultContextBuilderForWrite());
    }
 
    private Transaction suspendOngoingTransactionIfExists() {
