@@ -21,7 +21,7 @@ import org.infinispan.util.ByteString;
  */
 public class IracMetadataRequestCommand implements CacheRpcCommand, InitializableCommand, TopologyAffectedCommand {
 
-   public static final byte COMMAND_ID = 113;
+   public static final byte COMMAND_ID = 124;
 
    private ByteString cacheName;
    private int segment;
