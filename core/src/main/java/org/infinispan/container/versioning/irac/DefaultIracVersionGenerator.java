@@ -93,6 +93,9 @@ public class DefaultIracVersionGenerator implements IracVersionGenerator {
 
    @Override
    public void removeTombstone(Object key, IracMetadata iracMetadata) {
+      if (iracMetadata == null) {
+         return;
+      }
       tombstone.remove(key, iracMetadata);
    }
 

@@ -51,7 +51,7 @@ public class NoOpIracManager implements IracManager {
    }
 
    @Override
-   public void cleanupKey(Object key, Object lockOwner) {
+   public void cleanupKey(Object key, Object lockOwner, IracMetadata tombstone) {
       //no-op
    }
 

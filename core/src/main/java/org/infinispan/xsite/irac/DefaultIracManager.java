@@ -203,8 +203,9 @@ public class DefaultIracManager implements IracManager, Runnable {
    }
 
    @Override
-   public void cleanupKey(Object key, Object lockOwner) {
+   public void cleanupKey(Object key, Object lockOwner, IracMetadata tombstone) {
       updatedKeys.remove(key, lockOwner);
+      iracVersionGenerator.removeTombstone(key, tombstone);
    }
 
    @Override
@@ -346,14 +347,13 @@ public class DefaultIracManager implements IracManager, Runnable {
       return rsp;
    }
 
-   private void removeKey(Object key, int segmentId, Object lockOwner) {
-      updatedKeys.remove(key, lockOwner);
-
+   private void removeKey(Object key, int segmentId, Object lockOwner, IracMetadata tombstone) {
       if (rpcManager != null) {
          DistributionInfo dInfo = getDistributionInfo(segmentId);
-         IracCleanupKeyCommand cmd = commandsFactory.buildIracCleanupKeyCommand(key, lockOwner);
+         IracCleanupKeyCommand cmd = commandsFactory.buildIracCleanupKeyCommand(key, lockOwner, tombstone);
          rpcManager.sendToMany(dInfo.writeOwners(), cmd, DeliverOrder.NONE);
       }
+      cleanupKey(key, lockOwner, tombstone);
    }
 
    private DistributionInfo getDistributionInfoKey(Object key) {
@@ -379,9 +379,11 @@ public class DefaultIracManager implements IracManager, Runnable {
       return commandsFactory.buildIracUpdateKeyCommand(null, null, null, null);
    }
 
-   private XSiteReplicateCommand buildRemoveCommand(Object key) {
+   private XSiteReplicateCommand buildRemoveCommand(CleanupTask cleanupTask) {
+      Object key = cleanupTask.key;
       Optional<IracMetadata> metadata = iracVersionGenerator.findTombstone(key);
       assert metadata.isPresent() : "[IRAC] Tombstone metadata missing! key=" + key;
+      cleanupTask.tombstone = metadata.get();
       return commandsFactory.buildIracUpdateKeyCommand(key, null, null, metadata.get());
    }
 
@@ -417,12 +419,14 @@ public class DefaultIracManager implements IracManager, Runnable {
             return;
          }
 
+         CleanupTask cleanupTask = new CleanupTask(key, dInfo.segmentId(), lockOwner);
+
          CompletionStage<Void> rsp = fetchEntry(key, dInfo.segmentId())
                .thenApply(lEntry -> lEntry == null ?
-                                    buildRemoveCommand(key) :
+                                    buildRemoveCommand(cleanupTask) :
                                     commandsFactory.buildIracUpdateKeyCommand(lEntry))
                .thenCompose(DefaultIracManager.this::sendCommandToAllBackups)
-               .thenRun(new CleanupTask(key, dInfo.segmentId(), lockOwner));
+               .thenRun(cleanupTask);
          responses.add(rsp);
       }
 
@@ -442,6 +446,7 @@ public class DefaultIracManager implements IracManager, Runnable {
       final Object key;
       final int segmentId;
       final Object lockOwner;
+      volatile IracMetadata tombstone;
 
       private CleanupTask(Object key, int segmentId, Object lockOwner) {
          this.key = key;
@@ -451,7 +456,7 @@ public class DefaultIracManager implements IracManager, Runnable {
 
       @Override
       public void run() {
-         removeKey(key, segmentId, lockOwner);
+         removeKey(key, segmentId, lockOwner, tombstone);
       }
    }
 

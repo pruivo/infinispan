@@ -55,8 +55,8 @@ public class ControlledIracManager implements IracManager {
    }
 
    @Override
-   public void cleanupKey(Object key, Object lockOwner) {
-      actual.cleanupKey(key, lockOwner);
+   public void cleanupKey(Object key, Object lockOwner, IracMetadata tombstone) {
+      actual.cleanupKey(key, lockOwner, tombstone);
    }
 
    @Override

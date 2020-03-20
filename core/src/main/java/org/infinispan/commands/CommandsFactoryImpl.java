@@ -711,8 +711,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
    }
 
    @Override
-   public IracCleanupKeyCommand buildIracCleanupKeyCommand(Object key, Object lockOwner) {
-      return new IracCleanupKeyCommand(cacheName, key, lockOwner);
+   public IracCleanupKeyCommand buildIracCleanupKeyCommand(Object key, Object lockOwner, IracMetadata tombstone) {
+      return new IracCleanupKeyCommand(cacheName, key, lockOwner, tombstone);
    }
 
    @Override

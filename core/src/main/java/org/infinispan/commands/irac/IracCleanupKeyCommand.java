@@ -6,13 +6,12 @@ import java.io.ObjectOutput;
 import java.util.concurrent.CompletableFuture;
 
 import org.infinispan.commands.CommandInvocationId;
-import org.infinispan.commands.InitializableCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.factories.ComponentRegistry;
+import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.ByteString;
 import org.infinispan.util.concurrent.CompletableFutures;
-import org.infinispan.xsite.irac.IracManager;
 
 /**
  * // TODO: Document this
@@ -20,15 +19,14 @@ import org.infinispan.xsite.irac.IracManager;
  * @author Pedro Ruivo
  * @since 8.0
  */
-public class IracCleanupKeyCommand implements CacheRpcCommand, InitializableCommand {
+public class IracCleanupKeyCommand implements CacheRpcCommand {
 
    public static final byte COMMAND_ID = 122;
 
    private ByteString cacheName;
    private Object key;
    private Object lockOwner;
-
-   private IracManager iracManager;
+   private IracMetadata tombstone;
 
    @SuppressWarnings("unused")
    public IracCleanupKeyCommand() {
@@ -38,10 +36,11 @@ public class IracCleanupKeyCommand implements CacheRpcCommand, InitializableComm
       this.cacheName = cacheName;
    }
 
-   public IracCleanupKeyCommand(ByteString cacheName, Object key, Object lockOwner) {
+   public IracCleanupKeyCommand(ByteString cacheName, Object key, Object lockOwner, IracMetadata tombstone) {
       this.cacheName = cacheName;
       this.key = key;
       this.lockOwner = lockOwner;
+      this.tombstone = tombstone;
    }
 
    @Override
@@ -50,8 +49,8 @@ public class IracCleanupKeyCommand implements CacheRpcCommand, InitializableComm
    }
 
    @Override
-   public CompletableFuture<Object> invokeAsync() throws Throwable {
-      iracManager.cleanupKey(key, lockOwner);
+   public CompletableFuture<Object> invokeAsync(ComponentRegistry componentRegistry) throws Throwable {
+      componentRegistry.getIracManager().running().cleanupKey(key, lockOwner, tombstone);
       return CompletableFutures.completedNull();
    }
 
@@ -102,11 +101,6 @@ public class IracCleanupKeyCommand implements CacheRpcCommand, InitializableComm
    @Override
    public void setOrigin(Address origin) {
       //no-op
-   }
-
-   @Override
-   public void init(ComponentRegistry componentRegistry, boolean isRemote) {
-      this.iracManager = componentRegistry.getIracManager().running();
    }
 
    @Override

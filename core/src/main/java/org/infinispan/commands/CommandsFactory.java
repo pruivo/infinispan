@@ -648,7 +648,7 @@ public interface CommandsFactory {
       return buildIracUpdateKeyCommand(entry.getKey(), entry.getValue(), entry.getMetadata(), iracMetadata);
    }
 
-   IracCleanupKeyCommand buildIracCleanupKeyCommand(Object key, Object lockOwner);
+   IracCleanupKeyCommand buildIracCleanupKeyCommand(Object key, Object lockOwner, IracMetadata tombstone);
 
    IracMetadataRequestCommand buildIracMetadataRequestCommand(int segment);
 

@@ -29,7 +29,7 @@ public interface IracManager {
 
    void trackClear();
 
-   void cleanupKey(Object key, Object lockOwner);
+   void cleanupKey(Object key, Object lockOwner, IracMetadata tombstone);
 
    void onTopologyUpdate(CacheTopology oldCacheTopology, CacheTopology newCacheTopology);
 
