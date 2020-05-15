@@ -13,6 +13,7 @@ import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.jmx.annotations.ManagedAttribute;
 import org.infinispan.jmx.annotations.MeasurementType;
 import org.infinispan.manager.EmbeddedCacheManager;
+import org.infinispan.server.core.NettyIOFactory;
 import org.infinispan.server.core.configuration.ProtocolServerConfiguration;
 import org.infinispan.server.core.logging.Log;
 
@@ -66,9 +67,14 @@ public class NettyTransport implements Transport {
       this.address = address;
       this.configuration = configuration;
 
-      // Need to initialize these in constructor since they require configuration
-      masterGroup = buildEventLoop(1, new DefaultThreadFactory(threadNamePrefix + "-ServerMaster"));
-      ioGroup = buildEventLoop(configuration.ioThreads(), new DefaultThreadFactory(threadNamePrefix + "-ServerIO"));
+      // Need to initialize these in constructor since they require configuration. probably we need to inject the ioGroup in the constructor somehow.
+      if (cacheManager == null) { //it is null for single-port endpoint. probably we need to inject the ioGroup in the constructor.
+         masterGroup = buildEventLoop(1, new DefaultThreadFactory(threadNamePrefix + "-ServerMaster"));
+         ioGroup = buildEventLoop(configuration.ioThreads(), new DefaultThreadFactory(threadNamePrefix + "-ServerIO"));
+      } else {
+         masterGroup = cacheManager.getGlobalComponentRegistry().getComponent(EventLoopGroup.class, NettyIOFactory.IO_MASTER);
+         ioGroup = cacheManager.getGlobalComponentRegistry().getComponent(EventLoopGroup.class, NettyIOFactory.IO_THREADS);
+      }
 
       serverChannels = new DefaultChannelGroup(threadNamePrefix + "-Channels", ImmediateEventExecutor.INSTANCE);
       acceptedChannels = new DefaultChannelGroup(threadNamePrefix + "-Accepted", ImmediateEventExecutor.INSTANCE);
@@ -297,10 +303,8 @@ public class NettyTransport implements Transport {
       return channel;
    }
 
-   private EventLoopGroup buildEventLoop(int nThreads, DefaultThreadFactory threadFactory) {
-      EventLoopGroup eventLoop = EPollAvailable.USE_NATIVE_EPOLL ? new EpollEventLoopGroup(nThreads, threadFactory) :
+   public static EventLoopGroup buildEventLoop(int nThreads, DefaultThreadFactory threadFactory) {
+      return EPollAvailable.USE_NATIVE_EPOLL ? new EpollEventLoopGroup(nThreads, threadFactory) :
               new NioEventLoopGroup(nThreads, threadFactory);
-      log.createdNettyEventLoop(eventLoop.getClass().getName(), configuration.toString());
-      return eventLoop;
    }
 }

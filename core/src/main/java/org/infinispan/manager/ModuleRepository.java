@@ -134,6 +134,7 @@ public final class ModuleRepository {
                                             ComponentAccessor accessor) {
          components.put(componentClassName, accessor);
          for (String factoryComponentName : factoryComponentNames) {
+            System.out.println("MODULE_BUILDER: " + factoryComponentName + componentClassName);
             factoryNames.put(factoryComponentName, componentClassName);
          }
       }
