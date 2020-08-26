@@ -54,7 +54,6 @@
                max_join_attempts="3"
                max_leave_attempts="3"
    />
-   <tom.TOA/> <!-- the Total Order Anycast is only needed for total order transactions (in distributed mode)-->
 
    <UFC max_credits="4m" min_threshold="0.40"/>
    <MFC max_credits="4m" min_threshold="0.40"/>
