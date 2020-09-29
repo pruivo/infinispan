@@ -39,7 +39,6 @@ import org.infinispan.commands.write.RemoveExpiredCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.commons.IllegalLifecycleStateException;
 import org.infinispan.commons.time.TimeService;
-import org.infinispan.container.impl.InternalDataContainer;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.context.impl.TxInvocationContext;
@@ -113,7 +112,6 @@ public class ClusteredCacheBackupReceiver implements BackupReceiver {
    @Inject InvocationContextFactory invocationContextFactory;
    @Inject RpcManager rpcManager;
    @Inject ClusteringDependentLogic clusteringDependentLogic;
-   @Inject InternalDataContainer<Object, Object> dataContainer;
 
    private final ByteString cacheName;
 

@@ -289,7 +289,7 @@ public final class FunctionalAdvancedCache<K, V> implements AdvancedCache<K, V> 
 
    @Override
    public CompletionStage<Boolean> touch(Object key, boolean touchEvenIfExpired) {
-      return null;
+      return cache.touch(key, -1, touchEvenIfExpired);
    }
 
    ////////////////////////////////////////////////////////////////////////////
