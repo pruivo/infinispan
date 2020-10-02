@@ -8,6 +8,7 @@ import static org.testng.AssertJUnit.assertEquals;
 
 import java.lang.reflect.Method;
 import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,6 +21,7 @@ import org.infinispan.configuration.cache.StorageType;
 import org.infinispan.eviction.EvictionStrategy;
 import org.infinispan.expiration.impl.InternalExpirationManager;
 import org.infinispan.interceptors.impl.CacheMgmtInterceptor;
+import org.infinispan.persistence.manager.PersistenceManager;
 import org.infinispan.util.ControlledTimeService;
 import org.testng.annotations.Test;
 
@@ -47,19 +49,17 @@ public class AnotherXSiteTest extends AbstractMultipleSitesTest {
       }
 
       log.info("Checking data");
-      // THIS IS FAILING
-//      for (int i = 0; i < NUM_KEYS; ++i) {
-//         String key = k(method, i);
-//         String value = v(method, i);
-//         eventuallyAssertInAllSitesAndCaches(cache -> {
-//            String v  = String.valueOf(cache.get(key));
-//            log.infof("%s=%s? %s", key, value, v);
-//            return Objects.equals(value, v);
-//         });
-//      }
+      for (int i = 0; i < NUM_KEYS; ++i) {
+         String key = k(method, i);
+         String value = v(method, i);
+         eventuallyAssertInAllSitesAndCaches(cache -> {
+            String v  = String.valueOf(cache.get(key));
+            log.infof("%s=%s? %s", key, value, v);
+            return Objects.equals(value, v);
+         });
+      }
 
       // simulate JMX call
-      // THIS IS FAILING
       assertEquals(NUM_KEYS, extractComponent(cache(0, null, 0), CacheMgmtInterceptor.class).getNumberOfEntries());
       assertEquals(NUM_KEYS, extractComponent(cache(1, null, 0), CacheMgmtInterceptor.class).getNumberOfEntries());
 
@@ -112,6 +112,11 @@ public class AnotherXSiteTest extends AbstractMultipleSitesTest {
       super.afterSitesCreated();
       //use the same time service instance in all nodes
       sites.forEach(
-            site -> site.cacheManagers.forEach(cm -> replaceComponent(cm, TimeService.class, timeService, true)));
+            site -> site.cacheManagers.forEach(cm -> {
+               replaceComponent(cm, TimeService.class, timeService, true);
+               PersistenceManager persistenceManager = extractComponent(cm.getCache(), PersistenceManager.class);
+               persistenceManager.stop();
+               persistenceManager.start();
+            }));
    }
 }
