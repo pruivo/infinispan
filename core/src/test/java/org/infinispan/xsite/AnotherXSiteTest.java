@@ -37,7 +37,7 @@ public class AnotherXSiteTest extends AbstractMultipleSitesTest {
    private static final AtomicInteger GENERATOR = new AtomicInteger();
    private static final String BASE_PATH = CommonsTestingUtil.tmpDirectory(AnotherXSiteTest.class);
    private static final int MAX_IDLE = 1000;
-   private static final int NUM_KEYS = 1000;
+   private static final int NUM_KEYS = 10000;
    private final ControlledTimeService timeService = new ControlledTimeService();
 
    public void doTest(Method method) {
@@ -65,6 +65,10 @@ public class AnotherXSiteTest extends AbstractMultipleSitesTest {
 
       log.info("Expiring all keys");
       timeService.advance(MAX_IDLE + 1);
+
+      // simulate JMX call
+      assertEquals(0, extractComponent(cache(0, null, 0), CacheMgmtInterceptor.class).getNumberOfEntries());
+      assertEquals(0, extractComponent(cache(1, null, 0), CacheMgmtInterceptor.class).getNumberOfEntries());
 
       log.info("Running the expiration reaper");
       caches(siteName(0)).forEach(cache -> extractComponent(cache, InternalExpirationManager.class).processExpiration());
