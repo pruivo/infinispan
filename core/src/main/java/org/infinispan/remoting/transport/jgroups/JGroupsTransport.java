@@ -1267,7 +1267,7 @@ public class JGroupsTransport implements Transport {
 
          // Send a different Message instance to each target
          if (it.hasNext()) {
-            copy = copy.copy(true, false);
+            copy = copy.copy(true, true);
          }
       }
    }
