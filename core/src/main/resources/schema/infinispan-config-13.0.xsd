@@ -474,6 +474,7 @@
         </xs:documentation>
       </xs:annotation>
     </xs:attribute>
+    <xs:anyAttribute/>
   </xs:complexType>
 
   <xs:complexType name="global-security">

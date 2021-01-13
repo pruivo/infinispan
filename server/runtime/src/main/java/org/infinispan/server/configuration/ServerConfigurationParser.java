@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
+import javax.net.ssl.SSLContext;
+
 import org.infinispan.commons.CacheConfigurationException;
 import org.infinispan.commons.configuration.io.ConfigurationReader;
 import org.infinispan.configuration.global.GlobalConfigurationBuilder;
@@ -16,6 +18,7 @@ import org.infinispan.configuration.parsing.Namespace;
 import org.infinispan.configuration.parsing.Namespaces;
 import org.infinispan.configuration.parsing.ParseUtils;
 import org.infinispan.configuration.parsing.ParserScope;
+import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.rest.configuration.RestServerConfigurationBuilder;
 import org.infinispan.server.Server;
 import org.infinispan.server.configuration.endpoint.EndpointConfigurationBuilder;
@@ -46,6 +49,7 @@ import org.infinispan.server.configuration.security.UserPropertiesConfigurationB
 import org.infinispan.server.core.configuration.IpFilterConfigurationBuilder;
 import org.infinispan.server.core.configuration.ProtocolServerConfigurationBuilder;
 import org.infinispan.server.hotrod.configuration.HotRodServerConfigurationBuilder;
+import org.infinispan.server.security.TransportSocketFactory;
 import org.kohsuke.MetaInfServices;
 import org.wildfly.security.auth.realm.ldap.DirContextFactory;
 import org.wildfly.security.auth.util.RegexNameRewriter;
@@ -64,6 +68,7 @@ import io.agroal.api.configuration.AgroalConnectionFactoryConfiguration;
 @Namespaces({
       @Namespace(root = "server"),
       @Namespace(uri = "urn:infinispan:server:*", root = "server"),
+      @Namespace(uri = "urn:infinispan:server:*", root = "transport"),
 })
 public class ServerConfigurationParser implements ConfigurationParser {
    private static final org.infinispan.util.logging.Log coreLog = org.infinispan.util.logging.LogFactory.getLog(ServerConfigurationParser.class);
@@ -1610,6 +1615,28 @@ public class ServerConfigurationParser implements ConfigurationParser {
             default:
                throw ParseUtils.unexpectedElement(reader);
          }
+      }
+   }
+
+   @Override
+   public void readAttribute(ConfigurationReader reader, String name, String attributeName, String value, ConfigurationBuilderHolder holder) {
+      if (org.infinispan.configuration.parsing.Element.forName(name) == org.infinispan.configuration.parsing.Element.TRANSPORT) {
+         switch (Attribute.forName(attributeName)) {
+            case SECURITY_REALM:
+               // If the security realm has TLS we set the JGroups SocketFactory
+               holder.addParserListener(h -> {
+                  ServerConfigurationBuilder serverBuilder = h.getGlobalConfigurationBuilder().module(ServerConfigurationBuilder.class);
+                  SSLContext sslContext = serverBuilder.getSSLContext(value);
+                  TransportSocketFactory transportSocketFactory = new TransportSocketFactory(sslContext);
+                  h.getGlobalConfigurationBuilder().transport().addProperty(JGroupsTransport.SOCKET_FACTORY, transportSocketFactory);
+                  Server.log.sslTransport(value);
+               });
+               break;
+            default:
+               throw ParseUtils.unexpectedAttribute(reader, attributeName);
+         }
+      } else {
+         throw ParseUtils.unexpectedAttribute(reader, attributeName);
       }
    }
 }

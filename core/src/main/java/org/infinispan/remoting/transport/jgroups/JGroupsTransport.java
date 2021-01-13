@@ -108,8 +108,10 @@ import org.jgroups.protocols.relay.RELAY2;
 import org.jgroups.protocols.relay.RouteStatusListener;
 import org.jgroups.protocols.relay.SiteAddress;
 import org.jgroups.protocols.relay.SiteMaster;
+import org.jgroups.stack.Protocol;
 import org.jgroups.util.ExtendedUUID;
 import org.jgroups.util.MessageBatch;
+import org.jgroups.util.SocketFactory;
 
 /**
  * An encapsulation of a JGroups transport. JGroups transports can be configured using a variety of
@@ -136,6 +138,7 @@ public class JGroupsTransport implements Transport {
    public static final String CONFIGURATION_FILE = "configurationFile";
    public static final String CHANNEL_LOOKUP = "channelLookup";
    public static final String CHANNEL_CONFIGURATOR = "channelConfigurator";
+   public static final String SOCKET_FACTORY = "socketFactory";
    public static final short REQUEST_FLAGS_UNORDERED =
          (short) (Message.Flag.OOB.value() | Message.Flag.NO_TOTAL_ORDER.value() |
                   Message.Flag.DONT_BUNDLE.value());
@@ -666,6 +669,11 @@ public class JGroupsTransport implements Transport {
          } catch (Exception e) {
             throw CLUSTER.errorCreatingChannelFromConfigFile(DEFAULT_JGROUPS_CONFIGURATION_FILE, e);
          }
+      }
+
+      if (props.containsKey(SOCKET_FACTORY)) {
+         Protocol protocol = channel.getProtocolStack().getTopProtocol();
+         protocol.setSocketFactory((SocketFactory) props.get(SOCKET_FACTORY));
       }
    }
 

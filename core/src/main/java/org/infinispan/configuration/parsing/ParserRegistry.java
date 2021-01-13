@@ -169,9 +169,7 @@ public class ParserRegistry implements NamespaceMappingParser {
       ConfigurationReader reader = ConfigurationReader.from(is).withResolver(resourceResolver).withType(mediaType).withProperties(properties).withNamingStrategy(NamingStrategy.KEBAB_CASE).build();
       parse(reader, holder);
       // Fire all parsingComplete events if any
-      for (ParserContext parserContext : holder.getParserContexts().values()) {
-         parserContext.fireParsingComplete();
-      }
+      holder.fireParserListeners();
       return holder;
    }
 

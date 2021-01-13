@@ -6,7 +6,7 @@
         xmlns:server="urn:infinispan:server:13.0">
 
    <cache-container name="default" statistics="true">
-      <transport cluster="${infinispan.cluster.name:cluster}" stack="${infinispan.cluster.stack:tcp}" node-name="${infinispan.node.name:}"/>
+      <transport cluster="${infinispan.cluster.name:cluster}" stack="${infinispan.cluster.stack:tcp}" node-name="${infinispan.node.name:}" server:security-realm="cluster"/>
       <security>
          <authorization/>
       </security>
@@ -32,18 +32,19 @@
          </credential-stores>
          <security-realms>
             <security-realm name="default">
-               <!-- Uncomment to enable TLS on the realm -->
-               <!-- server-identities>
-                  <ssl>
-                     <keystore path="application.keystore"
-                               keystore-password="password" alias="server" key-password="password"
-                               generate-self-signed-certificate-host="localhost"/>
-                  </ssl>
-               </server-identities-->
                <properties-realm groups-attribute="Roles">
                   <user-properties path="users.properties"/>
                   <group-properties path="groups.properties"/>
                </properties-realm>
+            </security-realm>
+            <security-realm name="cluster">
+               <server-identities>
+                  <ssl>
+                     <keystore path="node.pfx"
+                               keystore-password="secret" alias="node"/>
+                     <truststore path="ca.pfx" password="secret"/>
+                  </ssl>
+               </server-identities>
             </security-realm>
          </security-realms>
       </security>

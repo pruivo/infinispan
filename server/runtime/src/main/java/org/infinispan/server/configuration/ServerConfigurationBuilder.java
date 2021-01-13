@@ -108,4 +108,10 @@ public class ServerConfigurationBuilder implements Builder<ServerConfiguration> 
       }
       builder.socketBinding(bindingName).host(host).port(port);
    }
+
+   public void applyTransportSecurity(String securityRealm) {
+      if (hasSSLContext(securityRealm)) {
+         SSLContext sslContext = getSSLContext(securityRealm);
+      }
+   }
 }
