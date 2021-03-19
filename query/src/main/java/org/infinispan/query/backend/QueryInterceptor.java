@@ -1,7 +1,5 @@
 package org.infinispan.query.backend;
 
-import static java.util.concurrent.CompletableFuture.allOf;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +25,6 @@ import org.infinispan.commands.functional.WriteOnlyManyEntriesCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.ComputeCommand;
 import org.infinispan.commands.write.ComputeIfAbsentCommand;
-import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.commands.write.IracPutKeyValueCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.PutMapCommand;
@@ -49,13 +46,16 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
 import org.infinispan.interceptors.DDAsyncInterceptor;
 import org.infinispan.interceptors.InvocationSuccessAction;
+import org.infinispan.interceptors.InvocationSuccessFunction;
 import org.infinispan.query.impl.ComponentRegistryUtils;
 import org.infinispan.query.logging.Log;
 import org.infinispan.search.mapper.mapping.SearchMapping;
 import org.infinispan.search.mapper.work.SearchIndexer;
 import org.infinispan.transaction.xa.GlobalTransaction;
+import org.infinispan.util.concurrent.AggregateCompletionStage;
 import org.infinispan.util.concurrent.BlockingManager;
 import org.infinispan.util.concurrent.CompletableFutures;
+import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.logging.LogFactory;
 
 /**
@@ -92,6 +92,7 @@ public final class QueryInterceptor extends DDAsyncInterceptor {
    private final boolean isPersistenceEnabled;
 
    private final InvocationSuccessAction<ClearCommand> processClearCommand = this::processClearCommand;
+   private final InvocationSuccessFunction<WriteCommand> processWrite = this::processWriteCommand;
    private final boolean isManualIndexing;
    private final AdvancedCache<?, ?> cache;
    private final Map<String, Class<?>> indexedClasses;
@@ -143,44 +144,30 @@ public final class QueryInterceptor extends DDAsyncInterceptor {
       return blockingManager;
    }
 
-   private Object handleDataWriteCommand(InvocationContext ctx, DataWriteCommand command) {
-      if (command.hasAnyFlag(FlagBitSets.SKIP_INDEXING)) {
-         return invokeNext(ctx, command);
-      }
-      return invokeNextThenApply(ctx, command, (rCtx, cmd, rv) -> {
-         if (!cmd.isSuccessful()) {
-            return rv;
-         }
-         boolean unreliablePrevious = unreliablePreviousValue(command);
-         if (ctx.isInTxScope()) {
-            Map<Object, Object> oldValues = getOldValuesMap((TxInvocationContext<?>) ctx);
-            registerOldValue(ctx, command.getKey(), unreliablePrevious, oldValues);
-         } else {
-            return asyncValue(indexIfNeeded(rCtx, cmd, unreliablePrevious, cmd.getKey()).thenApply(ignored -> rv));
-         }
-         return rv;
-      });
+   private Object handleWriteCommand(InvocationContext ctx, WriteCommand command) {
+      return command.hasAnyFlag(FlagBitSets.SKIP_INDEXING) ?
+            invokeNext(ctx, command) :
+            invokeNextThenApply(ctx, command, processWrite);
    }
 
-   private Object handleManyWriteCommand(InvocationContext ctx, WriteCommand command) {
-      if (command.hasAnyFlag(FlagBitSets.SKIP_INDEXING)) {
-         return invokeNext(ctx, command);
+   private Object processWriteCommand(InvocationContext ctx, WriteCommand cmd, Object rv) {
+      if (!cmd.isSuccessful()) {
+         return rv;
       }
-      return invokeNextThenApply(ctx, command, (rCtx, cmd, rv) -> {
-         if (!cmd.isSuccessful()) {
-            return rv;
+      boolean unreliablePrevious = unreliablePreviousValue(cmd);
+      if (ctx.isInTxScope()) {
+         Map<Object, Object> oldValues = getOldValuesMap((TxInvocationContext<?>) ctx);
+         for (Object key : cmd.getAffectedKeys()) {
+            registerOldValue(ctx, key, unreliablePrevious, oldValues);
          }
-         boolean unreliablePrevious = unreliablePreviousValue(command);
-         if (ctx.isInTxScope()) {
-            Map<Object, Object> oldValues = getOldValuesMap((TxInvocationContext<?>) ctx);
-            for (Object key : command.getAffectedKeys()) {
-               registerOldValue(ctx, key, unreliablePrevious, oldValues);
-            }
-            return rv;
-         } else {
-            return asyncValue(allOf(cmd.getAffectedKeys().stream().map(key -> indexIfNeeded(rCtx, cmd, unreliablePrevious, key)).toArray(CompletableFuture[]::new)));
+         return rv;
+      } else {
+         AggregateCompletionStage<Object> stage = CompletionStages.aggregateCompletionStage(rv);
+         for (Object key : cmd.getAffectedKeys()) {
+            stage.dependsOn(indexIfNeeded(ctx, cmd, unreliablePrevious, key));
          }
-      });
+         return asyncValue(stage.freeze());
+      }
    }
 
    private void registerOldValue(InvocationContext ctx, Object key, boolean unreliablePrevious, Map<Object, Object> oldValues) {
@@ -228,37 +215,37 @@ public final class QueryInterceptor extends DDAsyncInterceptor {
 
    @Override
    public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitIracPutKeyValueCommand(InvocationContext ctx, IracPutKeyValueCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitRemoveCommand(InvocationContext ctx, RemoveCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitReplaceCommand(InvocationContext ctx, ReplaceCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitComputeCommand(InvocationContext ctx, ComputeCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitComputeIfAbsentCommand(InvocationContext ctx, ComputeIfAbsentCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitPutMapCommand(InvocationContext ctx, PutMapCommand command) {
-      return handleManyWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
@@ -268,42 +255,42 @@ public final class QueryInterceptor extends DDAsyncInterceptor {
 
    @Override
    public Object visitReadWriteKeyCommand(InvocationContext ctx, ReadWriteKeyCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitWriteOnlyKeyCommand(InvocationContext ctx, WriteOnlyKeyCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitReadWriteKeyValueCommand(InvocationContext ctx, ReadWriteKeyValueCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitWriteOnlyManyEntriesCommand(InvocationContext ctx, WriteOnlyManyEntriesCommand command) {
-      return handleManyWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitWriteOnlyKeyValueCommand(InvocationContext ctx, WriteOnlyKeyValueCommand command) {
-      return handleDataWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitWriteOnlyManyCommand(InvocationContext ctx, WriteOnlyManyCommand command) {
-      return handleManyWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitReadWriteManyCommand(InvocationContext ctx, ReadWriteManyCommand command) {
-      return handleManyWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    @Override
    public Object visitReadWriteManyEntriesCommand(InvocationContext ctx, ReadWriteManyEntriesCommand command) {
-      return handleManyWriteCommand(ctx, command);
+      return handleWriteCommand(ctx, command);
    }
 
    /**
