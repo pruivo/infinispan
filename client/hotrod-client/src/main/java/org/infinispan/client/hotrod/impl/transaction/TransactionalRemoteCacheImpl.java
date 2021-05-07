@@ -45,8 +45,6 @@ public class TransactionalRemoteCacheImpl<K, V> extends RemoteCacheImpl<K, V> {
    // TODO: the remote get is force to be sync and is blocking!
    // https://issues.redhat.com/browse/ISPN-11633
    private final Function<K, MetadataValue<V>> remoteGet = this::getWithMetadataNotTracked;
-   private final Function<K, byte[]> keyMarshaller = this::keyToBytes;
-   private final Function<V, byte[]> valueMarshaller = this::valueToBytes;
 
    public TransactionalRemoteCacheImpl(RemoteCacheManager rcm, String name, boolean forceReturnValue,
          boolean recoveryEnabled, TransactionManager transactionManager,
@@ -56,6 +54,14 @@ public class TransactionalRemoteCacheImpl<K, V> extends RemoteCacheImpl<K, V> {
       this.recoveryEnabled = recoveryEnabled;
       this.transactionManager = transactionManager;
       this.transactionTable = transactionTable;
+   }
+
+   private TransactionalRemoteCacheImpl(TransactionalRemoteCacheImpl<?, ?> other) {
+      super(other.getRemoteCacheManager(), other.getName(), other.clientStatistics);
+      this.forceReturnValue = other.forceReturnValue;
+      this.recoveryEnabled = other.recoveryEnabled;
+      this.transactionManager = other.transactionManager;
+      this.transactionTable = other.transactionTable;
    }
 
    @Override
@@ -185,6 +191,11 @@ public class TransactionalRemoteCacheImpl<K, V> extends RemoteCacheImpl<K, V> {
    }
 
    @Override
+   protected <T, U> TransactionalRemoteCacheImpl<T, U> newInstance() {
+      return new TransactionalRemoteCacheImpl<>(this);
+   }
+
+   @Override
    public CompletableFuture<V> removeAsync(Object key) {
       TransactionContext<K, V> txContext = getTransactionContext();
       if (txContext == null) {
@@ -220,14 +231,6 @@ public class TransactionalRemoteCacheImpl<K, V> extends RemoteCacheImpl<K, V> {
 
    boolean isRecoveryEnabled() {
       return recoveryEnabled;
-   }
-
-   Function<K, byte[]> keyMarshaller() {
-      return keyMarshaller;
-   }
-
-   Function<V, byte[]> valueMarshaller() {
-      return valueMarshaller;
    }
 
    private boolean removeEntryIfSameVersion(TransactionEntry<K, V> entry, long version) {

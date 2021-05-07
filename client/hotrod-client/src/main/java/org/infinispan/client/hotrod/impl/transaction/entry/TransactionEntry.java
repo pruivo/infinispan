@@ -5,6 +5,7 @@ import static org.infinispan.commons.util.Util.toStr;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.infinispan.client.hotrod.DataFormat;
 import org.infinispan.client.hotrod.MetadataValue;
 import org.infinispan.client.hotrod.VersionedValue;
 import org.infinispan.client.hotrod.impl.MetadataValueImpl;
@@ -62,12 +63,6 @@ public class TransactionEntry<K, V> {
       return value;
    }
 
-   public VersionedValue<V> toVersionValue() {
-      return isNonExists() ?
-            null :
-            new VersionedValueImpl<>(version, value);
-   }
-
    public MetadataValue<V> toMetadataValue() {
       return isNonExists() ?
             null :
@@ -100,13 +95,13 @@ public class TransactionEntry<K, V> {
       this.modified = true;
    }
 
-   public Modification toModification(Function<K, byte[]> keyMarshaller, Function<V, byte[]> valueMarshaller) {
+   public Modification toModification(DataFormat dataFormat) {
       if (value == null) {
          //remove operation
-         return new Modification(keyMarshaller.apply(key), null, version, 0, 0, null, null,
+         return new Modification(dataFormat.keyToBytes(key), null, version, 0, 0, null, null,
                ControlByte.REMOVE_OP.set(readControl));
       } else {
-         return new Modification(keyMarshaller.apply(key), valueMarshaller.apply(value), version, lifespan, maxIdle,
+         return new Modification(dataFormat.keyToBytes(key), dataFormat.valueToBytes(value), version, lifespan, maxIdle,
                lifespanTimeUnit, maxIdleTimeUnit, readControl);
       }
    }

@@ -326,8 +326,6 @@ public class XaModeTransactionTable extends AbstractTransactionTable {
                   break;
                case Integer.MIN_VALUE:
                   //signals a marshaller error of key or value. the server wasn't contacted
-                  commit = false;
-                  break outer;
                default:
                   //any other code we need to rollback
                   //we may need to send the rollback later
@@ -359,8 +357,8 @@ public class XaModeTransactionTable extends AbstractTransactionTable {
          if (log.isTraceEnabled()) {
             log.tracef("Registering remote cache '%s' for transaction xid=%s", remoteCache.getName(), currentXid);
          }
-         return new TransactionContext<>(remoteCache.keyMarshaller(), remoteCache.valueMarshaller(),
-               remoteCache.getOperationsFactory(), remoteCache.getName(), remoteCache.isRecoveryEnabled());
+         return new TransactionContext<>(remoteCache.getDataFormat(), remoteCache.getOperationsFactory(),
+               remoteCache.getName(), remoteCache.isRecoveryEnabled());
       }
 
       private void cleanup() {

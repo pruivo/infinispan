@@ -18,6 +18,7 @@ import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
+import org.infinispan.client.hotrod.DataFormat;
 import org.infinispan.client.hotrod.MetadataValue;
 import org.infinispan.client.hotrod.impl.operations.OperationsFactory;
 import org.infinispan.client.hotrod.impl.transaction.entry.Modification;
@@ -43,17 +44,14 @@ public class TransactionContext<K, V> {
 
    private static final Log log = LogFactory.getLog(TransactionContext.class, Log.class);
 
+   private final DataFormat dataFormat;
    private final Map<WrappedKey<K>, TransactionEntry<K, V>> entries;
-   private final Function<K, byte[]> keyMarshaller;
-   private final Function<V, byte[]> valueMarshaller;
    private final OperationsFactory operationsFactory;
    private final String cacheName;
    private final boolean recoverable;
 
-   TransactionContext(Function<K, byte[]> keyMarshaller, Function<V, byte[]> valueMarshaller,
-         OperationsFactory operationsFactory, String cacheName, boolean recoveryEnabled) {
-      this.keyMarshaller = keyMarshaller;
-      this.valueMarshaller = valueMarshaller;
+   TransactionContext(DataFormat dataFormat, OperationsFactory operationsFactory, String cacheName, boolean recoveryEnabled) {
+      this.dataFormat = dataFormat;
       this.operationsFactory = operationsFactory;
       this.cacheName = cacheName;
       this.recoverable = recoveryEnabled;
@@ -136,29 +134,6 @@ public class TransactionContext<K, V> {
       return entries.values().stream().anyMatch(TransactionEntry::isModified);
    }
 
-   <T> T computeSync(K key, Function<TransactionEntry<K, V>, T> function,
-         Function<K, MetadataValue<V>> remoteValueSupplier) {
-      ByRef<T> ref = new ByRef<>(null);
-      entries.compute(wrap(key), (wKey, entry) -> {
-         if (entry == null) {
-            entry = createEntryFromRemote(wKey.key, remoteValueSupplier);
-            if (log.isTraceEnabled()) {
-               log.tracef("Fetched key (%s) from remote. Entry=%s", wKey, entry);
-            }
-         }
-         if (log.isTraceEnabled()) {
-            log.tracef("Compute key (%s). Before=%s", wKey, entry);
-         }
-         T result = function.apply(entry);
-         ref.set(result);
-         if (log.isTraceEnabled()) {
-            log.tracef("Compute key (%s). After=%s (result=%s)", wKey, entry, result);
-         }
-         return entry;
-      });
-      return ref.get();
-   }
-
    /**
     * Prepares the {@link Transaction} in the server and returns the {@link XAResource} code.
     * <p>
@@ -169,7 +144,7 @@ public class TransactionContext<K, V> {
       PrepareTransactionOperation operation;
       List<Modification> modifications;
       try {
-         modifications = toModification();
+         modifications = toModification(dataFormat);
          if (log.isTraceEnabled()) {
             log.tracef("Preparing transaction xid=%s, remote-cache=%s, modification-size=%d", xid, cacheName,
                   modifications.size());
@@ -198,10 +173,10 @@ public class TransactionContext<K, V> {
       entries.clear();
    }
 
-   private List<Modification> toModification() {
+   private List<Modification> toModification(DataFormat dataFormat) {
       return entries.values().stream()
             .filter(TransactionEntry::isModified)
-            .map(entry -> entry.toModification(keyMarshaller, valueMarshaller))
+            .map(entry -> entry.toModification(dataFormat))
             .collect(Collectors.toList());
    }
 

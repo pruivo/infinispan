@@ -650,14 +650,13 @@ public class RemoteCacheImpl<K, V> extends RemoteCacheSupport<K, V> implements I
       Objects.requireNonNull(newDataFormat, "Data Format must not be null")
             .initialize(remoteCacheManager, name, isObjectStorage);
       RemoteCacheImpl<T, U> instance = newInstance();
+      instance.init(operationsFactory, batchSize);
       instance.dataFormat = newDataFormat;
       return instance;
    }
 
-   private <T, U> RemoteCacheImpl<T, U> newInstance() {
-      RemoteCacheImpl<T, U> copy = new RemoteCacheImpl<>(this.remoteCacheManager, name, clientStatistics);
-      copy.init(this.operationsFactory, this.batchSize);
-      return copy;
+   protected  <T, U> RemoteCacheImpl<T, U> newInstance() {
+      return new RemoteCacheImpl<>(this.remoteCacheManager, name, clientStatistics);
    }
 
    public void resolveStorage(boolean objectStorage) {

@@ -112,8 +112,6 @@ public class SyncModeTransactionTable extends AbstractTransactionTable {
                   break; //read only tx.
                case Integer.MIN_VALUE:
                   //signals a marshaller error of key or value. the server wasn't contacted
-                  markAsRollback();
-                  return;
                default:
                   markAsRollback();
                   return;
@@ -165,8 +163,8 @@ public class SyncModeTransactionTable extends AbstractTransactionTable {
          if (log.isTraceEnabled()) {
             log.tracef("Registering remote cache '%s' for transaction xid=%s", remoteCache.getName(), xid);
          }
-         return new TransactionContext<>(remoteCache.keyMarshaller(), remoteCache.valueMarshaller(),
-               remoteCache.getOperationsFactory(), remoteCache.getName(), false);
+         return new TransactionContext<>(remoteCache.getDataFormat(), remoteCache.getOperationsFactory(),
+               remoteCache.getName(), false);
       }
    }
 }

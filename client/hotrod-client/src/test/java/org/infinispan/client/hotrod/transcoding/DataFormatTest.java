@@ -1,16 +1,20 @@
 package org.infinispan.client.hotrod.transcoding;
 
+import static java.lang.String.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.infinispan.client.hotrod.test.HotRodClientTestingUtil.withClientListener;
 import static org.infinispan.commons.dataconversion.MediaType.APPLICATION_JSON;
 import static org.infinispan.commons.dataconversion.MediaType.APPLICATION_PROTOSTREAM;
 import static org.infinispan.commons.dataconversion.MediaType.TEXT_PLAIN;
+import static org.infinispan.configuration.cache.IndexStorage.LOCAL_HEAP;
 import static org.infinispan.query.remote.client.ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME;
 import static org.infinispan.server.hotrod.test.HotRodTestingUtil.hotRodCacheConfiguration;
 import static org.infinispan.test.fwk.TestCacheManagerFactory.createServerModeCacheManager;
 import static org.testng.Assert.assertTrue;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;
+import static org.testng.AssertJUnit.assertNotNull;
+import static org.testng.AssertJUnit.fail;
 import static org.testng.internal.junit.ArrayAsserts.assertArrayEquals;
 
 import java.util.Collections;
@@ -22,6 +26,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import javax.transaction.HeuristicMixedException;
+import javax.transaction.HeuristicRollbackException;
+import javax.transaction.NotSupportedException;
+import javax.transaction.RollbackException;
+import javax.transaction.SystemException;
+import javax.transaction.TransactionManager;
 
 import org.infinispan.client.hotrod.DataFormat;
 import org.infinispan.client.hotrod.MetadataValue;
@@ -48,6 +59,9 @@ import org.infinispan.protostream.annotations.ProtoFactory;
 import org.infinispan.protostream.annotations.ProtoField;
 import org.infinispan.server.hotrod.HotRodServer;
 import org.infinispan.server.hotrod.configuration.HotRodServerConfigurationBuilder;
+import org.infinispan.transaction.LockingMode;
+import org.infinispan.transaction.TransactionMode;
+import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
 /**
@@ -61,10 +75,48 @@ public class DataFormatTest extends SingleHotRodServerTest {
    private static final String CACHE_NAME = "test";
    private RemoteCache<Object, Object> remoteCache;
 
+   private final ExecMode executionMode;
+
+   public DataFormatTest() {
+      this(ExecMode.DEFAULT);
+   }
+
+   public DataFormatTest(ExecMode executionMode) {
+      this.executionMode = executionMode;
+   }
+
+   @Factory
+   public Object[] factory() {
+      ExecMode[] values = ExecMode.values();
+      Object[] instances = new Object[values.length];
+      int i = 0;
+      for (ExecMode mode : values) {
+         instances[i++] = new DataFormatTest(mode);
+      }
+      return instances;
+   }
+
+   @Override
+   protected String parameters() {
+      return format("[%s]", executionMode);
+   }
+
    protected ConfigurationBuilder buildCacheConfig() {
       ConfigurationBuilder builder = new ConfigurationBuilder();
       builder.encoding().key().mediaType(MediaType.APPLICATION_PROTOSTREAM_TYPE);
       builder.encoding().value().mediaType(MediaType.APPLICATION_PROTOSTREAM_TYPE);
+      if (executionMode.isIndexed()) {
+         builder.indexing().enable()
+                .storage(LOCAL_HEAP)
+                .addIndexedEntities("org.infinispan.test.client.DataFormatTest.ComplexValue");
+      }
+      if (executionMode.isTransactional()) {
+         builder.transaction()
+                .transactionMode(TransactionMode.TRANSACTIONAL)
+                .lockingMode(LockingMode.PESSIMISTIC)
+                .useSynchronization(true);
+
+      }
       return builder;
    }
 
@@ -78,7 +130,7 @@ public class DataFormatTest extends SingleHotRodServerTest {
    @Override
    protected HotRodServer createHotRodServer() {
       HotRodServer server = HotRodClientTestingUtil.startHotRodServer(cacheManager, new HotRodServerConfigurationBuilder());
-      server.addCacheEventFilterFactory("static-filter-factory", new EventLogListener.StaticCacheEventFilterFactory(42));
+      server.addCacheEventFilterFactory("static-filter-factory", new EventLogListener.StaticCacheEventFilterFactory<>(42));
       server.addCacheEventFilterFactory("raw-static-filter-factory", new EventLogListener.RawStaticCacheEventFilterFactory());
       return server;
    }
@@ -94,6 +146,18 @@ public class DataFormatTest extends SingleHotRodServerTest {
       remoteCache = remoteCacheManager.getCache(CACHE_NAME);
    }
 
+   @Override
+   protected org.infinispan.client.hotrod.configuration.ConfigurationBuilder createHotRodClientConfigurationBuilder(
+         String host, int serverPort) {
+      org.infinispan.client.hotrod.configuration.ConfigurationBuilder builder = super
+            .createHotRodClientConfigurationBuilder(host, serverPort);
+      if (executionMode.isTransactional()) {
+         builder.remoteCache(CACHE_NAME)
+                .transactionMode(org.infinispan.client.hotrod.configuration.TransactionMode.NON_XA);
+      }
+      return builder;
+   }
+
    @Test
    public void testValueInMultipleFormats() throws Exception {
       remoteCache.clear();
@@ -102,7 +166,7 @@ public class DataFormatTest extends SingleHotRodServerTest {
       byte[] protostreamMarshalledQuote = marshall(quote);
 
       // Write to the cache using the default marshaller
-      remoteCache.put(1, quote);
+      executionMode.put(remoteCache, 1, quote);
 
       // Read it back as raw bytes using the same key
       Object asBinary = remoteCache.withDataFormat(DataFormat.builder().valueMarshaller(IdentityMarshaller.INSTANCE).build()).get(1);
@@ -167,19 +231,21 @@ public class DataFormatTest extends SingleHotRodServerTest {
       String value = "infinispan.org:8080";
 
       // Write using String using default Marshaller
-      remoteCache.put("1", value);
+      executionMode.put(remoteCache, "1", value);
       assertEquals(value, remoteCache.get("1"));
 
       // Use UTF-8 key directly as byte[], bypassing the marshaller.
-      remoteCache.withDataFormat(DataFormat.builder().keyType(TEXT_PLAIN).keyMarshaller(IdentityMarshaller.INSTANCE).build())
-            .put("utf-key".getBytes(), value);
+      executionMode.put(remoteCache.withDataFormat(DataFormat.builder()
+                                                             .keyType(TEXT_PLAIN)
+                                                             .keyMarshaller(IdentityMarshaller.INSTANCE).build()),
+            "utf-key".getBytes(), value);
 
       assertEquals(value, remoteCache.get("utf-key"));
 
       // Use UTF-8 key with the default UTF8Marshaller
       RemoteCache<Object, Object> remoteCacheUTFKey = this.remoteCache.withDataFormat(DataFormat.builder().keyType(TEXT_PLAIN).build());
 
-      remoteCache.put("temp-key", value);
+      executionMode.put(remoteCache, "temp-key", value);
       assertTrue(remoteCacheUTFKey.containsKey("temp-key"));
       remoteCacheUTFKey.remove("temp-key");
       assertFalse(remoteCacheUTFKey.containsKey("temp-key"));
@@ -193,11 +259,13 @@ public class DataFormatTest extends SingleHotRodServerTest {
       assertEquals(asString, "infinispan.org:8080");
 
       // Write using manually marshalled values
-      remoteCache.withDataFormat(DataFormat.builder()
-            .keyType(APPLICATION_PROTOSTREAM).keyMarshaller(IdentityMarshaller.INSTANCE)
-            .valueType(APPLICATION_PROTOSTREAM).valueMarshaller(IdentityMarshaller.INSTANCE)
-            .build())
-            .put(marshall(1024), marshall(value));
+      executionMode.put(remoteCache.withDataFormat(DataFormat.builder()
+                                                             .keyType(APPLICATION_PROTOSTREAM)
+                                                             .keyMarshaller(IdentityMarshaller.INSTANCE)
+                                                             .valueType(APPLICATION_PROTOSTREAM)
+                                                             .valueMarshaller(IdentityMarshaller.INSTANCE)
+                                                             .build()),
+            marshall(1024), marshall(value));
 
       assertEquals(value, this.remoteCache.get(1024));
 
@@ -218,13 +286,13 @@ public class DataFormatTest extends SingleHotRodServerTest {
    public void testBatchOperations() {
       remoteCache.clear();
 
-      Map<ComplexKey, ComplexValue> entries = new HashMap<>();
+      Map<Object, Object> entries = new HashMap<>();
       IntStream.range(0, 50).forEach(i -> {
-         ComplexKey key = new ComplexKey(String.valueOf(i), (float) i);
+         ComplexKey key = new ComplexKey(valueOf(i), (float) i);
          ComplexValue value = new ComplexValue(UUID.randomUUID());
          entries.put(key, value);
       });
-      remoteCache.putAll(entries);
+      executionMode.putAll(remoteCache, entries);
 
       // Read all keys as JSON Strings
       RemoteCache<String, String> jsonCache = this.remoteCache.withDataFormat(DataFormat.builder()
@@ -244,11 +312,11 @@ public class DataFormatTest extends SingleHotRodServerTest {
                .set("uuid",  UUID.randomUUID().toString());
          newEntries.put(key.toString(), value.toString());
       });
-      jsonCache.putAll(newEntries);
+      executionMode.putAll(jsonCache, newEntries);
 
       // Read it back as regular objects
       Set<ComplexKey> keys = new HashSet<>();
-      IntStream.range(60, 70).forEach(i -> keys.add(new ComplexKey(String.valueOf(i), (float) i)));
+      IntStream.range(60, 70).forEach(i -> keys.add(new ComplexKey(valueOf(i), (float) i)));
       Set<ComplexKey> returned = remoteCache.getAll(keys).keySet().stream().map(ComplexKey.class::cast).collect(Collectors.toSet());
       assertEquals(keys, returned);
    }
@@ -266,7 +334,7 @@ public class DataFormatTest extends SingleHotRodServerTest {
       EventLogListener<Object> l = new EventLogListener<>(remoteCache.withDataFormat(jsonStringFormat));
 
       withClientListener(l, remote -> {
-         remoteCache.put(complexKey, complexValue);
+         executionMode.put(remoteCache, complexKey, complexValue);
          l.expectOnlyCreatedEvent("\n{\n   \"_type\": \"org.infinispan.test.client.DataFormatTest.ComplexKey\",\n   \"id\": \"Key-1\",\n   \"ratio\": 89.88\n}\n");
       });
    }
@@ -277,9 +345,9 @@ public class DataFormatTest extends SingleHotRodServerTest {
       RemoteCache<Integer, String> remoteCache = this.remoteCache.withDataFormat(DataFormat.builder().valueType(TEXT_PLAIN).build());
       StaticFilteredEventLogListener<Integer> l = new StaticFilteredEventLogListener<>(remoteCache);
       withClientListener(l, remote -> {
-         remoteCache.put(1, "value1");
+         executionMode.put(remoteCache, 1, "value1");
          l.expectNoEvents();
-         remoteCache.put(42, "value2");
+         executionMode.put(remoteCache, 42, "value2");
          l.expectOnlyCreatedEvent(42);
       });
    }
@@ -294,9 +362,9 @@ public class DataFormatTest extends SingleHotRodServerTest {
       RawStaticFilteredEventLogListener<Object> l = new RawStaticFilteredEventLogListener<>(jsonCache);
 
       withClientListener(l, remote -> {
-         jsonCache.put("{\"_type\":\"int32\",\"_value\":1}", UUID.randomUUID().toString());
+         executionMode.put(jsonCache, "{\"_type\":\"int32\",\"_value\":1}", UUID.randomUUID().toString());
          l.expectNoEvents();
-         jsonCache.put("{\"_type\":\"int32\",\"_value\":2}", UUID.randomUUID().toString());
+         executionMode.put(jsonCache, "{\"_type\":\"int32\",\"_value\":2}", UUID.randomUUID().toString());
          l.expectOnlyCreatedEvent("\n{\n   \"_type\": \"int32\",\n   \"_value\": 2\n}\n");
       });
    }
@@ -333,6 +401,99 @@ public class DataFormatTest extends SingleHotRodServerTest {
    )
    interface SCI extends SerializationContextInitializer {
       SCI INSTANCE = new SCIImpl();
+   }
+
+   enum ExecMode {
+      DEFAULT() {
+         @Override
+         boolean isIndexed() {
+            return false;
+         }
+
+         @Override
+         boolean isTransactional() {
+            return false;
+         }
+      },
+      INDEXED {
+         @Override
+         boolean isIndexed() {
+            return true;
+         }
+
+         @Override
+         boolean isTransactional() {
+            return false;
+         }
+      },
+      TRANSACTIONAL {
+         @Override
+         boolean isIndexed() {
+            return false;
+         }
+
+         @Override
+         boolean isTransactional() {
+            return true;
+         }
+      },
+      INDEXED_AND_TRANSACTIONAL {
+         @Override
+         boolean isIndexed() {
+            return true;
+         }
+
+         @Override
+         boolean isTransactional() {
+            return true;
+         }
+      };
+
+      abstract boolean isIndexed();
+
+      abstract boolean isTransactional();
+
+      <K, V> void put(RemoteCache<K, V> remoteCache, K k, V v) {
+         assertEquals(isTransactional(), remoteCache.isTransactional());
+         if (!isTransactional()) {
+            remoteCache.put(k, v);
+            return;
+         }
+         TransactionManager tm = remoteCache.getTransactionManager();
+         assertNotNull(tm);
+         try {
+            tm.begin();
+         } catch (NotSupportedException | SystemException e) {
+            fail(e.getMessage());
+         }
+         remoteCache.put(k, v);
+         try {
+            tm.commit();
+         } catch (RollbackException | HeuristicMixedException | HeuristicRollbackException | SystemException e) {
+            fail(e.getMessage());
+         }
+      }
+
+      <K, V> void putAll(RemoteCache<K, V> remoteCache, Map<K, V> entries) {
+         assertEquals(isTransactional(), remoteCache.isTransactional());
+         if (!isTransactional()) {
+            remoteCache.putAll(entries);
+            return;
+         }
+         TransactionManager tm = remoteCache.getTransactionManager();
+         assertNotNull(tm);
+         try {
+            tm.begin();
+         } catch (NotSupportedException | SystemException e) {
+            fail(e.getMessage());
+         }
+         remoteCache.putAll(entries);
+         try {
+            tm.commit();
+         } catch (RollbackException | HeuristicMixedException | HeuristicRollbackException | SystemException e) {
+            fail(e.getMessage());
+         }
+      }
    }
 }
 
