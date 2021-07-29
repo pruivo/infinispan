@@ -1,87 +1,151 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+   <localRepository>${user.home}/.m2/rhdg-8-repository</localRepository>
 
-<settings xmlns="http://maven.apache.org/SETTINGS/1.1.0"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.1.0 http://maven.apache.org/xsd/settings-1.1.0.xsd">
-    <pluginGroups>
-        <pluginGroup>org.jboss.maven.plugins</pluginGroup>
-    </pluginGroups>
-    <profiles>
-        <profile>
-            <id>jboss-public-repository</id>
-            <repositories>
-                <!-- Use Central first: it has global mirrors -->
-                <repository>
-                    <id>central</id>
-                    <name>Maven Central</name>
-                    <url>https://repo.maven.apache.org/maven2/</url>
-                    <snapshots>
-                        <enabled>false</enabled>
-                        <updatePolicy>never</updatePolicy>
-                    </snapshots>
-                </repository>
-                <!-- Then look in JBoss.org Nexus as not all we need is available in Central -->
-                <repository>
-                    <id>jboss-public-repository-group</id>
-                    <name>JBoss Public Maven Repository Group</name>
-                    <url>https://repository.jboss.org/nexus/content/groups/public-jboss</url>
-                    <layout>default</layout>
-                    <releases>
-                        <enabled>true</enabled>
-                        <updatePolicy>never</updatePolicy>
-                    </releases>
-                    <snapshots>
-                        <enabled>true</enabled>
-                        <updatePolicy>never</updatePolicy>
-                    </snapshots>
-                </repository>
-                <repository>
-                   <id>redhat</id>
-                   <name>Red Hat Maven Repository</name>
-                   <url>https://maven.repository.redhat.com/ga/</url>
-                   <layout>default</layout>
-                    <releases>
-                        <enabled>true</enabled>
-                        <updatePolicy>never</updatePolicy>
-                    </releases>
-                    <snapshots>
-                        <enabled>true</enabled>
-                        <updatePolicy>never</updatePolicy>
-                    </snapshots>
-                </repository>
-            </repositories>
-            <pluginRepositories>
-                <!-- Use Central first -->
-                <pluginRepository>
-                    <id>central</id>
-                    <name>Maven Central</name>
-                    <url>https://repo.maven.apache.org/maven2/</url>
-                    <snapshots>
-                        <enabled>false</enabled>
-                        <updatePolicy>never</updatePolicy>
-                    </snapshots>
-                </pluginRepository>
-                <pluginRepository>
-                    <id>jboss-public-repository-group</id>
-                    <name>JBoss Public Maven Repository Group</name>
-                    <url>https://repository.jboss.org/nexus/content/groups/public-jboss</url>
-                    <layout>default</layout>
-                    <releases>
-                        <enabled>true</enabled>
-                        <updatePolicy>never</updatePolicy>
-                    </releases>
-                    <snapshots>
-                        <enabled>true</enabled>
-                        <updatePolicy>never</updatePolicy>
-                    </snapshots>
-                </pluginRepository>
-            </pluginRepositories>
-        </profile>
-    </profiles>
+   <profiles>
+      <profile>
+         <id>indy-temporary-build</id>
+         <repositories>
+            <repository>
+               <id>indy-temp-repository</id>
+               <name>Indy Temporary Builds Maven Repository</name>
+               <url>https://indy.psi.redhat.com/api/content/maven/hosted/temporary-builds/</url>
+               <releases>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </releases>
+               <snapshots>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </snapshots>
+            </repository>
+         </repositories>
+         <pluginRepositories>
+            <pluginRepository>
+               <id>indy-temp-plugins-repository</id>
+               <name>Indy Temporary Builds Maven Repository</name>
+               <url>https://indy.psi.redhat.com/api/content/maven/hosted/temporary-builds/</url>
+               <releases>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </releases>
+               <snapshots>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </snapshots>
+            </pluginRepository>
+         </pluginRepositories>
+      </profile>
 
-    <activeProfiles>
-        <activeProfile>jboss-public-repository</activeProfile>
-    </activeProfiles>
+      <profile>
+         <id>indy-everything</id>
+         <repositories>
+            <repository>
+               <id>indy-static-repository</id>
+               <name>Indy Maven Repository</name>
+               <url>https://indy.psi.redhat.com/api/content/maven/group/static</url>
+               <releases>
+                  <enabled>true</enabled>
+               </releases>
+               <snapshots>
+                  <enabled>false</enabled>
+               </snapshots>
+            </repository>
+         </repositories>
+         <pluginRepositories>
+            <pluginRepository>
+               <id>indy-static-plugin-repository</id>
+               <name>Indy Maven Plugin Repository</name>
+               <url>https://indy.psi.redhat.com/api/content/maven/group/static</url>
+               <releases>
+                  <enabled>true</enabled>
+               </releases>
+               <snapshots>
+                  <enabled>false</enabled>
+               </snapshots>
+            </pluginRepository>
+         </pluginRepositories>
+      </profile>
+
+      <profile>
+         <id>redhat-ea-repository</id>
+         <repositories>
+            <repository>
+               <id>redhat</id>
+               <name>Red Hat Early Access Maven Repository</name>
+               <url>https://maven.repository.redhat.com/earlyaccess/all/</url>
+               <layout>default</layout>
+               <releases>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </releases>
+               <snapshots>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </snapshots>
+            </repository>
+         </repositories>
+         <pluginRepositories>
+            <pluginRepository>
+               <id>redhat</id>
+               <name>Red Hat Early Access Maven Repository</name>
+               <url>https://maven.repository.redhat.com/earlyaccess/all/</url>
+               <layout>default</layout>
+               <releases>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </releases>
+               <snapshots>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </snapshots>
+            </pluginRepository>
+         </pluginRepositories>
+      </profile>
+
+      <profile>
+         <id>redhat-ga-repository</id>
+         <repositories>
+            <repository>
+               <id>redhat</id>
+               <name>Red Hat Maven Repository</name>
+               <url>https://maven.repository.redhat.com/ga/</url>
+               <layout>default</layout>
+               <releases>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </releases>
+               <snapshots>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </snapshots>
+            </repository>
+         </repositories>
+         <pluginRepositories>
+            <pluginRepository>
+               <id>redhat</id>
+               <name>Red Hat Maven Repository</name>
+               <url>https://maven.repository.redhat.com/ga/</url>
+               <layout>default</layout>
+               <releases>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </releases>
+               <snapshots>
+                  <enabled>true</enabled>
+                  <updatePolicy>never</updatePolicy>
+               </snapshots>
+            </pluginRepository>
+         </pluginRepositories>
+      </profile>
+
+   </profiles>
+
+   <activeProfiles>
+      <activeProfile>indy-temporary-build</activeProfile>
+      <activeProfile>indy-everything</activeProfile>
+      <activeProfile>redhat-ga-repository</activeProfile>
+      <activeProfile>redhat-ea-repository</activeProfile>
+   </activeProfiles>
 
 </settings>
-
