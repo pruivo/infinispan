@@ -416,8 +416,10 @@
       <versionx.org.wildfly.common.wildfly-common>1.5.4.Final</versionx.org.wildfly.common.wildfly-common>
       <versionx.org.wildfly.core.wildfly-core-testsuite-shared>${version.org.wildfly.core}</versionx.org.wildfly.core.wildfly-core-testsuite-shared>
       <versionx.org.wildfly.maven.plugins.licenses-plugin>2.3.0.Final</versionx.org.wildfly.maven.plugins.licenses-plugin>
-      <versionx.org.wildfly.openssl.natives>${version.org.wildfly.openssl.natives}</versionx.org.wildfly.openssl.natives>
-      <versionx.org.wildfly.openssl.wildfly-openssl-linux-x86_64>${version.org.wildfly.openssl.natives.linux_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-linux-x86_64>
+      <versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel7-x86_64>${version.org.wildfly.openssl.natives.linux_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel7-x86_64>
+      <versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel8-x86_64>${version.org.wildfly.openssl.natives.linux_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel8-x86_64>
+      <versionx.org.wildfly.openssl.wildfly-openssl-linux-ppc64le>${version.org.wildfly.openssl.natives}</versionx.org.wildfly.openssl.wildfly-openssl-linux-ppc64le>
+      <versionx.org.wildfly.openssl.wildfly-openssl-linux-s390x>${version.org.wildfly.openssl.natives}</versionx.org.wildfly.openssl.wildfly-openssl-linux-s390x>
       <versionx.org.wildfly.openssl.wildfly-openssl-macosx-x86_64>${version.org.wildfly.openssl.natives.macos_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-macosx-x86_64>
       <versionx.org.wildfly.openssl.wildfly-openssl-windows-x86_64>${version.org.wildfly.openssl.natives.windows_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-windows-x86_64>
       <versionx.org.wildfly.security.wildfly-elytron>${version.org.wildfly.elytron}</versionx.org.wildfly.security.wildfly-elytron>
@@ -1818,13 +1820,23 @@
          </dependency>
          <dependency>
             <groupId>org.wildfly.openssl</groupId>
-            <artifactId>wildfly-openssl</artifactId>
-            <version>${version.org.wildfly.openssl}</version>
+            <artifactId>wildfly-openssl-linux-ppc64le</artifactId>
+            <version>${versionx.org.wildfly.openssl.wildfly-openssl-linux-ppc64le}</version>
          </dependency>
          <dependency>
             <groupId>org.wildfly.openssl</groupId>
-            <artifactId>wildfly-openssl-linux-x86_64</artifactId>
-            <version>${versionx.org.wildfly.openssl.wildfly-openssl-linux-x86_64}</version>
+            <artifactId>wildfly-openssl-linux-rhel7-x86_64</artifactId>
+            <version>${versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel7-x86_64}</version>
+         </dependency>
+         <dependency>
+            <groupId>org.wildfly.openssl</groupId>
+            <artifactId>wildfly-openssl-linux-rhel8-x86_64</artifactId>
+            <version>${versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel8-x86_64}</version>
+         </dependency>
+         <dependency>
+            <groupId>org.wildfly.openssl</groupId>
+            <artifactId>wildfly-openssl-linux-s390x</artifactId>
+            <version>${versionx.org.wildfly.openssl.wildfly-openssl-linux-s390x}</version>
          </dependency>
          <dependency>
             <groupId>org.wildfly.openssl</groupId>
