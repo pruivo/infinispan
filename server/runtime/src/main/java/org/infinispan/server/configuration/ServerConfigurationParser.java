@@ -6,7 +6,8 @@ import java.util.Collections;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
-import javax.net.ssl.SSLContext;
+import javax.net.ServerSocketFactory;
+import javax.net.SocketFactory;
 
 import org.infinispan.commons.CacheConfigurationException;
 import org.infinispan.commons.configuration.io.ConfigurationReader;
@@ -1626,8 +1627,9 @@ public class ServerConfigurationParser implements ConfigurationParser {
                // If the security realm has TLS we set the JGroups SocketFactory
                holder.addParserListener(h -> {
                   ServerConfigurationBuilder serverBuilder = h.getGlobalConfigurationBuilder().module(ServerConfigurationBuilder.class);
-                  SSLContext sslContext = serverBuilder.getSSLContext(value);
-                  TransportSocketFactory transportSocketFactory = new TransportSocketFactory(sslContext);
+                  ServerSocketFactory serverSocketFactory = serverBuilder.getSSLContext(value).getServerSocketFactory();
+                  SocketFactory clientSocketFactory = serverBuilder.getClientSSLContext(value).getSocketFactory();
+                  TransportSocketFactory transportSocketFactory = new TransportSocketFactory(clientSocketFactory, serverSocketFactory);
                   h.getGlobalConfigurationBuilder().transport().addProperty(JGroupsTransport.SOCKET_FACTORY, transportSocketFactory);
                   Server.log.sslTransport(value);
                });
