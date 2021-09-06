@@ -358,4 +358,8 @@ public class NettyTransport implements Transport {
       log.createdNettyEventLoop(eventLoop.getClass().getName(), configuration);
       return eventLoop;
    }
+
+   public static boolean isNativeAvailable() {
+      return EPollAvailable.USE_NATIVE_EPOLL;
+   }
 }

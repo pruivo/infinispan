@@ -162,6 +162,21 @@
          <artifactId>wildfly-openssl-linux-x86_64</artifactId>
          <scope>compile</scope>
       </dependency>
+      <dependency>
+         <groupId>org.jgroups</groupId>
+         <artifactId>jgroups-netty</artifactId>
+         <!-- use Netty and JGroups from Infinispan -->
+         <exclusions>
+            <exclusion>
+               <groupId>org.jgroups</groupId>
+               <artifactId>*</artifactId>
+            </exclusion>
+            <exclusion>
+               <groupId>io.netty</groupId>
+               <artifactId>*</artifactId>
+            </exclusion>
+         </exclusions>
+      </dependency>
 
       <!-- Test dependencies -->
       <dependency>

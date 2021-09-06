@@ -23,13 +23,15 @@ import org.jgroups.util.StackType;
  * @author Tristan Tarrant &lt;tristan@infinispan.org&gt;
  * @since 10.0
  **/
-public class EmbeddedJGroupsChannelConfigurator implements JGroupsChannelConfigurator {
+public class EmbeddedJGroupsChannelConfigurator implements JGroupsChannelConfigurator, JGroupsProtocolVisitor {
 
    private static final String PROTOCOL_PREFIX = "org.jgroups.protocols.";
 
    private final String name;
    final List<ProtocolConfiguration> stack;
    final Map<String, JGroupsChannelConfigurator> remoteSites;
+   private boolean relay2Seen = false;
+   private JGroupsProtocolVisitor visitor;
 
    public EmbeddedJGroupsChannelConfigurator(String name, List<ProtocolConfiguration> stack) {
       this.name = name;
@@ -61,8 +63,14 @@ public class EmbeddedJGroupsChannelConfigurator implements JGroupsChannelConfigu
 
    @Override
    public JChannel createChannel() throws Exception {
+      if (visitor == null) {
+         visitor = protocol -> {};
+      }
       StackType stackType = org.jgroups.util.Util.getIpStackType();
       List<Protocol> protocols = new ArrayList<>(stack.size());
+      init();
+      visitor.init();
+
       for(ProtocolConfiguration c : stack) {
          Protocol protocol;
          try {
@@ -74,35 +82,12 @@ public class EmbeddedJGroupsChannelConfigurator implements JGroupsChannelConfigu
          ProtocolConfiguration configuration = new ProtocolConfiguration(protocol.getName(), c.getProperties());
          Configurator.initializeAttrs(protocol, configuration, stackType);
          protocols.add(protocol);
-
-         if (protocol instanceof RELAY2) {
-            // Process remote sites if any
-            RELAY2 relay2 = (RELAY2) protocol;
-            if (relay2 != null) {
-               if (remoteSites.size() == 0) {
-                  throw CONFIG.jgroupsRelayWithoutRemoteSites(name);
-               }
-               for (Map.Entry<String, JGroupsChannelConfigurator> remoteSite : remoteSites.entrySet()) {
-                  JGroupsChannelConfigurator remoteSiteChannel = remoteSite.getValue();
-                  RelayConfig.SiteConfig siteConfig = new RelayConfig.SiteConfig(remoteSite.getKey());
-                  siteConfig.addBridge(new RelayConfig.BridgeConfig(remoteSiteChannel.getName()) {
-                     @Override
-                     public JChannel createChannel() throws Exception {
-                        // TODO The bridge channel is created lazily, and Infinispan doesn't see any errors
-                        return remoteSiteChannel.createChannel();
-                     }
-                  });
-                  relay2.addSite(remoteSite.getKey(), siteConfig);
-               }
-
-            } else {
-               if (remoteSites.size() > 0) {
-                  throw CONFIG.jgroupsRemoteSitesWithoutRelay(name);
-               }
-            }
-         }
+         configureProtocol(protocol);
+         visitor.configureProtocol(protocol);
       }
 
+      completed();
+      visitor.completed();
       return new JChannel(protocols);
    }
 
@@ -201,6 +186,48 @@ public class EmbeddedJGroupsChannelConfigurator implements JGroupsChannelConfigu
             return i;
       }
       return -1;
+   }
+
+   @Override
+   public void setVisitor(JGroupsProtocolVisitor protocolVisitor) {
+      this.visitor = protocolVisitor;
+   }
+
+   @Override
+   public void init() {
+      relay2Seen = false;
+   }
+
+   @Override
+   public void configureProtocol(Protocol protocol) {
+      if (!(protocol instanceof RELAY2)) {
+         return;
+      }
+      relay2Seen = true;
+      RELAY2 relay2 = (RELAY2) protocol;
+      if (remoteSites.size() == 0) {
+         throw CONFIG.jgroupsRelayWithoutRemoteSites(name);
+      }
+      for (Map.Entry<String, JGroupsChannelConfigurator> remoteSite : remoteSites.entrySet()) {
+         JGroupsChannelConfigurator remoteSiteChannel = remoteSite.getValue();
+         RelayConfig.SiteConfig siteConfig = new RelayConfig.SiteConfig(remoteSite.getKey());
+         siteConfig.addBridge(new RelayConfig.BridgeConfig(remoteSiteChannel.getName()) {
+            @Override
+            public JChannel createChannel() throws Exception {
+               // TODO The bridge channel is created lazily, and Infinispan doesn't see any errors
+               return remoteSiteChannel.createChannel();
+            }
+         });
+         relay2.addSite(remoteSite.getKey(), siteConfig);
+      }
+
+   }
+
+   @Override
+   public void completed() {
+      if (!relay2Seen && remoteSites.size() > 0) {
+         throw CONFIG.jgroupsRemoteSitesWithoutRelay(name);
+      }
    }
 
    public enum StackCombine {

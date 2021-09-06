@@ -165,6 +165,7 @@ public class JGroupsTransport implements Transport {
    protected ExecutorService nonBlockingExecutor;
    @Inject protected CacheManagerJmxRegistration jmxRegistration;
    @Inject protected GlobalXSiteAdminOperations globalXSiteAdminOperations;
+   @Inject protected CompositeJGroupsProtocolVisitor jGroupsProtocolVisitor;
 
    private final Lock viewUpdateLock = new ReentrantLock();
    private final Condition viewUpdateCondition = viewUpdateLock.newCondition();
@@ -611,6 +612,7 @@ public class JGroupsTransport implements Transport {
 
          if (channel == null && props.containsKey(CHANNEL_CONFIGURATOR)) {
             JGroupsChannelConfigurator configurator = (JGroupsChannelConfigurator) props.get(CHANNEL_CONFIGURATOR);
+            configurator.setVisitor(jGroupsProtocolVisitor);
             try {
                channel = configurator.createChannel();
             } catch (Exception e) {

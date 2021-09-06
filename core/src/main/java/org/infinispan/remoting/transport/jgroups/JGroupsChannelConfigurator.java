@@ -11,4 +11,8 @@ public interface JGroupsChannelConfigurator extends ProtocolStackConfigurator {
    String getName();
 
    JChannel createChannel() throws Exception;
+
+   default void setVisitor(JGroupsProtocolVisitor protocolVisitor) {
+
+   }
 }

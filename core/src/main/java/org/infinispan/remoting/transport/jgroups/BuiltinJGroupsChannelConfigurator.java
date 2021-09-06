@@ -40,6 +40,10 @@ public class BuiltinJGroupsChannelConfigurator extends FileJGroupsChannelConfigu
       return loadBuiltIn("azure", "default-configs/default-jgroups-azure.xml", properties);
    }
 
+   public static BuiltinJGroupsChannelConfigurator NETTY(Properties properties) {
+      return loadBuiltIn("netty", "default-configs/default-jgroups-netty.xml", properties);
+   }
+
    private static BuiltinJGroupsChannelConfigurator loadBuiltIn(String name, String path, Properties properties) {
       try (InputStream xml = FileLookupFactory.newInstance().lookupFileStrict(path, BuiltinJGroupsChannelConfigurator.class.getClassLoader())) {
          return new BuiltinJGroupsChannelConfigurator(name, path, xml, properties);

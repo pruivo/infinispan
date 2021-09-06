@@ -9,6 +9,8 @@ import org.infinispan.commons.util.StringPropertyReplacer;
 import org.jgroups.JChannel;
 import org.jgroups.conf.ProtocolConfiguration;
 import org.jgroups.conf.XmlConfigurator;
+import org.jgroups.stack.Configurator;
+import org.jgroups.stack.Protocol;
 
 /**
  * A JGroups {@link JGroupsChannelConfigurator} which loads configuration from an XML file supplied as an {@link InputStream}
@@ -21,6 +23,7 @@ public class FileJGroupsChannelConfigurator implements JGroupsChannelConfigurato
    private final String path;
    private final Properties properties;
    private final List<ProtocolConfiguration> stack;
+   private JGroupsProtocolVisitor visitor;
 
    public FileJGroupsChannelConfigurator(String name, String path, InputStream is, Properties properties) throws IOException {
       this.name = name;
@@ -45,8 +48,20 @@ public class FileJGroupsChannelConfigurator implements JGroupsChannelConfigurato
    }
 
    @Override
+   public void setVisitor(JGroupsProtocolVisitor protocolVisitor) {
+      this.visitor = protocolVisitor;
+   }
+
+   @Override
    public JChannel createChannel() throws Exception {
-      return new JChannel(this);
+      if (visitor == null) {
+         return new JChannel(this);
+      }
+      List<Protocol> protocols = Configurator.createProtocols(getProtocolStack(), null);
+      visitor.init();
+      protocols.forEach(protocolConfiguration -> visitor.configureProtocol(protocolConfiguration));
+      visitor.completed();
+      return new JChannel(protocols);
    }
 
    public String getPath() {
