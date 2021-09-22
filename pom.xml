@@ -1997,6 +1997,11 @@
             <artifactId>jconsole</artifactId>
             <version>${versionx.sun.jdk.jconsole}</version>
          </dependency>
+         <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>9.0.0.redhat-00001</version>
+         </dependency>
       </dependencies>
    </dependencyManagement>
 
