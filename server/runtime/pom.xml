@@ -467,6 +467,7 @@
                   </goals>
                   <phase>generate-resources</phase>
                   <configuration>
+                     <licensesConfigFile>${project.basedir}/../../distribution/src/main/resources/template/licenses-overwrite.xml</licensesConfigFile>
                      <sortByGroupIdAndArtifactId>true</sortByGroupIdAndArtifactId>
                      <licensesOutputFile>${server.output.dir}/docs/licenses/licenses.xml</licensesOutputFile>
                      <excludedArtifacts>.*jcip.*|infinispan-tools|java-getopt</excludedArtifacts>
