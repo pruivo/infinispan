@@ -23,6 +23,17 @@
             <!-- add addons -->
             <directory>target/${infinispan.brand.prefix}-${wildfly.brand.prefix}-modules-${infinispan.brand.version}/modules/system/add-ons/</directory>
             <outputDirectory>modules/system/add-ons/</outputDirectory>
+            <excludes>
+                <exclude>ispn/com/amazonws/aws-java-sdk/**</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet>
+            <!-- add AWS addons -->
+            <directory>target/${infinispan.brand.prefix}-${wildfly.brand.prefix}-thin-modules-${infinispan.brand.version}/modules/system/add-ons/</directory>
+            <outputDirectory>modules/system/add-ons/</outputDirectory>
+            <includes>
+                <include>ispn/com/amazonws/aws-java-sdk/**</include>
+            </includes>
         </fileSet>
     </fileSets>
 </assembly>

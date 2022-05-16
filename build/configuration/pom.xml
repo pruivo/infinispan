@@ -116,6 +116,7 @@
       <!-- org.wildfly / org.jboss.eap -->
       <appserver.groupId>org.wildfly</appserver.groupId>
       <appserver.version>24.0.1.Final</appserver.version>
+      <version.eap.xp>3.0.0.GA-redhat-00005</version.eap.xp>
 
       <!-- Java source/target version -->
       <maven.min.version>3.2.1</maven.min.version>

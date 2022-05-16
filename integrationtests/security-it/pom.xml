@@ -166,7 +166,7 @@
                         <feature-pack>
                            <groupId>${appserver.groupId}</groupId>
                            <artifactId>wildfly-galleon-pack</artifactId>
-                           <version>${appserver.version}</version>
+                           <version>${version.eap.xp}</version>
                         </feature-pack>
                      </feature-packs>
                      <configurations>
@@ -200,7 +200,7 @@
                         <feature-pack>
                            <groupId>${appserver.groupId}</groupId>
                            <artifactId>wildfly-galleon-pack</artifactId>
-                           <version>${appserver.version}</version>
+                           <version>${version.eap.xp}</version>
                         </feature-pack>
                      </feature-packs>
                      <configurations>
@@ -234,7 +234,7 @@
                         <feature-pack>
                            <groupId>${appserver.groupId}</groupId>
                            <artifactId>wildfly-galleon-pack</artifactId>
-                           <version>${appserver.version}</version>
+                           <version>${version.eap.xp}</version>
                         </feature-pack>
                      </feature-packs>
                      <configurations>

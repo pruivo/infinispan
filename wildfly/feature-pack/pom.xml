@@ -46,36 +46,25 @@
         <dependency>
             <groupId>${appserver.groupId}</groupId>
             <artifactId>wildfly-galleon-pack</artifactId>
+            <version>${version.eap.xp}</version>
+            <type>zip</type>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>${appserver.groupId}</groupId>
+            <artifactId>wildfly-ee-galleon-pack</artifactId>
             <version>${appserver.version}</version>
             <type>zip</type>
             <exclusions>
                 <exclusion>
-                    <groupId>org.infinispan</groupId>
-                    <artifactId>infinispan-hibernate-cache-commons</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.infinispan</groupId>
-                    <artifactId>infinispan-hibernate-cache-v51</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.infinispan</groupId>
-                    <artifactId>infinispan-hibernate-cache-v53</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.infinispan</groupId>
-                    <artifactId>infinispan-hibernate-cache-spi</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.hibernate</groupId>
-                    <artifactId>hibernate-search-engine</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.hibernate</groupId>
-                    <artifactId>hibernate-search-serialization-avro</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.hibernate</groupId>
-                    <artifactId>hibernate-search-backend-jms</artifactId>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>

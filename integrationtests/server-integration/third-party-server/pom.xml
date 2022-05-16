@@ -299,7 +299,7 @@
                                         <feature-pack>
                                             <groupId>${appserver.groupId}</groupId>
                                             <artifactId>wildfly-galleon-pack</artifactId>
-                                            <version>${appserver.version}</version>
+                                            <version>${version.eap.xp}</version>
                                         </feature-pack>
                                           <!-- Infinispan modules -->
                                         <feature-pack>
@@ -339,7 +339,7 @@
                                         <feature-pack>
                                             <groupId>${appserver.groupId}</groupId>
                                             <artifactId>wildfly-galleon-pack</artifactId>
-                                            <version>${appserver.version}</version>
+                                            <version>${version.eap.xp}</version>
                                         </feature-pack>
                                         <!-- Infinispan modules -->
                                         <feature-pack>
