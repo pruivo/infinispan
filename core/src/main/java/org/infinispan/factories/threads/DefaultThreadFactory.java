@@ -26,34 +26,35 @@ public class DefaultThreadFactory implements ThreadFactory {
 
    private static final AtomicLong globalThreadIndexSequence = new AtomicLong(1L);
    private static final AtomicLong factoryIndexSequence = new AtomicLong(1L);
+   private final ClassLoader classLoader;
    private String node;
    private String component;
-   private ClassLoader classLoader;
+   private boolean virtual;
 
    /**
-    * Construct a new instance.  The access control context of the calling thread will be the one used to create
-    * new threads if a security manager is installed.
+    * Construct a new instance.  The access control context of the calling thread will be the one used to create new
+    * threads if a security manager is installed.
     *
-    * @param threadGroup the thread group to assign threads to by default (may be {@code null})
-    * @param initialPriority the initial thread priority, or {@code null} to use the thread group's setting
+    * @param threadGroup       the thread group to assign threads to by default (may be {@code null})
+    * @param initialPriority   the initial thread priority, or {@code null} to use the thread group's setting
     * @param threadNamePattern the name pattern string
     */
    public DefaultThreadFactory(ThreadGroup threadGroup, int initialPriority, String threadNamePattern,
-         String node, String component) {
+                               String node, String component) {
       this(null, threadGroup, initialPriority, threadNamePattern, node, component);
    }
 
    /**
-    * Construct a new instance.  The access control context of the calling thread will be the one used to create
-    * new threads if a security manager is installed.
+    * Construct a new instance.  The access control context of the calling thread will be the one used to create new
+    * threads if a security manager is installed.
     *
-    * @param name the name of this thread factory (may be {@code null})
-    * @param threadGroup the thread group to assign threads to by default (may be {@code null})
-    * @param initialPriority the initial thread priority, or {@code null} to use the thread group's setting
+    * @param name              the name of this thread factory (may be {@code null})
+    * @param threadGroup       the thread group to assign threads to by default (may be {@code null})
+    * @param initialPriority   the initial thread priority, or {@code null} to use the thread group's setting
     * @param threadNamePattern the name pattern string
     */
    public DefaultThreadFactory(String name, ThreadGroup threadGroup, int initialPriority, String threadNamePattern,
-         String node, String component) {
+                               String node, String component) {
       this.classLoader = Thread.currentThread().getContextClassLoader();
       this.name = name;
       if (threadGroup == null) {
@@ -69,6 +70,7 @@ public class DefaultThreadFactory implements ThreadFactory {
       this.threadNamePattern = threadNamePattern;
       this.node = node;
       this.component = component;
+      virtual = true;
    }
 
    public String getName() {
@@ -95,6 +97,14 @@ public class DefaultThreadFactory implements ThreadFactory {
       return initialPriority;
    }
 
+   public boolean isVirtual() {
+      return virtual;
+   }
+
+   public void setVirtual(boolean virtual) {
+      this.virtual = virtual;
+   }
+
    @Override
    public Thread newThread(final Runnable target) {
       return createThread(target);
@@ -103,15 +113,11 @@ public class DefaultThreadFactory implements ThreadFactory {
    private Thread createThread(final Runnable target) {
       final ThreadNameInfo nameInfo = new ThreadNameInfo(globalThreadIndexSequence.getAndIncrement(),
             factoryThreadIndexSequence.getAndIncrement(), factoryIndex, node, component);
-      Thread thread = actualThreadCreate(threadGroup, target);
+      Thread thread = ThreadCreator.createThread(threadGroup, target, virtual);
       thread.setName(nameInfo.format(thread, threadNamePattern));
       thread.setPriority(initialPriority);
       thread.setDaemon(true);
       SecurityActions.setContextClassLoader(thread, classLoader);
       return thread;
-   }
-
-   private final Thread actualThreadCreate(ThreadGroup threadGroup, Runnable target) {
-      return ThreadCreator.createThread(threadGroup, target, true);
    }
 }

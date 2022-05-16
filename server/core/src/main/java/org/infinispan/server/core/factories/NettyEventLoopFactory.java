@@ -30,6 +30,11 @@ public class NettyEventLoopFactory extends AbstractComponentFactory implements A
                globalConfiguration.transport().nodeName(), shortened(KnownComponentNames.NON_BLOCKING_EXECUTOR));
       }
 
+      if (threadFactory instanceof DefaultThreadFactory) {
+         // Netty does not support virtual threads yet (Project loom)
+         ((DefaultThreadFactory) threadFactory).setVirtual(false);
+      }
+
       ThreadPoolExecutorFactory<?> tpef = globalConfiguration.nonBlockingThreadPool().threadPoolFactory();
       int threadAmount = tpef instanceof NonBlockingThreadPoolExecutorFactory ?
             ((NonBlockingThreadPoolExecutorFactory) tpef).maxThreads() :

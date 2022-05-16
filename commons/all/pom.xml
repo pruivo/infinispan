@@ -276,7 +276,7 @@
                                  <version>${project.version}</version>
                                  <type>jar</type>
                                  <overWrite>false</overWrite>
-                                 <outputDirectory>${project.build.outputDirectory}/META-INF/versions/15</outputDirectory>
+                                 <outputDirectory>${project.build.outputDirectory}/META-INF/versions/19</outputDirectory>
                                  <includes>**/*.class</includes>
                               </artifactItem>
                            </artifactItems>

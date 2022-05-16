@@ -5,7 +5,7 @@ package org.infinispan.commons.jdkspecific;
  * @since 11.0
  **/
 public class ThreadCreator {
-   public static Thread createThread(ThreadGroup threadGroup, Runnable target, boolean lightweight) {
+   public static Thread createThread(ThreadGroup threadGroup, Runnable target, boolean virtual) {
       return new Thread(threadGroup, target);
    }
 }

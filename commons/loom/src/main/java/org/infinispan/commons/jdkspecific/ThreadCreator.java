@@ -5,11 +5,11 @@ package org.infinispan.commons.jdkspecific;
  * @since 11.0
  **/
 public class ThreadCreator {
-   public static Thread createThread(ThreadGroup threadGroup, Runnable target, boolean lightweight) {
-      if (lightweight) {
-         return Thread.builder().virtual().group(threadGroup).task(target).build();
+   public static Thread createThread(ThreadGroup threadGroup, Runnable target, boolean virtual) {
+      if (virtual) {
+         return Thread.ofVirtual().unstarted(target);
       } else {
-         return new Thread(threadGroup, target);
+         return Thread.ofPlatform().group(threadGroup).unstarted(target);
       }
    }
 }
