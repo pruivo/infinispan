@@ -528,7 +528,7 @@ class Compactor implements Consumer<Object> {
             if (drop) {
                if (log.isTraceEnabled()) {
                   log.tracef("Drop %d:%d (%s)", scheduledFile, (Object) scheduledOffset,
-                        header.valueLength() > 0 ? "record" : "tombstone");
+                        header.isSifsTombstone() ? "tombstone" : "record");
                }
                index.handleRequest(IndexRequest.dropped(segment, key, ByteBufferImpl.create(serializedKey), scheduledFile, scheduledOffset));
             } else {
@@ -548,11 +548,13 @@ class Compactor implements Consumer<Object> {
                byte[] serializedInternalMetadata = null;
                int entryOffset;
                int writtenLength;
-               if (header.valueLength() > 0 && !truncate) {
+               if (!header.isSifsTombstone() && !truncate) {
                   if (header.metadataLength() > 0) {
                      metadata = EntryRecord.readMetadata(handle, header, scheduledOffset);
                   }
-                  serializedValue = EntryRecord.readValue(handle, header, scheduledOffset);
+                  if (header.valueLength() > 0) {
+                     serializedValue = EntryRecord.readValue(handle, header, scheduledOffset);
+                  }
                   if (header.internalMetadataLength() > 0) {
                      serializedInternalMetadata = EntryRecord.readInternalMetadata(handle, header, scheduledOffset);
                   }

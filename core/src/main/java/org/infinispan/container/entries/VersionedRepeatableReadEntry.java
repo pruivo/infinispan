@@ -90,7 +90,7 @@ public class VersionedRepeatableReadEntry<K, V> extends RepeatableReadEntry<K, V
       CompletionStage<InternalCacheEntry<K, V>> entry = entryLoader.loadAndStoreInDataContainer(ctx, getKey(), segment, null);
 
       return entry.thenApply(ice -> {
-         if (ice == null) {
+         if (ice == null || ice.isTombstone()) {
             if (log.isTraceEnabled()) {
                log.tracef("No entry for key %s found in data container", toStr(key));
             }

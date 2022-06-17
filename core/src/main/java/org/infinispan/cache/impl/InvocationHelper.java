@@ -179,6 +179,10 @@ public class InvocationHelper implements TransactionResourceConverter {
       }
    }
 
+   public InvocationContext createNonTxInvocationContext() {
+      return invocationContextFactory.createNonTxInvocationContext();
+   }
+
    @Override
    public String toString() {
       return "InvocationHelper{}";

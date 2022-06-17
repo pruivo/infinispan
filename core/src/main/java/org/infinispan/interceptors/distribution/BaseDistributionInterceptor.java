@@ -28,10 +28,12 @@ import org.infinispan.commands.remote.ClusteredGetCommand;
 import org.infinispan.commands.write.AbstractDataWriteCommand;
 import org.infinispan.commands.write.ClearCommand;
 import org.infinispan.commands.write.DataWriteCommand;
+import org.infinispan.commands.write.RemoveTombstoneCommand;
 import org.infinispan.commands.write.ValueMatcher;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.commons.time.TimeService;
 import org.infinispan.commons.util.ArrayCollector;
+import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.container.entries.InternalCacheValue;
@@ -65,7 +67,6 @@ import org.infinispan.remoting.transport.impl.SingletonMapResponseCollector;
 import org.infinispan.remoting.transport.impl.VoidResponseCollector;
 import org.infinispan.statetransfer.OutdatedTopologyException;
 import org.infinispan.transaction.xa.GlobalTransaction;
-import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -91,6 +92,7 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
 
    private final ReadOnlyManyHelper readOnlyManyHelper = new ReadOnlyManyHelper();
    private final InvocationSuccessFunction<AbstractDataWriteCommand> primaryReturnHandler = this::primaryReturnHandler;
+   private final InvocationSuccessFunction<RemoveTombstoneCommand> primaryRemoveTombstoneHandler = this::primaryRemoveTombstoneHandler;
 
    @Override
    protected Log getLog() {
@@ -340,6 +342,43 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
    @Override
    public Object visitReadOnlyManyCommand(InvocationContext ctx, ReadOnlyManyCommand command) throws Throwable {
       return handleFunctionalReadManyCommand(ctx, command, readOnlyManyHelper);
+   }
+
+   @Override
+   public Object visitRemoveTombstone(InvocationContext ctx, RemoveTombstoneCommand command) {
+      if (isLocalModeForced(command)) {
+         for (Object key : command.getAffectedKeys()) {
+            if (ctx.lookupEntry(key) == null) {
+               entryFactory.wrapExternalEntry(ctx, key, null, false, true);
+            }
+         }
+         return invokeNext(ctx, command);
+      }
+
+      LocalizedCacheTopology cacheTopology = checkTopologyId(command);
+      DistributionInfo info = cacheTopology.getSegmentDistribution(command.getSegment());
+
+      if (isReplicated && command.hasAnyFlag(FlagBitSets.BACKUP_WRITE) && !info.isWriteOwner()) {
+         // Replicated caches receive broadcast commands even when they are not owners (e.g. zero capacity nodes)
+         // The originator will ignore the UnsuccessfulResponse
+         command.fail();
+         return null;
+      }
+
+      if (info.isPrimary()) {
+         return invokeNextThenApply(ctx, command, primaryRemoveTombstoneHandler);
+      } else if (ctx.isOriginLocal()) {
+         return invokeRemotely(ctx, command, info.primary());
+      } else {
+         // make sure everything is wrapped
+         for (Object key : command.getAffectedKeys()) {
+            if (ctx.lookupEntry(key) == null) {
+               entryFactory.wrapExternalEntry(ctx, key, null, false, true);
+            }
+         }
+
+         return invokeNext(ctx, command);
+      }
    }
 
    protected <C extends TopologyAffectedCommand & FlagAffectedCommand> Object handleFunctionalReadManyCommand(
@@ -713,6 +752,65 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
       return !command.hasAnyFlag(FlagBitSets.CACHE_MODE_LOCAL | FlagBitSets.SKIP_REMOTE_LOOKUP);
    }
 
+   protected Object primaryRemoveTombstoneHandler(InvocationContext ctx, RemoveTombstoneCommand command, Object localResult) {
+      if (!command.isSuccessful()) {
+         if (log.isTraceEnabled()) log.tracef("Skipping the replication of the conditional command as it did not succeed on primary owner (%s).", command);
+         return localResult;
+      }
+      DistributionInfo distributionInfo = checkTopologyId(command).getSegmentDistribution(command.getSegment());
+      Collection<Address> owners = distributionInfo.writeOwners();
+      if (owners.size() == 1) {
+         // There are no backups, skip the replication part.
+         return localResult;
+      }
+
+      if (!isSynchronous(command)) {
+         if (isReplicated) {
+            rpcManager.sendToAll(command, DeliverOrder.PER_SENDER);
+         } else {
+            rpcManager.sendToMany(owners, command, DeliverOrder.PER_SENDER);
+         }
+         return localResult;
+      }
+      VoidResponseCollector collector = VoidResponseCollector.ignoreLeavers();
+      RpcOptions rpcOptions = rpcManager.getSyncRpcOptions();
+      // Mark the command as a backup write so it can skip some checks
+      command.addFlags(FlagBitSets.BACKUP_WRITE);
+      CompletionStage<Void> remoteInvocation = isReplicated ?
+            rpcManager.invokeCommandOnAll(command, collector, rpcOptions) :
+            rpcManager.invokeCommand(owners, command, collector, rpcOptions);
+      return asyncValue(remoteInvocation.handle((ignored, t) -> {
+         // Unset the backup write bit as the command will be retried
+         command.setFlagsBitSet(command.getFlagsBitSet() & ~FlagBitSets.BACKUP_WRITE);
+         CompletableFutures.rethrowExceptionIfPresent(t);
+         return localResult;
+      }));
+   }
+
+
+   private Object invokeRemotely(InvocationContext ctx, RemoveTombstoneCommand command, Address primaryOwner) {
+      if (log.isTraceEnabled()) getLog().tracef("I'm not the primary owner, so sending the command to the primary owner(%s) in order to be forwarded", primaryOwner);
+
+      if (!isSynchronous(command)) {
+         rpcManager.sendTo(primaryOwner, command, DeliverOrder.PER_SENDER);
+         return null;
+      }
+      CompletionStage<ValidResponse> remoteInvocation;
+      remoteInvocation = rpcManager.invokeCommand(primaryOwner, command, SingleResponseCollector.validOnly(),
+            rpcManager.getSyncRpcOptions());
+      return asyncValue(remoteInvocation).andHandle(ctx, command, (rCtx, rCommand, rv, t) -> {
+         CompletableFutures.rethrowExceptionIfPresent(t);
+         Response response = ((Response) rv);
+         if (!response.isSuccessful()) {
+            rCommand.fail();
+            // FIXME A response cannot be successful and not valid
+         } else if (!(response instanceof ValidResponse)) {
+            throw unexpected(primaryOwner, response);
+         }
+         return null;
+      });
+   }
+
    protected interface ReadManyCommandHelper<C extends VisitableCommand> extends InvocationSuccessFunction<C> {
       Collection<?> keys(C command);
       C copyForLocal(C command, List<Object> keys);
@@ -860,11 +958,7 @@ public abstract class BaseDistributionInterceptor extends ClusteringInterceptor 
          }
          List<Object> senderKeys = requestedKeys.get(sender);
          for (Object key : senderKeys) {
-            Collection<Address> keyUnsureOwners = unsureOwners.get(key);
-            if (keyUnsureOwners == null) {
-               keyUnsureOwners = new ArrayList<>();
-               unsureOwners.put(key, keyUnsureOwners);
-            }
+            Collection<Address> keyUnsureOwners = unsureOwners.computeIfAbsent(key, k -> new ArrayList<>());
             keyUnsureOwners.add(sender);
          }
       }
