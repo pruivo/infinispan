@@ -6,6 +6,7 @@ import java.io.ObjectOutput;
 import java.util.Objects;
 
 import org.infinispan.commons.util.Util;
+import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.metadata.impl.IracMetadata;
 
 /**
@@ -18,6 +19,11 @@ public class IracTombstoneInfo {
    private final Object key;
    private final int segment;
    private final IracMetadata metadata;
+
+   public static IracTombstoneInfo wrap(CacheEntry<?, ?> entry, int segment) {
+      assert entry.isTombstone();
+      return new IracTombstoneInfo(entry.getKey(), segment, entry.getInternalMetadata().iracMetadata());
+   }
 
    public IracTombstoneInfo(Object key, int segment, IracMetadata metadata) {
       this.key = Objects.requireNonNull(key);

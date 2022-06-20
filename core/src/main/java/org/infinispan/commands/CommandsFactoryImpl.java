@@ -32,10 +32,7 @@ import org.infinispan.commands.irac.IracMetadataRequestCommand;
 import org.infinispan.commands.irac.IracPutManyCommand;
 import org.infinispan.commands.irac.IracRequestStateCommand;
 import org.infinispan.commands.irac.IracStateResponseCommand;
-import org.infinispan.commands.irac.IracTombstoneCleanupCommand;
-import org.infinispan.commands.irac.IracTombstonePrimaryCheckCommand;
 import org.infinispan.commands.irac.IracTombstoneRemoteSiteCheckCommand;
-import org.infinispan.commands.irac.IracTombstoneStateResponseCommand;
 import org.infinispan.commands.irac.IracTouchKeyCommand;
 import org.infinispan.commands.irac.IracUpdateVersionCommand;
 import org.infinispan.commands.read.EntrySetCommand;
@@ -104,7 +101,6 @@ import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.XSiteStateTransferMode;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.versioning.irac.IracEntryVersion;
-import org.infinispan.container.versioning.irac.IracTombstoneInfo;
 import org.infinispan.context.impl.FlagBitSets;
 import org.infinispan.encoding.DataConversion;
 import org.infinispan.expiration.impl.TouchCommand;
@@ -719,11 +715,6 @@ public class CommandsFactoryImpl implements CommandsFactory {
    }
 
    @Override
-   public IracTombstoneCleanupCommand buildIracTombstoneCleanupCommand(int maxCapacity) {
-      return new IracTombstoneCleanupCommand(cacheName, maxCapacity);
-   }
-
-   @Override
    public IracMetadataRequestCommand buildIracMetadataRequestCommand(int segment, IracEntryVersion versionSeen) {
       return new IracMetadataRequestCommand(cacheName, segment, versionSeen);
    }
@@ -767,16 +758,6 @@ public class CommandsFactoryImpl implements CommandsFactory {
    @Override
    public IracTombstoneRemoteSiteCheckCommand buildIracTombstoneRemoteSiteCheckCommand(List<Object> keys) {
       return new IracTombstoneRemoteSiteCheckCommand(cacheName, keys);
-   }
-
-   @Override
-   public IracTombstoneStateResponseCommand buildIracTombstoneStateResponseCommand(Collection<IracTombstoneInfo> state) {
-      return new IracTombstoneStateResponseCommand(cacheName, state);
-   }
-
-   @Override
-   public IracTombstonePrimaryCheckCommand buildIracTombstonePrimaryCheckCommand(Collection<IracTombstoneInfo> tombstones) {
-      return new IracTombstonePrimaryCheckCommand(cacheName, tombstones);
    }
 
    @Override

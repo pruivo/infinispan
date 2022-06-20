@@ -12,10 +12,7 @@ import org.infinispan.commands.irac.IracMetadataRequestCommand;
 import org.infinispan.commands.irac.IracPutManyCommand;
 import org.infinispan.commands.irac.IracRequestStateCommand;
 import org.infinispan.commands.irac.IracStateResponseCommand;
-import org.infinispan.commands.irac.IracTombstoneCleanupCommand;
-import org.infinispan.commands.irac.IracTombstonePrimaryCheckCommand;
 import org.infinispan.commands.irac.IracTombstoneRemoteSiteCheckCommand;
-import org.infinispan.commands.irac.IracTombstoneStateResponseCommand;
 import org.infinispan.commands.irac.IracTouchKeyCommand;
 import org.infinispan.commands.irac.IracUpdateVersionCommand;
 import org.infinispan.commands.read.SizeCommand;
@@ -134,9 +131,6 @@ public final class CacheRpcCommandExternalizer extends AbstractExternalizer<Cach
             IracUpdateVersionCommand.class,
             XSiteAutoTransferStatusCommand.class,
             XSiteSetStateTransferModeCommand.class,
-            IracTombstoneCleanupCommand.class,
-            IracTombstoneStateResponseCommand.class,
-            IracTombstonePrimaryCheckCommand.class,
             IracTombstoneRemoteSiteCheckCommand.class,
             IracPutManyCommand.class,
             RemoveTombstoneBackupWriteCommand.class);

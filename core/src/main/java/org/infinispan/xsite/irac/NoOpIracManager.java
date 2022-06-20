@@ -6,7 +6,6 @@ import java.util.concurrent.CompletionStage;
 import org.infinispan.commons.util.IntSet;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
-import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.commons.util.concurrent.CompletableFutures;
@@ -58,7 +57,7 @@ public enum NoOpIracManager implements IracManager {
    }
 
    @Override
-   public void receiveState(int segment, Object key, Object lockOwner, IracMetadata tombstone) {
+   public void receiveState(int segment, Object key, Object lockOwner) {
       // no-op
    }
 

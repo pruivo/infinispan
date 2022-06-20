@@ -118,14 +118,14 @@ public abstract class AbstractIracLocalSiteInterceptor extends DDAsyncIntercepto
       return SegmentSpecificCommand.extractSegment(command, key, keyPartitioner);
    }
 
-   protected void setMetadataToCacheEntry(CacheEntry<?, ?> entry, int segment, IracMetadata metadata) {
+   protected void setMetadataToCacheEntry(CacheEntry<?, ?> entry, IracMetadata metadata) {
       if (entry.isEvicted()) {
          if (log.isTraceEnabled()) {
             log.tracef("[IRAC] Ignoring evict key: %s", entry.getKey());
          }
          return;
       }
-      setIracMetadata(entry, segment, metadata, iracTombstoneManager, this);
+      setIracMetadata(entry, metadata, this);
    }
 
    protected Stream<StreamData> streamKeysFromModifications(Stream<WriteCommand> modsStream) {
@@ -153,9 +153,9 @@ public abstract class AbstractIracLocalSiteInterceptor extends DDAsyncIntercepto
    }
 
    protected Object visitNonTxDataWriteCommand(InvocationContext ctx, DataWriteCommand command) {
-      final Object key = command.getKey();
+      Object key = command.getKey();
       if (isIracState(command)) { //all the state transfer/preload is done via put commands.
-         setMetadataToCacheEntry(ctx.lookupEntry(key), command.getSegment(), command.getInternalMetadata(key).iracMetadata());
+         setMetadataToCacheEntry(ctx.lookupEntry(key), command.getInternalMetadata(key).iracMetadata());
          return invokeNext(ctx, command);
       }
       if (command.hasAnyFlag(FlagBitSets.IRAC_UPDATE)) {
@@ -195,11 +195,11 @@ public abstract class AbstractIracLocalSiteInterceptor extends DDAsyncIntercepto
     */
    @SuppressWarnings("unused")
    private void handleNonTxDataWriteCommand(InvocationContext ctx, DataWriteCommand command, Object rv, Throwable t) {
-      final Object key = command.getKey();
+      Object key = command.getKey();
       if (!command.isSuccessful() || skipEntryCommit(ctx, command, key)) {
          return;
       }
-      setMetadataToCacheEntry(ctx.lookupEntry(key), command.getSegment(), command.getInternalMetadata(key).iracMetadata());
+      setMetadataToCacheEntry(ctx.lookupEntry(key), command.getInternalMetadata(key).iracMetadata());
    }
 
    static class StreamData {

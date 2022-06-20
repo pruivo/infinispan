@@ -1,6 +1,5 @@
 package org.infinispan.commands.irac;
 
-import static java.util.Objects.requireNonNull;
 import static org.infinispan.commons.marshall.MarshallUtil.marshallCollection;
 import static org.infinispan.commons.marshall.MarshallUtil.unmarshallCollection;
 
@@ -13,11 +12,10 @@ import java.util.concurrent.CompletionStage;
 
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commons.util.Util;
+import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.factories.ComponentRegistry;
-import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.ByteString;
-import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.xsite.irac.IracManager;
 import org.infinispan.xsite.irac.IracManagerKeyInfo;
 import org.infinispan.xsite.irac.IracManagerKeyInfoImpl;
@@ -33,7 +31,7 @@ public class IracStateResponseCommand implements CacheRpcCommand {
    public static final byte COMMAND_ID = 120;
 
    private ByteString cacheName;
-   private Collection<State> stateCollection;
+   private Collection<IracManagerKeyInfo> stateCollection;
 
    @SuppressWarnings("unused")
    public IracStateResponseCommand() {
@@ -51,8 +49,8 @@ public class IracStateResponseCommand implements CacheRpcCommand {
    @Override
    public CompletionStage<?> invokeAsync(ComponentRegistry registry) {
       IracManager manager = registry.getIracManager().running();
-      for (State state : stateCollection) {
-         state.apply(manager);
+      for (IracManagerKeyInfo state : stateCollection) {
+         manager.receiveState(state.getSegment(), state.getKey(), state.getOwner());
       }
       return CompletableFutures.completedNull();
    }
@@ -69,12 +67,12 @@ public class IracStateResponseCommand implements CacheRpcCommand {
 
    @Override
    public void writeTo(ObjectOutput output) throws IOException {
-      marshallCollection(stateCollection, output, IracStateResponseCommand::writeStateTo);
+      marshallCollection(stateCollection, output, IracManagerKeyInfoImpl::writeTo);
    }
 
    @Override
    public void readFrom(ObjectInput input) throws IOException, ClassNotFoundException {
-      stateCollection = unmarshallCollection(input, ArrayList::new, IracStateResponseCommand::readStateFrom);
+      stateCollection = unmarshallCollection(input, ArrayList::new, IracManagerKeyInfoImpl::readFrom);
    }
 
    @Override
@@ -93,8 +91,8 @@ public class IracStateResponseCommand implements CacheRpcCommand {
       //no-op
    }
 
-   public void add(IracManagerKeyInfo keyInfo, IracMetadata tombstone) {
-      stateCollection.add(new State(keyInfo, tombstone));
+   public void add(IracManagerKeyInfo keyInfo) {
+      stateCollection.add(keyInfo);
    }
 
    @Override
@@ -105,34 +103,4 @@ public class IracStateResponseCommand implements CacheRpcCommand {
             '}';
    }
 
-   private static void writeStateTo(ObjectOutput output, State state) throws IOException {
-      IracManagerKeyInfoImpl.writeTo(output, state.keyInfo);
-      IracMetadata.writeTo(output, state.tombstone);
-   }
-
-   private static State readStateFrom(ObjectInput input) throws IOException, ClassNotFoundException {
-      return new State(IracManagerKeyInfoImpl.readFrom(input), IracMetadata.readFrom(input));
-   }
-
-   private static class State {
-      final IracManagerKeyInfo keyInfo;
-      final IracMetadata tombstone;
-
-      State(IracManagerKeyInfo keyInfo, IracMetadata tombstone) {
-         this.keyInfo = requireNonNull(keyInfo);
-         this.tombstone = tombstone;
-      }
-
-      void apply(IracManager manager) {
-         manager.receiveState(keyInfo.getSegment(), keyInfo.getKey(), keyInfo.getOwner(), tombstone);
-      }
-
-      @Override
-      public String toString() {
-         return "State{" +
-               "keyInfo=" + keyInfo +
-               ", tombstone=" + tombstone +
-               '}';
-      }
-   }
 }

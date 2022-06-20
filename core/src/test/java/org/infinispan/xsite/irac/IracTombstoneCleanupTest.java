@@ -2,38 +2,34 @@ package org.infinispan.xsite.irac;
 
 import static org.infinispan.test.TestingUtil.extractCacheTopology;
 import static org.infinispan.test.TestingUtil.extractComponent;
+import static org.infinispan.test.TestingUtil.internalDataContainer;
 import static org.infinispan.test.TestingUtil.k;
 import static org.infinispan.test.TestingUtil.wrapComponent;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;
 import static org.testng.AssertJUnit.assertNotNull;
-import static org.testng.AssertJUnit.assertTrue;
-import static org.testng.AssertJUnit.fail;
+import static org.testng.AssertJUnit.assertNull;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.infinispan.Cache;
 import org.infinispan.commands.ReplicableCommand;
-import org.infinispan.commands.irac.IracTombstoneCleanupCommand;
-import org.infinispan.commands.irac.IracTombstonePrimaryCheckCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
-import org.infinispan.commons.util.IntSets;
+import org.infinispan.commands.triangle.RemoveTombstoneBackupWriteCommand;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.container.versioning.irac.DefaultIracTombstoneManager;
 import org.infinispan.container.versioning.irac.IracEntryVersion;
-import org.infinispan.container.versioning.irac.IracTombstoneInfo;
 import org.infinispan.container.versioning.irac.IracTombstoneManager;
 import org.infinispan.container.versioning.irac.TopologyIracVersion;
 import org.infinispan.metadata.impl.IracMetadata;
+import org.infinispan.metadata.impl.PrivateMetadata;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Address;
@@ -93,10 +89,10 @@ public class IracTombstoneCleanupTest extends MultipleCacheManagersTest {
       Cache<String, String> pCache = findPrimaryOwner(segment);
       Cache<String, String> bCache = findBackupOwner(segment);
 
-      IracMetadata metadata = dummyMetadata(1);
+      PrivateMetadata metadata = dummyMetadata(1);
 
-      tombstoneManager(pCache).storeTombstone(segment, key, metadata);
-      tombstoneManager(bCache).storeTombstone(segment, key, metadata);
+      internalDataContainer(pCache).putTombstone(segment, key, metadata);
+      internalDataContainer(bCache).putTombstone(segment, key, metadata);
 
       assertEquals(1, tombstoneManager(pCache).size());
       assertEquals(1, tombstoneManager(bCache).size());
@@ -110,14 +106,13 @@ public class IracTombstoneCleanupTest extends MultipleCacheManagersTest {
       eventuallyEquals(0, () -> tombstoneManager(pCache).size());
       eventuallyEquals(0, () -> tombstoneManager(bCache).size());
 
-      IracTombstoneCleanupCommand cmd = pRpcManager.findSingleCommand(IracTombstoneCleanupCommand.class);
+      RemoveTombstoneBackupWriteCommand cmd = pRpcManager.findRemoveTombstoneCommand();
 
       assertNotNull(cmd);
-      assertEquals(1, cmd.getTombstonesToRemove().size());
-      IracTombstoneInfo tombstone = cmd.getTombstonesToRemove().iterator().next();
-      assertEquals(segment, tombstone.getSegment());
-      assertEquals(key, tombstone.getKey());
-      assertEquals(metadata, tombstone.getMetadata());
+      assertEquals(1, cmd.getTombstones().size());
+      assertEquals(segment, cmd.getSegmentId());
+      assertEquals(key, cmd.getTombstones().keySet().iterator().next());
+      assertEquals(metadata, cmd.getTombstones().values().iterator().next());
    }
 
    public void testBackupOwnerRoundCleanupDoNotCleanupPrimary(Method method) {
@@ -126,10 +121,10 @@ public class IracTombstoneCleanupTest extends MultipleCacheManagersTest {
       Cache<String, String> pCache = findPrimaryOwner(segment);
       Cache<String, String> bCache = findBackupOwner(segment);
 
-      IracMetadata metadata = dummyMetadata(2);
+      PrivateMetadata metadata = dummyMetadata(2);
 
-      tombstoneManager(pCache).storeTombstone(segment, key, metadata);
-      tombstoneManager(bCache).storeTombstone(segment, key, metadata);
+      internalDataContainer(pCache).putTombstone(segment, key, metadata);
+      internalDataContainer(bCache).putTombstone(segment, key, metadata);
 
       assertEquals(1, tombstoneManager(pCache).size());
       assertEquals(1, tombstoneManager(bCache).size());
@@ -142,112 +137,15 @@ public class IracTombstoneCleanupTest extends MultipleCacheManagersTest {
 
       tombstoneManager(bCache).runCleanupAndWait();
 
-      IracTombstonePrimaryCheckCommand cmd = bRpcManager.findSingleCommand(IracTombstonePrimaryCheckCommand.class);
-
-      assertNotNull(cmd);
-      assertEquals(1, cmd.getTombstoneToCheck().size());
-      IracTombstoneInfo tombstoneInfo = cmd.getTombstoneToCheck().iterator().next();
-      assertEquals(segment, tombstoneInfo.getSegment());
-      assertEquals(key, tombstoneInfo.getKey());
-      assertEquals(metadata, tombstoneInfo.getMetadata());
-
-      assertFalse(pRpcManager.isCommandSent(IracTombstoneCleanupCommand.class));
+      assertFalse(pRpcManager.isCommandSent());
 
       // check if nothing is removed... should we sleep here?
       assertEquals(1, tombstoneManager(pCache).size());
       assertEquals(1, tombstoneManager(bCache).size());
 
       // remove tombstone to avoid messing up with other tests
-      tombstoneManager(pCache).removeTombstone(key);
-      tombstoneManager(bCache).removeTombstone(key);
-   }
-
-   public void testNonOwnerRoundCleanupLocally(Method method) {
-      String key = k(method);
-      int segment = getSegment(key);
-      Cache<String, String> pCache = findPrimaryOwner(segment);
-      Cache<String, String> bCache = findBackupOwner(segment);
-      Cache<String, String> nCache = findNonOwner(segment);
-
-      IracMetadata metadata = dummyMetadata(3);
-
-      tombstoneManager(pCache).storeTombstone(segment, key, metadata);
-      tombstoneManager(bCache).storeTombstone(segment, key, metadata);
-      tombstoneManager(nCache).storeTombstone(segment, key, metadata);
-
-      assertEquals(1, tombstoneManager(pCache).size());
-      assertEquals(1, tombstoneManager(bCache).size());
-      assertEquals(1, tombstoneManager(nCache).size());
-
-      RecordingRpcManager pRpcManager = recordingRpcManager(pCache);
-      RecordingRpcManager bRpcManager = recordingRpcManager(bCache);
-      RecordingRpcManager nRpcManager = recordingRpcManager(nCache);
-
-      pRpcManager.startRecording();
-      bRpcManager.startRecording();
-      nRpcManager.startRecording();
-
-      tombstoneManager(nCache).runCleanupAndWait();
-
-      // check if nothing is removed... should we sleep here?
-      assertEquals(1, tombstoneManager(pCache).size());
-      assertEquals(1, tombstoneManager(bCache).size());
-      assertEquals(0, tombstoneManager(nCache).size());
-
-      assertFalse(nRpcManager.isCommandSent(IracTombstonePrimaryCheckCommand.class));
-      assertFalse(nRpcManager.isCommandSent(IracTombstoneCleanupCommand.class));
-      assertFalse(bRpcManager.isCommandSent(IracTombstonePrimaryCheckCommand.class));
-      assertFalse(bRpcManager.isCommandSent(IracTombstoneCleanupCommand.class));
-      assertFalse(pRpcManager.isCommandSent(IracTombstonePrimaryCheckCommand.class));
-      assertFalse(pRpcManager.isCommandSent(IracTombstoneCleanupCommand.class));
-
-      // remove tombstone to avoid messing up with other tests
-      tombstoneManager(pCache).removeTombstone(key);
-      tombstoneManager(bCache).removeTombstone(key);
-   }
-
-   public void testStateTransfer(Method method) {
-      int numberOfKeys = 100;
-      List<IracTombstoneInfo> keys = new ArrayList<>(numberOfKeys);
-      for (int i = 0; i < numberOfKeys; ++i) {
-         String key = k(method, i);
-         int segment = getSegment(key);
-         IracMetadata metadata = dummyMetadata(i * 2);
-         keys.add(new IracTombstoneInfo(key, segment, metadata));
-      }
-
-      Cache<String, String> cache0 = cache(0, CACHE_NAME);
-      Cache<String, String> cache1 = cache(1, CACHE_NAME);
-
-      for (IracTombstoneInfo tombstoneInfo : keys) {
-         tombstoneManager(cache1).storeTombstone(tombstoneInfo.getSegment(), tombstoneInfo.getKey(), tombstoneInfo.getMetadata());
-      }
-
-      assertEquals(0, tombstoneManager(cache0).size());
-      assertEquals(numberOfKeys, tombstoneManager(cache1).size());
-
-      // request singe segment
-      int segment = keys.get(0).getSegment();
-      tombstoneManager(cache1).sendStateTo(address(cache0), IntSets.immutableSet(segment));
-
-      List<IracTombstoneInfo> segmentKeys = keys.stream()
-            .filter(tombstoneInfo -> segment == tombstoneInfo.getSegment())
-            .collect(Collectors.toList());
-
-      // wait until it is transferred
-      eventuallyEquals(segmentKeys.size(), () -> tombstoneManager(cache0).size());
-
-      for (IracTombstoneInfo tombstone : segmentKeys) {
-         assertTrue(tombstoneManager(cache0).contains(tombstone));
-      }
-
-      // send all segments
-      tombstoneManager(cache1).sendStateTo(address(cache0), IntSets.immutableRangeSet(16));
-      eventuallyEquals(numberOfKeys, () -> tombstoneManager(cache0).size());
-
-      for (IracTombstoneInfo tombstone : keys) {
-         assertTrue(tombstoneManager(cache0).contains(tombstone));
-      }
+      internalDataContainer(pCache).remove(segment, key);
+      internalDataContainer(bCache).remove(segment, key);
    }
 
    private Cache<String, String> findPrimaryOwner(int segment) {
@@ -268,18 +166,10 @@ public class IracTombstoneCleanupTest extends MultipleCacheManagersTest {
       throw new IllegalStateException("Find backup owner failed!");
    }
 
-   private Cache<String, String> findNonOwner(int segment) {
-      for (Cache<String, String> cache : this.<String, String>caches(CACHE_NAME)) {
-         if (!extractCacheTopology(cache).getSegmentDistribution(segment).isWriteOwner()) {
-            return cache;
-         }
-      }
-      throw new IllegalStateException("Find non owner failed!");
-   }
-
-   private static IracMetadata dummyMetadata(long version) {
+   private static PrivateMetadata dummyMetadata(long version) {
       TopologyIracVersion iracVersion = TopologyIracVersion.create(1, version);
-      return new IracMetadata(SITE_NAME, IracEntryVersion.newVersion(ByteString.fromString(SITE_NAME), iracVersion));
+      IracMetadata iracMetadata = new IracMetadata(SITE_NAME, IracEntryVersion.newVersion(ByteString.fromString(SITE_NAME), iracVersion));
+      return new PrivateMetadata.Builder().iracMetadata(iracMetadata).tombstone(true).build();
    }
 
    private int getSegment(String key) {
@@ -311,29 +201,25 @@ public class IracTombstoneCleanupTest extends MultipleCacheManagersTest {
          commandList = new LinkedList<>();
       }
 
-      <T extends CacheRpcCommand> T findSingleCommand(Class<T> commandClass) {
-         T found = null;
+      RemoveTombstoneBackupWriteCommand findRemoveTombstoneCommand() {
+         RemoveTombstoneBackupWriteCommand found = null;
          synchronized (this) {
             for (CacheRpcCommand rpcCommand : commandList) {
-               if (rpcCommand.getClass() == commandClass) {
-                  if (found != null) {
-                     fail("More than one " + commandClass + " found in list: " + commandList);
-                  }
-                  found = commandClass.cast(rpcCommand);
+               if (rpcCommand.getClass() == RemoveTombstoneBackupWriteCommand.class) {
+                  assertNull("More than one " + RemoveTombstoneBackupWriteCommand.class + " found in list: " + commandList, found);
+                  found = (RemoveTombstoneBackupWriteCommand) rpcCommand;
                }
             }
          }
          return found;
       }
 
-      <T extends CacheRpcCommand> boolean isCommandSent(Class<T> commandClass) {
+      boolean isCommandSent() {
          boolean found = false;
          synchronized (this) {
             for (CacheRpcCommand rpcCommand : commandList) {
-               if (rpcCommand.getClass() == commandClass) {
-                  if (found) {
-                     fail("More than one " + commandClass + " found in list: " + commandList);
-                  }
+               if (rpcCommand.getClass() == RemoveTombstoneBackupWriteCommand.class) {
+                  assertFalse("More than one " + RemoveTombstoneBackupWriteCommand.class + " found in list: " + commandList, found);
                   found = true;
                }
             }

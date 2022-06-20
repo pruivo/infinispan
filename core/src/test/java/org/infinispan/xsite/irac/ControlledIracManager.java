@@ -7,7 +7,6 @@ import java.util.concurrent.CompletionStage;
 import org.infinispan.commons.util.IntSet;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
-import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.xsite.statetransfer.XSiteState;
@@ -63,8 +62,8 @@ public class ControlledIracManager implements IracManager {
    }
 
    @Override
-   public void receiveState(int segment, Object key, Object lockOwner, IracMetadata tombstone) {
-      actual.receiveState(segment, key, lockOwner, tombstone);
+   public void receiveState(int segment, Object key, Object lockOwner) {
+      actual.receiveState(segment, key, lockOwner);
    }
 
    @Override

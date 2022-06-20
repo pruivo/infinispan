@@ -249,12 +249,10 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
    @Override
    public void requestState(Address requestor, IntSet segments) {
       transferStateTo(requestor, segments, updatedKeys.values());
-      iracTombstoneManager.sendStateTo(requestor, segments);
    }
 
    @Override
-   public void receiveState(int segment, Object key, Object lockOwner, IracMetadata tombstone) {
-      iracTombstoneManager.storeTombstoneIfAbsent(segment, key, tombstone);
+   public void receiveState(int segment, Object key, Object lockOwner) {
       updatedKeys.putIfAbsent(key, new IracManagerKeyChangedState(segment, key, lockOwner, false));
       iracExecutor.run();
    }
@@ -324,8 +322,7 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
       ResponseCollector<Void> rspCollector = ignoreLeavers();
       IracStateResponseCommand cmd = commandsFactory.buildIracStateResponseCommand(batch.size());
       for (IracManagerKeyState state : batch) {
-         IracMetadata tombstone = iracTombstoneManager.getTombstone(state.getKey());
-         cmd.add(state, tombstone);
+         cmd.add(state);
       }
       return Completable.fromCompletionStage(rpcManager.invokeCommand(dst, cmd, rspCollector, rpcOptions)
             .exceptionally(throwable -> {
@@ -395,7 +392,7 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
    private Maybe<IracStateData> fetchEntry(IracManagerKeyState state) {
       return Maybe.fromCompletionStage(clusteringDependentLogic.getEntryLoader()
             .loadAndStoreInDataContainer(state.getKey(), state.getSegment())
-            .thenApply(e -> new IracStateData(state, e, iracTombstoneManager.getTombstone(state.getKey())))
+            .thenApply(e -> new IracStateData(state, e))
             .exceptionally(throwable -> {
                log.debugf(throwable, "[IRAC] Failed to load entry to send to remote sites. It will be retried. State=%s", state);
                state.retry();
@@ -421,21 +418,27 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
       Collection<IracManagerKeyState> invalidState = new ArrayList<>(size);
       Collection<IracManagerKeyState> validState = new ArrayList<>(size);
       for (IracStateData data : batch) {
-         if (data.entry == null && data.tombstone == null) {
+         if (data.entry == null) {
+            if (log.isDebugEnabled()) {
+               log.debugf("No InternalCacheEntry found for %s", data.state.getKey());
+            }
             // there a concurrency issue where the entry and the tombstone do not exist (remove following by a put)
             // the put will create a new state and the key will be sent to the remote sites
             invalidState.add(data.state);
             continue;
          }
+         IracMetadata iracMetadata = data.entry.getInternalMetadata().iracMetadata();
+         assert iracMetadata != null;
          validState.add(data.state);
          if (data.state.isExpiration()) {
-            cmd.addExpire(data.state.getKey(), data.tombstone);
-         } else if (data.entry == null) {
-            cmd.addRemove(data.state.getKey(), data.tombstone);
+            cmd.addExpire(data.state.getKey(), iracMetadata);
+         } else if (data.entry.isTombstone()) {
+            cmd.addRemove(data.state.getKey(), iracMetadata);
          } else {
-            cmd.addUpdate(data.state.getKey(), data.entry.getValue(), data.entry.getMetadata(), data.entry.getInternalMetadata().iracMetadata());
+            cmd.addUpdate(data.state.getKey(), data.entry.getValue(), data.entry.getMetadata(), iracMetadata);
          }
       }
+
       IracResponseCollector rspCollector = new IracResponseCollector(commandsFactory.getCacheName(), validState, this::onBatchResponse);
       try {
          for (IracXSiteBackup backup : asyncBackups) {
@@ -692,12 +695,10 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
    private static final class IracStateData {
       final IracManagerKeyState state;
       final InternalCacheEntry<Object, Object> entry;
-      final IracMetadata tombstone;
 
-      private IracStateData(IracManagerKeyState state, InternalCacheEntry<Object, Object> entry, IracMetadata tombstone) {
+      private IracStateData(IracManagerKeyState state, InternalCacheEntry<Object, Object> entry) {
          this.state = Objects.requireNonNull(state);
          this.entry = entry;
-         this.tombstone = tombstone;
       }
    }
 

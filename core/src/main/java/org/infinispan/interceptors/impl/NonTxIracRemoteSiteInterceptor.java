@@ -108,13 +108,9 @@ public class NonTxIracRemoteSiteInterceptor extends DDAsyncInterceptor implement
     * It also performs a conflict resolution if a conflict is found.
     */
    private CompletionStage<Boolean> validateOnPrimary(InvocationContext ctx, IracPutKeyValueCommand command) {
-      final Object key = command.getKey();
+      Object key = command.getKey();
       CacheEntry<?, ?> entry = ctx.lookupEntry(key);
       IracMetadata localMetadata = getIracMetadata(entry);
-
-      if (localMetadata == null) {
-         localMetadata = iracTombstoneManager.getTombstone(key);
-      }
 
       if (needsVersions) {
          // we are in the primary owner with the lock acquired.
@@ -136,10 +132,10 @@ public class NonTxIracRemoteSiteInterceptor extends DDAsyncInterceptor implement
     */
    private void setIracMetadataForOwner(InvocationContext ctx, DataWriteCommand command,
          @SuppressWarnings("unused") Object rv) {
-      final Object key = command.getKey();
+      Object key = command.getKey();
       PrivateMetadata metadata = command.getInternalMetadata();
       iracVersionGenerator.updateVersion(command.getSegment(), metadata.iracMetadata().getVersion());
-      setPrivateMetadata(ctx.lookupEntry(key), command.getSegment(), metadata, iracTombstoneManager, this);
+      setPrivateMetadata(ctx.lookupEntry(key),  metadata, this);
    }
 
    private CompletionStage<Boolean> validateRemoteUpdate(CacheEntry<?, ?> entry, IracPutKeyValueCommand command,
@@ -225,7 +221,7 @@ public class NonTxIracRemoteSiteInterceptor extends DDAsyncInterceptor implement
    }
 
    private void discardUpdate(CacheEntry<?, ?> entry, DataWriteCommand command, IracMetadata metadata) {
-      final Object key = entry.getKey();
+      Object key = entry.getKey();
       logUpdateDiscarded(key, metadata, this);
       assert metadata != null : "[IRAC] Metadata must not be null!";
       command.fail(); // this prevents the sending to the backup owners
@@ -237,11 +233,7 @@ public class NonTxIracRemoteSiteInterceptor extends DDAsyncInterceptor implement
 
    private IracMetadata getIracMetadata(CacheEntry<?, ?> entry) {
       PrivateMetadata privateMetadata = entry.getInternalMetadata();
-      if (privateMetadata == null) { // new entry!
-         return iracTombstoneManager.getTombstone(entry.getKey());
-      }
-      IracMetadata metadata = privateMetadata.iracMetadata();
-      return metadata == null ? iracTombstoneManager.getTombstone(entry.getKey()) : metadata;
+      return privateMetadata == null ? null : privateMetadata.iracMetadata();
    }
 
    private Ownership getOwnership(int segment) {

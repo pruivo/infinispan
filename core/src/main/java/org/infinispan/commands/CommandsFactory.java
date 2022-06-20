@@ -31,10 +31,7 @@ import org.infinispan.commands.irac.IracMetadataRequestCommand;
 import org.infinispan.commands.irac.IracPutManyCommand;
 import org.infinispan.commands.irac.IracRequestStateCommand;
 import org.infinispan.commands.irac.IracStateResponseCommand;
-import org.infinispan.commands.irac.IracTombstoneCleanupCommand;
-import org.infinispan.commands.irac.IracTombstonePrimaryCheckCommand;
 import org.infinispan.commands.irac.IracTombstoneRemoteSiteCheckCommand;
-import org.infinispan.commands.irac.IracTombstoneStateResponseCommand;
 import org.infinispan.commands.irac.IracTouchKeyCommand;
 import org.infinispan.commands.irac.IracUpdateVersionCommand;
 import org.infinispan.commands.read.EntrySetCommand;
@@ -95,7 +92,6 @@ import org.infinispan.commons.util.IntSet;
 import org.infinispan.configuration.cache.XSiteStateTransferMode;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.versioning.irac.IracEntryVersion;
-import org.infinispan.container.versioning.irac.IracTombstoneInfo;
 import org.infinispan.encoding.DataConversion;
 import org.infinispan.expiration.impl.TouchCommand;
 import org.infinispan.factories.ComponentRegistry;
@@ -634,8 +630,6 @@ public interface CommandsFactory {
 
    IracCleanupKeysCommand buildIracCleanupKeyCommand(Collection<? extends IracManagerKeyInfo> state);
 
-   IracTombstoneCleanupCommand buildIracTombstoneCleanupCommand(int maxCapacity);
-
    IracMetadataRequestCommand buildIracMetadataRequestCommand(int segment, IracEntryVersion versionSeen);
 
    IracRequestStateCommand buildIracRequestStateCommand(IntSet segments);
@@ -654,10 +648,6 @@ public interface CommandsFactory {
    XSiteSetStateTransferModeCommand buildXSiteSetStateTransferModeCommand(String site, XSiteStateTransferMode mode);
 
    IracTombstoneRemoteSiteCheckCommand buildIracTombstoneRemoteSiteCheckCommand(List<Object> keys);
-
-   IracTombstoneStateResponseCommand buildIracTombstoneStateResponseCommand(Collection<IracTombstoneInfo> state);
-
-   IracTombstonePrimaryCheckCommand buildIracTombstonePrimaryCheckCommand(Collection<IracTombstoneInfo> tombstones);
 
    IracPutManyCommand buildIracPutManyCommand(int capacity);
 

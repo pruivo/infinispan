@@ -1,43 +1,64 @@
 package org.infinispan.xsite.irac;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
+import org.infinispan.cache.impl.InvocationHelper;
 import org.infinispan.commands.CommandsFactory;
-import org.infinispan.commands.irac.IracTombstoneCleanupCommand;
 import org.infinispan.commands.irac.IracTombstoneRemoteSiteCheckCommand;
+import org.infinispan.commands.write.RemoveTombstoneCommand;
+import org.infinispan.commons.util.IntSet;
+import org.infinispan.commons.util.IntSets;
+import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
+import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.container.entries.TombstoneInternalCacheEntry;
+import org.infinispan.container.impl.InternalDataContainer;
 import org.infinispan.container.versioning.irac.DefaultIracTombstoneManager;
+import org.infinispan.context.InvocationContext;
 import org.infinispan.distribution.DistributionInfo;
 import org.infinispan.distribution.DistributionManager;
 import org.infinispan.distribution.LocalizedCacheTopology;
-import org.infinispan.metadata.impl.IracMetadata;
+import org.infinispan.metadata.impl.PrivateMetadata;
+import org.infinispan.reactive.publisher.impl.DeliveryGuarantee;
+import org.infinispan.reactive.publisher.impl.LocalPublisherManager;
+import org.infinispan.reactive.publisher.impl.SegmentAwarePublisherSupplier;
+import org.infinispan.reactive.publisher.impl.SegmentPublisherSupplier;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.test.AbstractInfinispanTest;
 import org.infinispan.test.TestingUtil;
 import org.infinispan.util.concurrent.BlockingManager;
-import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.util.concurrent.WithinThreadExecutor;
 import org.infinispan.xsite.status.SiteState;
 import org.infinispan.xsite.status.TakeOfflineManager;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
+import org.reactivestreams.Publisher;
 import org.testng.annotations.Test;
+
+import io.reactivex.rxjava3.core.Flowable;
 
 /**
  * Tests the Scheduler in {@link DefaultIracTombstoneManager}.
@@ -69,7 +90,8 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
       Mockito.when(dInfo.isWriteOwner()).thenReturn(true);
 
       LocalizedCacheTopology cacheTopology = Mockito.mock(LocalizedCacheTopology.class);
-      Mockito.when(cacheTopology.getSegmentDistribution(ArgumentMatchers.anyInt())).thenReturn(dInfo);
+      Mockito.when(cacheTopology.getSegmentDistribution(anyInt())).thenReturn(dInfo);
+      Mockito.when(cacheTopology.getLocalPrimarySegments()).thenReturn(IntSets.immutableSet(1));
 
       Mockito.when(dm.getCacheTopology()).thenReturn(cacheTopology);
       return dm;
@@ -78,18 +100,17 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
    private static TakeOfflineManager createTakeOfflineManager() {
       TakeOfflineManager tom = Mockito.mock(TakeOfflineManager.class);
       // hack to prevent creating and mocking xsite commands. Local command needs to be mocked
-      Mockito.when(tom.getSiteState(ArgumentMatchers.anyString())).thenReturn(SiteState.OFFLINE);
+      Mockito.when(tom.getSiteState(anyString())).thenReturn(SiteState.OFFLINE);
       return tom;
    }
 
    private static CommandsFactory createCommandFactory() {
       CommandsFactory factory = Mockito.mock(CommandsFactory.class);
       IracTombstoneRemoteSiteCheckCommand cmd = Mockito.mock(IracTombstoneRemoteSiteCheckCommand.class);
-      Mockito.when(factory.buildIracTombstoneRemoteSiteCheckCommand(ArgumentMatchers.any())).thenReturn(cmd);
+      Mockito.when(factory.buildIracTombstoneRemoteSiteCheckCommand(any())).thenReturn(cmd);
 
-      IracTombstoneCleanupCommand cmd2 = Mockito.mock(IracTombstoneCleanupCommand.class);
-      Mockito.when(cmd2.isEmpty()).thenReturn(false);
-      Mockito.when(factory.buildIracTombstoneCleanupCommand(ArgumentMatchers.anyInt())).thenReturn(cmd2);
+      Mockito.when(factory.buildRemoveTombstoneCommand(anyInt(), anyLong(), anyInt()))
+            .thenAnswer(invocation -> new RemoveTombstoneCommand(null, invocation.getArgument(0), invocation.getArgument(1), (int) invocation.getArgument(2)));
 
       return factory;
    }
@@ -103,33 +124,33 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
       Mockito.when(transport.localSiteName()).thenReturn("B");
       Mockito.when(rpcManager.getTransport()).thenReturn(transport);
       Mockito.when(rpcManager.getSyncRpcOptions()).thenReturn(rpcOptions);
-      Mockito.when(rpcManager.invokeCommand(ArgumentMatchers.anyCollection(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(CompletableFutures.completedNull());
+      Mockito.when(rpcManager.invokeCommand(anyCollection(), any(), any(), any())).thenReturn(CompletableFutures.completedNull());
       return rpcManager;
    }
 
    private static IracManager createIracManager(AtomicBoolean keep) {
       IracManager im = Mockito.mock(IracManager.class);
-      Mockito.when(im.containsKey(ArgumentMatchers.any())).thenAnswer(invocationOnMock -> keep.get());
+      Mockito.when(im.containsKey(any())).thenAnswer(invocationOnMock -> keep.get());
       return im;
    }
 
    private static ScheduledExecutorService createScheduledExecutorService(Queue<? super RunnableData> queue) {
       ScheduledExecutorService executorService = Mockito.mock(ScheduledExecutorService.class);
-      Mockito.when(executorService.schedule(ArgumentMatchers.any(Runnable.class), ArgumentMatchers.anyLong(), ArgumentMatchers.any())).thenAnswer(invocationOnMock -> {
+      Mockito.when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenAnswer(invocationOnMock -> {
          queue.add(new RunnableData(invocationOnMock.getArgument(0), invocationOnMock.getArgument(1)));
          return null;
       });
       return executorService;
    }
 
-   private static IracMetadata createIracMetadata() {
-      return Mockito.mock(IracMetadata.class);
+   private static PrivateMetadata createPrivateMetadata() {
+      return PrivateMetadata.empty();
    }
 
    private static BlockingManager createBlockingManager() {
       BlockingManager blockingManager = Mockito.mock(BlockingManager.class);
-      Mockito.when(blockingManager.asExecutor(ArgumentMatchers.anyString())).thenReturn(new WithinThreadExecutor());
-      Mockito.when(blockingManager.thenComposeBlocking(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any())).thenAnswer(invocationOnMock -> {
+      Mockito.when(blockingManager.asExecutor(anyString())).thenReturn(new WithinThreadExecutor());
+      Mockito.when(blockingManager.thenComposeBlocking(any(), any(), any())).thenAnswer(invocationOnMock -> {
          CompletionStage<Void> stage = invocationOnMock.getArgument(0);
          Function<Void, CompletionStage<Object>> f = invocationOnMock.getArgument(1);
          return stage.thenCompose(f);
@@ -137,7 +158,36 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
       return blockingManager;
    }
 
-   private static DefaultIracTombstoneManager createIracTombstoneManager(Queue<? super RunnableData> queue, int targetSize, long maxDelay, AtomicBoolean keep) {
+   private static InternalDataContainer<?, ?> createDataContainer(MiniDataContainer dataContainer) {
+      InternalDataContainer<?, ?> dc = Mockito.mock(InternalDataContainer.class);
+      Mockito.when(dc.numberOfTombstones()).thenAnswer(invocation -> (long) dataContainer.entries.size());
+      return dc;
+   }
+
+   @SuppressWarnings("unchecked")
+   private static LocalPublisherManager<?, ?> createLocalPublisherManager(MiniDataContainer dataContainer) {
+      SegmentAwarePublisherSupplier<CacheEntry<Object, Object>> publisherSupplier = Mockito.mock(SegmentAwarePublisherSupplier.class);
+      Mockito.when(publisherSupplier.publisherWithSegments()).thenAnswer(invocation -> dataContainer.publish());
+
+      LocalPublisherManager<?, ?> manager = Mockito.mock(LocalPublisherManager.class);
+      Mockito.when(manager.entryPublisher(any(IntSet.class), isNull(), isNull(), anyLong(), any(DeliveryGuarantee.class), any(Function.class))).thenReturn(publisherSupplier);
+      return manager;
+   }
+
+   private static InvocationHelper createInvocationHelper(MiniDataContainer dataContainer) {
+      InvocationHelper helper = Mockito.mock(InvocationHelper.class);
+      InvocationContext ctx = Mockito.mock(InvocationContext.class);
+      Mockito.when(helper.createNonTxInvocationContext()).thenReturn(ctx);
+      Mockito.when(helper.invokeAsync(any(InvocationContext.class), any(RemoveTombstoneCommand.class)))
+            .thenAnswer(invocationOnMock -> {
+               RemoveTombstoneCommand cmd = invocationOnMock.getArgument(1);
+               cmd.getAffectedKeys().forEach(dataContainer::remove);
+               return CompletableFutures.completedNull();
+            });
+      return helper;
+   }
+
+   private static DefaultIracTombstoneManager createIracTombstoneManager(Queue<? super RunnableData> queue, int targetSize, long maxDelay, AtomicBoolean keep, MiniDataContainer dataContainer) {
       DefaultIracTombstoneManager manager = new DefaultIracTombstoneManager(createConfiguration(targetSize, maxDelay));
       TestingUtil.inject(manager,
             createDistributionManager(),
@@ -146,13 +196,17 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
             createBlockingManager(),
             createScheduledExecutorService(queue),
             createCommandFactory(),
-            createRpcManager());
+            createRpcManager(),
+            createDataContainer(dataContainer),
+            createLocalPublisherManager(dataContainer),
+            createInvocationHelper(dataContainer));
       return manager;
    }
 
    public void testDelayIncreaseWithNoTombstones() throws InterruptedException {
+      MiniDataContainer dataContainer = new MiniDataContainer();
       BlockingDeque<RunnableData> queue = new LinkedBlockingDeque<>();
-      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, 1, 1000, new AtomicBoolean(false));
+      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, 1, 1000, new AtomicBoolean(false), dataContainer);
       manager.start();
 
       RunnableData data = queue.poll(10, TimeUnit.SECONDS);
@@ -171,16 +225,17 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
 
    public void testDelayAtSameRate() throws InterruptedException {
       int targetSize = 20;
+      MiniDataContainer dataContainer = new MiniDataContainer();
       BlockingDeque<RunnableData> queue = new LinkedBlockingDeque<>();
-      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, targetSize, 2000, new AtomicBoolean(false));
+      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, targetSize, 2000, new AtomicBoolean(false), dataContainer);
       manager.start();
 
       RunnableData data = queue.poll(10, TimeUnit.SECONDS);
       assertNotNull(data);
       assertEquals(1000, data.delay);
 
-      IracMetadata metadata = createIracMetadata();
-      insertTombstones(targetSize, manager, metadata);
+      PrivateMetadata metadata = createPrivateMetadata();
+      insertTombstones(targetSize, dataContainer, metadata);
 
       data.runnable.run();
       data = queue.poll(10, TimeUnit.SECONDS);
@@ -192,15 +247,16 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
    public void testDelayAtHigherRate() throws InterruptedException {
       int targetSize = 10;
       BlockingDeque<RunnableData> queue = new LinkedBlockingDeque<>();
-      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, targetSize, 2000, new AtomicBoolean(false));
+      MiniDataContainer dataContainer = new MiniDataContainer();
+      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, targetSize, 2000, new AtomicBoolean(false), dataContainer);
       manager.start();
 
       RunnableData data = queue.poll(10, TimeUnit.SECONDS);
       assertNotNull(data);
       assertEquals(1000, data.delay);
 
-      IracMetadata metadata = createIracMetadata();
-      insertTombstones(targetSize * 2, manager, metadata);
+      PrivateMetadata metadata = createPrivateMetadata();
+      insertTombstones(targetSize * 2, dataContainer, metadata);
 
       data.runnable.run();
       data = queue.poll(10, TimeUnit.SECONDS);
@@ -210,16 +266,17 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
 
    public void testDelayAtLowerRate() throws InterruptedException {
       int targetSize = 20;
+      MiniDataContainer dataContainer = new MiniDataContainer();
       BlockingDeque<RunnableData> queue = new LinkedBlockingDeque<>();
-      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, targetSize, 2000, new AtomicBoolean(false));
+      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, targetSize, 2000, new AtomicBoolean(false), dataContainer);
       manager.start();
 
       RunnableData data = queue.poll(10, TimeUnit.SECONDS);
       assertNotNull(data);
       assertEquals(1000, data.delay);
 
-      IracMetadata metadata = createIracMetadata();
-      insertTombstones(targetSize / 2, manager, metadata);
+      PrivateMetadata metadata = createPrivateMetadata();
+      insertTombstones(targetSize / 2, dataContainer, metadata);
 
       data.runnable.run();
       data = queue.poll(10, TimeUnit.SECONDS);
@@ -230,9 +287,10 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
 
    public void testCleanupCantKeepUp() throws InterruptedException {
       int targetSize = 5;
+      MiniDataContainer dataContainer = new MiniDataContainer();
       BlockingDeque<RunnableData> queue = new LinkedBlockingDeque<>();
       AtomicBoolean keep = new AtomicBoolean(true);
-      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, targetSize, 1000, keep);
+      DefaultIracTombstoneManager manager = createIracTombstoneManager(queue, targetSize, 1000, keep, dataContainer);
       manager.start();
 
       RunnableData data = queue.poll(10, TimeUnit.SECONDS);
@@ -240,8 +298,8 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
       assertEquals(500, data.delay);
 
       // Cleanup task didn't clean enough, delay goes down to 1ms
-      IracMetadata metadata = createIracMetadata();
-      insertTombstones(targetSize * 2, manager, metadata);
+      PrivateMetadata metadata = createPrivateMetadata();
+      insertTombstones(targetSize * 2, dataContainer, metadata);
 
       data.runnable.run();
       data = queue.poll(10, TimeUnit.SECONDS);
@@ -249,7 +307,7 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
       assertEquals(1, data.delay);
 
       // Cleanup task didn't clean enough again, delay stays at 1ms
-      insertTombstones(targetSize * 3, manager, metadata);
+      insertTombstones(targetSize * 3, dataContainer, metadata);
 
       data.runnable.run();
       data = queue.poll(10, TimeUnit.SECONDS);
@@ -267,9 +325,9 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
       manager.stop();
    }
 
-   private static void insertTombstones(int targetSize, DefaultIracTombstoneManager manager, IracMetadata metadata) {
+   private static void insertTombstones(int targetSize, MiniDataContainer dataContainer, PrivateMetadata metadata) {
       for (int i = 0; i < targetSize; ++i) {
-         manager.storeTombstone(1, i, metadata);
+         dataContainer.addTombstone(i, metadata);
       }
    }
 
@@ -280,6 +338,56 @@ public class IracTombstoneUnitTest extends AbstractInfinispanTest {
       private RunnableData(Runnable runnable, long delay) {
          this.runnable = runnable;
          this.delay = delay;
+      }
+   }
+
+   private static final class MiniDataContainer {
+      private final Map<Object, CacheEntry<Object, Object>> entries = new ConcurrentHashMap<>();
+
+      public void addTombstone(Object key, PrivateMetadata metadata) {
+         entries.put(key, new TombstoneInternalCacheEntry<>(key, metadata));
+      }
+
+      public void remove(Object key) {
+         entries.remove(key);
+      }
+
+
+      public Publisher<SegmentPublisherSupplier.Notification<CacheEntry<Object, Object>>> publish() {
+         return Flowable.fromIterable(entries.values()).map(ValueNotification::new);
+      }
+   }
+
+   private static final class ValueNotification implements SegmentPublisherSupplier.Notification<CacheEntry<Object, Object>> {
+      private final CacheEntry<Object, Object> entry;
+
+      public ValueNotification(CacheEntry<Object, Object> entry) {
+         this.entry = entry;
+      }
+
+      @Override
+      public boolean isValue() {
+         return true;
+      }
+
+      @Override
+      public boolean isSegmentComplete() {
+         return false;
+      }
+
+      @Override
+      public CacheEntry<Object, Object> value() {
+         return entry;
+      }
+
+      @Override
+      public int valueSegment() {
+         return 1;
+      }
+
+      @Override
+      public int completedSegment() {
+         return 1;
       }
    }
 }

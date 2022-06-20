@@ -302,8 +302,8 @@ public class AsyncBackupTest extends AbstractTwoSitesTest {
       for (int  i = 0; i < initialClusterSize; ++i) {
          Cache<?,?> lonCache = cache(LON, null, i);
          Cache<?,?> nycCache = cache(NYC, null, i);
-         eventually("Tombstone map is not empty in LON", iracTombstoneManager(lonCache)::isEmpty);
-         eventually("Tombstone map is not empty in NYC", iracTombstoneManager(nycCache)::isEmpty);
+         eventuallyEquals("Tombstone map is not empty in LON", 0, iracTombstoneManager(lonCache)::size);
+         eventuallyEquals("Tombstone map is not empty in NYC", 0, iracTombstoneManager(nycCache)::size);
       }
    }
 

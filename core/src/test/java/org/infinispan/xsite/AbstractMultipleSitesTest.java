@@ -154,7 +154,7 @@ public abstract class AbstractMultipleSitesTest extends AbstractXSiteTest {
       // Third, check if the tombstones are removed.
       for (TestSite site : sites) {
          for (Cache<?, ?> cache : site.getCaches(cacheName)) {
-            eventually("Tombstone map is not empty!", iracTombstoneManager(cache)::isEmpty);
+            eventuallyEquals("Tombstone map is not empty!", 0, iracTombstoneManager(cache)::size);
          }
       }
    }

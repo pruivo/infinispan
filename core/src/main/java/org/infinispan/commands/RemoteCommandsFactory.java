@@ -21,10 +21,7 @@ import org.infinispan.commands.irac.IracMetadataRequestCommand;
 import org.infinispan.commands.irac.IracPutManyCommand;
 import org.infinispan.commands.irac.IracRequestStateCommand;
 import org.infinispan.commands.irac.IracStateResponseCommand;
-import org.infinispan.commands.irac.IracTombstoneCleanupCommand;
-import org.infinispan.commands.irac.IracTombstonePrimaryCheckCommand;
 import org.infinispan.commands.irac.IracTombstoneRemoteSiteCheckCommand;
-import org.infinispan.commands.irac.IracTombstoneStateResponseCommand;
 import org.infinispan.commands.irac.IracTouchKeyCommand;
 import org.infinispan.commands.irac.IracUpdateVersionCommand;
 import org.infinispan.commands.module.ModuleCommandFactory;
@@ -486,17 +483,8 @@ public class RemoteCommandsFactory {
             case XSiteSetStateTransferModeCommand.COMMAND_ID:
                command = new XSiteSetStateTransferModeCommand(cacheName);
                break;
-            case IracTombstoneCleanupCommand.COMMAND_ID:
-               command = new IracTombstoneCleanupCommand(cacheName);
-               break;
             case IracTombstoneRemoteSiteCheckCommand.COMMAND_ID:
                command = new IracTombstoneRemoteSiteCheckCommand(cacheName);
-               break;
-            case IracTombstoneStateResponseCommand.COMMAND_ID:
-               command = new IracTombstoneStateResponseCommand(cacheName);
-               break;
-            case IracTombstonePrimaryCheckCommand.COMMAND_ID:
-               command = new IracTombstonePrimaryCheckCommand(cacheName);
                break;
             case IracPutManyCommand.COMMAND_ID:
                command = new IracPutManyCommand(cacheName);

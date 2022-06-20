@@ -7,7 +7,6 @@ import org.infinispan.commands.irac.IracClearKeysCommand;
 import org.infinispan.commons.util.IntSet;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
-import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.xsite.statetransfer.XSiteState;
@@ -93,9 +92,8 @@ public interface IracManager {
     * @param segment   The key's segment.
     * @param key       The key modified.
     * @param lockOwner The last {@code lockOwner}.
-    * @param tombstone The tombstone (can be {@code null})
     */
-   void receiveState(int segment, Object key, Object lockOwner, IracMetadata tombstone);
+   void receiveState(int segment, Object key, Object lockOwner);
 
    /**
     * Checks if the given key is expired on all other sites. If the key is expired on all other sites this will return
