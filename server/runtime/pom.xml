@@ -527,7 +527,7 @@
       <profile>
          <id>community</id>
          <activation>
-            <activeByDefault>true</activeByDefault>
+            <activeByDefault>false</activeByDefault>
          </activation>
          <dependencies>
             <dependency>
