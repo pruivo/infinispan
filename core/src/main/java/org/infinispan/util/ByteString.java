@@ -1,7 +1,8 @@
 package org.infinispan.util;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
-import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -76,14 +77,19 @@ public final class ByteString implements Comparable<ByteString> {
       return s;
    }
 
-   public static void writeObject(ObjectOutput output, ByteString object) throws IOException {
+   public int serializedSize() {
+      //1 (size) + content
+      return 1+ bytes.length;
+   }
+
+   public static void writeObject(DataOutput output, ByteString object) throws IOException {
       output.writeByte(object.bytes.length);
       if (object.bytes.length > 0) {
          output.write(object.bytes);
       }
    }
 
-   public static ByteString readObject(ObjectInput input) throws IOException {
+   public static ByteString readObject(DataInput input) throws IOException {
       int len = input.readUnsignedByte();
       if (len == 0)
          return EMPTY;

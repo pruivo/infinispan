@@ -164,6 +164,16 @@
          <artifactId>javax.json</artifactId>
       </dependency>
       <dependency>
+         <groupId>org.jgroups</groupId>
+         <artifactId>jgroups-raft</artifactId>
+         <exclusions>
+            <exclusion>
+               <groupId>*</groupId>
+               <artifactId>*</artifactId>
+            </exclusion>
+         </exclusions>
+      </dependency>
+      <dependency>
          <groupId>org.kohsuke.metainf-services</groupId>
          <artifactId>metainf-services</artifactId>
       </dependency>

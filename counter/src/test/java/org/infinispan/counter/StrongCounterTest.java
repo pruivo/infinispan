@@ -63,7 +63,7 @@ public class StrongCounterTest extends AbstractCounterTest<StrongTestCounter> {
          }));
       }
 
-      final Set<Long> uniqueValuesCheck = new HashSet<>();
+      final Set<Long> uniqueValuesCheck = new HashSet<>((int) counterLimit);
       for (Future<List<Long>> w : workers) {
          List<Long> returnValues = w.get(1, TimeUnit.MINUTES);
          for (Long l : returnValues) {
@@ -287,7 +287,7 @@ public class StrongCounterTest extends AbstractCounterTest<StrongTestCounter> {
       return CLUSTER_SIZE;
    }
 
-   private void assertUnique(AtomicIntegerArray retValues, long it) {
+   private static void assertUnique(AtomicIntegerArray retValues, long it) {
       int successCount = 0;
       for (int ix = 0; ix != retValues.length(); ++ix) {
          successCount += retValues.get(ix);

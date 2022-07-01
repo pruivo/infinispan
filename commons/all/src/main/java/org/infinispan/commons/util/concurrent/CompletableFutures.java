@@ -180,6 +180,11 @@ public final class CompletableFutures {
       return (Function<T, R>) TO_NULL;
    }
 
+   public static <T> Function<T, Void> toVoidFunction() {
+      //noinspection unchecked
+      return (Function<T, Void>) TO_NULL;
+   }
+
    public static <T> Function<T, Boolean> toTrueFunction() {
       //noinspection unchecked
       return (Function<T, Boolean>) TO_TRUE_FUNCTION;

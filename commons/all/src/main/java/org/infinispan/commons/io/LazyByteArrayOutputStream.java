@@ -144,4 +144,8 @@ public final class LazyByteArrayOutputStream extends OutputStream {
    public int size() {
       return count;
    }
+
+   public ByteBuffer toByteBuffer() {
+      return ByteBufferImpl.create(buf, 0, count);
+   }
 }
