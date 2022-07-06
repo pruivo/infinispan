@@ -119,7 +119,6 @@
       <module>client/hotrod</module>
       <module>client/hotrod-jakarta</module>
       <module>client/infinispan-key-value-store-hotrod</module>
-      <module>archetypes</module>
       <module>all</module>
       <module>all/cli</module>
       <module>spring/spring5</module>
