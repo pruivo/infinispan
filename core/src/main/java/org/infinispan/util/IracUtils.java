@@ -113,4 +113,13 @@ public final class IracUtils {
       entry.setInternalMetadata(internalMetadata);
    }
 
+   public static void copyMetadataFromStateTransfer(CacheEntry<?,?> entry, PrivateMetadata metadata, LogSupplier logSupplier) {
+      assert entry != null;
+      assert metadata != null;
+      assert metadata.iracMetadata() != null;
+      if (logSupplier.isTraceEnabled()) {
+         logSupplier.getLog().tracef("[IRAC] Copy metadata from state transfer for key %s. Metadata=%s", entry.getKey(), metadata);
+      }
+      entry.setInternalMetadata(metadata);
+   }
 }

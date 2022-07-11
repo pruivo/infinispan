@@ -1,6 +1,8 @@
 package org.infinispan.interceptors.impl;
 
 import static org.infinispan.metadata.impl.PrivateMetadata.getBuilder;
+import static org.infinispan.util.IracUtils.copyMetadataFromStateTransfer;
+import static org.infinispan.util.IracUtils.findIracMetadataFromCacheEntry;
 import static org.infinispan.util.IracUtils.setIracMetadata;
 
 import java.lang.invoke.MethodHandles;
@@ -30,7 +32,6 @@ import org.infinispan.interceptors.InvocationFinallyAction;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.metadata.impl.IracMetadata;
 import org.infinispan.metadata.impl.PrivateMetadata;
-import org.infinispan.util.IracUtils;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.util.logging.LogSupplier;
@@ -155,7 +156,7 @@ public abstract class AbstractIracLocalSiteInterceptor extends DDAsyncIntercepto
    protected Object visitNonTxDataWriteCommand(InvocationContext ctx, DataWriteCommand command) {
       Object key = command.getKey();
       if (isIracState(command)) { //all the state transfer/preload is done via put commands.
-         setMetadataToCacheEntry(ctx.lookupEntry(key), command.getInternalMetadata(key).iracMetadata());
+         copyMetadataFromStateTransfer(ctx.lookupEntry(key), command.getInternalMetadata(), this);
          return invokeNext(ctx, command);
       }
       if (command.hasAnyFlag(FlagBitSets.IRAC_UPDATE)) {
@@ -175,7 +176,7 @@ public abstract class AbstractIracLocalSiteInterceptor extends DDAsyncIntercepto
       if (getOwnership(segment) != Ownership.PRIMARY) {
          return;
       }
-      Optional<IracMetadata> entryMetadata = IracUtils.findIracMetadataFromCacheEntry(ctx.lookupEntry(key));
+      Optional<IracMetadata> entryMetadata = findIracMetadataFromCacheEntry(ctx.lookupEntry(key));
       IracMetadata metadata;
       // RemoveExpired should lose to any other conflicting write
       if (command instanceof RemoveExpiredCommand) {

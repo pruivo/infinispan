@@ -1,5 +1,6 @@
 package org.infinispan.interceptors.impl;
 
+import static org.infinispan.util.IracUtils.copyMetadataFromStateTransfer;
 import static org.infinispan.util.IracUtils.getIracVersionFromCacheEntry;
 
 import java.util.Iterator;
@@ -176,7 +177,7 @@ public class PessimisticTxIracLocalInterceptor extends AbstractIracLocalSiteInte
    private Object visitDataWriteCommand(InvocationContext ctx, DataWriteCommand command) {
       Object key = command.getKey();
       if (isIracState(command)) {
-         setMetadataToCacheEntry(ctx.lookupEntry(key), command.getInternalMetadata(key).iracMetadata());
+         copyMetadataFromStateTransfer(ctx.lookupEntry(key), command.getInternalMetadata(), this);
          return invokeNext(ctx, command);
       }
       return skipCommand(ctx, command) ?

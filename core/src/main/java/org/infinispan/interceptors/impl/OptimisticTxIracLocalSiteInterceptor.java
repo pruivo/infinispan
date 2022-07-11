@@ -1,6 +1,7 @@
 package org.infinispan.interceptors.impl;
 
 import static org.infinispan.remoting.responses.PrepareResponse.asPrepareResponse;
+import static org.infinispan.util.IracUtils.copyMetadataFromStateTransfer;
 import static org.infinispan.util.IracUtils.getIracVersionFromCacheEntry;
 
 import java.util.HashMap;
@@ -46,7 +47,7 @@ public class OptimisticTxIracLocalSiteInterceptor extends AbstractIracLocalSiteI
       Object key = command.getKey();
       if (isIracState(command)) {
          // if this is a state transfer from a remote site, we set the versions here
-         setMetadataToCacheEntry(ctx.lookupEntry(key), command.getInternalMetadata(key).iracMetadata());
+         copyMetadataFromStateTransfer(ctx.lookupEntry(key), command.getInternalMetadata(), this);
       }
       return invokeNext(ctx, command);
    }
