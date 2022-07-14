@@ -284,7 +284,9 @@
       <versionx.io.netty.netty-resolver>${version.netty}</versionx.io.netty.netty-resolver>
       <versionx.io.netty.netty-transport>${version.netty}</versionx.io.netty.netty-transport>
       <versionx.io.netty.netty-transport-native-epoll>${version.netty}</versionx.io.netty.netty-transport-native-epoll>
+      <versionx.io.netty.netty-transport-native-epoll-aarch>${version.netty}</versionx.io.netty.netty-transport-native-epoll-aarch>
       <versionx.io.netty.netty-transport-native-unix-common>${version.netty}</versionx.io.netty.netty-transport-native-unix-common>
+      <versionx.io.netty.incubator.netty-incubator-transport-native-io_uring-aarch>${version.netty.incubator.iouring}</versionx.io.netty.incubator.netty-incubator-transport-native-io_uring-aarch>
       <versionx.io.protostuff.protostuff-collectionschema>${version.protostuff}</versionx.io.protostuff.protostuff-collectionschema>
       <versionx.io.protostuff.protostuff-core>${version.protostuff}</versionx.io.protostuff.protostuff-core>
       <versionx.io.protostuff.protostuff-runtime>${version.protostuff}</versionx.io.protostuff.protostuff-runtime>
@@ -740,7 +742,7 @@
          <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-native-epoll</artifactId>
-            <version>${versionx.io.netty.netty-transport-native-epoll}</version>
+            <version>${versionx.io.netty.netty-transport-native-epoll-aarch}</version>
             <classifier>linux-aarch_64</classifier>
          </dependency>
          <dependency>
@@ -762,7 +764,7 @@
          <dependency>
             <groupId>io.netty.incubator</groupId>
             <artifactId>netty-incubator-transport-native-io_uring</artifactId>
-            <version>${version.netty.incubator.iouring}</version>
+            <version>${versionx.io.netty.incubator.netty-incubator-transport-native-io_uring-aarch}</version>
             <classifier>linux-aarch_64</classifier>
          </dependency>
          <dependency>
