@@ -36,6 +36,7 @@ public class AddAndGetOperation implements RaftCounterOperation<Long> {
    @Override
    public ByteBuffer execute(RaftCounter counter) {
       CounterValue result = Utils.add(counter.getConfiguration(), counter.get(), delta);
+      counter.set(result);
       switch (result.getState()) {
          case VALID:
             return OperationResult.writeResultWithLong(result.getValue());
@@ -63,6 +64,14 @@ public class AddAndGetOperation implements RaftCounterOperation<Long> {
    public void writeTo(DataOutput output) throws IOException {
       ByteString.writeObject(output, name);
       output.writeLong(delta);
+   }
+
+   @Override
+   public String toString() {
+      return "AddAndGetOperation{" +
+            "name=" + name +
+            ", delta=" + delta +
+            '}';
    }
 
    public static AddAndGetOperation readFrom(DataInput input) throws IOException {

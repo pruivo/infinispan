@@ -61,6 +61,14 @@ public class CreateCounterOperation implements RaftCounterOperation<Void> {
       return configuration;
    }
 
+   @Override
+   public String toString() {
+      return "CreateCounterOperation{" +
+            "name=" + name +
+            ", configuration=" + configuration +
+            '}';
+   }
+
    public static CreateCounterOperation readFrom(DataInput input) throws IOException {
       return new CreateCounterOperation(ByteString.readObject(input), readConfiguration(input));
    }

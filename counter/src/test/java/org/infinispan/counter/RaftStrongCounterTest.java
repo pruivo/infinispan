@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.infinispan.commons.test.TestResourceTracker;
 import org.infinispan.configuration.global.GlobalConfigurationBuilder;
 import org.infinispan.counter.impl.CounterModuleLifecycle;
 import org.infinispan.counter.impl.factory.RaftStrongCounterFactory;

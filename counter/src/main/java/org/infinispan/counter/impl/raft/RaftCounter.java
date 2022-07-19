@@ -95,7 +95,7 @@ public class RaftCounter implements StrongCounter, InternalCounterAdmin {
 
    @Override
    public CompletableFuture<Long> compareAndSwap(long expect, long update) {
-      CompareAndSwapOperation op = new CompareAndSwapOperation(name, expect, expect);
+      CompareAndSwapOperation op = new CompareAndSwapOperation(name, expect, update);
       return raftChannel.sendOperation(op)
             .thenApply(op)
             .toCompletableFuture();
@@ -121,6 +121,9 @@ public class RaftCounter implements StrongCounter, InternalCounterAdmin {
    }
 
    public void set(CounterValue counterValue) {
+      if (log.isTraceEnabled()) {
+         log.tracef("Raft Counter '%s' updated: %s", name, counterValue);
+      }
       this.counterValue = Objects.requireNonNull(counterValue);
    }
 }

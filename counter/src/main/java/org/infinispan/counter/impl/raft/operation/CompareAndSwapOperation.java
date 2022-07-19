@@ -3,17 +3,22 @@ package org.infinispan.counter.impl.raft.operation;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 
 import org.infinispan.commons.io.ByteBuffer;
 import org.infinispan.counter.impl.Utils;
 import org.infinispan.counter.impl.entries.CounterValue;
 import org.infinispan.counter.impl.raft.RaftCounter;
+import org.infinispan.counter.logging.Log;
 import org.infinispan.util.ByteString;
+import org.infinispan.util.logging.LogFactory;
 
 /**
  * TODO!
  */
 public class CompareAndSwapOperation implements RaftCounterOperation<Long> {
+
+   private static final Log log = LogFactory.getLog(MethodHandles.lookup().lookupClass(), Log.class);
 
    private final ByteString name;
    private final long expectedValue;
@@ -54,7 +59,11 @@ public class CompareAndSwapOperation implements RaftCounterOperation<Long> {
 
    @Override
    public Long readResult(ByteBuffer data) {
-      return OperationResult.readResultMayBeLong(data, RaftCounter.log);
+      Long result = OperationResult.readResultMayBeLong(data, RaftCounter.log);
+      if (log.isTraceEnabled()) {
+         log.tracef("CompareAndSwap %s result is %s", this, result);
+      }
+      return result;
    }
 
    @Override
@@ -68,6 +77,15 @@ public class CompareAndSwapOperation implements RaftCounterOperation<Long> {
       ByteString.writeObject(output, name);
       output.writeLong(expectedValue);
       output.writeLong(updatedValue);
+   }
+
+   @Override
+   public String toString() {
+      return "CompareAndSwapOperation{" +
+            "name=" + name +
+            ", expectedValue=" + expectedValue +
+            ", updatedValue=" + updatedValue +
+            '}';
    }
 
    public static CompareAndSwapOperation readFrom(DataInput input) throws IOException {

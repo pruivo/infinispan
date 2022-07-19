@@ -186,25 +186,30 @@ public class StrongCounterTest extends AbstractCounterTest<StrongTestCounter> {
          final int threadIndex = i;
          final int cmIndex = i % clusterSize();
          workers.add(fork(() -> {
-            long iteration = 0;
-            final long initialValue = 0;
-            long previousValue = initialValue;
-            CounterManager manager = counterManager(cmIndex);
-            StrongTestCounter counter = createCounter(manager, counterName, initialValue);
-            while (iteration < maxIterations) {
-               assertEquals(previousValue, counter.getValue());
-               long update = previousValue + 1;
-               barrier.await();
-               //all threads calling compareAndSet at the same time, only one should succeed
-               long ret = counter.compareAndSwap(previousValue, update);
-               boolean success = ret == previousValue;
-               previousValue = success ? update : ret;
-               retValues.set(threadIndex, success ? 1 : 0);
-               barrier.await();
-               assertUnique(retValues, iteration);
-               ++iteration;
+            try {
+               long iteration = 0;
+               final long initialValue = 0;
+               long previousValue = initialValue;
+               CounterManager manager = counterManager(cmIndex);
+               StrongTestCounter counter = createCounter(manager, counterName, initialValue);
+               while (iteration < maxIterations) {
+                  assertEquals(previousValue, counter.getValue());
+                  long update = previousValue + 1;
+                  barrier.await(10, TimeUnit.SECONDS);
+                  //all threads calling compareAndSet at the same time, only one should succeed
+                  long ret = counter.compareAndSwap(previousValue, update);
+                  boolean success = ret == previousValue;
+                  previousValue = success ? update : ret;
+                  retValues.set(threadIndex, success ? 1 : 0);
+                  barrier.await(10, TimeUnit.SECONDS);
+                  assertUnique(retValues, iteration);
+                  ++iteration;
+               }
+               return true;
+            } catch (Throwable t) {
+               log.fatal(t);
+               throw t;
             }
-            return true;
          }));
       }
 

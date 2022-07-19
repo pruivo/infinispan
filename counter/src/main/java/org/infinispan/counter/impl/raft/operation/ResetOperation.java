@@ -52,6 +52,13 @@ public class ResetOperation implements RaftCounterOperation<Void> {
       ByteString.writeObject(output, name);
    }
 
+   @Override
+   public String toString() {
+      return "ResetOperation{" +
+            "name=" + name +
+            '}';
+   }
+
    public static ResetOperation readFrom(DataInput input) throws IOException {
       return new ResetOperation(ByteString.readObject(input));
    }
