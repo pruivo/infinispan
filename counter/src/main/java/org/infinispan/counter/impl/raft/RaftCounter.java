@@ -17,6 +17,7 @@ import org.infinispan.counter.impl.entries.CounterValue;
 import org.infinispan.counter.impl.manager.InternalCounterAdmin;
 import org.infinispan.counter.impl.raft.operation.AddAndGetOperation;
 import org.infinispan.counter.impl.raft.operation.CompareAndSwapOperation;
+import org.infinispan.counter.impl.raft.operation.GetValueOperation;
 import org.infinispan.counter.impl.raft.operation.ResetOperation;
 import org.infinispan.util.ByteString;
 
@@ -46,7 +47,10 @@ public class RaftCounter implements StrongCounter, InternalCounterAdmin {
 
    @Override
    public CompletableFuture<Long> getValue() {
-      return CompletableFuture.completedFuture(counterValue.getValue());
+      GetValueOperation op = new GetValueOperation(name);
+      return raftChannel.sendOperation(op)
+            .thenApply(op)
+            .toCompletableFuture();
    }
 
    @Override

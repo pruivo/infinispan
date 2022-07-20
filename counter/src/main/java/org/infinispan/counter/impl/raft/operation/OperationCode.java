@@ -19,6 +19,7 @@ public enum OperationCode {
    public static final byte ADD_AND_GET = 1;
    public static final byte COMPARE_AND_SWAP = 2;
    public static final byte RESET = 3;
+   public static final byte GET = 4;
 
    public static ByteBuffer encode(RaftCounterOperation<?> operation) throws IOException {
       // 1 (operation code) + operation arguments
@@ -41,6 +42,8 @@ public enum OperationCode {
             return CompareAndSwapOperation.readFrom(input);
          case RESET:
             return ResetOperation.readFrom(input);
+         case GET:
+            return GetValueOperation.readFrom(input);
          default:
             throw new IllegalStateException();
       }

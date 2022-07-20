@@ -24,6 +24,7 @@ import org.infinispan.counter.logging.Log;
 import org.infinispan.remoting.transport.raft.RaftChannel;
 import org.infinispan.remoting.transport.raft.RaftStateMachine;
 import org.infinispan.util.ByteString;
+import org.infinispan.util.concurrent.NonBlockingManager;
 import org.infinispan.util.logging.LogFactory;
 
 /**
@@ -35,6 +36,11 @@ public class RaftCountersStateMachine implements RaftStateMachine, RaftOperation
 
    private RaftChannel raftChannel;
    private final Map<ByteString, CompletableFuture<RaftCounter>> counters = new ConcurrentHashMap<>(16);
+   private final NonBlockingManager nonBlockingManager;
+
+   public RaftCountersStateMachine(NonBlockingManager nonBlockingManager) {
+      this.nonBlockingManager = nonBlockingManager;
+   }
 
    @Override
    public void init(RaftChannel raftChannel) {
@@ -52,7 +58,7 @@ public class RaftCountersStateMachine implements RaftStateMachine, RaftOperation
          RaftCounter counter = new RaftCounter(name, this, ((CreateCounterOperation) operation).getConfiguration());
          CompletableFuture<RaftCounter> existing = counters.putIfAbsent(name, CompletableFuture.completedFuture(counter));
          if (existing != null) {
-            existing.complete(counter);
+            nonBlockingManager.complete(existing, counter);
          }
          return EmptyByteBuffer.INSTANCE;
       }
