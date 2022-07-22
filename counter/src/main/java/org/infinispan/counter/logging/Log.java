@@ -111,4 +111,7 @@ public interface Log extends BasicLogger {
 
    @Message(value = "MBean registration failed", id = 29529)
    CounterException jmxRegistrationFailed(@Cause Throwable cause);
+
+   @Message(value = "FORK protocol required on JGroups channel.", id = 29530)
+   IllegalArgumentException forkProtocolRequired();
 }

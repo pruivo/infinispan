@@ -54,7 +54,8 @@ import org.infinispan.util.logging.LogFactory;
 public class CounterModuleLifecycle implements ModuleLifecycle {
 
    public static final String COUNTER_CACHE_NAME = "org.infinispan.COUNTER";
-   public static final String RAFT_COUNTER_FEATURE = "raft-counter";
+   public static final String JGROUPS_COUNTER_FEATURE = "jgroups-counter";
+   public static final String JGROUPS_COUNTER_CHANNEL_ID = "ispn-counter";
    public static final String RAFT_COUNTER_CHANNEL_ID = "raft-counter";
    private static final Log log = LogFactory.getLog(CounterModuleLifecycle.class, Log.class);
 

@@ -71,7 +71,7 @@ public class RaftCounter implements StrongCounter, InternalCounterAdmin {
 
    @Override
    public CompletionStage<Void> destroy() {
-      return null;
+      return reset();
    }
 
    @Override

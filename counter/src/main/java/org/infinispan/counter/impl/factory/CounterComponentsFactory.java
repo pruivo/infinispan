@@ -3,6 +3,8 @@ package org.infinispan.counter.impl.factory;
 import static org.infinispan.util.logging.Log.CONTAINER;
 
 import org.infinispan.counter.api.CounterManager;
+import org.infinispan.counter.configuration.CounterManagerConfiguration;
+import org.infinispan.counter.configuration.Reliability;
 import org.infinispan.counter.impl.CounterModuleLifecycle;
 import org.infinispan.counter.impl.listener.CounterManagerNotificationManager;
 import org.infinispan.counter.impl.manager.CounterConfigurationManager;
@@ -19,6 +21,7 @@ import org.infinispan.factories.impl.ComponentAlias;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.remoting.transport.Transport;
+import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 
 /**
  * {@link ComponentFactory} for counters.
@@ -62,10 +65,18 @@ public class CounterComponentsFactory extends AbstractComponentFactory implement
    }
 
    private StrongCounterFactory createStrongCounterFactory() {
-      if (globalConfiguration.features().isAvailable(CounterModuleLifecycle.RAFT_COUNTER_FEATURE) &&
-            transport.raftManager().isRaftAvailable()) {
-         return new RaftStrongCounterFactory();
+      if (globalConfiguration.features().isAvailable(CounterModuleLifecycle.JGROUPS_COUNTER_FEATURE)) {
+         if (globalConfiguration.module(CounterManagerConfiguration.class).reliability() == Reliability.CONSISTENT) {
+            if (transport.raftManager().isRaftAvailable()) {
+               return new RaftStrongCounterFactory();
+            }
+         } else {
+            if (transport instanceof JGroupsTransport) {
+               return new JGroupsStrongCounterFactory();
+            }
+         }
       }
+      // fallback to cache based counters
       return new CacheBasedStrongCounterFactory();
    }
 }

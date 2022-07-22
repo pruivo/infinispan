@@ -31,7 +31,6 @@ public class RaftStrongCounterFactory implements StrongCounterFactory, Supplier<
 
    @Start
    public void start() {
-
       stateMachine = transport.raftManager().getOrRegisterStateMachine(RAFT_COUNTER_CHANNEL_ID, this, raftConfiguration());
    }
 
