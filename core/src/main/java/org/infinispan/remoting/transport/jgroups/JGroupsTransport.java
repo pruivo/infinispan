@@ -95,6 +95,7 @@ import org.infinispan.remoting.transport.impl.SingletonMapResponseCollector;
 import org.infinispan.remoting.transport.impl.SiteUnreachableXSiteResponse;
 import org.infinispan.remoting.transport.impl.XSiteResponseImpl;
 import org.infinispan.remoting.transport.raft.RaftManager;
+import org.infinispan.util.concurrent.BlockingManager;
 import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -181,6 +182,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
    protected ScheduledExecutorService timeoutExecutor;
    @Inject @ComponentName(KnownComponentNames.NON_BLOCKING_EXECUTOR)
    protected ExecutorService nonBlockingExecutor;
+   @Inject BlockingManager blockingManager;
    @Inject protected CacheManagerJmxRegistration jmxRegistration;
    @Inject protected GlobalXSiteAdminOperations globalXSiteAdminOperations;
    @Inject protected ComponentRef<MetricsCollector> metricsCollector;
@@ -1530,7 +1532,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
          if (requestId != Request.NO_REQUEST_ID) {
             if (log.isTraceEnabled())
                log.tracef("%s received request %d from %s: %s", getAddress(), requestId, src, command);
-            reply = response -> sendResponse(src, response, requestId, command);
+            reply = response -> blockingManager.runBlocking(() -> sendResponse(src, response, requestId, command), "jgroups-reply-" + requestId);
          } else {
             if (log.isTraceEnabled())
                log.tracef("%s received command from %s: %s", getAddress(), src, command);
