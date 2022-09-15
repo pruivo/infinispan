@@ -419,6 +419,7 @@
       <versionx.org.wildfly.maven.plugins.licenses-plugin>2.3.0.Final</versionx.org.wildfly.maven.plugins.licenses-plugin>
       <versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel7-x86_64>${version.org.wildfly.openssl.natives.linux_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel7-x86_64>
       <versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel8-x86_64>${version.org.wildfly.openssl.natives.linux_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel8-x86_64>
+      <versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel9-x86_64>${version.org.wildfly.openssl.natives.linux_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel9-x86_64>
       <versionx.org.wildfly.openssl.wildfly-openssl-linux-ppc64le>${version.org.wildfly.openssl.natives}</versionx.org.wildfly.openssl.wildfly-openssl-linux-ppc64le>
       <versionx.org.wildfly.openssl.wildfly-openssl-linux-s390x>${version.org.wildfly.openssl.natives}</versionx.org.wildfly.openssl.wildfly-openssl-linux-s390x>
       <versionx.org.wildfly.openssl.wildfly-openssl-macosx-x86_64>${version.org.wildfly.openssl.natives.macos_x86_64}</versionx.org.wildfly.openssl.wildfly-openssl-macosx-x86_64>
@@ -1833,6 +1834,11 @@
             <groupId>org.wildfly.openssl</groupId>
             <artifactId>wildfly-openssl-linux-rhel8-x86_64</artifactId>
             <version>${versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel8-x86_64}</version>
+         </dependency>
+         <dependency>
+            <groupId>org.wildfly.openssl</groupId>
+            <artifactId>wildfly-openssl-linux-rhel9-x86_64</artifactId>
+            <version>${versionx.org.wildfly.openssl.wildfly-openssl-linux-rhel9-x86_64}</version>
          </dependency>
          <dependency>
             <groupId>org.wildfly.openssl</groupId>
