@@ -27,14 +27,18 @@ public class CounterEventImpl implements CounterEvent {
    }
 
    public static CounterEvent create(long oldValue, long newValue) {
-      return new CounterEventImpl(oldValue, CounterState.VALID, newValue, CounterState.VALID);
+      return create(oldValue, CounterState.VALID, newValue, CounterState.VALID);
    }
 
    public static CounterEvent create(CounterValue oldValue, CounterValue newValue) {
       if (oldValue == null) {
-         return new CounterEventImpl(newValue.getValue(), newValue.getState(), newValue.getValue(), newValue.getState());
+         return create(newValue.getValue(), newValue.getState(), newValue.getValue(), newValue.getState());
       }
-      return new CounterEventImpl(oldValue.getValue(), oldValue.getState(), newValue.getValue(), newValue.getState());
+      return create(oldValue.getValue(), oldValue.getState(), newValue.getValue(), newValue.getState());
+   }
+
+   public static CounterEvent create(long oldValue, CounterState oldState, long newValue, CounterState newState) {
+      return new CounterEventImpl(oldValue, oldState, newValue, newState);
    }
 
    @Override

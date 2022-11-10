@@ -2,6 +2,7 @@ package org.infinispan.counter.impl.listener;
 
 import static org.infinispan.commons.util.concurrent.CompletableFutures.completedNull;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -134,6 +135,13 @@ public class CounterManagerNotificationManager {
       counters.remove(counterName);
    }
 
+   public void triggerEvent(Collection<? extends CounterListener> listeners, CounterEvent event) {
+      if (listeners.isEmpty() || event == null) {
+         return;
+      }
+      userListenerExecutor.execute(() -> listeners.forEach(l -> l.onUpdate(event)), event);
+   }
+
    /**
     * A holder for a counter that container the {@link CounterEventGenerator}, the {@link TopologyChangeListener} and
     * the user's {@link CounterListener}.
@@ -236,15 +244,8 @@ public class CounterManagerNotificationManager {
          synchronized (holder.generator) {
             //weak counter events execute the updateState method in parallel.
             //if we don't synchronize, we can have events reordered.
-            triggerUserListener(holder.userListeners, holder.generator.generate(key, event.getValue()));
+            triggerEvent(holder.userListeners, holder.generator.generate(key, event.getValue()));
          }
-      }
-
-      private void triggerUserListener(List<CounterListenerResponse<?>> userListeners, CounterEvent event) {
-         if (userListeners.isEmpty() || event == null) {
-            return;
-         }
-         userListenerExecutor.execute(() -> userListeners.forEach(l -> l.onUpdate(event)), event);
       }
 
       CompletionStage<Void> register(Cache<? extends CounterKey, CounterValue> cache) {
