@@ -91,6 +91,11 @@
             <artifactId>blockhound</artifactId>
             <optional>true</optional>
         </dependency>
+        <dependency>
+            <groupId>org.jgroups</groupId>
+            <artifactId>jgroups-raft</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>org.infinispan</groupId>

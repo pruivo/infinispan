@@ -1,10 +1,13 @@
 package org.infinispan.counter.util;
 
+import static org.testng.AssertJUnit.*;
+
 import org.infinispan.counter.api.SyncStrongCounter;
 import org.infinispan.counter.api.CounterConfiguration;
 import org.infinispan.counter.api.CounterListener;
 import org.infinispan.counter.api.Handle;
 import org.infinispan.counter.api.StrongCounter;
+import org.testng.AssertJUnit;
 
 /**
  * @author Pedro Ruivo
@@ -80,5 +83,9 @@ public class StrongTestCounter implements TestCounter {
 
    public long compareAndSwap(long expect, long value) {
       return syncCounter.compareAndSwap(expect, value);
+   }
+
+   public <T extends StrongCounter> void assertImplementation(Class<T> clazz) {
+      assertTrue(counter.getClass().isAssignableFrom(clazz));
    }
 }

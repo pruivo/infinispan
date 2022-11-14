@@ -7,7 +7,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
 
 import org.infinispan.counter.api.CounterConfiguration;
 import org.infinispan.counter.api.CounterManager;
@@ -23,7 +22,7 @@ import org.testng.annotations.Test;
 @Test(groups = {"functional", "smoke"})
 public abstract class AbstractCounterTest<T extends TestCounter> extends BaseCounterTest {
 
-   public void testDiffInitValues(Method method) throws ExecutionException, InterruptedException {
+   public void testDiffInitValues(Method method) {
       final TestContext context = new TestContext();
       final String counterName = method.getName();
       long initialValue = 0;
@@ -47,7 +46,7 @@ public abstract class AbstractCounterTest<T extends TestCounter> extends BaseCou
       }
    }
 
-   public void testReset(Method method) throws ExecutionException, InterruptedException {
+   public void testReset(Method method) {
       final String counterName = method.getName();
       final TestContext context = new TestContext();
       context.printSeed(counterName);
@@ -80,7 +79,7 @@ public abstract class AbstractCounterTest<T extends TestCounter> extends BaseCou
       }
    }
 
-   public void testMaxAndMinLong(Method method) throws ExecutionException, InterruptedException {
+   public void testMaxAndMinLong(Method method) {
       final String counterName = method.getName();
       T counter = createCounter(counterManager(0), counterName, 0);
 
@@ -139,7 +138,7 @@ public abstract class AbstractCounterTest<T extends TestCounter> extends BaseCou
       }
    }
 
-   class TestContext {
+   static class TestContext {
       final Random random;
       private final long seed;
 

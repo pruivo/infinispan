@@ -54,6 +54,7 @@ import org.infinispan.util.logging.LogFactory;
 public class CounterModuleLifecycle implements ModuleLifecycle {
 
    public static final String COUNTER_CACHE_NAME = "org.infinispan.COUNTER";
+   public static final String JGROUPS_COUNTER_FEATURE = "jgroups-counter";
    private static final Log log = LogFactory.getLog(CounterModuleLifecycle.class, Log.class);
 
    private static Configuration createCounterCacheConfiguration(CounterManagerConfiguration config) {
@@ -81,7 +82,7 @@ public class CounterModuleLifecycle implements ModuleLifecycle {
       map.put(ext.getId(), ext);
    }
 
-   private static CounterManagerConfiguration extractConfiguration(GlobalConfiguration globalConfiguration) {
+   public static CounterManagerConfiguration extractConfiguration(GlobalConfiguration globalConfiguration) {
       CounterManagerConfiguration config = globalConfiguration.module(CounterManagerConfiguration.class);
       return config == null ? CounterManagerConfigurationBuilder.defaultConfiguration() : config;
    }
@@ -116,26 +117,30 @@ public class CounterModuleLifecycle implements ModuleLifecycle {
 
       SerializationContextRegistry ctxRegistry = gcr.getComponent(SerializationContextRegistry.class);
       ctxRegistry.addContextInitializer(SerializationContextRegistry.MarshallerType.PERSISTENCE, new PersistenceContextInitializerImpl());
-
       log.debugf("Register counter's cache %s", COUNTER_CACHE_NAME);
-      CounterManagerConfiguration counterManagerConfiguration = extractConfiguration(globalConfiguration);
+
+      // org.infinispan.counter.api.WeakCounter needs a cache
       if (gcr.getGlobalConfiguration().isClustered()) {
          //only attempts to create the caches if the cache manager is clustered.
-         registerCounterCache(internalCacheRegistry, counterManagerConfiguration);
+         registerCounterCache(internalCacheRegistry, extractConfiguration(globalConfiguration));
       } else {
          //local only cache manager.
          registerLocalCounterCache(internalCacheRegistry);
       }
+   }
 
+   @Override
+   public void cacheManagerStarted(GlobalComponentRegistry gcr) {
       log.debug("Register EmbeddedCounterManager");
+      BasicComponentRegistry bcr = gcr.getComponent(BasicComponentRegistry.class);
       // required to instantiate and start the EmbeddedCounterManager.
       ComponentRef<CounterManager> component = bcr.getComponent(CounterManager.class);
-      if ( component == null ) {
+      if (component == null) {
          return;
       }
 
-      CounterManager cm = component.wired();
-      if (globalConfiguration.jmx().enabled()) {
+      CounterManager cm = component.running();
+      if (gcr.getGlobalConfiguration().jmx().enabled()) {
          try {
             CacheManagerJmxRegistration jmxRegistration = bcr.getComponent(CacheManagerJmxRegistration.class).running();
             jmxRegistration.registerMBean(cm);

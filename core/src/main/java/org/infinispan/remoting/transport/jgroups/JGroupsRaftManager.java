@@ -1,5 +1,7 @@
 package org.infinispan.remoting.transport.jgroups;
 
+import static org.infinispan.remoting.transport.raft.RaftChannelConfiguration.RaftLogMode.PERSISTENT;
+
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
@@ -30,7 +32,10 @@ import org.jgroups.protocols.raft.RAFT;
 import org.jgroups.protocols.raft.REDIRECT;
 import org.jgroups.raft.RaftHandle;
 import org.jgroups.raft.StateMachine;
+import org.jgroups.raft.blocks.CounterService;
 import org.jgroups.stack.ProtocolStack;
+
+import net.jcip.annotations.GuardedBy;
 
 /**
  * A {@link RaftManager} implementation that use JGroups-RAFT protocol.
@@ -40,15 +45,18 @@ import org.jgroups.stack.ProtocolStack;
  *
  * @since 14.0
  */
-class JGroupsRaftManager implements RaftManager {
+public class JGroupsRaftManager implements RaftManager {
 
    private static final Log log = LogFactory.getLog(JGroupsRaftManager.class);
+   private static final String RAFT_COUNTER_SERVICE_NAME = "org.infinispan.RaftCounter";
 
    private final JChannel mainChannel;
    private final Collection<String> raftMembers;
    private final String raftId;
    private final String persistenceDirectory;
    private final Map<String, JgroupsRaftChannel<? extends RaftStateMachine>> raftStateMachineMap = new ConcurrentHashMap<>(16);
+   @GuardedBy("this")
+   private CounterService raftCounterService;
 
    JGroupsRaftManager(GlobalConfiguration globalConfiguration, JChannel mainChannel) {
       if (JGroupsTransport.findFork(mainChannel) == null) {
@@ -88,7 +96,31 @@ class JGroupsRaftManager implements RaftManager {
       return raftId;
    }
 
+   public synchronized CounterService getOrCreateRaftCounterService() {
+      if (raftCounterService != null) {
+         return raftCounterService;
+      }
+      RaftChannelConfiguration config = new RaftChannelConfiguration.Builder().logMode(PERSISTENT).build();
+      ForkChannel channel = createAndConnectForkChannel(RAFT_COUNTER_SERVICE_NAME, config);
+      if (channel == null) {
+         throw new IllegalStateException();
+      }
+      raftCounterService = new CounterService(channel);
+      return raftCounterService;
+   }
+
    private <T extends RaftStateMachine> JgroupsRaftChannel<T> createRaftChannel(String name, RaftChannelConfiguration configuration, Supplier<? extends T> supplier) {
+      ForkChannel forkChannel = createAndConnectForkChannel(name, configuration);
+      if (forkChannel == null) {
+         return null;
+      }
+      T stateMachine = supplier.get();
+      JgroupsRaftChannel<T> raftChannel = new JgroupsRaftChannel<>(name, forkChannel, stateMachine);
+      stateMachine.init(raftChannel);
+      return raftChannel;
+   }
+
+   private ForkChannel createAndConnectForkChannel(String name, RaftChannelConfiguration configuration) {
       ForkChannel forkChannel = null;
       try {
          forkChannel = createForkChannel(name, configuration);
@@ -103,10 +135,7 @@ class JGroupsRaftManager implements RaftManager {
          }
          return null;
       }
-      T stateMachine = supplier.get();
-      JgroupsRaftChannel<T> raftChannel = new JgroupsRaftChannel<>(name, forkChannel, stateMachine);
-      stateMachine.init(raftChannel);
-      return raftChannel;
+      return forkChannel;
    }
 
    private ForkChannel createForkChannel(String name, RaftChannelConfiguration configuration) throws Exception {
@@ -161,6 +190,11 @@ class JGroupsRaftManager implements RaftManager {
    public void stop() {
       raftStateMachineMap.values().forEach(JgroupsRaftChannel::disconnect);
       raftStateMachineMap.clear();
+      synchronized (this) {
+         if (raftCounterService != null) {
+            //TODO disconnect and stop!
+         }
+      }
    }
 
    private static class JgroupsRaftChannel<T extends RaftStateMachine> implements RaftChannel {

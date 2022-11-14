@@ -9,6 +9,7 @@ import org.infinispan.util.ByteString;
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
 import org.jboss.logging.annotations.Cause;
+import org.jboss.logging.annotations.LogMessage;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
 
@@ -111,4 +112,15 @@ public interface Log extends BasicLogger {
 
    @Message(value = "MBean registration failed", id = 29529)
    CounterException jmxRegistrationFailed(@Cause Throwable cause);
+
+   @Message(value = "Configured transport '%s' is not compatible with feature '%s'", id=29530)
+   CounterConfigurationException transportNotCompatibleWithFeature(String transportClass, String feature);
+
+   @Message(value = "RAFT (jgroups-raft) is required for StrongCounter with Reliability.CONSISTENT", id=29531)
+   CounterConfigurationException raftNotAvailableForStrongCounters();
+
+   @LogMessage(level = Logger.Level.INFO)
+   @Message(value = "Using %s based implementation for StrongCounter", id=29532)
+   void logStrongCounterImplementation(String impl);
+
 }
