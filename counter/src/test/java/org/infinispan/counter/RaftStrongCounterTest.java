@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import org.infinispan.commons.test.CommonsTestingUtil;
 import org.infinispan.commons.util.Util;
@@ -23,6 +24,7 @@ import org.infinispan.remoting.transport.Transport;
 import org.infinispan.remoting.transport.jgroups.JGroupsRaftManager;
 import org.infinispan.remoting.transport.raft.RaftManager;
 import org.infinispan.test.TestingUtil;
+import org.jgroups.protocols.raft.RAFT;
 import org.testng.AssertJUnit;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -64,6 +66,12 @@ public class RaftStrongCounterTest extends StrongCounterTest {
    @Override
    protected void afterClusterCreated() {
       cacheManagers.forEach(RaftStrongCounterTest::replaceStrongCounterFactory);
+      // wait until leader is elected
+      cacheManagers.stream()
+            .map(EmbeddedCacheManager::getTransport)
+            .map(Transport::raftManager)
+            .forEach(RaftStrongCounterTest::awaitForLeader);
+
    }
 
    @Override
@@ -99,6 +107,15 @@ public class RaftStrongCounterTest extends StrongCounterTest {
             .initialValue(initialValue)
             .build();
       return createCounter(counterManager, counterName, config);
+   }
+
+   private static void awaitForLeader(RaftManager raftManager) {
+      assert raftManager instanceof JGroupsRaftManager;
+      RAFT raft = ((JGroupsRaftManager) raftManager).getOrCreateRaftCounterService()
+            .channel()
+            .getProtocolStack()
+            .findProtocol(RAFT.class);
+      eventually(() -> Objects.nonNull(raft.leader()));
    }
 
    public void testCorrectCounter(Method method) {

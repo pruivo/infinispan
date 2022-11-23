@@ -5,6 +5,7 @@ import static org.infinispan.util.logging.Log.CONTAINER;
 
 import org.infinispan.commons.util.Features;
 import org.infinispan.counter.api.CounterManager;
+import org.infinispan.counter.configuration.CounterManagerConfiguration;
 import org.infinispan.counter.configuration.Reliability;
 import org.infinispan.counter.impl.CounterModuleLifecycle;
 import org.infinispan.counter.impl.listener.CounterManagerNotificationManager;
@@ -79,10 +80,11 @@ public class CounterComponentsFactory extends AbstractComponentFactory implement
          String transportClass = transport == null ? "<no transport>" : transport.getClass().getSimpleName();
          throw Log.CONTAINER.transportNotCompatibleWithFeature(transportClass, Features.FEATURE_PREFIX + JGROUPS_COUNTER_FEATURE);
       }
-      if (CounterModuleLifecycle.extractConfiguration(globalConfiguration).reliability() == Reliability.AVAILABLE) {
+      CounterManagerConfiguration configuration = CounterModuleLifecycle.extractConfiguration(globalConfiguration);
+      if (configuration.reliability() == Reliability.AVAILABLE) {
          // No partition handling required
          Log.CONTAINER.logStrongCounterImplementation("JGroups");
-         return JGroupsCounterFactory.create((JGroupsTransport) transport);
+         return JGroupsCounterFactory.create((JGroupsTransport) transport, configuration.numOwners());
       }
 
       RaftManager raftManager = transport.raftManager();

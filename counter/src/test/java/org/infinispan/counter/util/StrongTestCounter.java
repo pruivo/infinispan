@@ -1,13 +1,12 @@
 package org.infinispan.counter.util;
 
-import static org.testng.AssertJUnit.*;
+import static org.testng.AssertJUnit.assertTrue;
 
-import org.infinispan.counter.api.SyncStrongCounter;
 import org.infinispan.counter.api.CounterConfiguration;
 import org.infinispan.counter.api.CounterListener;
 import org.infinispan.counter.api.Handle;
 import org.infinispan.counter.api.StrongCounter;
-import org.testng.AssertJUnit;
+import org.infinispan.counter.api.SyncStrongCounter;
 
 /**
  * @author Pedro Ruivo

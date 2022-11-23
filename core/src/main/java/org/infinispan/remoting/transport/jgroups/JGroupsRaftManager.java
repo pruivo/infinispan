@@ -48,7 +48,7 @@ import net.jcip.annotations.GuardedBy;
 public class JGroupsRaftManager implements RaftManager {
 
    private static final Log log = LogFactory.getLog(JGroupsRaftManager.class);
-   private static final String RAFT_COUNTER_SERVICE_NAME = "org.infinispan.RaftCounter";
+   public static final String RAFT_COUNTER_SERVICE_NAME = "org.infinispan.RAFT_COUNTER";
 
    private final JChannel mainChannel;
    private final Collection<String> raftMembers;
@@ -192,7 +192,8 @@ public class JGroupsRaftManager implements RaftManager {
       raftStateMachineMap.clear();
       synchronized (this) {
          if (raftCounterService != null) {
-            //TODO disconnect and stop!
+            raftCounterService.channel().disconnect();
+            raftCounterService = null;
          }
       }
    }

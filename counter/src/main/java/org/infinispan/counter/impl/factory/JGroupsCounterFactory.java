@@ -38,23 +38,23 @@ public class JGroupsCounterFactory implements StrongCounterFactory, Function<Str
       this.counterService = counterService;
    }
 
-   public static JGroupsCounterFactory create(JGroupsTransport transport) {
+   public static JGroupsCounterFactory create(JGroupsTransport transport, int numOwners) {
       try {
-         ForkChannel channel = createAndConnectForkChannel(transport);
+         ForkChannel channel = createAndConnectForkChannel(transport, numOwners);
          return new JGroupsCounterFactory(channel, new CounterService(channel));
       } catch (Exception e) {
          throw new RuntimeException(e);
       }
    }
 
-   private static ForkChannel createAndConnectForkChannel(JGroupsTransport transport) throws Exception {
+   private static ForkChannel createAndConnectForkChannel(JGroupsTransport transport, int numOwners) throws Exception {
+      assert numOwners > 1;
       //TODO this is kind of hacking/bad... we are breaking the Transport abstraction :(
       String stackId = "org.infinispan.COUNTER";
       JChannel channel = transport.getChannel();
       Protocol top = channel.getProtocolStack().getTopProtocol();
-      //TODO need a way to configure the number of backups!
       ForkChannel forkChannel = new ForkChannel(channel, stackId, stackId, true, ProtocolStack.Position.ABOVE,
-            top.getClass(), new COUNTER());
+            top.getClass(), new COUNTER().setNumberOfBackups(numOwners - 1));
       forkChannel.connect(stackId);
       return forkChannel;
    }

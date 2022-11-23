@@ -1,5 +1,7 @@
 package org.infinispan.counter;
 
+import static org.infinispan.counter.impl.CounterModuleLifecycle.extractConfiguration;
+
 import java.lang.reflect.Method;
 
 import org.infinispan.counter.impl.factory.JGroupsCounterFactory;
@@ -33,6 +35,9 @@ public class JGroupsStrongCounterTest extends StrongCounterTest {
       Transport transport = TestingUtil.extractGlobalComponent(cacheManager, Transport.class);
       AssertJUnit.assertTrue(transport instanceof JGroupsTransport);
       // nothing to stop in cache based factory
-      TestingUtil.replaceComponent(cacheManager, StrongCounterFactory.class, JGroupsCounterFactory.create((JGroupsTransport) transport), true);
+      TestingUtil.replaceComponent(cacheManager,
+            StrongCounterFactory.class,
+            JGroupsCounterFactory.create((JGroupsTransport) transport, extractConfiguration(cacheManager.getCacheManagerConfiguration()).numOwners()),
+            true);
    }
 }
