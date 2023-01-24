@@ -1,5 +1,7 @@
 package org.infinispan.remoting.transport.raft;
 
+import java.util.Collection;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 
 import org.infinispan.commons.api.Lifecycle;
@@ -48,4 +50,10 @@ public interface RaftManager extends Lifecycle {
     * @return This node raft-id.
     */
    String raftId();
+
+   CompletionStage<Void> addMember(String raftId);
+
+   CompletionStage<Void> removeMembers(String raftId);
+
+   Collection<String> raftMembers();
 }

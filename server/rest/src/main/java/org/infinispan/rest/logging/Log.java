@@ -120,4 +120,7 @@ public interface Log extends BasicLogger {
 
    @Message(value = "Heap dump generation failed", id = 12030)
    RuntimeException heapDumpFailed(@Cause IOException e);
+
+   @Message(value = "Argument '%s' is required", id = 12031)
+   IllegalArgumentException argumentMissing(String name);
 }
