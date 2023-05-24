@@ -115,7 +115,6 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
    private final Map<Object, IracManagerKeyState> updatedKeys;
    private final Collection<IracXSiteBackup> asyncBackups;
    private final IracExecutor iracExecutor;
-   private IracBackOffHandler backOffHandler;
    private final int batchSize;
    private volatile boolean hasClear;
 
@@ -146,8 +145,8 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
    public void inject(@ComponentName(KnownComponentNames.TIMEOUT_SCHEDULE_EXECUTOR) ScheduledExecutorService executorService,
                       @ComponentName(KnownComponentNames.BLOCKING_EXECUTOR) Executor blockingExecutor) {
       // using the inject method here in order to decrease the class size
+      setBackOff(backup -> new ExponentialBackOffImpl(executorService));
       iracExecutor.setExecutor(blockingExecutor);
-      backOffHandler = new IracBackOffHandler(asyncBackups, () -> new ExponentialBackOffImpl(executorService), blockingExecutor);
    }
 
    @Start
@@ -374,8 +373,8 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
    }
 
    // For testing purposes.
-   public void setBackOff(ExponentialBackOff backOff, Executor executor) {
-      backOffHandler = new IracBackOffHandler(asyncBackups, () -> backOff, executor);
+   public void setBackOff(Function<IracXSiteBackup, ExponentialBackOff> builder) {
+      asyncBackups.forEach(backup -> backup.useBackOff(builder.apply(backup), iracExecutor));
    }
 
    public boolean isEmpty() {
@@ -423,7 +422,7 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
 
       AggregateCompletionStage<Void> aggregation = CompletionStages.aggregateCompletionStage();
       for (IracXSiteBackup backup: asyncBackups) {
-         if (backup.isBackOffMode()) {
+         if (backup.isBackOffEnabled()) {
             for (IracStateData data : batch) {
                data.state.retry();
             }
@@ -491,35 +490,38 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
    private CompletionStage<Void> sendClearUpdate() {
       // make sure the clear is replicated everywhere before sending the updates!
       IracClearKeysCommand cmd = commandsFactory.buildIracClearKeysCommand();
-      IracClearResponseCollector collector = new IracClearResponseCollector(commandsFactory.getCacheName(), this::onClearCompleted);
+      IracClearResponseCollector collector = new IracClearResponseCollector(commandsFactory.getCacheName());
       for (IracXSiteBackup backup : asyncBackups) {
          if (takeOfflineManager.getSiteState(backup.getSiteName()) == SiteState.OFFLINE) {
             continue; // backup is offline
          }
+         if (backup.isBackOffEnabled()) {
+            collector.forceBackOffAndRetry();
+            continue;
+         }
          collector.dependsOn(backup, sendToRemoteSite(backup, cmd));
       }
-      return collector.freeze();
+      return collector.freeze().handle(this::onClearCompleted);
    }
 
-   private void onClearCompleted(IracBatchSendResult result, Collection<IracXSiteBackup> failedSites) {
+   private Void onClearCompleted(IracBatchSendResult result, Throwable throwable) {
+      if (throwable != null) {
+         onUnexpectedThrowable(throwable);
+         return null;
+      }
       switch (result) {
          case OK:
             hasClear = false;
             // fallthrough
          case RETRY:
-            failedSites.forEach(backOffHandler::resetBackOff);
-            iracExecutor.run();
-            break;
          case BACK_OFF_AND_RETRY:
-            for (IracXSiteBackup backup : failedSites) {
-               backOffHandler.enableBackOff(backup, iracExecutor);
-            }
             iracExecutor.run();
             break;
          default:
             onUnexpectedThrowable(new IllegalStateException("Unknown result: " + result));
             break;
       }
+      return null;
    }
 
    private void onUnexpectedThrowable(Throwable throwable) {
@@ -571,14 +573,13 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
       }
    }
 
-   private void onBatchResponse(IracXSiteBackup site, IracBatchSendResult result, Collection<? extends IracManagerKeyState> successfulSent) {
+   private void onBatchResponse(IracBatchSendResult result, Collection<? extends IracManagerKeyState> successfulSent) {
       if (log.isTraceEnabled()) {
          log.tracef("[IRAC] Batch completed with %d keys applied. Global result=%s", successfulSent.size(), result);
       }
       Collection<IracManagerKeyState> doneKeys = new ArrayList<>(successfulSent.size());
       switch (result) {
          case OK:
-            backOffHandler.resetBackOff(site);
             for (IracManagerKeyState state : successfulSent) {
                if (sentKeyToAllBackups(state) && state.done()) {
                   doneKeys.add(state);
@@ -586,11 +587,10 @@ public class DefaultIracManager implements IracManager, JmxStatisticsExposer {
             }
             break;
          case RETRY:
-            backOffHandler.resetBackOff(site);
             iracExecutor.run();
             break;
          case BACK_OFF_AND_RETRY:
-            backOffHandler.enableBackOff(site, iracExecutor);
+            //no-op, next run already scheduled after back-off
             break;
          default:
             onUnexpectedThrowable(new IllegalStateException("Unknown result: " + result));

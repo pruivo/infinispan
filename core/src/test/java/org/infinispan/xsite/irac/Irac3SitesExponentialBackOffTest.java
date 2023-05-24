@@ -4,6 +4,8 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import org.infinispan.Cache;
@@ -36,7 +38,7 @@ public class Irac3SitesExponentialBackOffTest extends AbstractMultipleSitesTest 
    private static final int N_SITES = 3;
    private static final int CLUSTER_SIZE = 1;
    private static final Supplier<Throwable> NO_EXCEPTION = () -> null;
-   private final ControlledExponentialBackOff backOff = new ControlledExponentialBackOff();
+   private final Map<String, ControlledExponentialBackOff> backOffMap = new ConcurrentHashMap<>();
    private volatile ControlledTransport transport;
 
 
@@ -75,18 +77,17 @@ public class Irac3SitesExponentialBackOffTest extends AbstractMultipleSitesTest 
       transport = TestingUtil.wrapGlobalComponent(manager(c), Transport.class,
             actual -> new ControlledTransport(actual, siteName(0), connected, disconnected), true);
       DefaultIracManager iracManager = (DefaultIracManager) TestingUtil.extractComponent(c, IracManager.class);
-      iracManager.setBackOff(backOff, testExecutor());
+      iracManager.setBackOff(backup -> backOffMap.computeIfAbsent(backup.getSiteName(), s -> new ControlledExponentialBackOff()));
    }
 
    @AfterMethod(alwaysRun = true)
    public void resetStateAfterTest() {
-      backOff.release();
-
+      backOffMap.values().forEach(ControlledExponentialBackOff::release);
       Cache<String, String> c = cache(siteName(0), 0);
       DefaultIracManager iracManager = (DefaultIracManager) TestingUtil.extractComponent(c, IracManager.class);
       eventually(iracManager::isEmpty);
-      backOff.cleanupEvents();
-      backOff.assertNoEvents();
+      backOffMap.values().forEach(ControlledExponentialBackOff::cleanupEvents);
+      backOffMap.values().forEach(ControlledExponentialBackOff::assertNoEvents);
    }
 
    public void testSimulatedTimeout(Method method) throws Exception {
@@ -111,23 +112,26 @@ public class Irac3SitesExponentialBackOffTest extends AbstractMultipleSitesTest 
       c.put(key, value);
 
       // Since no back off applied, both issues a reset. One backup succeeds and another fails.
-      backOff.eventually("Both reset with CacheException.", ControlledExponentialBackOff.Event.RESET, ControlledExponentialBackOff.Event.RESET);
+
+      backOffMap.get(siteName(1)).eventually("Both reset with CacheException.", ControlledExponentialBackOff.Event.RESET);
+      backOffMap.get(siteName(2)).eventually("Both reset with CacheException.", ControlledExponentialBackOff.Event.RESET);
 
       //with "normal" exception, the protocol will keep trying to send the request
       //we need to let it have a successful request otherwise it will fill queue with RESET events.
       transport.throwableSupplier = NO_EXCEPTION;
 
       // Only the backup that failed issued an event now, so only one event here.
-      backOff.eventually("Only one that failed reset.", ControlledExponentialBackOff.Event.RESET);
+      backOffMap.get(siteName(1)).assertNoEvents();
+      backOffMap.get(siteName(2)).eventually("Only one that failed reset.", ControlledExponentialBackOff.Event.RESET);
 
       DefaultIracManager iracManager = (DefaultIracManager) TestingUtil.extractComponent(c, IracManager.class);
       eventually(iracManager::isEmpty);
 
       // Back off not applied.
-      backOff.assertNoEvents();
+      backOffMap.values().forEach(ControlledExponentialBackOff::assertNoEvents);
    }
 
-   private void doTest(Method method, Supplier<Throwable> throwableSupplier) throws InterruptedException {
+   private void doTest(Method method, Supplier<Throwable> throwableSupplier) {
       Cache<String, String> c = cache(siteName(0), 0);
       transport.throwableSupplier = throwableSupplier;
 
@@ -137,22 +141,23 @@ public class Irac3SitesExponentialBackOffTest extends AbstractMultipleSitesTest 
       c.put(key, value);
 
       // With 2 backups, one succeeds and another fails.
-      backOff.eventually("Backoff event on first try.", ControlledExponentialBackOff.Event.RESET, ControlledExponentialBackOff.Event.BACK_OFF);
+      backOffMap.get(siteName(1)).eventually("Site 1 should reset", ControlledExponentialBackOff.Event.RESET);
+      backOffMap.get(siteName(2)).eventually("Site 2 should back-off.", ControlledExponentialBackOff.Event.BACK_OFF);
 
       // Release will trigger the backoff to the failed site.
-      backOff.release();
+      backOffMap.get(siteName(2)).release();
 
       // Only one site sends the keys, so only a single event here.
-      backOff.eventually("Backoff event after release.", ControlledExponentialBackOff.Event.BACK_OFF);
+      backOffMap.get(siteName(2)).eventually("Backoff event after release.", ControlledExponentialBackOff.Event.BACK_OFF);
 
       // Operation now should succeed.
       transport.throwableSupplier = NO_EXCEPTION;
-      backOff.release();
+      backOffMap.get(siteName(2)).release();
 
       // The operation finally succeeds, since only one backup was failing we have only one event.
-      backOff.eventually("All operations should succeed.", ControlledExponentialBackOff.Event.RESET);
+      backOffMap.get(siteName(2)).eventually("All operations should succeed.", ControlledExponentialBackOff.Event.RESET);
 
       // No other event was issued.
-      backOff.assertNoEvents();
+      backOffMap.values().forEach(ControlledExponentialBackOff::assertNoEvents);
    }
 }

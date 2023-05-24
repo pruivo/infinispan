@@ -12,6 +12,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 import org.infinispan.util.ExponentialBackOff;
+import org.testng.AssertJUnit;
 
 public class ControlledExponentialBackOff implements ExponentialBackOff {
 
@@ -44,10 +45,16 @@ public class ControlledExponentialBackOff implements ExponentialBackOff {
       backOffEvents.clear();
    }
 
-   void eventually(String message, Event... expected) throws InterruptedException {
+   void eventually(String message, Event... expected) {
       List<Event> events = new ArrayList<>(Arrays.asList(expected));
       while (!events.isEmpty()) {
-         Event current = backOffEvents.poll(30, TimeUnit.SECONDS);
+         Event current = null;
+         try {
+            current = backOffEvents.poll(30, TimeUnit.SECONDS);
+         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            AssertJUnit.fail();
+         }
          assertTrue(message + " Expected " + events + ", current " + current, events.contains(current));
          events.remove(current);
       }

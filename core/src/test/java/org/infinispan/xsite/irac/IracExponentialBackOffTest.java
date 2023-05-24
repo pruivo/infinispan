@@ -39,6 +39,7 @@ public class IracExponentialBackOffTest extends SingleCacheManagerTest {
    private volatile ControlledTransport transport;
    private volatile DefaultIracManager iracManager;
 
+
    @Override
    protected EmbeddedCacheManager createCacheManager() throws Exception {
       //default cache manager
@@ -49,7 +50,7 @@ public class IracExponentialBackOffTest extends SingleCacheManagerTest {
             .withFlags(CacheContainerAdmin.AdminFlag.VOLATILE)
             .getOrCreateCache(CACHE_NAME, createCacheConfiguration().build());
       iracManager = (DefaultIracManager) TestingUtil.extractComponent(cache, IracManager.class);
-      iracManager.setBackOff(backOff, testExecutor());
+      iracManager.setBackOff(backup -> backOff);
       return cacheManager;
    }
 
