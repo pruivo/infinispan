@@ -5,7 +5,6 @@ import static org.infinispan.util.logging.Log.CLUSTER;
 import static org.infinispan.util.logging.Log.CONTAINER;
 import static org.infinispan.util.logging.Log.XSITE;
 
-import javax.management.ObjectName;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,6 +34,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.management.ObjectName;
 
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commons.CacheConfigurationException;
@@ -94,6 +95,7 @@ import org.infinispan.remoting.transport.impl.SingletonMapResponseCollector;
 import org.infinispan.remoting.transport.impl.SiteUnreachableXSiteResponse;
 import org.infinispan.remoting.transport.impl.XSiteResponseImpl;
 import org.infinispan.remoting.transport.raft.RaftManager;
+import org.infinispan.util.concurrent.BlockingManager;
 import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -154,14 +156,9 @@ public class JGroupsTransport implements Transport, ChannelListener {
    public static final String CHANNEL_LOOKUP = "channelLookup";
    public static final String CHANNEL_CONFIGURATOR = "channelConfigurator";
    public static final String SOCKET_FACTORY = "socketFactory";
-   public static final short REQUEST_FLAGS_UNORDERED =
-         (short) (Message.Flag.OOB.value() | Message.Flag.NO_TOTAL_ORDER.value());
-   public static final short REQUEST_FLAGS_UNORDERED_NO_FC = (short) (REQUEST_FLAGS_UNORDERED | Message.Flag.NO_FC.value());
-   public static final short REQUEST_FLAGS_PER_SENDER = Message.Flag.NO_TOTAL_ORDER.value();
-   public static final short REQUEST_FLAGS_PER_SENDER_NO_FC = (short) (REQUEST_FLAGS_PER_SENDER | Message.Flag.NO_FC.value());
-   public static final short REPLY_FLAGS =
-         (short) (Message.Flag.NO_FC.value() | Message.Flag.OOB.value() |
-               Message.Flag.NO_TOTAL_ORDER.value());
+   public static final short REQUEST_FLAGS = Message.Flag.NO_TOTAL_ORDER.value();
+   public static final short REQUEST_FLAGS_NO_FC = (short) (REQUEST_FLAGS | Message.Flag.NO_FC.value());
+   public static final short REPLY_FLAGS = (short) (Message.Flag.NO_FC.value() | Message.Flag.NO_TOTAL_ORDER.value());
    protected static final String DEFAULT_JGROUPS_CONFIGURATION_FILE = "default-configs/default-jgroups-udp.xml";
    public static final Log log = LogFactory.getLog(JGroupsTransport.class);
    private static final CompletableFuture<Map<Address, Response>> EMPTY_RESPONSES_FUTURE =
@@ -171,6 +168,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
    private static final byte REQUEST = 0;
    private static final byte RESPONSE = 1;
    private static final byte SINGLE_MESSAGE = 2;
+   private static final byte REQUEST_ORDERED = 3;
 
    @Inject protected GlobalConfiguration configuration;
    @Inject @ComponentName(KnownComponentNames.INTERNAL_MARSHALLER)
@@ -189,6 +187,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
    private final Lock viewUpdateLock = new ReentrantLock();
    private final Condition viewUpdateCondition = viewUpdateLock.newCondition();
    private final ThreadPoolProbeHandler probeHandler;
+   private final BatchProbeHandler batchProbeHandler = new BatchProbeHandler();
    private final ChannelCallbacks channelCallbacks = new ChannelCallbacks();
    private final Map<JChannel, Set<Object>> clusters = new ConcurrentHashMap<>();
    protected boolean connectChannel = true, disconnectChannel = true, closeChannel = true;
@@ -205,6 +204,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
    private final Map<String, SiteUnreachableReason> unreachableSites;
    private String localSite;
    private volatile RaftManager raftManager = EmptyRaftManager.INSTANCE;
+   private JGroupsOrderedMessagesProcessor orderedMessagesProcessor;
 
    // ------------------------------------------------------------------------------------------------------------------
    // Lifecycle and setup stuff
@@ -232,6 +232,11 @@ public class JGroupsTransport implements Transport, ChannelListener {
    public JGroupsTransport() {
       this.probeHandler = new ThreadPoolProbeHandler();
       this.unreachableSites = new ConcurrentHashMap<>();
+   }
+
+   @Inject
+   public void inject(BlockingManager blockingManager) {
+      orderedMessagesProcessor = new JGroupsOrderedMessagesProcessor(blockingManager.asExecutor("jgroups-ordered-messages"), this::processMessage);
    }
 
    @Override
@@ -491,6 +496,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
 
       waitForInitialNodes();
       channel.getProtocolStack().getTransport().registerProbeHandler(probeHandler);
+      channel.getProtocolStack().getTransport().registerProbeHandler(batchProbeHandler);
       RELAY2 relay2 = findRelay2();
       if (relay2 != null) {
          localSite = XSiteNamedCache.cachedString(relay2.site());
@@ -873,9 +879,9 @@ public class JGroupsTransport implements Transport, ChannelListener {
    }
 
    private static List<Address> fromJGroupsAddressList(List<org.jgroups.Address> list) {
-      return Collections.unmodifiableList(list.stream()
+      return list.stream()
             .map(JGroupsAddressCache::fromJGroupsAddress)
-            .collect(Collectors.toList()));
+            .collect(Collectors.toUnmodifiableList());
    }
 
    @Stop
@@ -1203,7 +1209,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
          return;
 
       Message message = new BytesMessage(toJGroupsAddress(target));
-      marshallRequest(message, command, requestId);
+      marshallRequest(message, command, requestId, deliverOrder);
       setMessageFlags(message, deliverOrder, noRelay);
 
       send(message);
@@ -1213,11 +1219,11 @@ public class JGroupsTransport implements Transport, ChannelListener {
       return ((JGroupsAddress) address).getJGroupsAddress();
    }
 
-   private void marshallRequest(Message message, Object command, long requestId) {
+   private void marshallRequest(Message message, Object command, long requestId, DeliverOrder deliverOrder) {
       try {
          ByteBuffer bytes = marshaller.objectToBuffer(command);
          message.setArray(bytes.getBuf(), bytes.getOffset(), bytes.getLength());
-         addRequestHeader(message, requestId);
+         addRequestHeader(message, requestId, deliverOrder);
       } catch (RuntimeException e) {
          throw e;
       } catch (Exception e) {
@@ -1226,7 +1232,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
    }
 
    private static void setMessageFlags(Message message, DeliverOrder deliverOrder, boolean noRelay) {
-      short flags = encodeDeliverMode(deliverOrder);
+      short flags = deliverOrder.skipFlowControl() ? REQUEST_FLAGS_NO_FC : REQUEST_FLAGS;
       if (noRelay) {
          flags |= Message.Flag.NO_RELAY.value();
       }
@@ -1250,27 +1256,17 @@ public class JGroupsTransport implements Transport, ChannelListener {
       }
    }
 
-   private void addRequestHeader(Message message, long requestId) {
-      // TODO Remove the header and store the request id in the buffer
-      if (requestId != Request.NO_REQUEST_ID) {
-         Header header = new RequestCorrelator.Header(REQUEST, requestId, CORRELATOR_ID);
-         message.putHeader(HEADER_ID, header);
+   private static void addRequestHeader(Message message, long requestId, DeliverOrder order) {
+      byte type = order.preserveOrder() ? REQUEST_ORDERED : REQUEST;
+      if (requestId < Request.NO_REQUEST_ID) {
+         requestId = Request.NO_REQUEST_ID;
       }
+      Header header = new RequestCorrelator.Header(type, requestId, CORRELATOR_ID);
+      message.putHeader(HEADER_ID, header);
    }
 
    private static short encodeDeliverMode(DeliverOrder deliverOrder) {
-      switch (deliverOrder) {
-         case PER_SENDER:
-            return REQUEST_FLAGS_PER_SENDER;
-         case PER_SENDER_NO_FC:
-            return REQUEST_FLAGS_PER_SENDER_NO_FC;
-         case NONE:
-            return REQUEST_FLAGS_UNORDERED;
-         case NONE_NO_FC:
-            return REQUEST_FLAGS_UNORDERED_NO_FC;
-         default:
-            throw new IllegalArgumentException("Unsupported deliver mode " + deliverOrder);
-      }
+      return deliverOrder.skipFlowControl() ? REQUEST_FLAGS_NO_FC : REQUEST_FLAGS;
    }
 
    /**
@@ -1355,7 +1351,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
     */
    private void sendCommandToAll(ReplicableCommand command, long requestId, DeliverOrder deliverOrder) {
       Message message = new BytesMessage();
-      marshallRequest(message, command, requestId);
+      marshallRequest(message, command, requestId, deliverOrder);
       setMessageFlags(message, deliverOrder, true);
       send(message);
    }
@@ -1420,7 +1416,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
                             DeliverOrder deliverOrder, boolean checkView) {
       Objects.requireNonNull(targets);
       Message message = new BytesMessage();
-      marshallRequest(message, command, requestId);
+      marshallRequest(message, command, requestId, deliverOrder);
       setMessageFlags(message, deliverOrder, true);
 
       Message copy = message;
@@ -1478,7 +1474,8 @@ public class JGroupsTransport implements Transport, ChannelListener {
       switch (type) {
          case SINGLE_MESSAGE:
          case REQUEST:
-            processRequest(src, flags, buffer, offset, length, requestId);
+         case REQUEST_ORDERED:
+            processRequest(src, flags, buffer, offset, length, requestId, decodeDeliverMode(header, flags));
             break;
          case RESPONSE:
             processResponse(src, buffer, offset, length, requestId);
@@ -1490,7 +1487,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
 
    private void sendResponse(org.jgroups.Address target, Response response, long requestId, Object command) {
       if (log.isTraceEnabled())
-         log.tracef("%s sending response for request %d to %s: %s", getAddress(), requestId, target, response);
+         log.tracef("%s sending response for request %d to %s: %s", address, requestId, target, response);
       ByteBuffer bytes;
       JChannel channel = this.channel;
       if (channel == null) {
@@ -1528,10 +1525,9 @@ public class JGroupsTransport implements Transport, ChannelListener {
    }
 
    private void processRequest(org.jgroups.Address src, short flags, byte[] buffer, int offset, int length,
-                               long requestId) {
+                               long requestId, DeliverOrder deliverOrder) {
       try {
-         DeliverOrder deliverOrder = decodeDeliverMode(flags);
-         if (src.equals(((JGroupsAddress) getAddress()).getJGroupsAddress())) {
+         if (src.equals(((JGroupsAddress) address).getJGroupsAddress())) {
             // DISCARD ignores the DONT_LOOPBACK flag, see https://issues.jboss.org/browse/JGRP-2205
             if (log.isTraceEnabled())
                log.tracef("Ignoring request %d from self without total order", requestId);
@@ -1542,11 +1538,11 @@ public class JGroupsTransport implements Transport, ChannelListener {
          Reply reply;
          if (requestId != Request.NO_REQUEST_ID) {
             if (log.isTraceEnabled())
-               log.tracef("%s received request %d from %s: %s", getAddress(), requestId, src, command);
+               log.tracef("%s received request %d from %s: %s", address, requestId, src, command);
             reply = response -> sendResponse(src, response, requestId, command);
          } else {
             if (log.isTraceEnabled())
-               log.tracef("%s received command from %s: %s", getAddress(), src, command);
+               log.tracef("%s received command from %s: %s", address, src, command);
             reply = Reply.NO_OP;
          }
          if (org.jgroups.util.Util.isFlagSet(flags, Message.Flag.NO_RELAY)) {
@@ -1578,15 +1574,18 @@ public class JGroupsTransport implements Transport, ChannelListener {
             }
          }
          if (log.isTraceEnabled())
-            log.tracef("%s received response for request %d from %s: %s", getAddress(), requestId, src, response);
-         Address address = fromJGroupsAddress(src);
-         requests.addResponse(requestId, address, response);
+            log.tracef("%s received response for request %d from %s: %s", address, requestId, src, response);
+         Address srcAddress = fromJGroupsAddress(src);
+         requests.addResponse(requestId, srcAddress, response);
       } catch (Throwable t) {
          CLUSTER.errorProcessingResponse(requestId, src, t);
       }
    }
 
-   private DeliverOrder decodeDeliverMode(short flags) {
+   private static DeliverOrder decodeDeliverMode(RequestCorrelator.Header header, short flags) {
+      if (header != null) {
+         return header.type == REQUEST_ORDERED ? DeliverOrder.PER_SENDER : DeliverOrder.NONE;
+      }
       boolean oob = org.jgroups.util.Util.isFlagSet(flags, Message.Flag.OOB);
       return oob ? DeliverOrder.NONE : DeliverOrder.PER_SENDER;
    }
@@ -1682,23 +1681,71 @@ public class JGroupsTransport implements Transport, ChannelListener {
 
       @Override
       public Object up(Message msg) {
+         DeliverOrder order = decodeDeliverMode(msg.getHeader(HEADER_ID), msg.getFlags());
+         if (order.preserveOrder()) {
+            orderedMessagesProcessor.processSingle(msg);
+            return null;
+         }
+         if (isResponse(msg)) {
+            nonBlockingExecutor.execute(() -> processMessage(msg));
+            return null;
+         }
          processMessage(msg);
          return null;
       }
 
       @Override
       public void up(MessageBatch batch) {
-         batch.forEach(message -> {
-            // Removed messages are null
-            if (message == null)
-               return;
+         List<Message> orderedMessages = new ArrayList<>(batch.size());
+         List<Message> unorderedMessages = new ArrayList<>(batch.size());
+         List<Message> unorderedResponseMessages = new ArrayList<>(batch.size());
+         for (Message msg : batch) {
+            if (msg == null) {
+               continue;
+            }
+            if (isOrdered(msg)) {
+               orderedMessages.add(msg);
+               continue;
+            }
+            (isResponse(msg) ? unorderedResponseMessages : unorderedMessages).add(msg);
+         }
+         // handle unordered messages first. The order does not matter, and they should never block any thread
+         if (!unorderedResponseMessages.isEmpty()) {
+            nonBlockingExecutor.execute(() -> unorderedResponseMessages.forEach(JGroupsTransport.this::processMessage));
+         }
+         handleUnorderedMessages(unorderedMessages);
 
-            // Regular (non-OOB) messages must be processed in-order
-            // Normally a batch should either have only OOB or only regular messages,
-            // but we check for every message to be on the safe side.
-            processMessage(message);
-         });
+         // handle ordered after because they will block the jgroups thread
+         int orderedSize = orderedMessages.size();
+         if (orderedSize == 0) {
+            return;
+         }
+         orderedMessagesProcessor.processMultiple(batch.sender(), orderedMessages);
+         batchProbeHandler.addOrderedBatchSize(orderedSize);
       }
+   }
+
+   private void handleUnorderedMessages(List<Message> messages) {
+      int size = messages.size();
+      if (size == 0) {
+         return;
+      }
+      if (size < batchProbeHandler.getMinBatchSize()) {
+         messages.forEach(this::processMessage);
+         batchProbeHandler.addSequentialBatchSize(size);
+         return;
+      }
+      nonBlockingExecutor.execute(() -> messages.forEach(this::processMessage));
+      batchProbeHandler.addParallelBatchSize(size);
+   }
+
+   private static boolean isOrdered(Message msg) {
+      return decodeDeliverMode(msg.getHeader(HEADER_ID), msg.getFlags()).preserveOrder();
+   }
+
+   private static boolean isResponse(Message msg) {
+      RequestCorrelator.Header header = msg.getHeader(HEADER_ID);
+      return header != null && header.type == RESPONSE;
    }
 
    private enum SiteUnreachableReason {

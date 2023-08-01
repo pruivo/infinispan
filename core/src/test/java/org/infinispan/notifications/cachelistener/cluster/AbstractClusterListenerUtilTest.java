@@ -50,6 +50,7 @@ import org.infinispan.protostream.annotations.AutoProtoSchemaBuilder;
 import org.infinispan.protostream.annotations.ProtoFactory;
 import org.infinispan.protostream.annotations.ProtoField;
 import org.infinispan.protostream.annotations.ProtoName;
+import org.infinispan.remoting.inboundhandler.OffloadingInboundHandler;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.test.MultipleCacheManagersTest;
 import org.infinispan.test.TestingUtil;
@@ -347,6 +348,7 @@ public abstract class AbstractClusterListenerUtilTest extends MultipleCacheManag
    }
 
    protected void waitUntilListenerInstalled(final Cache<?, ?> cache, final CheckPoint checkPoint) {
+      OffloadingInboundHandler.wrap(cache.getCacheManager(), testExecutor());
       CacheNotifier cn = TestingUtil.extractComponent(cache, CacheNotifier.class);
       final Answer<Object> forwardedAnswer = AdditionalAnswers.delegatesTo(cn);
       ClusterCacheNotifier mockNotifier = mock(ClusterCacheNotifier.class, withSettings().defaultAnswer(forwardedAnswer));

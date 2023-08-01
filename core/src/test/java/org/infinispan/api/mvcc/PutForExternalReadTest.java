@@ -10,6 +10,7 @@ import static org.testng.AssertJUnit.assertTrue;
 import static org.testng.AssertJUnit.fail;
 
 import java.lang.reflect.Method;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +18,7 @@ import org.infinispan.Cache;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.RemoveCommand;
+import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -87,14 +89,19 @@ public class PutForExternalReadTest extends MultipleCacheManagersTest {
       final CyclicBarrier barrier = new CyclicBarrier(2);
       cache1.getAdvancedCache().getAsyncInterceptorChain().addInterceptor(new BaseAsyncInterceptor() {
          @Override
-         public Object visitCommand(InvocationContext ctx, VisitableCommand command)
-               throws Throwable {
+         public Object visitCommand(InvocationContext ctx, VisitableCommand command) {
             if (command instanceof PutKeyValueCommand) {
                if (!ctx.isOriginLocal()) {
-                  // wait first before the check
-                  TestBlocking.await(barrier, 10, TimeUnit.SECONDS);
-                  // and once more after the check
-                  TestBlocking.await(barrier, 10, TimeUnit.SECONDS);
+                  return asyncInvokeNext(ctx, command, CompletableFuture.runAsync(() -> {
+                     try {
+                        // wait first before the check
+                        TestBlocking.await(barrier, 10, TimeUnit.SECONDS);
+                        // and once more after the check
+                        TestBlocking.await(barrier, 10, TimeUnit.SECONDS);
+                     } catch (Throwable t) {
+                        throw CompletableFutures.asCompletionException(t);
+                     }
+                  }));
                }
             }
             return invokeNext(ctx, command);

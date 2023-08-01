@@ -13,9 +13,9 @@ import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.remote.ClusteredGetCommand;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
+import org.infinispan.remoting.inboundhandler.BlockHandler;
+import org.infinispan.remoting.inboundhandler.ControllingInboundInvocationHandler;
 import org.infinispan.remoting.inboundhandler.DeliverOrder;
-import org.infinispan.remoting.inboundhandler.InboundInvocationHandler;
-import org.infinispan.remoting.inboundhandler.Reply;
 import org.infinispan.remoting.responses.CacheNotFoundResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.rpc.ResponseMode;
@@ -24,7 +24,6 @@ import org.infinispan.remoting.transport.impl.MapResponseCollector;
 import org.infinispan.test.MultipleCacheManagersTest;
 import org.infinispan.test.TestingUtil;
 import org.infinispan.util.ByteString;
-import org.infinispan.xsite.commands.remote.XSiteRequest;
 import org.jgroups.util.UUID;
 import org.testng.annotations.Test;
 
@@ -83,7 +82,7 @@ public class JGroupsTransportTest extends MultipleCacheManagersTest {
 
       // Send message to view member that doesn't have the cache and to non-member
       // and block the response from the view member
-      CompletableFuture<Void> blocker = blockRemoteGets();
+      BlockHandler blocker = blockRemoteGets();
       try {
          CompletionStage<Map<Address, Response>> future3 =
             transport.invokeCommandStaggered(Arrays.asList(address(1), randomAddress), command,
@@ -91,36 +90,15 @@ public class JGroupsTransportTest extends MultipleCacheManagersTest {
                                              TimeUnit.SECONDS);
          // Wait for the stagger timeout (5s / 10 / 2) to expire before sending a reply back
          Thread.sleep(500);
-         blocker.complete(null);
+         blocker.unblock();
          assertEquals(expected, future3.toCompletableFuture().get());
       } finally {
-         blocker.complete(null);
+         blocker.unblock();
       }
    }
 
-   private CompletableFuture<Void> blockRemoteGets() {
-      CompletableFuture<Void> blocker = new CompletableFuture<>();
-      InboundInvocationHandler oldInvocationHandler = TestingUtil.extractGlobalComponent(manager(1),
-                                                                                         InboundInvocationHandler
-                                                                                            .class);
-      InboundInvocationHandler blockingInvocationHandler = new InboundInvocationHandler() {
-         @Override
-         public void handleFromCluster(Address origin, ReplicableCommand command, Reply reply, DeliverOrder order) {
-            if (command instanceof ClusteredGetCommand) {
-               log.tracef("Blocking clustered get");
-               blocker.thenRun(() -> oldInvocationHandler.handleFromCluster(origin, command, reply, order));
-            } else {
-               oldInvocationHandler.handleFromCluster(origin, command, reply, order);
-            }
-         }
-
-         @Override
-         public void handleFromRemoteSite(String origin, XSiteRequest<?> command, Reply reply,
-                                          DeliverOrder order) {
-            oldInvocationHandler.handleFromRemoteSite(origin, command, reply, order);
-         }
-      };
-      TestingUtil.replaceComponent(manager(1), InboundInvocationHandler.class, blockingInvocationHandler, true);
-      return blocker;
+   private BlockHandler blockRemoteGets() {
+      ControllingInboundInvocationHandler handler = ControllingInboundInvocationHandler.replace(manager(1));
+      return handler.blockRpcBefore(ClusteredGetCommand.class);
    }
 }
