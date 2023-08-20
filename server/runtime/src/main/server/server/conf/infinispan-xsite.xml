@@ -24,6 +24,9 @@
                 ispn:stack.combine="COMBINE"
                 xmlns="urn:org:jgroups"
          />
+         <org.jgroups.protocols.upgrade.UPGRADE active="true"
+                                                server_address="${jgroups.upgrade.server:localhost}"
+                                                server_port="${jgroups.upgrade.port:50051}"/>
       </stack>
       <stack name="xsite" extends="udp">
          <relay.RELAY2 site="${infinispan.site.name:site1}"

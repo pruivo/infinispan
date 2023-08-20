@@ -5,8 +5,16 @@
       xmlns="urn:infinispan:config:15.0"
       xmlns:server="urn:infinispan:server:15.0">
 
+   <jgroups>
+      <stack name="upgrade" extends="tcp">
+         <org.jgroups.protocols.upgrade.UPGRADE active="${jgroups.upgrade.active:false}"
+                                                server_address="${jgroups.upgrade.server:localhost}"
+                                                server_port="${jgroups.upgrade.port:50051}"/>
+      </stack>
+   </jgroups>
+
    <cache-container name="default" statistics="true">
-      <transport cluster="${infinispan.cluster.name:cluster}" stack="${infinispan.cluster.stack:tcp}" node-name="${infinispan.node.name:}"/>
+      <transport cluster="${infinispan.cluster.name:cluster}" stack="${infinispan.cluster.stack:upgrade}" node-name="${infinispan.node.name:}"/>
       <security>
          <authorization/>
       </security>
