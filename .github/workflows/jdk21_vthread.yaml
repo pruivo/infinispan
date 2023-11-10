@@ -1,0 +1,31 @@
+name: Java 21 CI with Virtual Threads
+
+on:
+  push:
+    branches: [ "main", "t_jdk21_gha" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      - name: Build
+        run: ./mvnw install -pl core -am --settings maven-settings.xml --batch-mode -DskipTests
+      - name: Test
+        run: ./mvnw verify -pl core -am --settings maven-settings.xml --batch-mode --fail-at-end -Dmaven.test.failure.ignore=true -Pvthreads-tests
+        env:
+          MAVEN_OPTS: '-Xmx1500m -XX:+HeapDumpOnOutOfMemoryError'
+      - name: Publish Test Report
+        if: success() || failure()
+        uses: scacap/action-surefire-report@v1

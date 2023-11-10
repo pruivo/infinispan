@@ -3251,6 +3251,7 @@
             <activeByDefault>false</activeByDefault>
          </activation>
          <properties>
+            <defaultTestNGGroups>smoke</defaultTestNGGroups>
             <org.infinispan.tests.threads.virtual>true</org.infinispan.tests.threads.virtual>
             <infinispan.test.parallel.threads>${system.numCores}</infinispan.test.parallel.threads>
          </properties>
