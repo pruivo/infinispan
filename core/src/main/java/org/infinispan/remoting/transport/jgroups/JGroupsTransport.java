@@ -37,6 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.commands.TracedCommand;
 import org.infinispan.commons.CacheConfigurationException;
 import org.infinispan.commons.CacheException;
 import org.infinispan.commons.IllegalLifecycleStateException;
@@ -91,6 +92,7 @@ import org.infinispan.remoting.transport.impl.SingletonMapResponseCollector;
 import org.infinispan.remoting.transport.impl.SiteUnreachableXSiteResponse;
 import org.infinispan.remoting.transport.impl.XSiteResponseImpl;
 import org.infinispan.remoting.transport.raft.RaftManager;
+import org.infinispan.telemetry.InfinispanTelemetry;
 import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -179,6 +181,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
    protected ExecutorService nonBlockingExecutor;
    @Inject protected CacheManagerJmxRegistration jmxRegistration;
    @Inject protected JGroupsMetricsManager metricsManager;
+   @Inject InfinispanTelemetry telemetry;
 
    private final Lock viewUpdateLock = new ReentrantLock();
    private final Condition viewUpdateCondition = viewUpdateLock.newCondition();
@@ -349,6 +352,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
          DeliverOrder order = xsb.isSync() ? DeliverOrder.NONE : DeliverOrder.PER_SENDER;
          long timeout = xsb.getTimeout();
          try {
+            traceRequest(request, command);
             sendCommand(recipient, command, request.getRequestId(), order, false, false);
             if (timeout > 0) {
                request.setTimeout(timeoutExecutor, timeout, TimeUnit.MILLISECONDS);
@@ -379,6 +383,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
       long timeout = backup.getTimeout();
       XSiteResponseImpl<O> xSiteResponse = new XSiteResponseImpl<>(timeService, backup);
       try {
+         traceRequest(request, rpcCommand);
          sendCommand(recipient, rpcCommand, request.getRequestId(), order, false, false);
          if (timeout > 0) {
             request.setTimeout(timeoutExecutor, timeout, TimeUnit.MILLISECONDS);
@@ -1024,6 +1029,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
       SingleTargetRequest<T> request = new SingleTargetRequest<>(collector, requestId, requests, metricsManager.trackRequest(target));
       addRequest(request);
       if (!request.onNewView(clusterView.getMembersSet())) {
+         traceRequest(request, command);
          sendCommand(target, command, requestId, deliverOrder, true, false);
       }
       if (timeout > 0) {
@@ -1050,6 +1056,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
       }
       try {
          addRequest(request);
+         traceRequest(request, command);
          boolean checkView = request.onNewView(clusterView.getMembersSet());
          sendCommand(targets, command, requestId, deliverOrder, checkView);
       } catch (Throwable t) {
@@ -1076,6 +1083,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
       }
       try {
          addRequest(request);
+         traceRequest(request, command);
          request.onNewView(clusterView.getMembersSet());
          sendCommandToAll(command, requestId, deliverOrder);
       } catch (Throwable t) {
@@ -1103,6 +1111,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
       }
       try {
          addRequest(request);
+         traceRequest(request, command);
          request.onNewView(clusterView.getMembersSet());
          sendCommandToAll(command, requestId, deliverOrder);
       } catch (Throwable t) {
@@ -1126,6 +1135,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
                   timeout, unit, this);
       try {
          addRequest(request);
+         traceRequest(request, command);
          request.onNewView(clusterView.getMembersSet());
          request.sendNextMessage();
       } catch (Throwable t) {
@@ -1158,6 +1168,7 @@ public class JGroupsTransport implements Transport, ChannelListener {
 
             ReplicableCommand command = commandGenerator.apply(target);
             logRequest(requestId, command, target, "mixed");
+            traceRequest(request, command); // TODO is correct?
             sendCommand(target, command, requestId, deliverOrder, true, checkView);
          }
       } catch (Throwable t) {
@@ -1186,6 +1197,13 @@ public class JGroupsTransport implements Transport, ChannelListener {
          // Removes the request and the scheduled task, if necessary
          request.cancel(true);
          throw t;
+      }
+   }
+
+   private void traceRequest(AbstractRequest<?> request, TracedCommand command) {
+      var traceSpan = command.getSpanAttributes();
+      if (traceSpan != null) {
+         request.whenComplete(telemetry.startTraceRequest(command.getOperationName(), traceSpan));
       }
    }
 
