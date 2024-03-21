@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
@@ -28,6 +29,7 @@ import org.infinispan.util.concurrent.locks.ExtendedLockPromise;
 import org.infinispan.util.concurrent.locks.LockListener;
 import org.infinispan.util.concurrent.locks.LockReleasedException;
 import org.infinispan.util.concurrent.locks.LockState;
+import org.infinispan.util.concurrent.locks.impl.jfr.LockEvent;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -58,6 +60,7 @@ public class InfinispanLock {
    private final ConcurrentMap<Object, LockRequest> lockOwners;
    private final Runnable releaseRunnable;
    private final Executor nonBlockingExecutor;
+   private final int id;
    private TimeService timeService;
    @SuppressWarnings("CanBeFinal")
    private volatile LockRequest current;
@@ -85,6 +88,7 @@ public class InfinispanLock {
       lockOwners = new ConcurrentHashMap<>();
       current = null;
       this.releaseRunnable = releaseRunnable;
+      this.id = ThreadLocalRandom.current().nextInt();
    }
 
    /**
@@ -104,6 +108,7 @@ public class InfinispanLock {
       this.timeService = timeService;
       lockOwners = new ConcurrentHashMap<>();
       this.releaseRunnable = releaseRunnable;
+      this.id = ThreadLocalRandom.current().nextInt();
       LockAcquired promise = new LockAcquired(owner);
       current = promise;
       lockOwners.put(owner, promise);
@@ -369,9 +374,11 @@ public class InfinispanLock {
    private abstract class LockRequest implements ExtendedLockPromise {
 
       final Object owner;
+      final LockEvent event;
 
-      LockRequest(Object owner) {
+      LockRequest(Object owner, LockEvent event) {
          this.owner = owner;
+         this.event = event;
       }
 
       abstract boolean setAcquire();
@@ -399,7 +406,7 @@ public class InfinispanLock {
       volatile LockState lockState;
 
       private LockPlaceHolder(Object owner, long timeout) {
-         super(owner);
+         super(owner, LockEvent.createPending(id, String.valueOf(owner)));
          this.timeout = timeout;
          lockState = LockState.WAITING;
          notifier = new CompletableFuture<>();
@@ -458,6 +465,7 @@ public class InfinispanLock {
             switch (currentState) {
                case WAITING:
                   if (casState(LockState.WAITING, state)) {
+                     event.onCancel();
                      onCanceled(this);
                      notifyListeners();
                      return;
@@ -510,6 +518,7 @@ public class InfinispanLock {
       @Override
       public boolean setAcquire() {
          if (casState(LockState.WAITING, LockState.ACQUIRED)) {
+            event.onAcquire();
             notifyListeners();
          }
          return lockState == LockState.ACQUIRED;
@@ -522,6 +531,7 @@ public class InfinispanLock {
             switch (state) {
                case WAITING:
                   if (casState(state, LockState.RELEASED)) {
+                     event.onCancel();
                      cleanup();
                      notifyListeners();
                      return true;
@@ -531,6 +541,9 @@ public class InfinispanLock {
                case TIMED_OUT:
                case DEADLOCKED:
                   if (casState(state, LockState.RELEASED)) {
+                     if (state == LockState.ACQUIRED) {
+                        event.onRelease();
+                     }
                      cleanup();
                      return true;
                   }
@@ -576,6 +589,7 @@ public class InfinispanLock {
 
       private void checkTimeout() {
          if (lockState == LockState.WAITING && timeService.isTimeExpired(timeout) && casState(LockState.WAITING, LockState.TIMED_OUT)) {
+            event.onTimeout();
             onCanceled(this);
             notifyListeners();
          }
@@ -595,7 +609,7 @@ public class InfinispanLock {
       private volatile boolean released;
 
       LockAcquired(Object owner) {
-         super(owner);
+         super(owner, LockEvent.createAcquired(id, String.valueOf(owner)));
       }
 
       @Override
@@ -643,6 +657,7 @@ public class InfinispanLock {
       public boolean setReleased() {
          released = true;
          if (remove(owner)) {
+            event.onRelease();
             if (log.isTraceEnabled()) {
                log.tracef("State changed for %s. ACQUIRED => RELEASED", this);
             }
