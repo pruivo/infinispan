@@ -11,6 +11,7 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.ResponseCollector;
 import org.infinispan.remoting.transport.impl.MultiTargetRequest;
 import org.infinispan.remoting.transport.impl.RequestRepository;
+import org.infinispan.telemetry.InfinispanRemoteSpanContext;
 
 import net.jcip.annotations.GuardedBy;
 
@@ -27,6 +28,7 @@ public class StaggeredRequest<T> extends MultiTargetRequest<T> {
    private final long deadline;
    @GuardedBy("responseCollector")
    private int targetIndex;
+   private volatile InfinispanRemoteSpanContext spanContext;
 
    StaggeredRequest(ResponseCollector<T> responseCollector, long requestId, RequestRepository repository,
                     Collection<Address> targets, Address excludedTarget, ReplicableCommand command,
@@ -95,7 +97,7 @@ public class StaggeredRequest<T> extends MultiTargetRequest<T> {
 
          // Sending may block in flow-control or even in TCP, so we must do it outside the critical section
          target.resetSendTime();
-         transport.sendCommand(target.destination(), command, requestId, deliverOrder, true, false);
+         transport.sendCommand(target.destination(), command, requestId, deliverOrder, true, false, spanContext);
 
          // Scheduling the timeout task may also block
          // If this is the last target, set the request timeout at the deadline
@@ -108,5 +110,9 @@ public class StaggeredRequest<T> extends MultiTargetRequest<T> {
       } catch (Exception e) {
          completeExceptionally(e);
       }
+   }
+
+   public void setSpanContext(InfinispanRemoteSpanContext spanContext) {
+      this.spanContext = spanContext;
    }
 }

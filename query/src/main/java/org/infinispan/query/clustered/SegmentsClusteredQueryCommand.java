@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.BitSet;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 import org.infinispan.AdvancedCache;
@@ -12,6 +11,9 @@ import org.infinispan.Cache;
 import org.infinispan.commands.remote.BaseRpcCommand;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.query.impl.ModuleCommandIds;
+import org.infinispan.telemetry.InfinispanTelemetry;
+import org.infinispan.telemetry.SpanCategory;
+import org.infinispan.telemetry.impl.CacheSpanAttribute;
 import org.infinispan.util.ByteString;
 
 /**
@@ -69,9 +71,16 @@ public class SegmentsClusteredQueryCommand extends BaseRpcCommand {
    }
 
    @Override
-   public CompletableFuture<?> invokeAsync(ComponentRegistry componentRegistry) {
+   public CompletionStage<QueryResponse> invokeAsync(ComponentRegistry componentRegistry) {
       AdvancedCache<?, ?> cache = componentRegistry.getCache().wired();
-      return perform(cache).toCompletableFuture();
+      var traceData = getTraceCommandData();
+      if (traceData == null) {
+         return perform(cache);
+      }
+      var telemetry = componentRegistry.getComponent(InfinispanTelemetry.class);
+      updateTraceData(componentRegistry.getComponent(CacheSpanAttribute.class));
+      var span = telemetry.startTraceRequest("query-remote-execute", traceData.attributes(SpanCategory.CONTAINER), traceData.context());
+      return perform(cache).whenComplete(span);
    }
 
    @Override

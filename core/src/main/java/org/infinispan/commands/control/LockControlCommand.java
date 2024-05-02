@@ -44,7 +44,7 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
 
    private static final Log log = LogFactory.getLog(LockControlCommand.class);
 
-   public static final int COMMAND_ID = 3;
+   public static final byte COMMAND_ID = 3;
 
    private List<Object> keys;
    private boolean unlock = false;
@@ -67,15 +67,15 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
          this.keys = Collections.emptyList();
       }
       this.flags = flags;
-      this.globalTx = gtx;
+      globalTx = gtx;
    }
 
    public LockControlCommand(Object key, ByteString cacheName, long flags, GlobalTransaction gtx) {
       this(cacheName);
-      this.keys = new ArrayList<>(1);
-      this.keys.add(key);
+      keys = new ArrayList<>(1);
+      keys.add(key);
       this.flags = flags;
-      this.globalTx = gtx;
+      globalTx = gtx;
    }
 
    public void setGlobalTransaction(GlobalTransaction gtx) {
@@ -91,8 +91,9 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
    }
 
    public Object getSingleKey() {
-      if (keys.isEmpty())
+      if (keys.isEmpty()) {
          return null;
+      }
 
       return keys.get(0);
    }
@@ -160,15 +161,27 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
 
    @Override
    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
-      if (!super.equals(o)) return false;
+      if (this == o) {
+         return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+         return false;
+      }
+      if (!super.equals(o)) {
+         return false;
+      }
 
       LockControlCommand that = (LockControlCommand) o;
 
-      if (unlock != that.unlock) return false;
-      if (flags != that.flags) return false;
-      if (!keys.equals(that.keys)) return false;
+      if (unlock != that.unlock) {
+         return false;
+      }
+      if (flags != that.flags) {
+         return false;
+      }
+      if (!keys.equals(that.keys)) {
+         return false;
+      }
 
       return true;
    }
@@ -201,7 +214,7 @@ public class LockControlCommand extends AbstractTransactionBoundaryCommand imple
 
    @Override
    public void setFlagsBitSet(long bitSet) {
-      this.flags = bitSet;
+      flags = bitSet;
    }
 
    @Override

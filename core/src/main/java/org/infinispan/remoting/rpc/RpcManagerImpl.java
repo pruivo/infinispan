@@ -20,7 +20,6 @@ import java.util.function.Function;
 import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.TopologyAffectedCommand;
-import org.infinispan.commands.TracedCommand;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commons.CacheException;
@@ -58,9 +57,6 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.ResponseCollector;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.remoting.transport.XSiteResponse;
-import org.infinispan.telemetry.InfinispanSpanAttributes;
-import org.infinispan.telemetry.SpanCategory;
-import org.infinispan.telemetry.impl.CacheSpanAttribute;
 import org.infinispan.topology.CacheTopology;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -104,8 +100,6 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer, CustomM
    private boolean statisticsEnabled = false; // by default, don't gather statistics.
 
    private volatile RpcOptions syncRpcOptions;
-   private InfinispanSpanAttributes clusterSpanAttributes;
-   private InfinispanSpanAttributes xSiteSpanAttributes;
 
    @Override
    public Collection<MetricInfo> getCustomMetrics(GlobalMetricsConfiguration configuration) {
@@ -201,12 +195,6 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer, CustomM
                    .removeListener(updateRpcOptions);
    }
 
-   @Inject
-   void cacheSpanAttributes(CacheSpanAttribute cacheSpanAttribute) {
-      clusterSpanAttributes = cacheSpanAttribute.getAttributes(SpanCategory.CLUSTER);
-      xSiteSpanAttributes = cacheSpanAttribute.getAttributes(SpanCategory.X_SITE);
-   }
-
    private void updateRpcOptions(Attribute<Long> attribute, Long oldValue) {
       syncRpcOptions = new RpcOptions(DeliverOrder.NONE, attribute.get(), TimeUnit.MILLISECONDS);
    }
@@ -214,8 +202,9 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer, CustomM
    @ManagedAttribute(description = "Retrieves the committed view.", displayName = "Committed view", dataType = DataType.TRAIT)
    public String getCommittedViewAsString() {
       CacheTopology cacheTopology = distributionManager.getCacheTopology();
-      if (cacheTopology == null)
+      if (cacheTopology == null) {
          return "N/A";
+      }
 
       return cacheTopology.getCurrentCH().getMembers().toString();
    }
@@ -223,8 +212,9 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer, CustomM
    @ManagedAttribute(description = "Retrieves the pending view.", displayName = "Pending view", dataType = DataType.TRAIT)
    public String getPendingViewAsString() {
       CacheTopology cacheTopology = distributionManager.getCacheTopology();
-      if (cacheTopology == null)
+      if (cacheTopology == null) {
          return "N/A";
+      }
 
       ConsistentHash pendingCH = cacheTopology.getPendingCH();
       return pendingCH != null ? pendingCH.getMembers().toString() : "null";
@@ -425,7 +415,6 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer, CustomM
       var cmd =command instanceof CacheRpcCommand ?
             (CacheRpcCommand) command :
             cf.wired().buildSingleRpcCommand((VisitableCommand) command);
-      setClusterTraceSpanAttributes(cmd);
       return cmd;
    }
 
@@ -470,7 +459,6 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer, CustomM
 
    @Override
    public <O> XSiteResponse<O> invokeXSite(XSiteBackup backup, XSiteCacheRequest<O> command) {
-      setXSiteTraceSpanAttributes(command);
       if (!statisticsEnabled) {
          return t.backupRemotely(backup, command);
       }
@@ -694,13 +682,5 @@ public class RpcManagerImpl implements RpcManager, JmxStatisticsExposer, CustomM
    @Override
    public List<Address> getMembers() {
       return distributionManager.getCacheTopology().getMembers();
-   }
-
-   private void setClusterTraceSpanAttributes(TracedCommand command) {
-      command.setSpanAttributes(clusterSpanAttributes);
-   }
-
-   private void setXSiteTraceSpanAttributes(TracedCommand command) {
-      command.setSpanAttributes(xSiteSpanAttributes);
    }
 }

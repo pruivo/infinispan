@@ -15,6 +15,7 @@ import org.infinispan.client.hotrod.impl.ClientStatistics;
 import org.infinispan.client.hotrod.impl.ClientTopology;
 import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.transport.netty.ChannelFactory;
+import org.infinispan.client.hotrod.telemetry.impl.TelemetryService;
 
 /**
  * @author Guillaume Darmont / guillaume@dropinocean.com
@@ -24,9 +25,12 @@ public class GetAllParallelOperation<K, V> extends ParallelHotRodOperation<Map<K
    private final Set<byte[]> keys;
 
    protected GetAllParallelOperation(Codec codec, ChannelFactory channelFactory, Set<byte[]> keys, byte[]
-         cacheName, AtomicReference<ClientTopology> clientTopology, int flags, Configuration cfg, DataFormat dataFormat, ClientStatistics clientStatistics) {
+         cacheName, AtomicReference<ClientTopology> clientTopology, int flags, Configuration cfg, DataFormat dataFormat, ClientStatistics clientStatistics, TelemetryService telemetryService) {
       super(codec, channelFactory, cacheName, clientTopology, flags, cfg, dataFormat, clientStatistics);
       this.keys = keys;
+      if (telemetryService != null) {
+         telemetryService.injectSpanContext(header);
+      }
    }
 
    @Override

@@ -17,6 +17,7 @@ import org.infinispan.client.hotrod.impl.transport.netty.ChannelFactory;
 import org.infinispan.client.hotrod.impl.transport.netty.HeaderDecoder;
 import org.infinispan.client.hotrod.logging.Log;
 import org.infinispan.client.hotrod.logging.LogFactory;
+import org.infinispan.client.hotrod.telemetry.impl.TelemetryService;
 import org.infinispan.commons.configuration.ClassAllowList;
 
 import io.netty.buffer.ByteBuf;
@@ -42,9 +43,9 @@ public class GetWithMetadataOperation<V> extends AbstractKeyOperation<MetadataVa
    public GetWithMetadataOperation(Codec codec, ChannelFactory channelFactory, Object key, byte[] keyBytes,
                                    byte[] cacheName, AtomicReference<ClientTopology> clientTopology, int flags,
                                    Configuration cfg, DataFormat dataFormat, ClientStatistics clientStatistics,
-                                   SocketAddress preferredServer) {
+                                   SocketAddress preferredServer, TelemetryService telemetryService) {
       super(GET_WITH_METADATA, GET_WITH_METADATA_RESPONSE, codec, channelFactory, key, keyBytes, cacheName, clientTopology,
-            flags, cfg, dataFormat, clientStatistics, null);
+            flags, cfg, dataFormat, clientStatistics, telemetryService);
       this.preferredServer = preferredServer;
    }
 

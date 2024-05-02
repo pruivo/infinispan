@@ -57,19 +57,18 @@ public class SingleXSiteRpcCommand extends XSiteCacheRequest<Object> {
    }
 
    @Override
-   public InfinispanSpanAttributes getSpanAttributes() {
-      return spanAttributes;
-   }
-
-   @Override
    public String getOperationName() {
-      // TODO use the class name or implement this method in all commands?
-      return command.getClass().getSimpleName();
+      return command.getOperationName();
    }
 
    @Override
-   public void setSpanAttributes(InfinispanSpanAttributes attributes) {
-      spanAttributes = attributes;
+   public void setTraceCommandData(TraceCommandData data) {
+      command.setTraceCommandData(data);
+   }
+
+   @Override
+   public TraceCommandData getTraceCommandData() {
+      return command.getTraceCommandData();
    }
 
    @Override

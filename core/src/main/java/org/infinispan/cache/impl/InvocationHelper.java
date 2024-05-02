@@ -1,16 +1,10 @@
 package org.infinispan.cache.impl;
 
+import javax.transaction.xa.XAException;
+import javax.transaction.xa.XAResource;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
-
-import jakarta.transaction.InvalidTransactionException;
-import jakarta.transaction.Synchronization;
-import jakarta.transaction.SystemException;
-import jakarta.transaction.Transaction;
-import jakarta.transaction.TransactionManager;
-import javax.transaction.xa.XAException;
-import javax.transaction.xa.XAResource;
 
 import org.infinispan.batch.BatchContainer;
 import org.infinispan.commands.VisitableCommand;
@@ -20,6 +14,7 @@ import org.infinispan.commons.tx.AsyncXaResource;
 import org.infinispan.commons.tx.TransactionImpl;
 import org.infinispan.commons.tx.TransactionResourceConverter;
 import org.infinispan.commons.tx.XidImpl;
+import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.TransactionConfiguration;
 import org.infinispan.context.InvocationContext;
@@ -29,11 +24,17 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 import org.infinispan.interceptors.AsyncInterceptorChain;
+import org.infinispan.telemetry.InfinispanTelemetry;
 import org.infinispan.util.concurrent.BlockingManager;
-import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.util.concurrent.locks.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+
+import jakarta.transaction.InvalidTransactionException;
+import jakarta.transaction.Synchronization;
+import jakarta.transaction.SystemException;
+import jakarta.transaction.Transaction;
+import jakarta.transaction.TransactionManager;
 
 /**
  * It invokes the {@link VisitableCommand} through this cache {@link AsyncInterceptorChain}.
@@ -54,6 +55,8 @@ public class InvocationHelper implements TransactionResourceConverter {
    @Inject protected Configuration config;
    @Inject protected BatchContainer batchContainer;
    @Inject protected BlockingManager blockingManager;
+   @Inject
+   InfinispanTelemetry telemetry;
 
    private static void checkLockOwner(InvocationContext context, VisitableCommand command) {
       if (context.getLockOwner() == null && command instanceof RemoteLockCommand) {
@@ -233,10 +236,11 @@ public class InvocationHelper implements TransactionResourceConverter {
    }
 
    private <T> CompletableFuture<T> commitInjectTransaction(CompletionStage<T> cf, Transaction transaction, Object traceId) {
+      var span = telemetry.currentSpan();
       return blockingManager.handleBlocking(cf, (result, throwable) -> {
 
          if (throwable != null) {
-            try {
+            try (var ignored = span.makeCurrent()) {
                transactionManager.resume(transaction);
                transactionManager.rollback();
             } catch (SystemException | InvalidTransactionException e) {
@@ -245,7 +249,7 @@ public class InvocationHelper implements TransactionResourceConverter {
             }
             throw CompletableFutures.asCompletionException(throwable);
          }
-         try {
+         try (var ignored = span.makeCurrent()) {
             transactionManager.resume(transaction);
             transactionManager.commit();
          } catch (Exception e) {

@@ -5,6 +5,8 @@ import static org.infinispan.util.logging.Log.CLUSTER;
 import static org.infinispan.util.logging.Log.CONTAINER;
 import static org.infinispan.util.logging.Log.XSITE;
 
+import javax.management.ObjectName;
+import javax.sql.DataSource;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,9 +36,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import javax.management.ObjectName;
-import javax.sql.DataSource;
 
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.commands.TracedCommand;
@@ -94,8 +93,9 @@ import org.infinispan.remoting.transport.impl.SingletonMapResponseCollector;
 import org.infinispan.remoting.transport.impl.SiteUnreachableXSiteResponse;
 import org.infinispan.remoting.transport.impl.XSiteResponseImpl;
 import org.infinispan.remoting.transport.raft.RaftManager;
-import org.infinispan.telemetry.InfinispanSpan;
+import org.infinispan.telemetry.InfinispanRemoteSpanContext;
 import org.infinispan.telemetry.InfinispanTelemetry;
+import org.infinispan.telemetry.SpanCategory;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.XSiteBackup;
@@ -222,15 +222,17 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
    public JGroupsTransport(JChannel channel) {
       this();
       this.channel = channel;
-      if (channel == null)
+      if (channel == null) {
          throw new IllegalArgumentException("Cannot deal with a null channel!");
-      if (channel.isConnected())
+      }
+      if (channel.isConnected()) {
          throw new IllegalArgumentException("Channel passed in cannot already be connected!");
+      }
    }
 
    public JGroupsTransport() {
-      this.probeHandler = new ThreadPoolProbeHandler();
-      this.unreachableSites = new ConcurrentHashMap<>();
+      probeHandler = new ThreadPoolProbeHandler();
+      unreachableSites = new ConcurrentHashMap<>();
    }
 
    @Override
@@ -246,7 +248,7 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
          return EMPTY_RESPONSES_FUTURE;
       }
 
-      ClusterView view = this.clusterView;
+      ClusterView view = clusterView;
       List<Address> localMembers = view.getMembers();
       int membersSize = localMembers.size();
       boolean ignoreLeavers =
@@ -284,22 +286,23 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
    @Override
    public void sendTo(Address destination, ReplicableCommand command, DeliverOrder deliverOrder) {
       if (destination.equals(address)) { //removed requireNonNull. this will throw a NPE in that case
-         if (log.isTraceEnabled())
+         if (log.isTraceEnabled()) {
             log.tracef("%s not sending command to self: %s", address, command);
+         }
          return;
       }
       logCommand(command, destination);
-      sendCommand(destination, command, Request.NO_REQUEST_ID, deliverOrder, true, true);
+      sendCommand(destination, command, Request.NO_REQUEST_ID, deliverOrder, true, true, null);
    }
 
    @Override
    public void sendToMany(Collection<Address> targets, ReplicableCommand command, DeliverOrder deliverOrder) {
       if (targets == null) {
          logCommand(command, "all");
-         sendCommandToAll(command, Request.NO_REQUEST_ID, deliverOrder);
+         sendCommandToAll(command, Request.NO_REQUEST_ID, deliverOrder, null);
       } else {
          logCommand(command, targets);
-         sendCommand(targets, command, Request.NO_REQUEST_ID, deliverOrder, true);
+         sendCommand(targets, command, Request.NO_REQUEST_ID, deliverOrder, true, null);
       }
    }
 
@@ -331,7 +334,7 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
          commands.forEach(
                (a, command) -> {
                   logCommand(command, a);
-                  sendCommand(a, command, Request.NO_REQUEST_ID, deliverOrder, true, true);
+                  sendCommand(a, command, Request.NO_REQUEST_ID, deliverOrder, true, true, null);
                });
          return Collections.emptyMap();
       }
@@ -355,8 +358,8 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       long timeout = backup.getTimeout();
       XSiteResponseImpl<O> xSiteResponse = new XSiteResponseImpl<>(timeService, backup);
       try {
-         traceRequest(request, rpcCommand);
-         sendCommand(recipient, rpcCommand, request.getRequestId(), order, false, false);
+         var spanContext = traceRequest(request, rpcCommand, SpanCategory.X_SITE);
+         sendCommand(recipient, rpcCommand, request.getRequestId(), order, false, false, spanContext);
          if (timeout > 0) {
             request.setTimeout(timeoutExecutor, timeout, TimeUnit.MILLISECONDS);
          }
@@ -441,8 +444,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
    @Start
    @Override
    public void start() {
-      if (running)
+      if (running) {
          throw new IllegalStateException("Two or more cache managers are using the same JGroupsTransport instance");
+      }
 
       probeHandler.updateThreadPool(nonBlockingExecutor);
       props = TypedProperties.toTypedProperties(configuration.transport().properties());
@@ -595,6 +599,7 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       if (!(channel instanceof ForkChannel)) {
          CLUSTER.localAndPhysicalAddress(clusterName, getAddress(), getPhysicalAddresses());
       }
+      telemetry.setNodeName(channel.name());
    }
 
    // This needs to stay as a separate method to allow for substitution for Substrate
@@ -614,8 +619,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
 
    private void waitForInitialNodes() {
       int initialClusterSize = configuration.transport().initialClusterSize();
-      if (initialClusterSize <= 1)
+      if (initialClusterSize <= 1) {
          return;
+      }
 
       long timeout = configuration.transport().initialClusterTimeout();
       long remainingNanos = TimeUnit.MILLISECONDS.toNanos(timeout);
@@ -754,7 +760,7 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       // So we need to set the local address here
       if (address == null) {
          org.jgroups.Address jgroupsAddress = channel.getAddress();
-         this.address = fromJGroupsAddress(jgroupsAddress);
+         address = fromJGroupsAddress(jgroupsAddress);
          if (log.isTraceEnabled()) {
             String uuid = (jgroupsAddress instanceof org.jgroups.util.UUID) ?
                   ((org.jgroups.util.UUID) jgroupsAddress).toStringLong() : "N/A";
@@ -786,7 +792,7 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
          return;
       }
 
-      ClusterView oldView = this.clusterView;
+      ClusterView oldView = clusterView;
 
       // Update every view-related field while holding the lock so that waitForView only returns
       // after everything was updated.
@@ -802,7 +808,7 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
             log.debugf("Joined: %s, Left: %s", joined, left);
          }
 
-         this.clusterView = new ClusterView((int) viewId, members, address);
+         clusterView = new ClusterView((int) viewId, members, address);
 
          // Create a completable future for the new view
          oldFuture = nextViewFuture;
@@ -825,7 +831,7 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       boolean hasNotifier = notifier != null;
       if (hasNotifier) {
          if (!subGroups.isEmpty()) {
-            final Address address1 = getAddress();
+            Address address1 = getAddress();
             CompletionStages.join(notifier.notifyMerge(members, oldView.getMembers(), address1, (int) viewId, subGroups));
          } else {
             CompletionStages.join(notifier.notifyViewChange(members, oldView.getMembers(), getAddress(), (int) viewId));
@@ -913,22 +919,25 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
 
    @Override
    public int getViewId() {
-      if (channel == null)
+      if (channel == null) {
          throw new IllegalLifecycleStateException("The cache has been stopped and invocations are not allowed!");
+      }
       return clusterView.getViewId();
    }
 
    @Override
    public CompletableFuture<Void> withView(int expectedViewId) {
-      ClusterView view = this.clusterView;
-      if (view.isViewIdAtLeast(expectedViewId))
+      ClusterView view = clusterView;
+      if (view.isViewIdAtLeast(expectedViewId)) {
          return CompletableFutures.completedNull();
+      }
 
-      if (log.isTraceEnabled())
+      if (log.isTraceEnabled()) {
          log.tracef("Waiting for view %d, current view is %d", expectedViewId, view.getViewId());
+      }
       viewUpdateLock.lock();
       try {
-         view = this.clusterView;
+         view = clusterView;
          if (view.isViewIdAtLeast(ClusterView.FINAL_VIEW_ID)) {
             throw new IllegalLifecycleStateException();
          } else if (view.isViewIdAtLeast(expectedViewId)) {
@@ -988,8 +997,8 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       SingleTargetRequest<T> request = new SingleTargetRequest<>(collector, requestId, requests, metricsManager.trackRequest(target));
       addRequest(request);
       if (!request.onNewView(clusterView.getMembersSet())) {
-         traceRequest(request, command);
-         sendCommand(target, command, requestId, deliverOrder, true, false);
+         var spanContext = traceRequest(request, command, SpanCategory.CLUSTER);
+         sendCommand(target, command, requestId, deliverOrder, true, false, spanContext);
       }
       if (timeout > 0) {
          request.setTimeout(timeoutExecutor, timeout, unit);
@@ -1015,9 +1024,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       }
       try {
          addRequest(request);
-         traceRequest(request, command);
+         var spanContext = traceRequest(request, command, SpanCategory.CLUSTER);
          boolean checkView = request.onNewView(clusterView.getMembersSet());
-         sendCommand(targets, command, requestId, deliverOrder, checkView);
+         sendCommand(targets, command, requestId, deliverOrder, checkView, spanContext);
       } catch (Throwable t) {
          request.cancel(true);
          throw t;
@@ -1042,9 +1051,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       }
       try {
          addRequest(request);
-         traceRequest(request, command);
+         var spanContext = traceRequest(request, command, SpanCategory.CLUSTER);
          request.onNewView(clusterView.getMembersSet());
-         sendCommandToAll(command, requestId, deliverOrder);
+         sendCommandToAll(command, requestId, deliverOrder, spanContext);
       } catch (Throwable t) {
          request.cancel(true);
          throw t;
@@ -1070,9 +1079,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       }
       try {
          addRequest(request);
-         traceRequest(request, command);
+         var spanContext = traceRequest(request, command, SpanCategory.CLUSTER);
          request.onNewView(clusterView.getMembersSet());
-         sendCommandToAll(command, requestId, deliverOrder);
+         sendCommandToAll(command, requestId, deliverOrder, spanContext);
       } catch (Throwable t) {
          request.cancel(true);
          throw t;
@@ -1094,7 +1103,8 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
                   timeout, unit, this);
       try {
          addRequest(request);
-         traceRequest(request, command);
+         var spanContext = traceRequest(request, command, SpanCategory.CLUSTER);
+         request.setSpanContext(spanContext);
          request.onNewView(clusterView.getMembersSet());
          request.sendNextMessage();
       } catch (Throwable t) {
@@ -1122,13 +1132,14 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       boolean checkView = request.onNewView(clusterView.getMembersSet());
       try {
          for (Address target : targets) {
-            if (target.equals(excludedTarget))
+            if (target.equals(excludedTarget)) {
                continue;
+            }
 
             ReplicableCommand command = commandGenerator.apply(target);
             logRequest(requestId, command, target, "mixed");
-            traceRequest(request, command); // TODO is correct?
-            sendCommand(target, command, requestId, deliverOrder, true, checkView);
+            var spanContext = traceRequest(request, command, SpanCategory.CLUSTER); // TODO is correct?
+            sendCommand(target, command, requestId, deliverOrder, true, checkView, spanContext);
          }
       } catch (Throwable t) {
          request.cancel(true);
@@ -1159,21 +1170,22 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       }
    }
 
-   private void traceRequest(AbstractRequest<?> request, TracedCommand command) {
-      var traceSpan = command.getSpanAttributes();
-      if (traceSpan != null) {
-         InfinispanSpan<Object> span = telemetry.startTraceRequest(command.getOperationName(), traceSpan);
-         request.whenComplete(span);
+   private InfinispanRemoteSpanContext traceRequest(AbstractRequest<?> request, TracedCommand command, SpanCategory category) {
+      var span = telemetry.startRemoteTraceRequest(command, category);
+      request.whenComplete(span);
+      try (var ignored = span.makeCurrent()) {
+         return telemetry.createRemoteContext();
       }
    }
 
-   void sendCommand(Address target, Object command, long requestId, DeliverOrder deliverOrder,
-                    boolean noRelay, boolean checkView) {
-      if (checkView && !clusterView.contains(target))
+   void sendCommand(Address target, TracedCommand command, long requestId, DeliverOrder deliverOrder,
+                    boolean noRelay, boolean checkView, InfinispanRemoteSpanContext spanContext) {
+      if (checkView && !clusterView.contains(target)) {
          return;
+      }
 
       Message message = new BytesMessage(toJGroupsAddress(target));
-      marshallRequest(message, command, requestId);
+      marshallRequest(message, command, requestId, spanContext);
       setMessageFlags(message, deliverOrder, noRelay);
 
       send(message);
@@ -1187,9 +1199,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       return ((JGroupsAddress) address).getJGroupsAddress();
    }
 
-   private void marshallRequest(Message message, Object command, long requestId) {
+   private void marshallRequest(Message message, TracedCommand command, long requestId, InfinispanRemoteSpanContext context) {
       try {
-         ByteBuffer bytes = marshaller.objectToBuffer(command);
+         ByteBuffer bytes = marshaller.objectToBuffer(new TraceCommandWrapper(command, context));
          message.setArray(bytes.getBuf(), bytes.getOffset(), bytes.getLength());
          addRequestHeader(message, requestId);
       } catch (RuntimeException e) {
@@ -1270,13 +1282,13 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
                                                                                   Address singleTarget) {
       if (broadcast) {
          logCommand(command, "all");
-         sendCommandToAll(command, Request.NO_REQUEST_ID, deliverOrder);
+         sendCommandToAll(command, Request.NO_REQUEST_ID, deliverOrder, null);
       } else if (singleTarget != null) {
          logCommand(command, singleTarget);
-         sendCommand(singleTarget, command, Request.NO_REQUEST_ID, deliverOrder, true, true);
+         sendCommand(singleTarget, command, Request.NO_REQUEST_ID, deliverOrder, true, true, null);
       } else {
          logCommand(command, recipients);
-         sendCommand(recipients, command, Request.NO_REQUEST_ID, deliverOrder, true);
+         sendCommand(recipients, command, Request.NO_REQUEST_ID, deliverOrder, true, null);
       }
       return EMPTY_RESPONSES_FUTURE;
    }
@@ -1313,17 +1325,18 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       return request.toCompletableFuture();
    }
 
+   @Override
    public void sendToAll(ReplicableCommand command, DeliverOrder deliverOrder) {
       logCommand(command, "all");
-      sendCommandToAll(command, Request.NO_REQUEST_ID, deliverOrder);
+      sendCommandToAll(command, Request.NO_REQUEST_ID, deliverOrder, null);
    }
 
    /**
     * Send a command to the entire cluster.
     */
-   private void sendCommandToAll(ReplicableCommand command, long requestId, DeliverOrder deliverOrder) {
+   private void sendCommandToAll(ReplicableCommand command, long requestId, DeliverOrder deliverOrder, InfinispanRemoteSpanContext spanContext) {
       Message message = new BytesMessage();
-      marshallRequest(message, command, requestId);
+      marshallRequest(message, command, requestId, spanContext);
       setMessageFlags(message, deliverOrder, true);
       send(message);
       clusterView.getMembersSet().stream()
@@ -1332,13 +1345,15 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
    }
 
    private void logRequest(long requestId, Object command, Object targets, String type) {
-      if (log.isTraceEnabled())
+      if (log.isTraceEnabled()) {
          log.tracef("%s sending %s request %d to %s: %s", address, type, requestId, targets, command);
+      }
    }
 
    private void logCommand(Object command, Object targets) {
-      if (log.isTraceEnabled())
+      if (log.isTraceEnabled()) {
          log.tracef("%s sending command to %s: %s", address, targets, command);
+      }
    }
 
    public JChannel getChannel() {
@@ -1380,21 +1395,23 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
     * Send a command to multiple targets.
     */
    private void sendCommand(Collection<Address> targets, ReplicableCommand command, long requestId,
-                            DeliverOrder deliverOrder, boolean checkView) {
+                            DeliverOrder deliverOrder, boolean checkView, InfinispanRemoteSpanContext spanContext) {
       Objects.requireNonNull(targets);
       Message message = new BytesMessage();
-      marshallRequest(message, command, requestId);
+      marshallRequest(message, command, requestId, spanContext);
       setMessageFlags(message, deliverOrder, true);
 
       Message copy = message;
       for (Iterator<Address> it = targets.iterator(); it.hasNext(); ) {
          Address address = it.next();
 
-         if (checkView && !clusterView.contains(address))
+         if (checkView && !clusterView.contains(address)) {
             continue;
+         }
 
-         if (address.equals(this.address))
+         if (address.equals(this.address)) {
             continue;
+         }
 
          copy.dest(toJGroupsAddress(address));
          send(copy);
@@ -1433,8 +1450,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
          requestId = Request.NO_REQUEST_ID;
       }
       if (!running) {
-         if (log.isTraceEnabled())
+         if (log.isTraceEnabled()) {
             log.tracef("Ignoring message received before start or after stop");
+         }
          if (type == REQUEST) {
             sendResponse(src, CacheNotFoundResponse.INSTANCE, requestId, null);
          }
@@ -1454,8 +1472,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
    }
 
    private void sendResponse(org.jgroups.Address target, Response response, long requestId, Object command) {
-      if (log.isTraceEnabled())
+      if (log.isTraceEnabled()) {
          log.tracef("%s sending response for request %d to %s: %s", getAddress(), requestId, target, response);
+      }
       ByteBuffer bytes;
       JChannel channel = this.channel;
       if (channel == null) {
@@ -1498,20 +1517,24 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
          DeliverOrder deliverOrder = decodeDeliverMode(flags);
          if (src.equals(((JGroupsAddress) getAddress()).getJGroupsAddress())) {
             // DISCARD ignores the DONT_LOOPBACK flag, see https://issues.jboss.org/browse/JGRP-2205
-            if (log.isTraceEnabled())
+            if (log.isTraceEnabled()) {
                log.tracef("Ignoring request %d from self without total order", requestId);
+            }
             return;
          }
 
-         Object command = marshaller.objectFromByteBuffer(buffer, offset, length);
+         TraceCommandWrapper cmdWrapper = (TraceCommandWrapper) marshaller.objectFromByteBuffer(buffer, offset, length);
+         Object command = cmdWrapper.getCommand();
          Reply reply;
          if (requestId != Request.NO_REQUEST_ID) {
-            if (log.isTraceEnabled())
+            if (log.isTraceEnabled()) {
                log.tracef("%s received request %d from %s: %s", getAddress(), requestId, src, command);
+            }
             reply = response -> sendResponse(src, response, requestId, command);
          } else {
-            if (log.isTraceEnabled())
+            if (log.isTraceEnabled()) {
                log.tracef("%s received command from %s: %s", getAddress(), src, command);
+            }
             reply = Reply.NO_OP;
          }
          if (org.jgroups.util.Util.isFlagSet(flags, Message.Flag.NO_RELAY)) {
@@ -1542,8 +1565,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
                response = SuccessfulResponse.SUCCESSFUL_EMPTY_RESPONSE;
             }
          }
-         if (log.isTraceEnabled())
+         if (log.isTraceEnabled()) {
             log.tracef("%s received response for request %d from %s: %s", getAddress(), requestId, src, response);
+         }
          Address address = fromJGroupsAddress(src);
          requests.addResponse(requestId, address, response);
       } catch (Throwable t) {
@@ -1646,8 +1670,9 @@ public class JGroupsTransport implements Transport, ChannelListener, AddressGene
       public void up(MessageBatch batch) {
          batch.forEach(message -> {
             // Removed messages are null
-            if (message == null)
+            if (message == null) {
                return;
+            }
 
             // Regular (non-OOB) messages must be processed in-order
             // Normally a batch should either have only OOB or only regular messages,

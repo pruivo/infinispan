@@ -11,7 +11,6 @@ import org.infinispan.commands.VisitableCommand;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.InvocationContextFactory;
 import org.infinispan.factories.ComponentRegistry;
-import org.infinispan.telemetry.InfinispanSpanAttributes;
 import org.infinispan.util.ByteString;
 import org.infinispan.util.concurrent.locks.RemoteLockCommand;
 import org.infinispan.util.logging.Log;
@@ -24,11 +23,10 @@ import org.infinispan.util.logging.LogFactory;
  */
 public class SingleRpcCommand extends BaseRpcCommand {
 
-   public static final int COMMAND_ID = 1;
+   public static final byte COMMAND_ID = 1;
    private static final Log log = LogFactory.getLog(SingleRpcCommand.class);
 
    private VisitableCommand command;
-   private InfinispanSpanAttributes spanAttributes;
 
    private SingleRpcCommand() {
       super(null); // For command id uniqueness test
@@ -66,20 +64,26 @@ public class SingleRpcCommand extends BaseRpcCommand {
       if (command instanceof RemoteLockCommand) {
          ctx.setLockOwner(((RemoteLockCommand) command).getKeyLockOwner());
       }
-      if (log.isTraceEnabled())
+      if (log.isTraceEnabled()) {
          log.tracef("Invoking command %s, with originLocal flag set to %b", command, ctx
                .isOriginLocal());
+      }
       return componentRegistry.getInterceptorChain().running().invokeAsync(ctx, command);
    }
 
    @Override
    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (!(o instanceof SingleRpcCommand)) return false;
+      if (this == o) {
+         return true;
+      }
+      if (!(o instanceof SingleRpcCommand)) {
+         return false;
+      }
 
       SingleRpcCommand that = (SingleRpcCommand) o;
-      if (Objects.equals(cacheName, that.cacheName))
+      if (Objects.equals(cacheName, that.cacheName)) {
          return false;
+      }
       return Objects.equals(command, that.command);
    }
 
@@ -123,18 +127,17 @@ public class SingleRpcCommand extends BaseRpcCommand {
    }
 
    @Override
-   public InfinispanSpanAttributes getSpanAttributes() {
-      return spanAttributes;
-   }
-
-   @Override
    public String getOperationName() {
-      // TODO use the class name or implement this method in all commands?
-      return command.getClass().getSimpleName();
+      return command.getOperationName();
    }
 
    @Override
-   public void setSpanAttributes(InfinispanSpanAttributes attributes) {
-      spanAttributes = attributes;
+   public void setTraceCommandData(TraceCommandData data) {
+      command.setTraceCommandData(data);
+   }
+
+   @Override
+   public TraceCommandData getTraceCommandData() {
+      return command.getTraceCommandData();
    }
 }

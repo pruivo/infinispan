@@ -22,7 +22,7 @@ import io.netty.buffer.ByteBuf;
  */
 public class AdminOperation extends ExecuteOperation<String> {
    AdminOperation(Codec codec, ChannelFactory channelFactory, byte[] cacheName, AtomicReference<ClientTopology> clientTopology, int flags, Configuration cfg, String taskName, Map<String, byte[]> marshalledParams) {
-      super(codec, channelFactory, cacheName, clientTopology, flags, cfg, taskName, marshalledParams, null, null);
+      super(codec, channelFactory, cacheName, clientTopology, flags, cfg, taskName, marshalledParams, null, null, null);
    }
 
    @Override

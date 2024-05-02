@@ -110,7 +110,6 @@ import org.infinispan.functional.EntryView.ReadWriteEntryView;
 import org.infinispan.functional.EntryView.WriteEntryView;
 import org.infinispan.functional.impl.Params;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
-import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.marshall.core.GlobalMarshaller;
 import org.infinispan.metadata.Metadata;
 import org.infinispan.metadata.impl.PrivateMetadata;
@@ -123,10 +122,10 @@ import org.infinispan.reactive.publisher.impl.commands.batch.NextPublisherComman
 import org.infinispan.reactive.publisher.impl.commands.reduction.ReductionPublisherRequestCommand;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.StateChunk;
+import org.infinispan.telemetry.InfinispanTelemetry;
+import org.infinispan.telemetry.impl.CacheSpanAttribute;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.util.ByteString;
-import org.infinispan.util.logging.Log;
-import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.SingleXSiteRpcCommand;
 import org.infinispan.xsite.commands.XSiteAmendOfflineStatusCommand;
 import org.infinispan.xsite.commands.XSiteAutoTransferStatusCommand;
@@ -162,13 +161,15 @@ import org.reactivestreams.Publisher;
  */
 @Scope(Scopes.NAMED_CACHE)
 public class CommandsFactoryImpl implements CommandsFactory {
-   private static final Log log = LogFactory.getLog(CommandsFactoryImpl.class);
 
    @Inject ClusteringDependentLogic clusteringDependentLogic;
    @Inject Configuration configuration;
    @Inject ComponentRef<Cache<Object, Object>> cache;
    @Inject ComponentRegistry componentRegistry;
-   @Inject EmbeddedCacheManager cacheManager;
+   @Inject
+   InfinispanTelemetry telemetry;
+   @Inject
+   CacheSpanAttribute cacheSpanAttribute;
    @Inject @ComponentName(KnownComponentNames.INTERNAL_MARSHALLER)
    StreamingMarshaller marshaller;
 
@@ -179,56 +180,56 @@ public class CommandsFactoryImpl implements CommandsFactory {
    // needs to happen early on
    public void start() {
       cacheName = ByteString.fromString(cache.wired().getName());
-      this.transactional = configuration.transaction().transactionMode().isTransactional();
+      transactional = configuration.transaction().transactionMode().isTransactional();
    }
 
    @Override
    public PutKeyValueCommand buildPutKeyValueCommand(Object key, Object value, int segment, Metadata metadata,
                                                      long flagsBitSet, boolean returnEntry) {
       boolean reallyTransactional = transactional && !EnumUtil.containsAny(flagsBitSet, FlagBitSets.PUT_FOR_EXTERNAL_READ);
-      return new PutKeyValueCommand(key, value, false, returnEntry, metadata, segment, flagsBitSet, generateUUID(reallyTransactional));
+      return injectTracing(new PutKeyValueCommand(key, value, false, returnEntry, metadata, segment, flagsBitSet, generateUUID(reallyTransactional)));
    }
 
    @Override
    public RemoveCommand buildRemoveCommand(Object key, Object value, int segment, long flagsBitSet, boolean returnEntry) {
-      return new RemoveCommand(key, value, returnEntry, segment, flagsBitSet, generateUUID(transactional));
+      return injectTracing(new RemoveCommand(key, value, returnEntry, segment, flagsBitSet, generateUUID(transactional)));
    }
 
    @Override
    public InvalidateCommand buildInvalidateCommand(long flagsBitSet, Object... keys) {
       // StateConsumerImpl always uses non-tx invalidation
-      return new InvalidateCommand(flagsBitSet, generateUUID(false), keys);
+      return injectTracing(new InvalidateCommand(flagsBitSet, generateUUID(false), keys));
    }
 
    @Override
    public InvalidateCommand buildInvalidateFromL1Command(long flagsBitSet, Collection<Object> keys) {
       // StateConsumerImpl always uses non-tx invalidation
-      return new InvalidateL1Command(flagsBitSet, keys, generateUUID(transactional));
+      return injectTracing(new InvalidateL1Command(flagsBitSet, keys, generateUUID(transactional)));
    }
 
    @Override
    public InvalidateCommand buildInvalidateFromL1Command(Address origin, long flagsBitSet, Collection<Object> keys) {
       // L1 invalidation is always non-transactional
-      return new InvalidateL1Command(origin, flagsBitSet, keys, generateUUID(false));
+      return injectTracing(new InvalidateL1Command(origin, flagsBitSet, keys, generateUUID(false)));
    }
 
    @Override
    public RemoveExpiredCommand buildRemoveExpiredCommand(Object key, Object value, int segment, Long lifespan,
          long flagsBitSet) {
-      return new RemoveExpiredCommand(key, value, lifespan, false, segment, flagsBitSet,
-            generateUUID(false));
+      return injectTracing(new RemoveExpiredCommand(key, value, lifespan, false, segment, flagsBitSet,
+            generateUUID(false)));
    }
 
    @Override
    public RemoveExpiredCommand buildRemoveExpiredCommand(Object key, Object value, int segment, long flagsBitSet) {
-      return new RemoveExpiredCommand(key, value, null, true, segment, flagsBitSet,
-            generateUUID(false));
+      return injectTracing(new RemoveExpiredCommand(key, value, null, true, segment, flagsBitSet,
+            generateUUID(false)));
    }
 
    @Override
    public ReplaceCommand buildReplaceCommand(Object key, Object oldValue, Object newValue, int segment,
                                              Metadata metadata, long flagsBitSet, boolean returnEntry) {
-      return new ReplaceCommand(key, oldValue, newValue, returnEntry, metadata, segment, flagsBitSet, generateUUID(transactional));
+      return injectTracing(new ReplaceCommand(key, oldValue, newValue, returnEntry, metadata, segment, flagsBitSet, generateUUID(transactional)));
    }
 
    @Override
@@ -243,77 +244,77 @@ public class CommandsFactoryImpl implements CommandsFactory {
 
    @Override
    public SizeCommand buildSizeCommand(IntSet segments, long flagsBitSet) {
-      return new SizeCommand(cacheName, segments, flagsBitSet);
+      return injectTracing(new SizeCommand(cacheName, segments, flagsBitSet));
    }
 
    @Override
    public KeySetCommand buildKeySetCommand(long flagsBitSet) {
-      return new KeySetCommand<>(flagsBitSet);
+      return injectTracing(new KeySetCommand<>(flagsBitSet));
    }
 
    @Override
    public EntrySetCommand buildEntrySetCommand(long flagsBitSet) {
-      return new EntrySetCommand<>(flagsBitSet);
+      return injectTracing(new EntrySetCommand<>(flagsBitSet));
    }
 
    @Override
    public GetKeyValueCommand buildGetKeyValueCommand(Object key, int segment, long flagsBitSet) {
-      return new GetKeyValueCommand(key, segment, flagsBitSet);
+      return injectTracing(new GetKeyValueCommand(key, segment, flagsBitSet));
    }
 
    @Override
    public GetAllCommand buildGetAllCommand(Collection<?> keys, long flagsBitSet, boolean returnEntries) {
-      return new GetAllCommand(keys, flagsBitSet, returnEntries);
+      return injectTracing(new GetAllCommand(keys, flagsBitSet, returnEntries));
    }
 
    @Override
    public PutMapCommand buildPutMapCommand(Map<?, ?> map, Metadata metadata, long flagsBitSet) {
-      return new PutMapCommand(map, metadata, flagsBitSet, generateUUID(transactional));
+      return injectTracing(new PutMapCommand(map, metadata, flagsBitSet, generateUUID(transactional)));
    }
 
    @Override
    public ClearCommand buildClearCommand(long flagsBitSet) {
-      return new ClearCommand(flagsBitSet);
+      return injectTracing(new ClearCommand(flagsBitSet));
    }
 
    @Override
    public EvictCommand buildEvictCommand(Object key, int segment, long flagsBitSet) {
-      return new EvictCommand(key, segment, flagsBitSet, generateUUID(transactional));
+      return injectTracing(new EvictCommand(key, segment, flagsBitSet, generateUUID(transactional)));
    }
 
    @Override
    public PrepareCommand buildPrepareCommand(GlobalTransaction gtx, List<WriteCommand> modifications, boolean onePhaseCommit) {
-      return new PrepareCommand(cacheName, gtx, modifications, onePhaseCommit);
+      return injectTracing(new PrepareCommand(cacheName, gtx, modifications, onePhaseCommit));
    }
 
    @Override
    public VersionedPrepareCommand buildVersionedPrepareCommand(GlobalTransaction gtx, List<WriteCommand> modifications, boolean onePhase) {
-      return new VersionedPrepareCommand(cacheName, gtx, modifications, onePhase);
+      return injectTracing(new VersionedPrepareCommand(cacheName, gtx, modifications, onePhase));
    }
 
    @Override
    public CommitCommand buildCommitCommand(GlobalTransaction gtx) {
-      return new CommitCommand(cacheName, gtx);
+      return injectTracing(new CommitCommand(cacheName, gtx));
    }
 
    @Override
    public VersionedCommitCommand buildVersionedCommitCommand(GlobalTransaction gtx) {
-      return new VersionedCommitCommand(cacheName, gtx);
+      return injectTracing(new VersionedCommitCommand(cacheName, gtx));
    }
 
    @Override
    public RollbackCommand buildRollbackCommand(GlobalTransaction gtx) {
-      return new RollbackCommand(cacheName, gtx);
+      return injectTracing(new RollbackCommand(cacheName, gtx));
    }
 
    @Override
    public SingleRpcCommand buildSingleRpcCommand(VisitableCommand call) {
-      return new SingleRpcCommand(cacheName, call);
+      return injectTracing(new SingleRpcCommand(cacheName, call));
    }
 
    @Override
    public ClusteredGetCommand buildClusteredGetCommand(Object key, Integer segment, long flagsBitSet) {
-      return new ClusteredGetCommand(key, cacheName, segment, flagsBitSet);
+      return injectTracing(new ClusteredGetCommand(key, cacheName, segment, flagsBitSet));
    }
 
    /**
@@ -321,61 +322,64 @@ public class CommandsFactoryImpl implements CommandsFactory {
     */
    @Override
    public void initializeReplicableCommand(ReplicableCommand c, boolean isRemote) {
-      if (c == null) return;
+      if (c == null) {
+         return;
+      }
 
-      if (c instanceof InitializableCommand)
+      if (c instanceof InitializableCommand) {
          ((InitializableCommand) c).init(componentRegistry, isRemote);
+      }
+      c.updateTraceData(cacheSpanAttribute);
    }
 
-   @SuppressWarnings("unchecked")
-   private <T> T init(VisitableCommand cmd) {
+   private <T extends VisitableCommand & TracedCommand> T init(T cmd) {
       cmd.init(componentRegistry);
-      return (T) cmd;
+      return injectTracing(cmd);
    }
 
    @Override
    public LockControlCommand buildLockControlCommand(Collection<?> keys, long flagsBitSet, GlobalTransaction gtx) {
-      return new LockControlCommand(keys, cacheName, flagsBitSet, gtx);
+      return injectTracing(new LockControlCommand(keys, cacheName, flagsBitSet, gtx));
    }
 
    @Override
    public LockControlCommand buildLockControlCommand(Object key, long flagsBitSet, GlobalTransaction gtx) {
-      return new LockControlCommand(key, cacheName, flagsBitSet, gtx);
+      return injectTracing(new LockControlCommand(key, cacheName, flagsBitSet, gtx));
    }
 
    @Override
    public LockControlCommand buildLockControlCommand(Collection<?> keys, long flagsBitSet) {
-      return new LockControlCommand(keys, cacheName, flagsBitSet, null);
+      return injectTracing(new LockControlCommand(keys, cacheName, flagsBitSet, null));
    }
 
    @Override
    public ConflictResolutionStartCommand buildConflictResolutionStartCommand(int topologyId, IntSet segments) {
-      return new ConflictResolutionStartCommand(cacheName, topologyId, segments);
+      return injectTracing(new ConflictResolutionStartCommand(cacheName, topologyId, segments));
    }
 
    @Override
    public StateTransferCancelCommand buildStateTransferCancelCommand(int topologyId, IntSet segments) {
-      return new StateTransferCancelCommand(cacheName, topologyId, segments);
+      return injectTracing(new StateTransferCancelCommand(cacheName, topologyId, segments));
    }
 
    @Override
    public StateTransferGetListenersCommand buildStateTransferGetListenersCommand(int topologyId) {
-      return new StateTransferGetListenersCommand(cacheName, topologyId);
+      return injectTracing(new StateTransferGetListenersCommand(cacheName, topologyId));
    }
 
    @Override
    public StateTransferGetTransactionsCommand buildStateTransferGetTransactionsCommand(int topologyId, IntSet segments) {
-      return new StateTransferGetTransactionsCommand(cacheName, topologyId, segments);
+      return injectTracing(new StateTransferGetTransactionsCommand(cacheName, topologyId, segments));
    }
 
    @Override
    public StateTransferStartCommand buildStateTransferStartCommand(int topologyId, IntSet segments) {
-      return new StateTransferStartCommand(cacheName, topologyId, segments);
+      return injectTracing(new StateTransferStartCommand(cacheName, topologyId, segments));
    }
 
    @Override
    public StateResponseCommand buildStateResponseCommand(int topologyId, Collection<StateChunk> stateChunks, boolean applyState) {
-      return new StateResponseCommand(cacheName, topologyId, stateChunks, applyState);
+      return injectTracing(new StateResponseCommand(cacheName, topologyId, stateChunks, applyState));
    }
 
    @Override
@@ -385,117 +389,117 @@ public class CommandsFactoryImpl implements CommandsFactory {
 
    @Override
    public GetInDoubtTransactionsCommand buildGetInDoubtTransactionsCommand() {
-      return new GetInDoubtTransactionsCommand(cacheName);
+      return injectTracing(new GetInDoubtTransactionsCommand(cacheName));
    }
 
    @Override
    public TxCompletionNotificationCommand buildTxCompletionNotificationCommand(XidImpl xid, GlobalTransaction globalTransaction) {
-      return new TxCompletionNotificationCommand(xid, globalTransaction, cacheName);
+      return injectTracing(new TxCompletionNotificationCommand(xid, globalTransaction, cacheName));
    }
 
    @Override
    public TxCompletionNotificationCommand buildTxCompletionNotificationCommand(long internalId) {
-      return new TxCompletionNotificationCommand(internalId, cacheName);
+      return injectTracing(new TxCompletionNotificationCommand(internalId, cacheName));
    }
 
    @Override
    public GetInDoubtTxInfoCommand buildGetInDoubtTxInfoCommand() {
-      return new GetInDoubtTxInfoCommand(cacheName);
+      return injectTracing(new GetInDoubtTxInfoCommand(cacheName));
    }
 
    @Override
    public CompleteTransactionCommand buildCompleteTransactionCommand(XidImpl xid, boolean commit) {
-      return new CompleteTransactionCommand(cacheName, xid, commit);
+      return injectTracing(new CompleteTransactionCommand(cacheName, xid, commit));
    }
 
    @Override
    public XSiteStateTransferCancelSendCommand buildXSiteStateTransferCancelSendCommand(String siteName) {
-      return new XSiteStateTransferCancelSendCommand(cacheName, siteName);
+      return injectTracing(new XSiteStateTransferCancelSendCommand(cacheName, siteName));
    }
 
    @Override
    public XSiteStateTransferClearStatusCommand buildXSiteStateTransferClearStatusCommand() {
-      return new XSiteStateTransferClearStatusCommand(cacheName);
+      return injectTracing(new XSiteStateTransferClearStatusCommand(cacheName));
    }
 
    @Override
    public XSiteStateTransferFinishReceiveCommand buildXSiteStateTransferFinishReceiveCommand(String siteName) {
-      return new XSiteStateTransferFinishReceiveCommand(cacheName, siteName);
+      return injectTracing(new XSiteStateTransferFinishReceiveCommand(cacheName, siteName));
    }
 
    @Override
    public XSiteStateTransferFinishSendCommand buildXSiteStateTransferFinishSendCommand(String siteName, boolean statusOk) {
-      return new XSiteStateTransferFinishSendCommand(cacheName, siteName, statusOk);
+      return injectTracing(new XSiteStateTransferFinishSendCommand(cacheName, siteName, statusOk));
    }
 
    @Override
    public XSiteStateTransferRestartSendingCommand buildXSiteStateTransferRestartSendingCommand(String siteName, int topologyId) {
-      return new XSiteStateTransferRestartSendingCommand(cacheName, siteName, topologyId);
+      return injectTracing(new XSiteStateTransferRestartSendingCommand(cacheName, siteName, topologyId));
    }
 
    @Override
    public XSiteStateTransferStartReceiveCommand buildXSiteStateTransferStartReceiveCommand(String siteName) {
-      return new XSiteStateTransferStartReceiveCommand(cacheName, siteName);
+      return injectTracing(new XSiteStateTransferStartReceiveCommand(cacheName, siteName));
    }
 
    @Override
    public XSiteStateTransferStartSendCommand buildXSiteStateTransferStartSendCommand(String siteName, int topologyId) {
-      return new XSiteStateTransferStartSendCommand(cacheName, siteName, topologyId);
+      return injectTracing(new XSiteStateTransferStartSendCommand(cacheName, siteName, topologyId));
    }
 
    @Override
    public XSiteStateTransferStatusRequestCommand buildXSiteStateTransferStatusRequestCommand() {
-      return new XSiteStateTransferStatusRequestCommand(cacheName);
+      return injectTracing(new XSiteStateTransferStatusRequestCommand(cacheName));
    }
 
    @Override
    public XSiteStateTransferControlRequest buildXSiteStateTransferControlRequest(boolean startReceiving) {
-      return new XSiteStateTransferControlRequest(cacheName, startReceiving);
+      return injectTracing(new XSiteStateTransferControlRequest(cacheName, startReceiving));
    }
 
    @Override
    public XSiteAmendOfflineStatusCommand buildXSiteAmendOfflineStatusCommand(String siteName, Integer afterFailures, Long minTimeToWait) {
-      return new XSiteAmendOfflineStatusCommand(cacheName, siteName, afterFailures, minTimeToWait);
+      return injectTracing(new XSiteAmendOfflineStatusCommand(cacheName, siteName, afterFailures, minTimeToWait));
    }
 
    @Override
    public XSiteBringOnlineCommand buildXSiteBringOnlineCommand(String siteName) {
-      return new XSiteBringOnlineCommand(cacheName, siteName);
+      return injectTracing(new XSiteBringOnlineCommand(cacheName, siteName));
    }
 
    @Override
    public XSiteOfflineStatusCommand buildXSiteOfflineStatusCommand(String siteName) {
-      return new XSiteOfflineStatusCommand(cacheName, siteName);
+      return injectTracing(new XSiteOfflineStatusCommand(cacheName, siteName));
    }
 
    @Override
    public XSiteStatusCommand buildXSiteStatusCommand() {
-      return new XSiteStatusCommand(cacheName);
+      return injectTracing(new XSiteStatusCommand(cacheName));
    }
 
    @Override
    public XSiteTakeOfflineCommand buildXSiteTakeOfflineCommand(String siteName) {
-      return new XSiteTakeOfflineCommand(cacheName, siteName);
+      return injectTracing(new XSiteTakeOfflineCommand(cacheName, siteName));
    }
 
    @Override
    public XSiteStatePushCommand buildXSiteStatePushCommand(XSiteState[] chunk) {
-      return new XSiteStatePushCommand(cacheName, chunk);
+      return injectTracing(new XSiteStatePushCommand(cacheName, chunk));
    }
 
    @Override
    public SingleXSiteRpcCommand buildSingleXSiteRpcCommand(VisitableCommand command) {
-      return new SingleXSiteRpcCommand(cacheName, command);
+      return injectTracing(new SingleXSiteRpcCommand(cacheName, command));
    }
 
    @Override
    public GetCacheEntryCommand buildGetCacheEntryCommand(Object key, int segment, long flagsBitSet) {
-      return new GetCacheEntryCommand(key, segment, flagsBitSet);
+      return injectTracing(new GetCacheEntryCommand(key, segment, flagsBitSet));
    }
 
    @Override
    public ClusteredGetAllCommand buildClusteredGetAllCommand(List<?> keys, long flagsBitSet, GlobalTransaction gtx) {
-      return new ClusteredGetAllCommand(cacheName, keys, flagsBitSet, gtx);
+      return injectTracing(new ClusteredGetAllCommand(cacheName, keys, flagsBitSet, gtx));
    }
 
    private CommandInvocationId generateUUID(boolean tx) {
@@ -573,59 +577,61 @@ public class CommandsFactoryImpl implements CommandsFactory {
    public <K, V, R> TxReadOnlyManyCommand<K, V, R> buildTxReadOnlyManyCommand(Collection<?> keys, List<List<Mutation<K, V, ?>>> mutations,
                                                                               Params params, DataConversion keyDataConversion,
                                                                               DataConversion valueDataConversion) {
-      return init(new TxReadOnlyManyCommand<K, V, R>(keys, mutations, params, keyDataConversion, valueDataConversion));
+      return init(new TxReadOnlyManyCommand<>(keys, mutations, params, keyDataConversion, valueDataConversion));
    }
 
    @Override
    public BackupMultiKeyAckCommand buildBackupMultiKeyAckCommand(long id, int segment, int topologyId) {
-      return new BackupMultiKeyAckCommand(cacheName, id, segment, topologyId);
+      return injectTracing(new BackupMultiKeyAckCommand(cacheName, id, segment, topologyId));
    }
 
    @Override
    public ExceptionAckCommand buildExceptionAckCommand(long id, Throwable throwable, int topologyId) {
-      return new ExceptionAckCommand(cacheName, id, throwable, topologyId);
+      return injectTracing(new ExceptionAckCommand(cacheName, id, throwable, topologyId));
    }
 
    private ValueMatcher getValueMatcher(Object o) {
       SerializeFunctionWith ann = o.getClass().getAnnotation(SerializeFunctionWith.class);
-      if (ann != null)
+      if (ann != null) {
          return ValueMatcher.valueOf(ann.valueMatcher().toString());
+      }
 
       Externalizer ext = ((GlobalMarshaller) marshaller).findExternalizerFor(o);
-      if (ext instanceof LambdaExternalizer)
+      if (ext instanceof LambdaExternalizer) {
          return ValueMatcher.valueOf(((LambdaExternalizer) ext).valueMatcher(o).toString());
+      }
 
       return ValueMatcher.MATCH_ALWAYS;
    }
 
    @Override
    public SingleKeyBackupWriteCommand buildSingleKeyBackupWriteCommand() {
-      return new SingleKeyBackupWriteCommand(cacheName);
+      return injectTracing(new SingleKeyBackupWriteCommand(cacheName));
    }
 
    @Override
    public SingleKeyFunctionalBackupWriteCommand buildSingleKeyFunctionalBackupWriteCommand() {
-      return new SingleKeyFunctionalBackupWriteCommand(cacheName);
+      return injectTracing(new SingleKeyFunctionalBackupWriteCommand(cacheName));
    }
 
    @Override
    public PutMapBackupWriteCommand buildPutMapBackupWriteCommand() {
-      return new PutMapBackupWriteCommand(cacheName);
+      return injectTracing(new PutMapBackupWriteCommand(cacheName));
    }
 
    @Override
    public MultiEntriesFunctionalBackupWriteCommand buildMultiEntriesFunctionalBackupWriteCommand() {
-      return new MultiEntriesFunctionalBackupWriteCommand(cacheName);
+      return injectTracing(new MultiEntriesFunctionalBackupWriteCommand(cacheName));
    }
 
    @Override
    public MultiKeyFunctionalBackupWriteCommand buildMultiKeyFunctionalBackupWriteCommand() {
-      return new MultiKeyFunctionalBackupWriteCommand(cacheName);
+      return injectTracing(new MultiKeyFunctionalBackupWriteCommand(cacheName));
    }
 
    @Override
    public BackupNoopCommand buildBackupNoopCommand() {
-         return new BackupNoopCommand(cacheName);
+      return injectTracing(new BackupNoopCommand(cacheName));
    }
 
    @Override
@@ -633,8 +639,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
          DeliveryGuarantee deliveryGuarantee, IntSet segments, Set<K> keys, Set<K> excludedKeys, long explicitFlags,
          Function<? super Publisher<K>, ? extends CompletionStage<R>> transformer,
          Function<? super Publisher<R>, ? extends CompletionStage<R>> finalizer) {
-      return new ReductionPublisherRequestCommand<>(cacheName, parallelStream, deliveryGuarantee, segments, keys, excludedKeys,
-            explicitFlags, false, transformer, finalizer);
+      return injectTracing(new ReductionPublisherRequestCommand<>(cacheName, parallelStream, deliveryGuarantee, segments, keys, excludedKeys,
+            explicitFlags, false, transformer, finalizer));
    }
 
    @Override
@@ -642,126 +648,131 @@ public class CommandsFactoryImpl implements CommandsFactory {
          DeliveryGuarantee deliveryGuarantee, IntSet segments, Set<K> keys, Set<K> excludedKeys, long explicitFlags,
          Function<? super Publisher<CacheEntry<K, V>>, ? extends CompletionStage<R>> transformer,
          Function<? super Publisher<R>, ? extends CompletionStage<R>> finalizer) {
-      return new ReductionPublisherRequestCommand<>(cacheName, parallelStream, deliveryGuarantee, segments, keys, excludedKeys,
-            explicitFlags, true, transformer, finalizer);
+      return injectTracing(new ReductionPublisherRequestCommand<>(cacheName, parallelStream, deliveryGuarantee, segments, keys, excludedKeys,
+            explicitFlags, true, transformer, finalizer));
    }
 
    @Override
    public <K, I, R> InitialPublisherCommand<K, I, R> buildInitialPublisherCommand(String requestId, DeliveryGuarantee deliveryGuarantee,
                                                                                   int batchSize, IntSet segments, Set<K> keys, Set<K> excludedKeys, long explicitFlags, boolean entryStream,
                                                                                   boolean trackKeys, Function<? super Publisher<I>, ? extends Publisher<R>> transformer) {
-      return new InitialPublisherCommand<>(cacheName, requestId, deliveryGuarantee, batchSize, segments, keys,
-            excludedKeys, explicitFlags, entryStream, trackKeys, transformer);
+      return injectTracing(new InitialPublisherCommand<>(cacheName, requestId, deliveryGuarantee, batchSize, segments, keys,
+            excludedKeys, explicitFlags, entryStream, trackKeys, transformer));
    }
 
    @Override
    public NextPublisherCommand buildNextPublisherCommand(String requestId) {
-      return new NextPublisherCommand(cacheName, requestId);
+      return injectTracing(new NextPublisherCommand(cacheName, requestId));
    }
 
    @Override
    public CancelPublisherCommand buildCancelPublisherCommand(String requestId) {
-      return new CancelPublisherCommand(cacheName, requestId);
+      return injectTracing(new CancelPublisherCommand(cacheName, requestId));
    }
 
    @Override
    public <K, V> MultiClusterEventCommand<K, V> buildMultiClusterEventCommand(Map<UUID, Collection<ClusterEvent<K, V>>> events) {
-      return new MultiClusterEventCommand<>(cacheName, events);
+      return injectTracing(new MultiClusterEventCommand<>(cacheName, events));
    }
 
    @Override
    public CheckTransactionRpcCommand buildCheckTransactionRpcCommand(Collection<GlobalTransaction> globalTransactions) {
-      return new CheckTransactionRpcCommand(cacheName, globalTransactions);
+      return injectTracing(new CheckTransactionRpcCommand(cacheName, globalTransactions));
    }
 
    @Override
    public TouchCommand buildTouchCommand(Object key, int segment, boolean touchEvenIfExpired, long flagBitSet) {
-      return new TouchCommand(key, segment, flagBitSet, touchEvenIfExpired);
+      return injectTracing(new TouchCommand(key, segment, flagBitSet, touchEvenIfExpired));
    }
 
    @Override
    public IracClearKeysRequest buildIracClearKeysCommand() {
-      return new IracClearKeysRequest(cacheName);
+      return injectTracing(new IracClearKeysRequest(cacheName));
    }
 
    @Override
    public IracCleanupKeysCommand buildIracCleanupKeyCommand(Collection<IracManagerKeyInfo> state) {
-      return new IracCleanupKeysCommand(cacheName, state);
+      return injectTracing(new IracCleanupKeysCommand(cacheName, state));
    }
 
    @Override
    public IracTombstoneCleanupCommand buildIracTombstoneCleanupCommand(int maxCapacity) {
-      return new IracTombstoneCleanupCommand(cacheName, maxCapacity);
+      return injectTracing(new IracTombstoneCleanupCommand(cacheName, maxCapacity));
    }
 
    @Override
    public IracMetadataRequestCommand buildIracMetadataRequestCommand(int segment, IracEntryVersion versionSeen) {
-      return new IracMetadataRequestCommand(cacheName, segment, versionSeen);
+      return injectTracing(new IracMetadataRequestCommand(cacheName, segment, versionSeen));
    }
 
    @Override
    public IracRequestStateCommand buildIracRequestStateCommand(IntSet segments) {
-      return new IracRequestStateCommand(cacheName, segments);
+      return injectTracing(new IracRequestStateCommand(cacheName, segments));
    }
 
    @Override
    public IracStateResponseCommand buildIracStateResponseCommand(int capacity) {
-      return new IracStateResponseCommand(cacheName, capacity);
+      return injectTracing(new IracStateResponseCommand(cacheName, capacity));
    }
 
    @Override
    public IracPutKeyValueCommand buildIracPutKeyValueCommand(Object key, int segment, Object value, Metadata metadata,
          PrivateMetadata privateMetadata) {
-      return new IracPutKeyValueCommand(key, segment, generateUUID(false), value, metadata, privateMetadata);
+      return injectTracing(new IracPutKeyValueCommand(key, segment, generateUUID(false), value, metadata, privateMetadata));
    }
 
    @Override
    public IracTouchKeyRequest buildIracTouchCommand(Object key) {
-      return new IracTouchKeyRequest(cacheName, key);
+      return injectTracing(new IracTouchKeyRequest(cacheName, key));
    }
 
    @Override
    public IracUpdateVersionCommand buildIracUpdateVersionCommand(Map<Integer, IracEntryVersion> segmentsVersion) {
-      return new IracUpdateVersionCommand(cacheName, segmentsVersion);
+      return injectTracing(new IracUpdateVersionCommand(cacheName, segmentsVersion));
    }
 
    @Override
    public XSiteAutoTransferStatusCommand buildXSiteAutoTransferStatusCommand(String site) {
-      return new XSiteAutoTransferStatusCommand(cacheName, site);
+      return injectTracing(new XSiteAutoTransferStatusCommand(cacheName, site));
    }
 
    @Override
    public XSiteSetStateTransferModeCommand buildXSiteSetStateTransferModeCommand(String site, XSiteStateTransferMode mode) {
-      return new XSiteSetStateTransferModeCommand(cacheName, site, mode);
+      return injectTracing(new XSiteSetStateTransferModeCommand(cacheName, site, mode));
    }
 
    @Override
    public IracTombstoneRemoteSiteCheckCommand buildIracTombstoneRemoteSiteCheckCommand(List<Object> keys) {
-      return new IracTombstoneRemoteSiteCheckCommand(cacheName, keys);
+      return injectTracing(new IracTombstoneRemoteSiteCheckCommand(cacheName, keys));
    }
 
    @Override
    public IracTombstoneStateResponseCommand buildIracTombstoneStateResponseCommand(Collection<IracTombstoneInfo> state) {
-      return new IracTombstoneStateResponseCommand(cacheName, state);
+      return injectTracing(new IracTombstoneStateResponseCommand(cacheName, state));
    }
 
    @Override
    public IracTombstonePrimaryCheckCommand buildIracTombstonePrimaryCheckCommand(Collection<IracTombstoneInfo> tombstones) {
-      return new IracTombstonePrimaryCheckCommand(cacheName, tombstones);
+      return injectTracing(new IracTombstonePrimaryCheckCommand(cacheName, tombstones));
    }
 
    @Override
    public IracPutManyRequest buildIracPutManyCommand(int capacity) {
-      return new IracPutManyRequest(cacheName, capacity);
+      return injectTracing(new IracPutManyRequest(cacheName, capacity));
    }
 
    @Override
    public XSiteStatePushRequest buildXSiteStatePushRequest(XSiteState[] chunk, long timeoutMillis) {
-      return new XSiteStatePushRequest(cacheName, chunk, timeoutMillis);
+      return injectTracing(new XSiteStatePushRequest(cacheName, chunk, timeoutMillis));
    }
 
    @Override
    public IracTombstoneCheckRequest buildIracTombstoneCheckRequest(List<Object> keys) {
-      return new IracTombstoneCheckRequest(cacheName, keys);
+      return injectTracing(new IracTombstoneCheckRequest(cacheName, keys));
+   }
+
+   private <T extends TracedCommand> T injectTracing(T command) {
+      command.setTraceCommandData(new TracedCommand.TraceCommandData(cacheSpanAttribute, telemetry.createRemoteContext()));
+      return command;
    }
 }

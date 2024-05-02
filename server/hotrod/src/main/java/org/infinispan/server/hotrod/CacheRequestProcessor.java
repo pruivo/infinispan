@@ -48,7 +48,7 @@ class CacheRequestProcessor extends BaseRequestProcessor {
 
    CacheRequestProcessor(Channel channel, Executor executor, HotRodServer server, InfinispanTelemetry telemetryService) {
       super(channel, executor, server);
-      this.listenerRegistry = server.getClientListenerRegistry();
+      listenerRegistry = server.getClientListenerRegistry();
       this.telemetryService = telemetryService;
    }
 
@@ -85,7 +85,8 @@ class CacheRequestProcessor extends BaseRequestProcessor {
       ExtendedCacheInfo cacheInfo = server.getCacheInfo(header);
       AdvancedCache<byte[], byte[]> cache = server.cache(cacheInfo, header, subject);
 
-      getInternal(header, cache, key);
+      InfinispanSpan<CacheEntry<?, ?>> span = requestStart(header, cacheInfo.getInfinispanSpanAttributes());
+      getInternal(header, cache, key, span);
    }
 
    void updateBloomFilter(HotRodHeader header, Subject subject, byte[] bloomArray) {
@@ -111,12 +112,15 @@ class CacheRequestProcessor extends BaseRequestProcessor {
       }
    }
 
-   private void getInternal(HotRodHeader header, AdvancedCache<byte[], byte[]> cache, byte[] key) {
-      CompletableFuture<CacheEntry<byte[], byte[]>> get = cache.getCacheEntryAsync(key);
-      if (get.isDone() && !get.isCompletedExceptionally()) {
-         handleGet(header, get.join(), null);
-      } else {
-         get.whenComplete((result, throwable) -> handleGet(header, result, throwable));
+   private void getInternal(HotRodHeader header, AdvancedCache<byte[], byte[]> cache, byte[] key, InfinispanSpan<CacheEntry<?, ?>> span) {
+      try (var ignored = span.makeCurrent()) {
+         CompletableFuture<CacheEntry<byte[], byte[]>> get = cache.getCacheEntryAsync(key);
+         if (get.isDone() && !get.isCompletedExceptionally()) {
+            handleGet(header, get.join(), null);
+            get.whenComplete(span);
+         } else {
+            get.whenComplete((result, throwable) -> handleGet(header, result, throwable)).whenComplete(span);
+         }
       }
    }
 
@@ -533,16 +537,21 @@ class CacheRequestProcessor extends BaseRequestProcessor {
    }
 
    void query(HotRodHeader header, Subject subject, byte[] queryBytes) {
-      AdvancedCache<byte[], byte[]> cache = server.cache(server.getCacheInfo(header), header, subject);
-      executor.execute(() -> queryInternal(header, cache, queryBytes));
+      var cacheInfo = server.getCacheInfo(header);
+      AdvancedCache<byte[], byte[]> cache = server.cache(cacheInfo, header, subject);
+      var span = requestStart(header, cacheInfo.getInfinispanSpanAttributes());
+      executor.execute(() -> queryInternal(header, cache, queryBytes, span));
    }
 
-   private void queryInternal(HotRodHeader header, AdvancedCache<byte[], byte[]> cache, byte[] queryBytes) {
-      try {
+   private void queryInternal(HotRodHeader header, AdvancedCache<byte[], byte[]> cache, byte[] queryBytes, InfinispanSpan<Object> span) {
+      try (var ignored = span.makeCurrent()) {
          byte[] queryResult = server.query(cache, queryBytes);
          writeResponse(header, header.encoder().valueResponse(header, server, channel, OperationStatus.Success, queryResult));
       } catch (Throwable t) {
          writeException(header, t);
+         span.recordException(t);
+      } finally {
+         span.complete();
       }
    }
 

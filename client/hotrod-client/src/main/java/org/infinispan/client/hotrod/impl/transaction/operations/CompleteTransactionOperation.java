@@ -1,10 +1,8 @@
 package org.infinispan.client.hotrod.impl.transaction.operations;
 
-import java.util.concurrent.atomic.AtomicReference;
-
-import jakarta.transaction.TransactionManager;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.Xid;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.infinispan.client.hotrod.configuration.Configuration;
 import org.infinispan.client.hotrod.impl.ClientTopology;
@@ -13,9 +11,11 @@ import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.transport.netty.ByteBufUtil;
 import org.infinispan.client.hotrod.impl.transport.netty.ChannelFactory;
 import org.infinispan.client.hotrod.impl.transport.netty.HeaderDecoder;
+import org.infinispan.client.hotrod.telemetry.impl.TelemetryService;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import jakarta.transaction.TransactionManager;
 
 /**
  * Represents a commit or rollback request from the {@link TransactionManager}.
@@ -28,9 +28,9 @@ public class CompleteTransactionOperation extends RetryOnFailureOperation<Intege
    private final Xid xid;
 
    public CompleteTransactionOperation(Codec codec, ChannelFactory channelFactory, AtomicReference<ClientTopology> clientTopology,
-         Configuration cfg, Xid xid, boolean commit) {
+                                       Configuration cfg, Xid xid, boolean commit, TelemetryService telemetryService) {
       super(commit ? COMMIT_REQUEST : ROLLBACK_REQUEST, commit ? COMMIT_RESPONSE : ROLLBACK_RESPONSE,
-            codec, channelFactory, DEFAULT_CACHE_NAME_BYTES, clientTopology, 0, cfg, null, null);
+            codec, channelFactory, DEFAULT_CACHE_NAME_BYTES, clientTopology, 0, cfg, null, telemetryService);
       this.xid = xid;
    }
 

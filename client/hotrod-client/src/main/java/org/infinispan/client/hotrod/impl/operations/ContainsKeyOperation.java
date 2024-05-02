@@ -10,6 +10,7 @@ import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.protocol.HotRodConstants;
 import org.infinispan.client.hotrod.impl.transport.netty.ChannelFactory;
 import org.infinispan.client.hotrod.impl.transport.netty.HeaderDecoder;
+import org.infinispan.client.hotrod.telemetry.impl.TelemetryService;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -26,9 +27,9 @@ public class ContainsKeyOperation extends AbstractKeyOperation<Boolean> {
 
    public ContainsKeyOperation(Codec codec, ChannelFactory channelFactory, Object key, byte[] keyBytes,
                                byte[] cacheName, AtomicReference<ClientTopology> clientTopology, int flags, Configuration cfg,
-                               DataFormat dataFormat, ClientStatistics clientStatistics) {
+                               DataFormat dataFormat, ClientStatistics clientStatistics, TelemetryService telemetryService) {
       super(CONTAINS_KEY_REQUEST, CONTAINS_KEY_RESPONSE, codec, channelFactory, key, keyBytes, cacheName, clientTopology,
-            flags, cfg, dataFormat, clientStatistics, null);
+            flags, cfg, dataFormat, clientStatistics, telemetryService);
    }
 
    @Override

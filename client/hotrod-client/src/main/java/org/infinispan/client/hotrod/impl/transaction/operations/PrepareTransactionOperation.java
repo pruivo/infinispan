@@ -5,13 +5,11 @@ import static org.infinispan.client.hotrod.impl.transport.netty.ByteBufUtil.esti
 import static org.infinispan.client.hotrod.impl.transport.netty.ByteBufUtil.writeVInt;
 import static org.infinispan.client.hotrod.impl.transport.netty.ByteBufUtil.writeXid;
 
+import javax.transaction.xa.Xid;
 import java.net.SocketAddress;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-
-import jakarta.transaction.TransactionManager;
-import javax.transaction.xa.Xid;
 
 import org.infinispan.client.hotrod.configuration.Configuration;
 import org.infinispan.client.hotrod.impl.ClientTopology;
@@ -20,9 +18,11 @@ import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.transaction.entry.Modification;
 import org.infinispan.client.hotrod.impl.transport.netty.ChannelFactory;
 import org.infinispan.client.hotrod.impl.transport.netty.HeaderDecoder;
+import org.infinispan.client.hotrod.telemetry.impl.TelemetryService;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import jakarta.transaction.TransactionManager;
 
 /**
  * A prepare request from the {@link TransactionManager}.
@@ -42,8 +42,8 @@ public class PrepareTransactionOperation extends RetryOnFailureOperation<Integer
    private boolean retry;
 
    public PrepareTransactionOperation(Codec codec, ChannelFactory channelFactory, byte[] cacheName,
-         AtomicReference<ClientTopology> clientTopology, Configuration cfg, Xid xid, boolean onePhaseCommit,
-         List<Modification> modifications, boolean recoverable, long timeoutMs) {
+                                      AtomicReference<ClientTopology> clientTopology, Configuration cfg, Xid xid, boolean onePhaseCommit,
+                                      List<Modification> modifications, boolean recoverable, long timeoutMs, TelemetryService telemetryService) {
       super(PREPARE_TX_2_REQUEST, PREPARE_TX_2_RESPONSE, codec, channelFactory, cacheName, clientTopology, 0, cfg, null, null);
       this.xid = xid;
       this.onePhaseCommit = onePhaseCommit;

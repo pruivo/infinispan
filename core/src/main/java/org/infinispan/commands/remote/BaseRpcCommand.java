@@ -7,6 +7,7 @@ public abstract class BaseRpcCommand implements CacheRpcCommand {
    protected final ByteString cacheName;
 
    protected Address origin;
+   private TraceCommandData traceCommandData;
 
    protected BaseRpcCommand(ByteString cacheName) {
       this.cacheName = cacheName;
@@ -32,5 +33,15 @@ public abstract class BaseRpcCommand implements CacheRpcCommand {
    @Override
    public void setOrigin(Address origin) {
       this.origin = origin;
+   }
+
+   @Override
+   public void setTraceCommandData(TraceCommandData data) {
+      traceCommandData = data;
+   }
+
+   @Override
+   public TraceCommandData getTraceCommandData() {
+      return traceCommandData;
    }
 }

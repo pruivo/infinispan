@@ -102,10 +102,12 @@ public final class ReadWriteManyCommand<K, V, R> extends AbstractWriteManyComman
       this.internalMetadataMap = MarshallUtil.unmarshallMap(input, ConcurrentHashMap::new);
    }
 
+   @Override
    public boolean isForwarded() {
       return isForwarded;
    }
 
+   @Override
    public void setForwarded(boolean forwarded) {
       isForwarded = forwarded;
    }

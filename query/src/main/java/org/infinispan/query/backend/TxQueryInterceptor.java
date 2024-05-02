@@ -2,24 +2,28 @@ package org.infinispan.query.backend;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.tx.CommitCommand;
 import org.infinispan.commands.tx.PrepareCommand;
+import org.infinispan.commons.util.concurrent.CompletionStages;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.context.impl.FlagBitSets;
 import org.infinispan.context.impl.TxInvocationContext;
+import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.DDAsyncInterceptor;
-import org.infinispan.interceptors.InvocationStage;
 import org.infinispan.interceptors.InvocationSuccessFunction;
+import org.infinispan.telemetry.InfinispanTelemetry;
+import org.infinispan.telemetry.SpanCategory;
+import org.infinispan.telemetry.impl.DisabledInfinispanSpan;
 import org.infinispan.transaction.impl.AbstractCacheTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
-import org.infinispan.commons.util.concurrent.CompletableFutures;
 
 public final class TxQueryInterceptor extends DDAsyncInterceptor {
+
+   @Inject InfinispanTelemetry telemetry;
 
    private final ConcurrentMap<GlobalTransaction, Map<Object, Object>> txOldValues;
 
@@ -48,23 +52,30 @@ public final class TxQueryInterceptor extends DDAsyncInterceptor {
       return invokeNextThenApply(ctx, command, commitModificationsToIndex);
    }
 
-   private InvocationStage commitModificationsToIndexFuture(InvocationContext ctx, VisitableCommand cmd, Object rv) {
-      TxInvocationContext txCtx = (TxInvocationContext) ctx;
+   private Object commitModificationsToIndexFuture(InvocationContext ctx, VisitableCommand cmd, Object rv) {
+      TxInvocationContext<?> txCtx = (TxInvocationContext<?>) ctx;
       Map<Object, Object> removed = txOldValues.remove(txCtx.getGlobalTransaction());
       final Map<Object, Object> oldValues = removed == null ? Collections.emptyMap() : removed;
 
       AbstractCacheTransaction transaction = txCtx.getCacheTransaction();
-      return asyncValue(CompletableFuture.allOf(transaction.getAllModifications().stream()
+      var stage = CompletionStages.aggregateCompletionStage();
+      var traceData = cmd.getTraceCommandData();
+      var span = DisabledInfinispanSpan.instance();
+      if (traceData != null) {
+         span = telemetry.startTraceRequest("index", traceData.attributes(SpanCategory.CONTAINER), traceData.context());
+      }
+      transaction.getAllModifications().stream()
             .filter(mod -> !mod.hasAnyFlag(FlagBitSets.SKIP_INDEXING))
             .flatMap(mod -> mod.getAffectedKeys().stream())
-            .map(key -> {
+            .forEach(key -> {
                CacheEntry<?, ?> entry = txCtx.lookupEntry(key);
                if (entry != null) {
                   Object oldValue = oldValues.getOrDefault(key, QueryInterceptor.UNKNOWN);
-                  return queryInterceptor.processChange(ctx, null, key, oldValue, entry.getValue());
+                  stage.dependsOn(queryInterceptor.processChange(ctx, null, key, oldValue, entry.getValue()));
                }
-               return CompletableFutures.completedNull();
-            })
-            .toArray(CompletableFuture[]::new)));
+
+            });
+
+      return delayedValue(stage.freeze().whenComplete(span), rv);
    }
 }

@@ -16,6 +16,7 @@ import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.transport.netty.ByteBufUtil;
 import org.infinispan.client.hotrod.impl.transport.netty.ChannelFactory;
 import org.infinispan.client.hotrod.impl.transport.netty.HeaderDecoder;
+import org.infinispan.client.hotrod.telemetry.impl.TelemetryService;
 import org.infinispan.commons.util.Util;
 
 import io.netty.buffer.ByteBuf;
@@ -35,9 +36,9 @@ public class ExecuteOperation<T> extends RetryOnFailureOperation<T> {
 
    protected ExecuteOperation(Codec codec, ChannelFactory channelFactory, byte[] cacheName,
                               AtomicReference<ClientTopology> clientTopology, int flags, Configuration cfg,
-                              String taskName, Map<String, byte[]> marshalledParams, Object key, DataFormat dataFormat) {
+                              String taskName, Map<String, byte[]> marshalledParams, Object key, DataFormat dataFormat, TelemetryService telemetryService) {
       super(EXEC_REQUEST, EXEC_RESPONSE, codec, channelFactory, cacheName == null ? DEFAULT_CACHE_NAME_BYTES : cacheName,
-            clientTopology, flags, cfg, dataFormat, null);
+            clientTopology, flags, cfg, dataFormat, telemetryService);
       this.taskName = taskName;
       this.marshalledParams = marshalledParams;
       this.key = key;

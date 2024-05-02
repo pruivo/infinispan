@@ -12,6 +12,7 @@ import org.infinispan.context.Flag;
 public abstract class AbstractFlagAffectedCommand implements FlagAffectedCommand {
 
    private long flags = 0;
+   private TraceCommandData traceCommandData;
 
    @Override
    public long getFlagsBitSet() {
@@ -20,14 +21,24 @@ public abstract class AbstractFlagAffectedCommand implements FlagAffectedCommand
 
    @Override
    public void setFlagsBitSet(long bitSet) {
-      this.flags = bitSet;
+      flags = bitSet;
    }
 
    protected final boolean hasSameFlags(FlagAffectedCommand other) {
-      return this.flags == other.getFlagsBitSet();
+      return flags == other.getFlagsBitSet();
    }
 
    protected final String printFlags() {
       return EnumUtil.prettyPrintBitSet(flags, Flag.class);
+   }
+
+   @Override
+   public void setTraceCommandData(TraceCommandData data) {
+      traceCommandData = data;
+   }
+
+   @Override
+   public TraceCommandData getTraceCommandData() {
+      return traceCommandData;
    }
 }

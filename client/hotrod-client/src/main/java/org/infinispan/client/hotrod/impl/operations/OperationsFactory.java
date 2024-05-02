@@ -1,13 +1,12 @@
 package org.infinispan.client.hotrod.impl.operations;
 
+import javax.transaction.xa.Xid;
 import java.net.SocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
-import javax.transaction.xa.Xid;
 
 import org.infinispan.client.hotrod.CacheTopologyInfo;
 import org.infinispan.client.hotrod.DataFormat;
@@ -64,7 +63,7 @@ public class OperationsFactory implements HotRodConstants {
 
    public OperationsFactory(ChannelFactory channelFactory, String cacheName, boolean forceReturnValue, ClientListenerNotifier listenerNotifier, Configuration cfg, ClientStatistics clientStatistics) {
       this.channelFactory = channelFactory;
-      this.cacheNameBytes = cacheName == null ? DEFAULT_CACHE_NAME_BYTES : RemoteCacheManager.cacheNameBytes(cacheName);
+      cacheNameBytes = cacheName == null ? DEFAULT_CACHE_NAME_BYTES : RemoteCacheManager.cacheNameBytes(cacheName);
       this.cacheName = cacheName;
       clientTopologyRef = channelFactory != null
             ? channelFactory.createTopologyId(cacheNameBytes)
@@ -74,7 +73,7 @@ public class OperationsFactory implements HotRodConstants {
       this.listenerNotifier = listenerNotifier;
       this.cfg = cfg;
       this.clientStatistics = clientStatistics;
-      this.telemetryService = TelemetryServiceFactory.INSTANCE.telemetryService(cfg.tracingPropagationEnabled());
+      telemetryService = TelemetryServiceFactory.INSTANCE.telemetryService(cfg.tracingPropagationEnabled());
    }
 
    public OperationsFactory(ChannelFactory channelFactory, ClientListenerNotifier listenerNotifier, Configuration cfg) {
@@ -99,12 +98,12 @@ public class OperationsFactory implements HotRodConstants {
 
    public <V> GetOperation<V> newGetKeyOperation(Object key, byte[] keyBytes, DataFormat dataFormat) {
       return new GetOperation<>(
-            getCodec(), channelFactory, key, keyBytes, cacheNameBytes, clientTopologyRef, flags(), cfg, dataFormat, clientStatistics);
+            getCodec(), channelFactory, key, keyBytes, cacheNameBytes, clientTopologyRef, flags(), cfg, dataFormat, clientStatistics, telemetryService);
    }
 
    public <K, V> GetAllParallelOperation<K, V> newGetAllOperation(Set<byte[]> keys, DataFormat dataFormat) {
       return new GetAllParallelOperation<>(getCodec(), channelFactory, keys, cacheNameBytes, clientTopologyRef, flags(),
-            cfg, dataFormat, clientStatistics);
+            cfg, dataFormat, clientStatistics, telemetryService);
    }
 
    public <V> RemoveOperation<V> newRemoveOperation(Object key, byte[] keyBytes, DataFormat dataFormat) {
@@ -135,7 +134,7 @@ public class OperationsFactory implements HotRodConstants {
                                                                       SocketAddress listenerServer) {
       return new GetWithMetadataOperation<>(
             getCodec(), channelFactory, key, keyBytes, cacheNameBytes, clientTopologyRef, flags(), cfg, dataFormat, clientStatistics,
-            listenerServer);
+            listenerServer, telemetryService);
    }
 
    public StatsOperation newStatsOperation() {
@@ -178,7 +177,7 @@ public class OperationsFactory implements HotRodConstants {
 
    public ContainsKeyOperation newContainsKeyOperation(Object key, byte[] keyBytes, DataFormat dataFormat) {
       return new ContainsKeyOperation(
-            getCodec(), channelFactory, key, keyBytes, cacheNameBytes, clientTopologyRef, flags(), cfg, dataFormat, clientStatistics);
+            getCodec(), channelFactory, key, keyBytes, cacheNameBytes, clientTopologyRef, flags(), cfg, dataFormat, clientStatistics, telemetryService);
    }
 
    public ClearOperation newClearOperation() {
@@ -188,7 +187,7 @@ public class OperationsFactory implements HotRodConstants {
 
    public <K> BulkGetKeysOperation<K> newBulkGetKeysOperation(int scope, DataFormat dataFormat) {
       return new BulkGetKeysOperation<>(
-            getCodec(), channelFactory, cacheNameBytes, clientTopologyRef, flags(), cfg, scope, dataFormat, clientStatistics);
+            getCodec(), channelFactory, cacheNameBytes, clientTopologyRef, flags(), cfg, scope, dataFormat, clientStatistics, telemetryService);
    }
 
    public AddClientListenerOperation newAddClientListenerOperation(Object listener, DataFormat dataFormat) {
@@ -244,7 +243,7 @@ public class OperationsFactory implements HotRodConstants {
 
    public QueryOperation newQueryOperation(RemoteQuery<?> remoteQuery, DataFormat dataFormat, boolean withHitCount) {
       return new QueryOperation(getCodec(), channelFactory, cacheNameBytes, clientTopologyRef, flags(), cfg,
-            remoteQuery, dataFormat, withHitCount);
+            remoteQuery, dataFormat, withHitCount, telemetryService);
    }
 
    public SizeOperation newSizeOperation() {
@@ -253,7 +252,7 @@ public class OperationsFactory implements HotRodConstants {
 
    public <T> ExecuteOperation<T> newExecuteOperation(String taskName, Map<String, byte[]> marshalledParams, Object key, DataFormat dataFormat) {
       return new ExecuteOperation<>(getCodec(), channelFactory, cacheNameBytes,
-            clientTopologyRef, flags(), cfg, taskName, marshalledParams, key, dataFormat);
+            clientTopologyRef, flags(), cfg, taskName, marshalledParams, key, dataFormat, telemetryService);
    }
 
    public AdminOperation newAdminOperation(String taskName, Map<String, byte[]> marshalledParams) {
@@ -273,8 +272,8 @@ public class OperationsFactory implements HotRodConstants {
    }
 
    public int flags() {
-      Integer threadLocalFlags = this.flagsMap.get();
-      this.flagsMap.remove();
+      Integer threadLocalFlags = flagsMap.get();
+      flagsMap.remove();
       int intFlags = 0;
       if (threadLocalFlags != null) {
          intFlags |= threadLocalFlags;
@@ -287,17 +286,18 @@ public class OperationsFactory implements HotRodConstants {
 
    public void setFlags(Flag[] flags) {
       int intFlags = 0;
-      for (Flag flag : flags)
+      for (Flag flag : flags) {
          intFlags |= flag.getFlagInt();
-      this.flagsMap.set(intFlags);
+      }
+      flagsMap.set(intFlags);
    }
 
    public void setFlags(int intFlags) {
-      this.flagsMap.set(intFlags);
+      flagsMap.set(intFlags);
    }
 
    public boolean hasFlag(Flag flag) {
-      Integer threadLocalFlags = this.flagsMap.get();
+      Integer threadLocalFlags = flagsMap.get();
       return threadLocalFlags != null && (threadLocalFlags & flag.getFlagInt()) != 0;
    }
 
@@ -362,6 +362,6 @@ public class OperationsFactory implements HotRodConstants {
                                                                      List<Modification> modifications,
                                                                      boolean recoverable, long timeoutMs) {
       return new PrepareTransactionOperation(getCodec(), channelFactory, cacheNameBytes, clientTopologyRef, cfg, xid,
-            onePhaseCommit, modifications, recoverable, timeoutMs);
+            onePhaseCommit, modifications, recoverable, timeoutMs, telemetryService);
    }
 }

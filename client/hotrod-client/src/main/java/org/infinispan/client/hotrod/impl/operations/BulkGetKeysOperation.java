@@ -14,6 +14,7 @@ import org.infinispan.client.hotrod.impl.protocol.Codec;
 import org.infinispan.client.hotrod.impl.transport.netty.ByteBufUtil;
 import org.infinispan.client.hotrod.impl.transport.netty.ChannelFactory;
 import org.infinispan.client.hotrod.impl.transport.netty.HeaderDecoder;
+import org.infinispan.client.hotrod.telemetry.impl.TelemetryService;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -29,9 +30,9 @@ public class BulkGetKeysOperation<K> extends StatsAffectingRetryingOperation<Set
    private final Set<K> result = new HashSet<>();
 
    public BulkGetKeysOperation(Codec codec, ChannelFactory channelFactory, byte[] cacheName,
-                               AtomicReference<ClientTopology> clientTopology, int flags, Configuration cfg, int scope, DataFormat dataFormat, ClientStatistics clientStatistics) {
+                               AtomicReference<ClientTopology> clientTopology, int flags, Configuration cfg, int scope, DataFormat dataFormat, ClientStatistics clientStatistics, TelemetryService telemetryService) {
       super(BULK_GET_KEYS_REQUEST, BULK_GET_KEYS_RESPONSE, codec, channelFactory, cacheName, clientTopology, flags, cfg,
-            dataFormat, clientStatistics, null);
+            dataFormat, clientStatistics, telemetryService);
       this.scope = scope;
    }
 

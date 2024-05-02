@@ -20,6 +20,7 @@ public abstract class AbstractDataCommand implements DataCommand, SegmentSpecifi
    // These 2 ints have to stay next to each other to ensure they are aligned together
    private int topologyId = -1;
    protected int segment;
+   private TraceCommandData traceCommandData;
 
    protected AbstractDataCommand(Object key, int segment, long flagsBitSet) {
       this.key = key;
@@ -27,11 +28,11 @@ public abstract class AbstractDataCommand implements DataCommand, SegmentSpecifi
          throw new IllegalArgumentException("Segment must be 0 or greater");
       }
       this.segment = segment;
-      this.flags = flagsBitSet;
+      flags = flagsBitSet;
    }
 
    protected AbstractDataCommand() {
-      this.segment = -1;
+      segment = -1;
    }
 
    @Override
@@ -56,7 +57,7 @@ public abstract class AbstractDataCommand implements DataCommand, SegmentSpecifi
 
    @Override
    public void setFlagsBitSet(long bitSet) {
-      this.flags = bitSet;
+      flags = bitSet;
    }
 
    @Override
@@ -103,5 +104,15 @@ public abstract class AbstractDataCommand implements DataCommand, SegmentSpecifi
 
    protected final String printFlags() {
       return prettyPrintBitSet(flags, Flag.class);
+   }
+
+   @Override
+   public void setTraceCommandData(TraceCommandData data) {
+      traceCommandData = data;
+   }
+
+   @Override
+   public TraceCommandData getTraceCommandData() {
+      return traceCommandData;
    }
 }

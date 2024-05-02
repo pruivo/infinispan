@@ -15,6 +15,7 @@ import org.infinispan.client.hotrod.impl.query.RemoteQuery;
 import org.infinispan.client.hotrod.impl.transport.netty.ByteBufUtil;
 import org.infinispan.client.hotrod.impl.transport.netty.ChannelFactory;
 import org.infinispan.client.hotrod.impl.transport.netty.HeaderDecoder;
+import org.infinispan.client.hotrod.telemetry.impl.TelemetryService;
 import org.infinispan.protostream.EnumMarshaller;
 import org.infinispan.protostream.SerializationContext;
 import org.infinispan.query.remote.client.impl.QueryRequest;
@@ -34,10 +35,10 @@ public final class QueryOperation extends RetryOnFailureOperation<Object> {
    private final boolean withHitCount;
 
    public QueryOperation(Codec codec, ChannelFactory channelFactory, byte[] cacheName, AtomicReference<ClientTopology> clientTopology,
-                         int flags, Configuration cfg, RemoteQuery<?> remoteQuery, DataFormat dataFormat, boolean withHitCount) {
-      super(QUERY_REQUEST, QUERY_RESPONSE, codec, channelFactory, cacheName, clientTopology, flags, cfg, dataFormat, null);
+                         int flags, Configuration cfg, RemoteQuery<?> remoteQuery, DataFormat dataFormat, boolean withHitCount, TelemetryService telemetryService) {
+      super(QUERY_REQUEST, QUERY_RESPONSE, codec, channelFactory, cacheName, clientTopology, flags, cfg, dataFormat, telemetryService);
       this.remoteQuery = remoteQuery;
-      this.querySerializer = QuerySerializer.findByMediaType(dataFormat.getValueType());
+      querySerializer = QuerySerializer.findByMediaType(dataFormat.getValueType());
       this.withHitCount = withHitCount;
    }
 
@@ -84,7 +85,7 @@ public final class QueryOperation extends RetryOnFailureOperation<Object> {
       if (namedParameters == null || namedParameters.isEmpty()) {
          return null;
       }
-      final SerializationContext serCtx = remoteQuery.getSerializationContext();
+      SerializationContext serCtx = remoteQuery.getSerializationContext();
       List<QueryRequest.NamedParameter> params = new ArrayList<>(namedParameters.size());
       for (Map.Entry<String, Object> e : namedParameters.entrySet()) {
          Object value = e.getValue();

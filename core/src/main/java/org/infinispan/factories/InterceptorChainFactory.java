@@ -40,6 +40,7 @@ import org.infinispan.interceptors.impl.PassivationCacheLoaderInterceptor;
 import org.infinispan.interceptors.impl.PassivationClusteredCacheLoaderInterceptor;
 import org.infinispan.interceptors.impl.PassivationWriterInterceptor;
 import org.infinispan.interceptors.impl.PessimisticTxIracLocalInterceptor;
+import org.infinispan.interceptors.impl.TracingInterceptor;
 import org.infinispan.interceptors.impl.TransactionalExceptionEvictionInterceptor;
 import org.infinispan.interceptors.impl.TransactionalStoreInterceptor;
 import org.infinispan.interceptors.impl.TxInterceptor;
@@ -111,6 +112,8 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
          interceptorChain.appendInterceptor(createInterceptor(new BatchingInterceptor(), BatchingInterceptor.class), false);
       }
       interceptorChain.appendInterceptor(createInterceptor(new InvocationContextInterceptor(), InvocationContextInterceptor.class), false);
+
+      interceptorChain.appendInterceptor(createInterceptor(new TracingInterceptor(), TracingInterceptor.class), false);
 
       if (!configuration.transaction().transactionMode().isTransactional()) {
          interceptorChain.appendInterceptor(createInterceptor(new VersionInterceptor(), VersionInterceptor.class), false);

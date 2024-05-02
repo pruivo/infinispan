@@ -32,6 +32,7 @@ public abstract class AbstractTransactionBoundaryCommand implements TransactionB
    protected final ByteString cacheName;
    private Address origin;
    private int topologyId = -1;
+   private TraceCommandData traceCommandData;
 
    public AbstractTransactionBoundaryCommand(ByteString cacheName) {
       this.cacheName = cacheName;
@@ -80,14 +81,18 @@ public abstract class AbstractTransactionBoundaryCommand implements TransactionB
       TransactionTable txTable = registry.getTransactionTableRef().running();
       RemoteTransaction transaction = txTable.getRemoteTransaction(globalTx);
       if (transaction == null) {
-         if (log.isTraceEnabled()) log.tracef("Did not find a RemoteTransaction for %s", globalTx);
+         if (log.isTraceEnabled()) {
+            log.tracef("Did not find a RemoteTransaction for %s", globalTx);
+         }
          return CompletableFuture.completedFuture(invalidRemoteTxReturnValue(txTable));
       }
       visitRemoteTransaction(transaction);
       InvocationContextFactory icf = registry.getInvocationContextFactory().running();
       RemoteTxInvocationContext ctx = icf.createRemoteTxInvocationContext(transaction, getOrigin());
 
-      if (log.isTraceEnabled()) log.tracef("About to execute tx command %s", this);
+      if (log.isTraceEnabled()) {
+         log.tracef("About to execute tx command %s", this);
+      }
       return registry.getInterceptorChain().running().invokeAsync(ctx, this);
    }
 
@@ -110,14 +115,20 @@ public abstract class AbstractTransactionBoundaryCommand implements TransactionB
       throw new UnsupportedOperationException();
    }
 
+   @Override
    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
+      if (this == o) {
+         return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+         return false;
+      }
 
       AbstractTransactionBoundaryCommand that = (AbstractTransactionBoundaryCommand) o;
-      return this.globalTx.equals(that.globalTx);
+      return globalTx.equals(that.globalTx);
    }
 
+   @Override
    public int hashCode() {
       return globalTx.hashCode();
    }
@@ -143,5 +154,15 @@ public abstract class AbstractTransactionBoundaryCommand implements TransactionB
    @Override
    public boolean isReturnValueExpected() {
       return true;
+   }
+
+   @Override
+   public TraceCommandData getTraceCommandData() {
+      return traceCommandData;
+   }
+
+   @Override
+   public void setTraceCommandData(TraceCommandData data) {
+      traceCommandData = data;
    }
 }

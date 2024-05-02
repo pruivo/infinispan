@@ -1,22 +1,38 @@
 package org.infinispan.commands;
 
+import org.infinispan.telemetry.InfinispanRemoteSpanContext;
 import org.infinispan.telemetry.InfinispanSpanAttributes;
+import org.infinispan.telemetry.SpanCategory;
+import org.infinispan.telemetry.impl.CacheSpanAttribute;
 
 public interface TracedCommand {
 
-   default InfinispanSpanAttributes getSpanAttributes() {
-      return null;
-   }
-
    default String getOperationName() {
-      if (getSpanAttributes() != null) {
-         throw new IllegalStateException("getOperationName() must be implemented when getSpanAttributes() is.");
-      }
+      return getClass().getSimpleName();
+   }
+
+   default void setTraceCommandData(TraceCommandData data) {
+      //no-op
+   }
+
+   default TraceCommandData getTraceCommandData() {
       return null;
    }
 
-   default void setSpanAttributes(InfinispanSpanAttributes attributes) {
-      //no-op
+   default void updateTraceData(CacheSpanAttribute cacheSpanAttribute) {
+      var traceData = getTraceCommandData();
+      if (traceData == null) {
+         return;
+      }
+      setTraceCommandData(new TraceCommandData(cacheSpanAttribute, traceData.context));
+   }
+
+   record TraceCommandData(CacheSpanAttribute cacheSpanAttribute, InfinispanRemoteSpanContext context) {
+
+      public InfinispanSpanAttributes attributes(SpanCategory category) {
+         return cacheSpanAttribute == null ? null : cacheSpanAttribute.getAttributes(category);
+      }
+
    }
 
 }

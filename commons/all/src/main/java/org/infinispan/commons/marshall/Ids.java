@@ -230,6 +230,8 @@ public interface Ids {
 
    Integer XSITE_COMMANDS_EXTERNALIZER = 157;
 
+   Integer TRACE_COMMAND_WRAPPER = 158;
+
    Integer COUNTER_CONFIGURATION = 2000; //from counter
    Integer COUNTER_STATE = 2001; //from counter
 }

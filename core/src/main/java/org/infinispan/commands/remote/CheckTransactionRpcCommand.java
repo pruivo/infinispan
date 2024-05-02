@@ -28,7 +28,7 @@ import org.infinispan.util.ByteString;
  */
 public class CheckTransactionRpcCommand implements CacheRpcCommand {
 
-   public static final int COMMAND_ID = 83;
+   public static final byte COMMAND_ID = 83;
    private static final ResponseCollectorImpl INSTANCE = new ResponseCollectorImpl();
 
    private final ByteString cacheName;

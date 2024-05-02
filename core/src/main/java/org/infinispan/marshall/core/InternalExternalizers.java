@@ -99,6 +99,7 @@ import org.infinispan.remoting.responses.UnsuccessfulResponse;
 import org.infinispan.remoting.responses.UnsureResponse;
 import org.infinispan.remoting.transport.jgroups.JGroupsAddress;
 import org.infinispan.remoting.transport.jgroups.JGroupsTopologyAwareAddress;
+import org.infinispan.remoting.transport.jgroups.TraceCommandWrapper;
 import org.infinispan.statetransfer.StateChunk;
 import org.infinispan.statetransfer.TransactionInfo;
 import org.infinispan.stats.impl.ClusterCacheStatsImpl;
@@ -254,6 +255,7 @@ final class InternalExternalizers {
       addInternalExternalizer(CommandInvocationId.EXTERNALIZER, exts);
       addInternalExternalizer(CacheEntryGroupPredicate.EXTERNALIZER, exts);
       addInternalExternalizer(XSiteRequestExternalizer.INSTANCE, exts);
+      addInternalExternalizer(TraceCommandWrapper.EXTERNALIZER, exts);
 
       return exts;
    }

@@ -25,6 +25,7 @@ public abstract class AbstractWriteManyCommand<K, V> implements WriteCommand, Fu
    DataConversion keyDataConversion;
    DataConversion valueDataConversion;
    Map<Object, PrivateMetadata> internalMetadataMap;
+   private TraceCommandData traceCommandData;
 
    protected AbstractWriteManyCommand(CommandInvocationId commandInvocationId,
                                       Params params,
@@ -32,20 +33,20 @@ public abstract class AbstractWriteManyCommand<K, V> implements WriteCommand, Fu
                                       DataConversion valueDataConversion) {
       this.commandInvocationId = commandInvocationId;
       this.params = params;
-      this.flags = params.toFlagsBitSet();
+      flags = params.toFlagsBitSet();
       this.keyDataConversion = keyDataConversion;
       this.valueDataConversion = valueDataConversion;
-      this.internalMetadataMap = new ConcurrentHashMap<>();
+      internalMetadataMap = new ConcurrentHashMap<>();
    }
 
    protected AbstractWriteManyCommand(AbstractWriteManyCommand<K, V> command) {
-      this.commandInvocationId = command.commandInvocationId;
-      this.topologyId = command.topologyId;
-      this.params = command.params;
-      this.flags = command.flags;
-      this.internalMetadataMap = new ConcurrentHashMap<>(command.internalMetadataMap);
-      this.keyDataConversion = command.keyDataConversion;
-      this.valueDataConversion = command.valueDataConversion;
+      commandInvocationId = command.commandInvocationId;
+      topologyId = command.topologyId;
+      params = command.params;
+      flags = command.flags;
+      internalMetadataMap = new ConcurrentHashMap<>(command.internalMetadataMap);
+      keyDataConversion = command.keyDataConversion;
+      valueDataConversion = command.valueDataConversion;
    }
 
    protected AbstractWriteManyCommand() {
@@ -107,7 +108,7 @@ public abstract class AbstractWriteManyCommand<K, V> implements WriteCommand, Fu
 
    @Override
    public void setFlagsBitSet(long bitSet) {
-      this.flags = bitSet;
+      flags = bitSet;
    }
 
    @Override
@@ -156,6 +157,16 @@ public abstract class AbstractWriteManyCommand<K, V> implements WriteCommand, Fu
 
    @Override
    public void setInternalMetadata(Object key, PrivateMetadata internalMetadata) {
-      this.internalMetadataMap.put(key, internalMetadata);
+      internalMetadataMap.put(key, internalMetadata);
+   }
+
+   @Override
+   public TraceCommandData getTraceCommandData() {
+      return traceCommandData;
+   }
+
+   @Override
+   public void setTraceCommandData(TraceCommandData data) {
+      traceCommandData = data;
    }
 }

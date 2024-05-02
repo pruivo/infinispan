@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import org.apache.lucene.search.TimeLimitingCollector.TimeExceededException;
 import org.hibernate.search.util.common.SearchException;
 import org.infinispan.AdvancedCache;
+import org.infinispan.commands.TracedCommand;
 import org.infinispan.commons.util.Util;
 import org.infinispan.query.SearchTimeoutException;
 import org.infinispan.query.core.stats.impl.LocalQueryStatistics;
@@ -22,6 +23,10 @@ import org.infinispan.query.logging.Log;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.impl.SingleResponseCollector;
+import org.infinispan.security.actions.SecurityActions;
+import org.infinispan.telemetry.InfinispanTelemetry;
+import org.infinispan.telemetry.SpanCategory;
+import org.infinispan.telemetry.impl.CacheSpanAttribute;
 import org.infinispan.util.logging.LogFactory;
 
 /**
@@ -40,6 +45,8 @@ final class ClusteredQueryInvoker {
    private final AdvancedCache<?, ?> cache;
    private final Address myAddress;
    private final QueryPartitioner partitioner;
+   private final InfinispanTelemetry telemetry;
+   private final CacheSpanAttribute spanAttribute;
 
    ClusteredQueryInvoker(AdvancedCache<?, ?> cache, LocalQueryStatistics queryStatistics) {
       this.cache = cache;
@@ -47,6 +54,8 @@ final class ClusteredQueryInvoker {
       this.queryStatistics = queryStatistics;
       this.myAddress = rpcManager.getAddress();
       this.partitioner = new QueryPartitioner(cache);
+      this.telemetry = SecurityActions.getCacheComponentRegistry(cache).getComponent(InfinispanTelemetry.class);
+      this.spanAttribute = SecurityActions.getCacheComponentRegistry(cache).getComponent(CacheSpanAttribute.class);
    }
 
    /**
@@ -68,6 +77,7 @@ final class ClusteredQueryInvoker {
          log.tracef("Broadcast query started: '%s'.", queryString);
       }
 
+      var remoteContext = telemetry.createRemoteContext();
       Map<Address, BitSet> split = partitioner.split();
       SegmentsClusteredQueryCommand localCommand = new SegmentsClusteredQueryCommand(cache.getName(), operation, split.get(myAddress));
       // sends the request remotely first
@@ -76,12 +86,14 @@ final class ClusteredQueryInvoker {
                Address address = e.getKey();
                BitSet segments = e.getValue();
                SegmentsClusteredQueryCommand cmd = new SegmentsClusteredQueryCommand(cache.getName(), operation, segments);
+               cmd.setTraceCommandData(new TracedCommand.TraceCommandData(spanAttribute, remoteContext));
                return rpcManager.invokeCommand(address, cmd, SingleResponseCollector.validOnly(),
                                                rpcManager.getSyncRpcOptions()).toCompletableFuture();
             }).map(a -> a.thenApply(r -> (QueryResponse) r.getResponseValue())).collect(Collectors.toList());
 
       // then, invoke on own node
-      CompletionStage<QueryResponse> localResponse = localInvoke(localCommand);
+      var span = telemetry.startTraceRequest("query-local-execute", spanAttribute.getAttributes(SpanCategory.CONTAINER), remoteContext);
+      CompletionStage<QueryResponse> localResponse = localInvoke(localCommand).whenComplete(span);
 
       List<QueryResponse> results = new ArrayList<>();
       try {
