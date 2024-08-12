@@ -1,19 +1,19 @@
 package org.infinispan.xsite.offline;
 
-import static java.lang.String.format;
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertTrue;
+import org.infinispan.commons.time.ControlledTimeService;
+import org.infinispan.configuration.cache.TakeOfflineConfiguration;
+import org.infinispan.configuration.cache.TakeOfflineConfigurationBuilder;
+import org.infinispan.test.AbstractInfinispanTest;
+import org.infinispan.xsite.OfflineStatus;
+import org.infinispan.xsite.notification.SiteStatusListener;
+import org.testng.annotations.Test;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
-import org.infinispan.configuration.cache.TakeOfflineConfiguration;
-import org.infinispan.configuration.cache.TakeOfflineConfigurationBuilder;
-import org.infinispan.test.AbstractInfinispanTest;
-import org.infinispan.commons.time.ControlledTimeService;
-import org.infinispan.xsite.OfflineStatus;
-import org.infinispan.xsite.notification.SiteStatusListener;
-import org.testng.annotations.Test;
+import static java.lang.String.format;
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertTrue;
 
 /**
  * @author Mircea Markus
@@ -190,7 +190,7 @@ public class OfflineStatusTest extends AbstractInfinispanTest {
             .afterFailures(afterFailures)
             .minTimeToWait(minWait)
             .create();
-      return new TestContext(new OfflineStatus(c, t, l), t, l);
+      return new TestContext(new OfflineStatus("site", c, t, l, null, null, null), t, l);
    }
 
    private static class TestContext {

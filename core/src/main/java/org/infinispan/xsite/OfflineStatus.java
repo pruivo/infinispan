@@ -1,17 +1,23 @@
 package org.infinispan.xsite;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
+import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.ThreadSafe;
+import org.infinispan.commands.CommandsFactory;
 import org.infinispan.commons.configuration.Combine;
 import org.infinispan.commons.time.TimeService;
 import org.infinispan.configuration.cache.TakeOfflineConfiguration;
 import org.infinispan.configuration.cache.TakeOfflineConfigurationBuilder;
+import org.infinispan.remoting.inboundhandler.DeliverOrder;
+import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.util.concurrent.BlockingManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.notification.SiteStatusListener;
 
-import net.jcip.annotations.GuardedBy;
-import net.jcip.annotations.ThreadSafe;
+import java.util.concurrent.ScheduledFuture;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Keeps state needed for knowing when a site needs to be taken offline.
@@ -34,15 +40,24 @@ public class OfflineStatus {
 
    private final TimeService timeService;
    private final SiteStatusListener listener;
+   private final BlockingManager blockingManager;
+   private final CommandsFactory commandsFactory;
+   private final RpcManager rpcManager;
+   private final String siteName;
    private volatile TakeOfflineConfiguration takeOffline;
+   @GuardedBy("this") private ScheduledFuture<?> takeOfflineTimer;
    @GuardedBy("this") private long firstFailureTime = NO_FAILURE;
    @GuardedBy("this") private int failureCount = 0;
    @GuardedBy("this") private boolean isOffline = false;
 
-   public OfflineStatus(TakeOfflineConfiguration takeOfflineConfiguration, TimeService timeService, SiteStatusListener listener) {
+   public OfflineStatus(String siteName, TakeOfflineConfiguration takeOfflineConfiguration, TimeService timeService, SiteStatusListener listener, BlockingManager blockingManager, CommandsFactory commandsFactory, RpcManager rpcManager) {
+      this.siteName = siteName;
       this.takeOffline = takeOfflineConfiguration;
       this.timeService = timeService;
       this.listener = listener;
+      this.blockingManager = blockingManager;
+      this.commandsFactory = commandsFactory;
+      this.rpcManager = rpcManager;
    }
 
    public synchronized void updateOnCommunicationFailure(long sendTimeMillis) {
@@ -96,6 +111,25 @@ public class OfflineStatus {
       listener.siteOffline();
       return true;
    }
+
+   public synchronized void startTakeOfflineTimer() {
+      cancelTakeOfflineTimer();
+      takeOfflineTimer = blockingManager.scheduleRunBlocking(this::takeOfflineAllNodes, 40, SECONDS, "take-offline");
+   }
+
+   private void takeOfflineAllNodes() {
+      var cmd = commandsFactory.buildXSiteTakeOfflineCommand(siteName);
+      rpcManager.sendToAll(cmd, DeliverOrder.PER_SENDER_NO_FC);
+      forceOffline();
+   }
+
+   public synchronized void cancelTakeOfflineTimer() {
+      if (takeOfflineTimer != null) {
+         takeOfflineTimer.cancel(true);
+         takeOfflineTimer = null;
+      }
+   }
+
 
    @Override
    public synchronized String toString() {

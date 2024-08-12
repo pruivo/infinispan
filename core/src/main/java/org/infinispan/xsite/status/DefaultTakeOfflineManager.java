@@ -1,6 +1,41 @@
 package org.infinispan.xsite.status;
 
-import static org.infinispan.util.logging.events.Messages.MESSAGES;
+import org.infinispan.commands.CommandsFactory;
+import org.infinispan.commons.CacheConfigurationException;
+import org.infinispan.commons.CrossSiteIllegalLifecycleStateException;
+import org.infinispan.commons.stat.MetricInfo;
+import org.infinispan.commons.time.TimeService;
+import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.configuration.cache.TakeOfflineConfiguration;
+import org.infinispan.configuration.global.GlobalConfiguration;
+import org.infinispan.configuration.global.GlobalMetricsConfiguration;
+import org.infinispan.container.impl.InternalDataContainer;
+import org.infinispan.factories.annotations.Inject;
+import org.infinispan.factories.annotations.Start;
+import org.infinispan.factories.annotations.Stop;
+import org.infinispan.factories.scopes.Scope;
+import org.infinispan.factories.scopes.Scopes;
+import org.infinispan.metrics.Constants;
+import org.infinispan.metrics.impl.MetricUtils;
+import org.infinispan.notifications.Listener;
+import org.infinispan.notifications.cachemanagerlistener.CacheManagerNotifier;
+import org.infinispan.notifications.cachemanagerlistener.annotation.SiteViewChanged;
+import org.infinispan.notifications.cachemanagerlistener.event.SitesViewChangedEvent;
+import org.infinispan.remoting.CacheUnreachableException;
+import org.infinispan.remoting.RemoteException;
+import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.remoting.transport.XSiteResponse;
+import org.infinispan.remoting.transport.jgroups.SuspectException;
+import org.infinispan.util.concurrent.BlockingManager;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
+import org.infinispan.util.logging.events.EventLogCategory;
+import org.infinispan.util.logging.events.EventLogManager;
+import org.infinispan.util.logging.events.EventLogger;
+import org.infinispan.xsite.OfflineStatus;
+import org.infinispan.xsite.XSiteBackup;
+import org.infinispan.xsite.notification.SiteStatusListener;
+import org.jgroups.UnreachableException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -13,35 +48,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.infinispan.commons.CacheConfigurationException;
-import org.infinispan.commons.CrossSiteIllegalLifecycleStateException;
-import org.infinispan.commons.stat.MetricInfo;
-import org.infinispan.commons.time.TimeService;
-import org.infinispan.configuration.cache.Configuration;
-import org.infinispan.configuration.cache.TakeOfflineConfiguration;
-import org.infinispan.configuration.global.GlobalConfiguration;
-import org.infinispan.configuration.global.GlobalMetricsConfiguration;
-import org.infinispan.container.impl.InternalDataContainer;
-import org.infinispan.factories.annotations.Inject;
-import org.infinispan.factories.annotations.Start;
-import org.infinispan.factories.scopes.Scope;
-import org.infinispan.factories.scopes.Scopes;
-import org.infinispan.metrics.Constants;
-import org.infinispan.metrics.impl.MetricUtils;
-import org.infinispan.remoting.CacheUnreachableException;
-import org.infinispan.remoting.RemoteException;
-import org.infinispan.remoting.rpc.RpcManager;
-import org.infinispan.remoting.transport.XSiteResponse;
-import org.infinispan.remoting.transport.jgroups.SuspectException;
-import org.infinispan.util.logging.Log;
-import org.infinispan.util.logging.LogFactory;
-import org.infinispan.util.logging.events.EventLogCategory;
-import org.infinispan.util.logging.events.EventLogManager;
-import org.infinispan.util.logging.events.EventLogger;
-import org.infinispan.xsite.OfflineStatus;
-import org.infinispan.xsite.XSiteBackup;
-import org.infinispan.xsite.notification.SiteStatusListener;
-import org.jgroups.UnreachableException;
+import static org.infinispan.util.logging.events.Messages.MESSAGES;
 
 /**
  * The default implementation of {@link TakeOfflineManager}.
@@ -52,6 +59,7 @@ import org.jgroups.UnreachableException;
  * @since 11.0
  */
 @Scope(Scopes.NAMED_CACHE)
+@Listener
 public class DefaultTakeOfflineManager implements TakeOfflineManager, XSiteResponse.XSiteResponseCompleted {
 
    private static final Log log = LogFactory.getLog(DefaultTakeOfflineManager.class);
@@ -65,6 +73,9 @@ public class DefaultTakeOfflineManager implements TakeOfflineManager, XSiteRespo
    @Inject EventLogManager eventLogManager;
    @Inject RpcManager rpcManager;
    @Inject InternalDataContainer<Object, Object> dataContainer;
+   @Inject CacheManagerNotifier cacheManagerNotifier;
+   @Inject BlockingManager blockingManager;
+   @Inject CommandsFactory commandsFactory;
 
    public DefaultTakeOfflineManager(String cacheName) {
       this.cacheName = cacheName;
@@ -101,9 +112,15 @@ public class DefaultTakeOfflineManager implements TakeOfflineManager, XSiteRespo
             .filter(bc -> !localSiteName.equals(bc.site()))
             .forEach(bc -> {
                String siteName = bc.site();
-               OfflineStatus offline = new OfflineStatus(bc.takeOffline(), timeService, new Listener(siteName));
+               OfflineStatus offline = new OfflineStatus(siteName, bc.takeOffline(), timeService, new Listener(siteName), blockingManager, commandsFactory, rpcManager);
                offlineStatus.put(siteName, offline);
             });
+      cacheManagerNotifier.addListener(this);
+   }
+
+   @Stop
+   public void stop() {
+      cacheManagerNotifier.removeListener(this);
    }
 
    @Override
@@ -209,6 +226,20 @@ public class DefaultTakeOfflineManager implements TakeOfflineManager, XSiteRespo
             status.reset();
          }
       }
+   }
+
+   @SiteViewChanged
+   public void onSiteViewChanged(SitesViewChangedEvent event) {
+      if (!rpcManager.getTransport().isPrimaryRelayNode()) {
+         return;
+      }
+
+      event.getJoiners().stream()
+              .map(this::getOfflineStatus)
+              .forEach(OfflineStatus::cancelTakeOfflineTimer);
+      event.getLeavers().stream()
+              .map(this::getOfflineStatus)
+              .forEach(OfflineStatus::startTakeOfflineTimer);
    }
 
    public OfflineStatus getOfflineStatus(String siteName) {
