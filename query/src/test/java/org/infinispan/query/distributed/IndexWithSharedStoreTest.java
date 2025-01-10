@@ -18,6 +18,7 @@ import org.infinispan.query.test.QueryTestSCI;
 import org.infinispan.test.MultipleCacheManagersTest;
 import org.testng.AssertJUnit;
 import org.testng.annotations.AfterClass;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 @Test(groups = "functional", testName = "query.distributed")
@@ -28,6 +29,7 @@ public class IndexWithSharedStoreTest extends MultipleCacheManagersTest {
       createCacheManager("2");
    }
 
+   @SuppressWarnings("resource")
    private void createCacheManager(String globalStateDirectory) {
       var persistentLocation = tmpDirectory(getClass().getSimpleName(), globalStateDirectory);
       //noinspection ResultOfMethodCallIgnored
@@ -48,7 +50,7 @@ public class IndexWithSharedStoreTest extends MultipleCacheManagersTest {
       }
    }
 
-   private static ConfigurationBuilder cacheConfiguration() {
+   private static ConfigurationBuilder cacheConfiguration(boolean eviction) {
       var builder = getDefaultClusteredCacheConfig(CacheMode.DIST_SYNC);
       builder.indexing().enable()
             .addIndexedEntities(Car.class)
@@ -58,7 +60,9 @@ public class IndexWithSharedStoreTest extends MultipleCacheManagersTest {
             .addStore(DummyInMemoryStoreConfigurationBuilder.class)
             .shared(true)
             .storeName(IndexWithSharedStoreTest.class.getSimpleName());
-      builder.memory().maxCount(1);
+      if (eviction) {
+         builder.memory().maxCount(1);
+      }
       return builder;
    }
 
@@ -77,10 +81,22 @@ public class IndexWithSharedStoreTest extends MultipleCacheManagersTest {
       AssertJUnit.assertEquals(expectedCar.getMake(), cars.get(0).getMake());
    }
 
-   public void testIndexesAfterRestart() {
-      var cacheName = "test-indexes-after-restart";
-      manager(0).defineConfiguration(cacheName, cacheConfiguration().build());
-      manager(1).defineConfiguration(cacheName, cacheConfiguration().build());
+   @DataProvider(name = "eviction")
+   public static Object[][] evictionEnabled() {
+      return new Object[][]{
+            {true},
+            {false},
+      };
+   }
+
+
+   @SuppressWarnings("resource")
+   @Test(dataProvider = "eviction")
+   public void testIndexesAfterNodeRestart(boolean eviction) {
+      var cacheName = "indexes-after-node-restart-" + eviction;
+      var config = cacheConfiguration(eviction).build();
+      manager(0).defineConfiguration(cacheName, config);
+      manager(1).defineConfiguration(cacheName, config);
       var cache0 = manager(0).<String, Car>getCache(cacheName);
       var cache1 = manager(1).<String, Car>getCache(cacheName);
       waitForClusterToForm(cacheName);
@@ -95,14 +111,53 @@ public class IndexWithSharedStoreTest extends MultipleCacheManagersTest {
 
       var carB = createCar("B");
       cache0.put("car1", carB);
-      cache0.put("car2", createCar("C"));
+      if (eviction) {
+         cache0.put("car2", createCar("C"));
+      } else {
+         cache0.evict("car1");
+      }
 
       createCacheManager("2");
-      manager(1).defineConfiguration(cacheName, cacheConfiguration().build());
+      manager(1).defineConfiguration(cacheName, config);
       cache1 = manager(1).getCache(cacheName);
       waitForClusterToForm(cacheName);
 
       queryAndAssert(cache0, carB);
       queryAndAssert(cache1, carB);
    }
+
+   @SuppressWarnings("resource")
+   public void testIndexesAfterClusterRestart() {
+      var cacheName = "indexes-after-cluster-restart";
+      var config = cacheConfiguration(false).build();
+      manager(0).defineConfiguration(cacheName, config);
+      manager(1).defineConfiguration(cacheName, config);
+      var cache0 = manager(0).<String, Car>getCache(cacheName);
+      var cache1 = manager(1).<String, Car>getCache(cacheName);
+      waitForClusterToForm(cacheName);
+
+      var carA = createCar("A");
+      cache0.put("car1", carA);
+
+      queryAndAssert(cache0, carA);
+      queryAndAssert(cache1, carA);
+
+      killMember(1, cacheName, true);
+
+      var carB = createCar("B");
+      cache0.put("car1", carB);
+      killMember(0, cacheName, false);
+
+      createCacheManager("1");
+      createCacheManager("2");
+      manager(0).defineConfiguration(cacheName, config);
+      manager(1).defineConfiguration(cacheName, config);
+      cache0 = manager(0).getCache(cacheName);
+      cache1 = manager(1).getCache(cacheName);
+      waitForClusterToForm(cacheName);
+
+      queryAndAssert(cache0, carB);
+      queryAndAssert(cache1, carB);
+   }
+
 }
